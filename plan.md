@@ -322,8 +322,9 @@ FoundationModels records every tool call and its output as transcript entries bu
 segments** — the custom-segment pattern — rather than dissolving into a text blob:
 
 - **Lifecycle is first-class in the caller's transcript.** `start` writes a `started`
-  segment (runId, agent, slot) at the moment of delegation; the `check`/`send` that harvests
-  the outcome writes `finished`/`failed`. Replaying the calling transcript reconstructs the
+  segment (runId, agent, slot) at the moment of delegation; the `check` that harvests the
+  outcome writes `finished`/`failed` (a foreground `run` returns `finished` directly).
+  Replaying the calling transcript reconstructs the
   delegation timeline — who was started, when, on what, and how each ended — without
   parsing prose. A transcript UI renders agent chips/timeline straight from the segments.
 - **The model reads the same structure.** Tool output is model-visible, so the root model
@@ -331,9 +332,10 @@ segments** — the custom-segment pattern — rather than dissolving into a text
   wording — which is what makes `check`-based multitasking reliable.
 - **Honesty about timing:** a tool can only write to the transcript inside its own call, so
   a *background* run's completion appears in the caller's transcript at the harvesting
-  `check`/`send` — the live, continuous view is `AgentActivity` (§8.1); the calling
-  transcript records the **interaction points**. A finished run's final text enters the
-  caller's context exactly once, as that harvesting event's `result`.
+  `check` — the live, continuous view is `AgentActivity` (§8.1); the calling transcript
+  records the **interaction points**. A finished run's final text enters the caller's
+  context exactly once, as that harvesting `finished` event's `result` (`sent` deliberately
+  carries none — a follow-up's outcome arrives via its own later `check`).
 - **The two records cross-link.** The caller's `started` segment carries the runId; the
   run's own `transcript.jsonl` (§9) carries the same runId — caller timeline and sub-agent
   detail join on it.
@@ -361,7 +363,7 @@ This plan **supersedes** two assumptions in the sibling plans:
    plan has been updated to match (its decisions #17 and #19, and M1): Skills exports
    `FrontmatterDocument` and `FolderStack` as public API, and `FolderStack`'s `EntryKind`
    supports **file-shaped entries** (flat `*.md`, recursive scan) alongside directory-shaped
-   ones (`name/SKILL.md`). Sequencing: our M1 needs Skills M1–M2 done.
+   ones (`name/SKILL.md`). Sequencing: our M1 needs Skills M1; our M2 needs Skills M1–M2.
 2. **FoundationModelsRouter** — its plan marked FoundationModels interop "available but not
    load-bearing." It is load-bearing now: the Router must expose a routed slot as an FM
    `LanguageModel` (e.g. `RoutedLLM.foundationModel` or
@@ -424,7 +426,7 @@ fallback paths.
     `@Generable AgentEvent` (`started` / `running` / `finished` / `failed` / `sent` /
     `cancelled` / `gone`) that lands in the calling session's `Transcript` as a structured
     segment — lifecycle first-class in the caller's record, model-visible, UI-renderable.
-    Background completions surface at the harvesting `check`/`send`; live state is
+    Background completions surface at the harvesting `check`; live state is
     `AgentActivity`'s job. *(Confirm segment representation against the shipping WWDC26
     SDK.)*
 
@@ -476,9 +478,10 @@ let root = LanguageModelSession(
 
 Core types: `AgentDefinition` (parsed file), `AgentListing` (metadata view: name,
 description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment`,
-`ToolCatalog`, `ModelMapping`, `AgentRunner` (actor), `AgentRun` (handle: `id: ULID`,
-`state`, `result()`, `send(_:)`, `cancel()`), `AgentRunState` (`queued`, `running`,
-`finished(String)`, `failed(AgentRunFailure)`, `cancelled`), `AgentActivity`
+`ToolCatalog`, `ModelMapping`, `AgentsTool` + its `AgentEvent` output (§8.2),
+`AgentRunner` (actor), `AgentRun` (handle: `id: ULID`, `state`, `result()`, `send(_:)`,
+`cancel()`), `AgentRunState` (`queued`, `running`, `finished(String)`,
+`failed(AgentRunFailure)`, `cancelled`), `AgentRunFailure`, `AgentActivity`
 (`@MainActor @Observable`; `AgentRunSnapshot`, `SlotLane`, `AgentColor` — §8.1),
 `AgentDiagnostic`.
 
