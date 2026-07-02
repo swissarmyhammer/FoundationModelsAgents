@@ -21,15 +21,20 @@ the generic stacked-folder machinery comes from
   **special tool result**: every action returns a typed `AgentEvent` that lands in the
   calling session's transcript as a structured segment (§8.2), so agent starts/stops are
   first-class entries in the caller's record, not prose.
-- **A sub-agent is a fresh, isolated session.** Each run gets its own
-  `LanguageModelSession`: its own context window, its own system prompt (the definition body),
-  its own tool set, its own working directory. It sees only the task prompt the caller
-  composed — never the parent's transcript. Only its **final text** returns to the caller.
+- **One session system, one recording system.** An agent is a *utility that drives
+  activity in a session*. Every run is a **Router session** — a child in the Router's
+  lineage-nested recording tree — so there is exactly one transcript model, one event
+  vocabulary, and one thing to observe: **the session** (§7, §8.3, §9).
+- **A sub-agent is a fresh, isolated session — a *routed* one.** Each run gets its own
+  tool-capable `RoutedSession`: its own context, its own system prompt (the definition
+  body), its own tool set, its own working directory. It sees only the task prompt the
+  caller composed — never the parent's context (unless deliberately *forked*, §7). Only its
+  **final text** returns to the caller.
 - **Definition ≠ run ≠ session.** An `AgentDefinition` is authored data; an `AgentRun` is
-  one delegated task — the unit of identity, scheduling, cancellation, recording, and UI —
-  and it **owns** its session, which is never vended (§7.1). One definition, many concurrent
-  runs; follow-ups go through the run, whose session (and context) lives as long as the run
-  handle.
+  one delegated task — the unit of scheduling, cancellation, and UI — and it **drives**
+  exactly one session, which is never vended (§7.1). The run's id **is** its session's id.
+  One definition, many concurrent runs; follow-ups go through the run, whose session (and
+  context) lives as long as the run handle.
 - **Descriptions are the delegation contract.** Agent catalogs are small (unlike skills), so
   each agent's `name` + `description` are baked directly into the `AgentsTool` surface — the
   root model reads them to decide when and where to delegate. No separate search agent.
@@ -54,7 +59,7 @@ the generic stacked-folder machinery comes from
 │   AgentsTool — one core FoundationModels.Tool: list / run / start /        │
 │                check / send / cancel                                       │
 │   AgentRunner — actor: parallel runs, fair admission, cancellation         │
-│   AgentRun — one delegated task: owns its session; identity, state, result │
+│   AgentRun — drives ONE RoutedSession (run id = session id); state, result │
 │   AgentActivity — @Observable per-profile dashboard (runs + slot lanes)    │
 ├─ Layer 3  AgentRegistry  (domain validation + semantics) ──────────────────┤
 │   Claude sub-agent frontmatter validation, name identity + precedence,     │
@@ -144,11 +149,13 @@ reads the same words.
 - **No nested agents in v1.** The `AgentsTool` is never placed in a sub-agent's tool set,
   and a definition listing it draws a diagnostic. (Claude allows depth 5; we start at 1 —
   a depth-limited nesting option is a clean later extension.)
-- **`skills:` preload** — when the environment carries a `SkillsRegistry`, each listed
-  skill's **rendered body** is appended to the sub-agent's instructions at run start (full
-  content, not just the description — Claude's `skills` semantics). Missing or
-  `disable-model-invocation` skills are skipped with a diagnostic. Without a registry, the
-  field draws a diagnostic.
+- **`skills:` preload — a formal Skills dependency.** The environment carries a
+  `SkillsRegistry` (non-optional; an empty registry is fine), and each listed skill's
+  **rendered body** is appended to the sub-agent's instructions at run start (full content,
+  not just the description — Claude's `skills` semantics). Missing or
+  `disable-model-invocation` skills are skipped with a diagnostic. This is the second half
+  of the Skills dependency: layers 1–2 for the definition stack (§2), `SkillsRegistry` for
+  preload (§10).
 - **`maxTurns`** — FM's session runs its tool loop inside one `respond` call, so we enforce
   the bound structurally: every tool handed to the run is wrapped in a **counting decorator**;
   when the count crosses `maxTurns` the run is cancelled and reports
@@ -171,7 +178,7 @@ The alias table lives in a `ModelMapping` value (default above, host-overridable
 Claude-authored agent file runs unmodified while our canonical vocabulary stays
 slot-shaped.
 
-## 7. Execution — one run, one session
+## 7. Execution — one run drives one routed session
 
 `AgentRun` is one delegated task:
 
@@ -179,22 +186,40 @@ slot-shaped.
    listing, same backstop pattern as `SkillsTool.call`).
 2. **Assemble** instructions = definition body + rendered `skills:` preloads; tools = §5
    resolution, each wrapped in the counting decorator; model = §6 slot.
-3. **Run** a fresh **native `LanguageModelSession`** over the slot's resident model (via the
-   Router's FoundationModels interop — `MLXLanguageModel`; §10), submitting the caller's
-   task prompt. Apple's framework drives the tool loop, `@Generable` availability, etc.
+3. **Spawn** a **tool-capable `RoutedSession`** over the slot's resident model (§10's Router
+   growth) with the assembled instructions and tools, and submit the caller's task prompt.
+   The FM tool loop (via the `MLXLanguageModel` interop) runs *inside* the session's
+   recorded chokepoint — every prompt, response, `toolCall`, and `toolOutput` is a recorded
+   session event.
 4. **Return** the session's final text as the run's result. Tool traffic, intermediate
    turns, and context stay inside the run.
 
-Why native `LanguageModelSession` and not the Router's `RoutedSession`: sub-agents are
-useful *because they can use tools*, `RoutedSession` has no tool surface, and the Skills
-package already targets core `FoundationModels.Tool` — one tool ecosystem end to end.
-The trade: the FM interop path delegates KV-cache management to FoundationModels, so
-Router-level `fork()` prefix reuse is unavailable to agent runs, and the Router's
-structural transcript recording doesn't see them — the runner records instead (§9).
+**Agent runs are Router sessions — not a parallel session system.** The session is the unit
+of recording, lineage, residency, and observation; the agent is a utility that drives
+activity in it:
 
-Every run has a **`workingDirectory`** (defaults to its recording directory, override per
-run) for cooperative filesystem isolation between concurrent agents — the same model as
-Router sessions.
+- **Lineage is delegation.** A run started from a routed calling session is a **child
+  session** — `parentId` = the caller, recording directory nested under the caller's — so
+  the Router's on-disk session tree *is* the delegation tree. A host-driven run with no
+  calling session is a root session under the Router.
+- **Two child flavors.** **`spawn`** — fresh context: own instructions (the agent body),
+  own tools, empty cache — the named-agent case. **`fork`** — inherits the caller's context
+  and prefilled KV prefix — Claude's fork-the-conversation case, which also recovers KV
+  prefix reuse for template fan-outs. Both are children in one tree; both queue at the
+  Router's admission gate.
+- **Recording is structural, once.** Sessions are born holding the Router's recorder; the
+  bracketed chokepoint sees the whole tool loop. No agents-side recording system exists (§9).
+
+This requires the Router to grow (§10): tool-capable sessions, a `spawn` sibling to
+`fork()`, and a live event tap on the recorder. *(Engineering risk: reconciling the
+session-owned KV cache with an FM-driven tool loop. Worst case, tool-capable sessions
+delegate cache management to FM and lose `fork()` KV reuse on those sessions — while
+recording, lineage, residency, and the gates still unify. Verify against the shipping
+WWDC26 SDK.)*
+
+Every run's session has the Router's **`workingDirectory`** semantics — defaults to its
+recording directory, overridable per run — for cooperative filesystem isolation between
+concurrent agents.
 
 ### 7.1 Agents ↔ runs ↔ sessions — the object model
 
@@ -204,24 +229,23 @@ Three nouns, deliberately distinct — the Router's authored/resolved split, app
 AgentDefinition  (authored file)     static data; no runtime state; one per name
       │  runner.start(name, prompt)
       ▼
-AgentRun  (id: ULID)                 ONE delegated task — the unit of identity,
-      │  owns; never vends           scheduling, cancellation, recording, and UI
+AgentRun  (id = session id)          ONE delegated task — the unit of scheduling,
+      │  drives; never vends         cancellation, and UI
       ▼
-LanguageModelSession  (internal)     the run's private generation engine over a
-                                     Router slot; born and released with its run
+RoutedSession  (internal)            the run's engine IN the Router's session and
+                                     recording tree; born and released with its run
 ```
 
 - **One definition, many runs.** Concurrent runs of the same agent are fully independent —
-  separate sessions, contexts, working directories, transcripts. The run id (not the agent
-  name) is the key everywhere at runtime: `check`, `send`, `cancel`, activity rows,
-  transcript directories.
-- **A run owns exactly one session** for its whole life, and the session is **never
-  vended** — the Router's "no side door" rule, applied one level up. Everything crosses the
-  run: prompts in, final text out, state observed.
-- **A run retains the profile.** The native-session path forgoes the Router's structural
-  `RoutedSession.profile` retention, so the run itself retains its environment's
-  `LanguageModelProfile` — resident models cannot be evicted mid-run, and the profile frees
-  only after every run (and the runner) is released. Same invariant, re-established here.
+  separate sessions, contexts, working directories, transcripts. The run id **is the
+  session id** — one ULID names the run in `check`/`send`/`cancel`, the activity row, and
+  the session's transcript directory in the Router tree.
+- **A run drives exactly one session** for its whole life, and the session is **never
+  vended** — the Router's "no side door" rule holds. Everything crosses the run: prompts
+  in, final text out; the session itself is what gets recorded and observed (§8.3, §9).
+- **Residency is structural.** A `RoutedSession` retains its profile — the Router's own
+  invariant — so resident models cannot be evicted mid-run, with nothing re-established at
+  the agents layer.
 - **Runs are resumable while retained.** Because the run keeps its session, a follow-up
   continues the same context after `finished` — `run.send(_:)` from Swift, the `send(runId,
   prompt)` action from the model (Claude's resume semantics: a new invocation is fresh;
@@ -340,48 +364,44 @@ segments** — the custom-segment pattern — rather than dissolving into a text
   records the **interaction points**. A finished run's final text enters the caller's
   context exactly once, as that harvesting `finished` event's `result` (`sent` deliberately
   carries none — a follow-up's outcome arrives via its own later `check`).
-- **The two records cross-link.** The caller's `started` segment carries the runId; the
-  run's own `transcript.jsonl` (§9) carries the same runId — caller timeline and sub-agent
-  detail join on it.
+- **The records are one tree.** The runId in the caller's `started` segment *is* the
+  agent's session id, and that session's `transcript.jsonl` is nested under the caller's in
+  the Router tree (§9) — caller timeline and sub-agent detail join by lineage, not by
+  side-band correlation.
 - *(Confirm against the shipping WWDC26 SDK how structured tool output is represented in
   `Transcript` segments — same verification item as Skills decision #18.)*
 
-### 8.3 Live progress — where in-flight events come from
+### 8.3 Live progress — observe the session
 
-A running agent's progress (its sub-tool calls, turns, tokens) is reported through **two
-taps the runner owns** — neither is the Router's recorder, which never sees agent runs (§7):
+**The thing to observe is the session.** Because agent runs are routed sessions (§7),
+every prompt, response, sub-tool call, and tool output already flows through the Router's
+recorder chokepoint as a typed, totally-ordered event (`seq`/`ts`, the schema in §9).
+Progress is that same stream, delivered live:
 
-- **The tool decorator (§5) is the real-time tap.** Every tool handed to a run is already
-  wrapped once, for `maxTurns`; the same wrapper emits a progress event on the way into and
-  out of every sub-tool call. That single chokepoint feeds three consumers *as it happens*:
-  `AgentActivity`'s `lastEvent`/snapshots (§8.1), the run's `events` stream (below), and the
-  per-run JSONL `toolCall`/`toolOutput` records (§9). No tool call escapes the wrapper, so
-  mid-run visibility is structural, not best-effort.
-- **The run's session transcript is the turn-level tap.** The run's `LanguageModelSession`
-  is `@Observable`; the runner observes its `Transcript` for turn boundaries, response
-  segments, and token counts. *(Confirm against the shipping WWDC26 SDK how live the
-  transcript is while a `respond` is in flight; if it settles only per turn, the decorator
-  remains the sole real-time source and nothing else changes.)*
-- **The Router's role, stated exactly:** the Router supplies the **resident model** behind
-  the run's session (the §10 interop) and **serializes generation** at its per-model gate —
-  which is why §8.1's `lanes` can show who is generating versus queued. It does **not**
-  supply the event feed: agent runs are native FM sessions, invisible to the Router's
-  structural recorder (§7, §9), which is precisely why the runner owns both taps above.
-
-Hosts that want more than the dashboard consume the stream directly:
-`AgentRun.events: AsyncStream<AgentRunEvent>` — `.toolCall(name:)`, `.toolOutput(name:)`,
-`.turnCompleted(tokensIn:tokensOut:)`, `.stateChanged(AgentRunState)` — finishing when the
-run reaches a terminal state. `AgentActivity` is itself just this stream folded on the main
-actor.
+- **One tap: the recorder.** The Router grows a live event surface (§10) — each session
+  event is published as it is appended. `AgentRun.events: AsyncStream<TranscriptEvent>` is
+  the run's session filtered out of that feed, finishing at terminal state; `AgentActivity`
+  (§8.1) is the feed folded on the main actor — `lastEvent` is the latest `toolCall`, token
+  counts come from the recorded turn events. One vocabulary, no duplicate stream.
+- **The §5 decorator stays for enforcement, not eventing.** `maxTurns` counting rides the
+  wrapped tools; tool events reach observers through the recorder like everything else.
+- **The Router's role, stated exactly:** it supplies the resident model, the per-model
+  serial gate (why §8.1's `lanes` are truthful), the session itself, **and the event
+  feed** — because the session *is* a Router session. Nothing about progress lives outside
+  the session record model.
 
 ## 9. Recording & diagnostics
 
-- Every run is recorded: the runner takes a recordings root and writes one
-  `agents/<runId>/transcript.jsonl` per run — **same JSONL shape as the Router's** events
-  (`{ runId, agent, slot, model, seq, ts, kind: "prompt"|"response"|"toolCall"|"toolOutput", … }`),
-  sourced from the FM session's `Transcript` after each turn. ULID run ids keep the tree
-  time-sortable. Best-effort, off the hot path, `.jsonl` / `.inMemory` / `.none` sinks —
-  the Router's recording philosophy, re-applied where its structural chokepoint can't reach.
+- **One recording system: the Router's.** An agent run's transcript is its session's
+  `transcript.jsonl` in the Router's lineage-nested tree
+  (`recordings/<routerId>/<caller…>/<sessionId>/`) — spawned/forked runs nest under their
+  calling session; host-driven runs are roots. Events carry the Router's provenance schema
+  (`{ routerId, sessionId, parentId, slot, model, seq, ts, kind:
+  "session"|"prompt"|"response"|"toolCall"|"toolOutput", … }`); the agents package **adds
+  only metadata** — the agent `name` stamped on the session's opening event — so "which
+  agent was this" is answerable from the record. Merged `**/transcript.jsonl` ordering,
+  `.jsonl`/`.inMemory`/`.none` sinks, redaction levels: all inherited from the Router, none
+  re-implemented.
 - **Diagnostics are data:** the registry exposes `[AgentDiagnostic]` (duplicate names,
   invalid frontmatter, unsupported fields, unknown tools/skills, unmappable models) so a
   host can render a doctor view; nothing valid is blocked by something invalid next to it.
@@ -390,17 +410,25 @@ actor.
 
 This plan **supersedes** two assumptions in the sibling plans:
 
-1. **FoundationModelsSkills** — its decision #17 / milestone M7 originally placed the future
-   `AgentRegistry` *inside* the Skills target. It now lives **here** instead, and the Skills
-   plan has been updated to match (its decisions #17 and #19, and M1): Skills exports
-   `FrontmatterDocument` and `FolderStack` as public API, and `FolderStack`'s `EntryKind`
-   supports **file-shaped entries** (flat `*.md`, recursive scan) alongside directory-shaped
-   ones (`name/SKILL.md`). Sequencing: our M1 needs Skills M1; our M2 needs Skills M1–M2.
-2. **FoundationModelsRouter** — its plan marked FoundationModels interop "available but not
-   load-bearing." It is load-bearing now: the Router must expose a routed slot as an FM
-   `LanguageModel` (e.g. `RoutedLLM.foundationModel` or
-   `makeLanguageModelSession(tools:instructions:)` via `MLXLanguageModel`), so agent runs
-   inherit residency, the per-model serial gate, and provenance. A small, additive change.
+1. **FoundationModelsSkills** — a **formal, two-part dependency**. (a) Its decision #17 /
+   milestone M7 originally placed the future `AgentRegistry` *inside* the Skills target; it
+   now lives **here** instead, and the Skills plan has been updated to match (its decisions
+   #17 and #19, and M1): Skills exports `FrontmatterDocument` and `FolderStack` as public
+   API, and `FolderStack`'s `EntryKind` supports **file-shaped entries** (flat `*.md`,
+   recursive scan) alongside directory-shaped ones (`name/SKILL.md`). (b) The `skills:`
+   preload capacity (§5) consumes `SkillsRegistry` — Skills' Layer 3 — directly.
+   Sequencing: our M1 needs Skills M1; our M2 needs Skills M1–M2; our M6's preload needs
+   Skills M3 (`SkillsRegistry`).
+2. **FoundationModelsRouter** — the biggest supersession: agent runs are **routed
+   sessions**, so the Router grows three things. (a) **Tool-capable sessions** —
+   `makeSession(tools:instructions:…)` runs the FM interop tool loop (`MLXLanguageModel`)
+   *inside* the recorded chokepoint, emitting the `toolCall`/`toolOutput` events its
+   transcript schema already defines. (b) **`spawn`** — a child-session primitive beside
+   `fork()`: lineage (`parentId`, nested recording directory) with a *fresh* cache and its
+   own instructions/tools, for fresh-context agents. (c) A **live recorder tap** — an
+   observable/streaming surface over appended events, feeding §8.3. Its plan's "interop
+   available but not load-bearing" is superseded: the interop is load-bearing and lives
+   *inside* `RoutedSession`. *(Risk: session-owned KV vs an FM-driven tool loop — §7.)*
 
 Packaging: **single SwiftPM target `FoundationModelsAgents`**, depending on
 `FoundationModelsRouter` and `FoundationModelsSkills` (both as local/sibling packages during
@@ -423,19 +451,25 @@ fallback paths.
 5. **Models → slot-mapped**: `standard` / `flash` / `inherit` canonical; Claude aliases map
    (`opus`/`sonnet`/`fable` → standard, `haiku` → flash) via an overridable `ModelMapping`;
    literal model ids draw a diagnostic and fall back to `inherit`.
-6. **Execution → native `LanguageModelSession`** over Router-resident models via
-   `MLXLanguageModel` — Apple drives the tool loop; `RoutedSession` stays the no-tools
-   generation surface. Fork-style KV reuse is explicitly given up for agent runs.
+6. **Execution → tool-capable `RoutedSession`s.** Agent runs are Router sessions — `spawn`
+   for fresh-context named agents, `fork` for context-inheriting ones — with the FM tool
+   loop (`MLXLanguageModel`) running *inside* the recorded chokepoint. One session system;
+   recording, lineage, residency, and the gates are inherited, and `fork` recovers KV
+   prefix reuse. *(Supersedes the earlier native-`LanguageModelSession` choice; Router
+   growth in §10; KV-vs-FM-loop risk in §7.)*
 7. **Tools → host `ToolCatalog`**; omit = inherit all; `disallowedTools` then `tools`
    (Claude order); unknown names diagnosed. No nested agents in v1.
-8. **`skills:` preload → rendered bodies appended to instructions** at run start, via an
-   optional `SkillsRegistry` (full content, Claude semantics).
+8. **`skills:` preload → rendered bodies appended to instructions** at run start, via the
+   environment's `SkillsRegistry` — a **formal Skills dependency**, non-optional (an empty
+   registry is fine; missing skills are diagnostics). Full content, Claude semantics.
 9. **`maxTurns` → counting tool decorator**; crossing the bound cancels the run.
 10. **Parallelism → `AgentRunner` actor** with fair FIFO admission (`maxConcurrentAgents`),
     structured cancellation, background runs by id, `@Observable AgentActivity` for UI.
     Per-model serialization acknowledged, not hidden.
-11. **Recording → per-run JSONL** in the Router's event shape, from the FM `Transcript`,
-    best-effort; `.jsonl` / `.inMemory` / `.none`.
+11. **Recording → the Router's, unchanged** (§9). A run's transcript is its session's
+    `transcript.jsonl` in the Router's lineage tree, nested under its caller; the agents
+    package adds only the agent-name stamp on the opening event. No parallel recording
+    system.
 12. **Foreground parallel `run` relies on FM parallel tool-call execution.** *(Confirm
     against the shipping WWDC26 SDK; if tool calls execute serially, the `start`/`check`
     path is the parallel primitive and `run` stays correct, just sequential.)*
@@ -445,10 +479,10 @@ fallback paths.
 14. **Packaging → single SwiftPM target**, macOS 27+ / Swift 6.1, sibling-package
     dependencies on Router and Skills.
 15. **Object model → definition ≠ run ≠ session** (§7.1). `AgentDefinition` is data;
-    `AgentRun` is the unit of identity/scheduling/recording/UI, **owns exactly one
-    never-vended session**, and **retains the profile** (the Router's residency invariant,
-    re-established one level up). Runs are **resumable while retained** — `run.send(_:)` /
-    the `send` action continue the same context; release frees session and context.
+    `AgentRun` is the unit of scheduling/cancellation/UI and **drives exactly one
+    never-vended routed session** — run id = session id; residency is the session's own
+    Router invariant. Runs are **resumable while retained** — `run.send(_:)` / the `send`
+    action continue the same context; release frees session and context.
 16. **Observability → per-profile `AgentActivity`** (`@MainActor @Observable`, §8.1): one
     runner per resolved profile, run snapshots + per-slot **lanes** that visualize the
     serial gates; the `color:` field is consumed here for stable agent badges. Sequential
@@ -461,14 +495,11 @@ fallback paths.
     Background completions surface at the harvesting `check`; live state is
     `AgentActivity`'s job. *(Confirm segment representation against the shipping WWDC26
     SDK.)*
-18. **Router enters through the environment; progress comes from the runner's taps**
+18. **Router enters through the environment; progress is the session's record stream**
     (§2, §8.3). The registry is model-free; the Router's single entry point is
-    `AgentEnvironment.profile`. In-flight events (sub-tool calls, turns, tokens) come from
-    the tool decorator (real-time) and the run's `@Observable` session transcript
-    (turn-level) — surfaced as `AgentRun.events: AsyncStream<AgentRunEvent>` and folded
-    into `AgentActivity`. The Router supplies the model and the serial gate, never the
-    event feed. *(Confirm mid-`respond` transcript liveness against the shipping WWDC26
-    SDK.)*
+    `AgentEnvironment.profile`. Because runs are Router sessions, the live event feed *is*
+    the recorder's stream — surfaced as `AgentRun.events: AsyncStream<TranscriptEvent>` and
+    folded into `AgentActivity`; the §5 decorator remains for `maxTurns` enforcement only.
 
 ## 12. Public API sketch (illustrative)
 
@@ -490,16 +521,15 @@ let env = AgentEnvironment(
   defaultSlot: .flash,                         // what `inherit` means here
   modelMapping: .default,                      // Claude aliases → slots
   tools: catalog,                              // ToolCatalog: name → Tool factory
-  skills: skillsRegistry,                      // optional: powers `skills:` preload
-  maxConcurrentAgents: 4,
-  recordingsDir: recordingsURL
+  skills: skillsRegistry,                      // SkillsRegistry — `skills:` preload (may be empty)
+  maxConcurrentAgents: 4                       // recordings live with the Router (§9)
 )
 let runner = AgentRunner(registry: agents, environment: env)
 
-// Host-driven fan-out — no root session required:
+// Host-driven fan-out — root sessions under the Router; no calling session:
 let run = try await runner.start("code-reviewer", prompt: "Review:\n\(diff)")
 Task {                                         // live in-flight progress (§8.3):
-  for await event in run.events { … }          // .toolCall("grep"), .turnCompleted, …
+  for await event in run.events { … }          // the session's TranscriptEvents, live
 }
 let report = try await run.result()            // final text; run.state observable
 let more   = try await run.send("Now check the tests too")   // same session, same context
@@ -526,9 +556,9 @@ let root = LanguageModelSession(
 Core types: `AgentDefinition` (parsed file), `AgentListing` (metadata view: name,
 description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment`,
 `ToolCatalog`, `ModelMapping`, `AgentsTool` + its `AgentEvent` output (§8.2),
-`AgentRunner` (actor), `AgentRun` (handle: `id: ULID`, `state`, `events`, `result()`,
-`send(_:)`, `cancel()`), `AgentRunEvent` (the `events` stream element — §8.3),
-`AgentRunState` (`queued`, `running`, `finished(String)`,
+`AgentRunner` (actor), `AgentRun` (handle: `id: ULID` — the session id, `state`, `events`
+— a live stream of the session's Router `TranscriptEvent`s (§8.3), `result()`, `send(_:)`,
+`cancel()`), `AgentRunState` (`queued`, `running`, `finished(String)`,
 `failed(AgentRunFailure)`, `cancelled`), `AgentRunFailure`, `AgentActivity`
 (`@MainActor @Observable`; `AgentRunSnapshot`, `SlotLane`, `AgentColor` — §8.1),
 `AgentDiagnostic`.
@@ -541,21 +571,22 @@ description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment
 - **M2 — `AgentRegistry` on `FolderStack`.** Stacked roots, recursive file entries,
   full-replace precedence, duplicate diagnostics, watch/reload, `listing()`. *(Needs Skills
   M2 + the file-entry generalization.)*
-- **M3 — Execution substrate.** Router interop (`RoutedLLM` → FM `LanguageModel`); one
-  `AgentRun` end to end: instructions + resolved tools + slot → native session → final text.
-  *(Needs the Router interop addition.)*
+- **M3 — Execution substrate (the Router growth).** Tool-capable routed sessions, `spawn`,
+  live recorder tap (§10); one `AgentRun` end to end: instructions + resolved tools + slot
+  → spawned routed session → final text. *(The heaviest cross-repo milestone.)*
 - **M4 — `AgentsTool`.** list/run on core `FoundationModels.Tool`; typed `AgentEvent`
   output landing as structured segments in the calling transcript (§8.2); live-registry
   deref with stale-name backstop; delegation proven from a root session.
 - **M5 — Scheduler + observability.** `AgentRunner` admission gate, background
-  `start`/`check`/`send`/`cancel`, structured cancellation, resumable runs (§7.1);
-  progress taps — decorator events + session-transcript observation — feeding
-  `run.events` (§8.3) and `AgentActivity` with run snapshots + slot lanes (§8.1);
-  `background: true` routing.
-- **M6 — Semantics fill-in.** `skills:` preload, `disallowedTools` order, `maxTurns`
-  decorator, model-mapping diagnostics, workingDirectory isolation.
-- **M7 — Recording + polish.** Per-run JSONL transcripts, diagnostics surface, docs +
-  examples (a review fan-out sample app).
+  `start`/`check`/`send`/`cancel`, structured cancellation, resumable runs (§7.1); the
+  recorder's live feed surfaced as `run.events` (§8.3) and folded into `AgentActivity`
+  with run snapshots + slot lanes (§8.1); `background: true` routing.
+- **M6 — Semantics fill-in.** `skills:` preload *(needs Skills M3 — `SkillsRegistry`)*,
+  `disallowedTools` order, `maxTurns` decorator, model-mapping diagnostics,
+  workingDirectory isolation.
+- **M7 — Lineage + polish.** Agent-name stamping on session events, delegation-tree
+  assertions over the Router recordings tree, diagnostics surface, docs + examples (a
+  review fan-out sample app).
 
 ## 14. Testing
 
@@ -571,7 +602,9 @@ tool use → final text back); two concurrent runs on different slots make progr
 independently; `check`/`cancel` behave; a `send` follow-up continues a run's context;
 `run.events` surfaces a sub-tool call *while the run is still in flight* (§8.3); the
 calling session's transcript carries the run's `started`/`finished` structured segments
-(§8.2); a run's `transcript.jsonl` lands under its run id.
+(§8.2); a spawned run's `transcript.jsonl` nests under its calling session in the Router
+tree, its tool calls appear as recorded `toolCall`/`toolOutput` events, and the merged log
+stays totally ordered by `(ts, seq)`.
 
 ---
 
