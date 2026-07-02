@@ -77,8 +77,12 @@ the generic stacked-folder machinery comes from
 - **`AgentRegistry`** (Layer 3, the source of truth) — wraps a `FolderStack<Agent>`; adds
   Claude-compatible validation (§4), identity + precedence (§3), tool-list resolution (§5),
   model mapping (§6), and skills preload (§5). Reloadable; publishes refreshed metadata.
+  **Model-free**: the registry is pure files + validation; the Router never enters here
+  (§6's mapping produces a *slot name*, not a model).
 - **FM adapter** (Layer 4) — `AgentsTool`, `AgentRunner`, `AgentRun`, all reading the
-  registry and executing over Router-vended models.
+  registry and executing over Router-vended models. **The Router enters exactly once,
+  through `AgentEnvironment.profile`** — a Router-resolved `LanguageModelProfile` (§7, §12);
+  everything model-shaped flows from that one handle.
 
 ## 3. Identity, locations & precedence
 
@@ -280,7 +284,7 @@ struct AgentRunSnapshot: Identifiable, Sendable {
   var state: AgentRunState                 // queued → running → finished/failed/cancelled
   var startedAt: Date?; var finishedAt: Date?
   var tokensIn: Int; var tokensOut: Int    // as reported by the FM session
-  var lastEvent: String?                   // e.g. "calling tool grep…" for a live row
+  var lastEvent: String?                   // "calling tool grep…" — fed live by §8.3
 }
 
 struct SlotLane: Sendable {                // one resident model = one serial lane
@@ -341,6 +345,34 @@ segments** — the custom-segment pattern — rather than dissolving into a text
   detail join on it.
 - *(Confirm against the shipping WWDC26 SDK how structured tool output is represented in
   `Transcript` segments — same verification item as Skills decision #18.)*
+
+### 8.3 Live progress — where in-flight events come from
+
+A running agent's progress (its sub-tool calls, turns, tokens) is reported through **two
+taps the runner owns** — neither is the Router's recorder, which never sees agent runs (§7):
+
+- **The tool decorator (§5) is the real-time tap.** Every tool handed to a run is already
+  wrapped once, for `maxTurns`; the same wrapper emits a progress event on the way into and
+  out of every sub-tool call. That single chokepoint feeds three consumers *as it happens*:
+  `AgentActivity`'s `lastEvent`/snapshots (§8.1), the run's `events` stream (below), and the
+  per-run JSONL `toolCall`/`toolOutput` records (§9). No tool call escapes the wrapper, so
+  mid-run visibility is structural, not best-effort.
+- **The run's session transcript is the turn-level tap.** The run's `LanguageModelSession`
+  is `@Observable`; the runner observes its `Transcript` for turn boundaries, response
+  segments, and token counts. *(Confirm against the shipping WWDC26 SDK how live the
+  transcript is while a `respond` is in flight; if it settles only per turn, the decorator
+  remains the sole real-time source and nothing else changes.)*
+- **The Router's role, stated exactly:** the Router supplies the **resident model** behind
+  the run's session (the §10 interop) and **serializes generation** at its per-model gate —
+  which is why §8.1's `lanes` can show who is generating versus queued. It does **not**
+  supply the event feed: agent runs are native FM sessions, invisible to the Router's
+  structural recorder (§7, §9), which is precisely why the runner owns both taps above.
+
+Hosts that want more than the dashboard consume the stream directly:
+`AgentRun.events: AsyncStream<AgentRunEvent>` — `.toolCall(name:)`, `.toolOutput(name:)`,
+`.turnCompleted(tokensIn:tokensOut:)`, `.stateChanged(AgentRunState)` — finishing when the
+run reaches a terminal state. `AgentActivity` is itself just this stream folded on the main
+actor.
 
 ## 9. Recording & diagnostics
 
@@ -429,20 +461,32 @@ fallback paths.
     Background completions surface at the harvesting `check`; live state is
     `AgentActivity`'s job. *(Confirm segment representation against the shipping WWDC26
     SDK.)*
+18. **Router enters through the environment; progress comes from the runner's taps**
+    (§2, §8.3). The registry is model-free; the Router's single entry point is
+    `AgentEnvironment.profile`. In-flight events (sub-tool calls, turns, tokens) come from
+    the tool decorator (real-time) and the run's `@Observable` session transcript
+    (turn-level) — surfaced as `AgentRun.events: AsyncStream<AgentRunEvent>` and folded
+    into `AgentActivity`. The Router supplies the model and the serial gate, never the
+    event feed. *(Confirm mid-`respond` transcript liveness against the shipping WWDC26
+    SDK.)*
 
 ## 12. Public API sketch (illustrative)
 
 ```swift
-// Layer 3 — stacked, watched, validated definitions:
+// Layer 3 — stacked, watched, validated definitions. Pure files: NO Router here.
 let agents = try AgentRegistry(
   roots: [userAgentsURL, projectAgentsURL],   // low → high; full-replace by name
   watch: true
 )
 agents.diagnostics                             // [AgentDiagnostic] — doctor view
 
-// The execution environment — models from the Router, tools from the host:
+// Models come from the Router — resolve once, share everywhere (Router plan):
+let router  = Router()                         // FoundationModelsRouter
+let profile = try await router.resolve(coding, reporting: progress)
+
+// The execution environment — the Router enters HERE, via its resolved profile:
 let env = AgentEnvironment(
-  profile: profile,                            // resolved LanguageModelProfile
+  profile: profile,                            // Router-resolved LanguageModelProfile
   defaultSlot: .flash,                         // what `inherit` means here
   modelMapping: .default,                      // Claude aliases → slots
   tools: catalog,                              // ToolCatalog: name → Tool factory
@@ -454,6 +498,9 @@ let runner = AgentRunner(registry: agents, environment: env)
 
 // Host-driven fan-out — no root session required:
 let run = try await runner.start("code-reviewer", prompt: "Review:\n\(diff)")
+Task {                                         // live in-flight progress (§8.3):
+  for await event in run.events { … }          // .toolCall("grep"), .turnCompleted, …
+}
 let report = try await run.result()            // final text; run.state observable
 let more   = try await run.send("Now check the tests too")   // same session, same context
 // Many at once, bounded by admission:
@@ -479,8 +526,9 @@ let root = LanguageModelSession(
 Core types: `AgentDefinition` (parsed file), `AgentListing` (metadata view: name,
 description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment`,
 `ToolCatalog`, `ModelMapping`, `AgentsTool` + its `AgentEvent` output (§8.2),
-`AgentRunner` (actor), `AgentRun` (handle: `id: ULID`, `state`, `result()`, `send(_:)`,
-`cancel()`), `AgentRunState` (`queued`, `running`, `finished(String)`,
+`AgentRunner` (actor), `AgentRun` (handle: `id: ULID`, `state`, `events`, `result()`,
+`send(_:)`, `cancel()`), `AgentRunEvent` (the `events` stream element — §8.3),
+`AgentRunState` (`queued`, `running`, `finished(String)`,
 `failed(AgentRunFailure)`, `cancelled`), `AgentRunFailure`, `AgentActivity`
 (`@MainActor @Observable`; `AgentRunSnapshot`, `SlotLane`, `AgentColor` — §8.1),
 `AgentDiagnostic`.
@@ -501,7 +549,9 @@ description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment
   deref with stale-name backstop; delegation proven from a root session.
 - **M5 — Scheduler + observability.** `AgentRunner` admission gate, background
   `start`/`check`/`send`/`cancel`, structured cancellation, resumable runs (§7.1);
-  `AgentActivity` with run snapshots + slot lanes (§8.1); `background: true` routing.
+  progress taps — decorator events + session-transcript observation — feeding
+  `run.events` (§8.3) and `AgentActivity` with run snapshots + slot lanes (§8.1);
+  `background: true` routing.
 - **M6 — Semantics fill-in.** `skills:` preload, `disallowedTools` order, `maxTurns`
   decorator, model-mapping diagnostics, workingDirectory isolation.
 - **M7 — Recording + polish.** Per-run JSONL transcripts, diagnostics surface, docs +
@@ -518,7 +568,8 @@ A separate **gated integration suite** (Swift Testing, `.serialized`, opt-in env
 the Router's pattern, tiny `mlx-community` models) proves: a definition file becomes a live
 sub-agent; delegation from a root session round-trips (root → `AgentsTool.run` → sub-agent
 tool use → final text back); two concurrent runs on different slots make progress
-independently; `check`/`cancel` behave; a `send` follow-up continues a run's context; the
+independently; `check`/`cancel` behave; a `send` follow-up continues a run's context;
+`run.events` surfaces a sub-tool call *while the run is still in flight* (§8.3); the
 calling session's transcript carries the run's `started`/`finished` structured segments
 (§8.2); a run's `transcript.jsonl` lands under its run id.
 
