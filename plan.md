@@ -418,7 +418,12 @@ This plan **supersedes** two assumptions in the sibling plans:
    recursive scan) alongside directory-shaped ones (`name/SKILL.md`). (b) The `skills:`
    preload capacity (§5) consumes `SkillsRegistry` — Skills' Layer 3 — directly.
    Sequencing: our M1 needs Skills M1; our M2 needs Skills M1–M2; our M6's preload needs
-   Skills M3 (`SkillsRegistry`).
+   Skills M3 (`SkillsRegistry`). (c) Skills' search path now rides
+   `../FoundationModelsMetadataRegistry` (Skills decision #26), and Skills ships as a
+   single target (its #17) — so depending on Skills **transitively carries
+   MetadataRegistry and the Router**. Accepted, not a problem: we already require the
+   Router directly (item 2 below, §2), the platform floors match (macOS 27+), and no
+   lightweight split of Skills' layers is planned or wanted.
 2. **FoundationModelsRouter** — the biggest supersession: agent runs are **routed
    sessions**, so the Router grows three things. (a) **Tool-capable sessions** —
    `makeSession(tools:instructions:…)` runs the FM interop tool loop (`MLXLanguageModel`)
