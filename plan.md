@@ -432,8 +432,8 @@ This plan **supersedes** two assumptions in the sibling plans:
 
 Packaging: **single SwiftPM target `FoundationModelsAgents`**, depending on
 `FoundationModelsRouter` and `FoundationModelsSkills` (both as local/sibling packages during
-development). macOS 27+, Swift 6.1 tools, same platform commitment as the Router — no
-fallback paths.
+development); `./Examples` is a separate nested package (§13). macOS 27+, Swift 6.1 tools,
+same platform commitment as the Router — no fallback paths.
 
 ## 11. Resolved decisions
 
@@ -477,7 +477,8 @@ fallback paths.
     `FolderStack` (with the file-entry generalization) — superseding Skills decision #17's
     same-target `AgentRegistry`.
 14. **Packaging → single SwiftPM target**, macOS 27+ / Swift 6.1, sibling-package
-    dependencies on Router and Skills.
+    dependencies on Router and Skills; runnable examples live in a separate nested
+    `./Examples` package (§13) so their dependencies stay out of the library manifest.
 15. **Object model → definition ≠ run ≠ session** (§7.1). `AgentDefinition` is data;
     `AgentRun` is the unit of scheduling/cancellation/UI and **drives exactly one
     never-vended routed session** — run id = session id; residency is the session's own
@@ -563,7 +564,42 @@ description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment
 (`@MainActor @Observable`; `AgentRunSnapshot`, `SlotLane`, `AgentColor` — §8.1),
 `AgentDiagnostic`.
 
-## 13. Milestones
+## 13. Examples — `./Examples`
+
+Runnable examples are part of the deliverable — living documentation and the human-driven
+twin of the gated integration suite (§15). `Examples/` is its **own SwiftPM package**
+depending on the library by relative path (`.package(path: "..")`), so example-only
+dependencies (e.g. `swift-argument-parser`) never touch the library manifest, and CI
+builds the examples as a separate job:
+
+```
+Examples/
+  Package.swift          depends on ".."; executable + app targets below
+  agents/                shared agent definitions — a REAL stacked root
+    code-reviewer.md       flash slot; tools: Read, Grep
+    test-writer.md         standard slot
+    summarizer.md          background: true
+  DelegateCLI/           model-driven delegation: a root session with AgentsTool —
+                         list / run / start / check — typed AgentEvents landing in the
+                         calling transcript (§8.2 made runnable)
+  FanOut/                host-driven parallelism: runner.start × N across both slots,
+                         structured-concurrency await; prints the honesty clause live
+                         (same-slot runs queue, cross-slot runs overlap — §8), then
+                         walks the Router recording tree it produced (§9)
+  AgentDashboard/        SwiftUI app on AgentActivity: run rows with color badges,
+                         slot lanes, live lastEvent fed by run.events (§8.1, §8.3)
+```
+
+- Each example is small, single-purpose, and reads top-to-bottom as the tutorial for one
+  section of this plan — the §12 sketch, made real.
+- **`agents/` is a genuine root**, passed to `AgentRegistry(roots:)` — the same files
+  exercise discovery, precedence, and diagnostics, and the integration tests may reuse
+  them as fixtures.
+- **Examples arrive with their milestone, not after it** (§14): `DelegateCLI` lands with
+  M4, `FanOut` and `AgentDashboard` with M5; M7 finishes them (README per example,
+  recording-tree walk, doc pass).
+
+## 14. Milestones
 
 - **M1 — Definition parsing + validation.** `AgentDefinition` on `FrontmatterDocument`:
   frontmatter tiers, name validation, tool-list parsing, model mapping (pure). *(Needs
@@ -585,10 +621,10 @@ description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment
   `disallowedTools` order, `maxTurns` decorator, model-mapping diagnostics,
   workingDirectory isolation.
 - **M7 — Lineage + polish.** Agent-name stamping on session events, delegation-tree
-  assertions over the Router recordings tree, diagnostics surface, docs + examples (a
-  review fan-out sample app).
+  assertions over the Router recordings tree, diagnostics surface, docs; the `./Examples`
+  finish line (§13) — per-example READMEs, recording-tree walk.
 
-## 14. Testing
+## 15. Testing
 
 Unit-testable pieces (frontmatter tiers, identity/precedence, tool-list resolution, model
 mapping, maxTurns decorator, scheduler admission/cancellation) take injected definitions and
