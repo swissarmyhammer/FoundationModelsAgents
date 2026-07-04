@@ -107,8 +107,9 @@ the generic stacked-folder machinery comes from
 - **Duplicate `name` within one root** ⇒ one wins deterministically (last in stable sort
   order) and a **diagnostic** is emitted — mirroring Claude's `/doctor` duplicate report.
 - The **file watcher** applies add/remove/edit across every root; the registry rebuilds and
-  publishes refreshed metadata (Claude requires a restart — we do better because the
-  FolderStack already watches).
+  publishes refreshed metadata — parity with Claude Code, which live-watches its agent
+  directories too (a restart is needed there only for a scope's brand-new agents
+  directory; the FolderStack watcher covers newly created roots as well).
 
 ## 4. Definition format — Claude-compatible subset
 
@@ -148,8 +149,14 @@ reads the same words.
   entry.
 - **Resolution (Claude semantics):** omit `tools` ⇒ inherit the **whole catalog**;
   `disallowedTools` is applied first (removed from inherited or specified list), then
-  `tools` is resolved against the remainder; a tool named in both is removed. Unknown tool
-  names ⇒ diagnostic, skipped.
+  `tools` is resolved against the remainder; a tool named in both is removed. **MCP
+  server patterns** (`mcp__<server>`, `mcp__<server>__*`, `mcp__*`) are honored as
+  prefix matches against catalog names — Claude's grammar, so a Claude-authored
+  `disallowedTools: mcp__github` denies exactly what its author meant. Parenthesized
+  `Agent(...)` entries parse but draw a diagnostic (no nested agents in v1). Other
+  unknown tool names ⇒ diagnostic, skipped — except an unresolvable `disallowedTools`
+  entry, which is escalated to a **loud** diagnostic: silently dropping a *deny* would
+  grant more than the author intended.
 - **No nested agents in v1.** The `AgentsTool` is never placed in a sub-agent's tool set,
   and a definition listing it draws a diagnostic. (Claude allows depth 5; we start at 1 —
   a depth-limited nesting option is a clean later extension.)
@@ -164,6 +171,10 @@ reads the same words.
   the bound structurally: every tool handed to the run is wrapped in a **counting decorator**;
   when the count crosses `maxTurns` the run is cancelled and reports
   `.failed(hitMaxTurns)`. Best-effort but real — no tool call escapes the wrapper.
+  *Deliberate divergence:* Claude counts **agentic turns** and quietly stops; we count
+  **tool calls** — strictly tighter, since one turn can hold several parallel calls —
+  and surface the stop as a failure. `hitMaxTurns` carries any partial text produced so
+  far, for the closest available parity with Claude's stop-with-partial-output.
 
 ## 6. Model mapping — frontmatter → Router slot
 
@@ -182,6 +193,12 @@ The alias table lives in a `ModelMapping` value (default above, host-overridable
 Claude-authored agent file runs unmodified while our canonical vocabulary stays
 slot-shaped.
 
+*Deliberate divergence:* Claude's full resolution order also honors a
+`CLAUDE_CODE_SUBAGENT_MODEL` environment variable and a per-invocation `model` parameter
+on its Agent tool, both outranking frontmatter. Neither exists here — the frontmatter
+slot and the environment's `defaultSlot` (what `inherit` means) are the whole story;
+per-run model steering is the profile's job, not the caller's.
+
 ## 7. Execution — one run drives one routed session
 
 `AgentRun` is one delegated task:
@@ -197,6 +214,13 @@ slot-shaped.
    session event.
 4. **Return** the session's final text as the run's result. Tool traffic, intermediate
    turns, and context stay inside the run.
+
+*Deliberate divergence — startup context:* Claude additionally injects the CLAUDE.md /
+memory hierarchy and a git-status snapshot into a non-fork sub-agent's initial context, so
+Claude-authored prompts may assume project rules reach the sub-agent. Here a spawned run
+receives **only** body + `skills:` preloads + task prompt — nothing ambient. A host
+wanting parity folds shared context in explicitly (a `skills:` preload or the task
+prompt); we never inject silently.
 
 **Agent runs are Router sessions — not a parallel session system.** The session is the unit
 of recording, lineage, residency, and observation; the agent is a utility that drives
@@ -278,6 +302,9 @@ RoutedSession  (internal)            the run's engine IN the Router's session an
     root keeps working and polls `check`, which reports state and, when finished, the final
     text. `send` continues a retained run's session with a follow-up (§7.1). A definition
     with `background: true` is *always* dispatched this way, even via `run`.
+    *(Deliberate divergence: Claude ≥2.1.198 defaults unset-`background` agents to
+    background — "Claude chooses"; here the caller's chosen action — `run` vs `start` —
+    decides, and only `background: true` forces background dispatch.)*
 - **Host-driven fan-out** needs no root session at all: `runner.start(_:prompt:)` from
   Swift returns an `AgentRun` handle to await — many handles, structured concurrency,
   `TaskGroup`-friendly.
@@ -475,11 +502,16 @@ carries the mirror note).
    prefix reuse. *(Supersedes the earlier native-`LanguageModelSession` choice; Router
    growth in §10; KV-vs-FM-loop risk in §7.)*
 7. **Tools → host `ToolCatalog`**; omit = inherit all; `disallowedTools` then `tools`
-   (Claude order); unknown names diagnosed. No nested agents in v1.
+   (Claude order); MCP server patterns (`mcp__…`) honored as prefix matches; unknown
+   names diagnosed, with unresolvable *deny* entries escalated (§5). No nested agents
+   in v1 (`Agent(...)` entries diagnosed).
 8. **`skills:` preload → rendered bodies appended to instructions** at run start, via the
    environment's `SkillsRegistry` — a **formal Skills dependency**, non-optional (an empty
    registry is fine; missing skills are diagnostics). Full content, Claude semantics.
 9. **`maxTurns` → counting tool decorator**; crossing the bound cancels the run.
+   *(Documented divergence: tool-call count is a strictly-tighter proxy for Claude's
+   agentic-turn count, and the stop surfaces as `.failed(hitMaxTurns)` carrying partial
+   text — §5.)*
 10. **Parallelism → `AgentRunner` actor** with fair FIFO admission (`maxConcurrentAgents`),
     structured cancellation, background runs by id, `@Observable AgentActivity` for UI.
     Per-model serialization acknowledged, not hidden.
