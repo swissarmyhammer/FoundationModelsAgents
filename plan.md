@@ -38,6 +38,10 @@ the generic stacked-folder machinery comes from
 - **Descriptions are the delegation contract.** Agent catalogs are small (unlike skills), so
   each agent's `name` + `description` are baked directly into the `AgentsTool` surface — the
   root model reads them to decide when and where to delegate. No separate search agent.
+  (If a deployment's catalog ever outgrows the baked-in surface,
+  [`../FoundationModelsMetadataRegistry`](../FoundationModelsMetadataRegistry/plan.md)
+  is the ready-made opt-in — `MetadataSearcher<AgentListing>`; its plan reserves exactly
+  that role and leaves the decision here. §10.)
 - **Models are routed, never named.** A definition says *how much* model it wants
   (`standard` / `flash` / `inherit`), not *which* HF repo — the Router already solved
   machine-fit. Claude aliases (`opus`, `sonnet`, `haiku`, `fable`) map onto slots.
@@ -653,5 +657,6 @@ stays totally ordered by `(ts, seq)`.
 - Claude Code sub-agents — https://code.claude.com/docs/en/sub-agents
 - FoundationModelsRouter plan — ../FoundationModelsRouter/plan.md
 - FoundationModelsSkills plan — ../FoundationModelsSkills/plan.md
+- FoundationModelsMetadataRegistry plan (transitive via Skills; our future catalog-search opt-in) — ../FoundationModelsMetadataRegistry/plan.md
 - What's new in Foundation Models (WWDC26) — https://developer.apple.com/videos/play/wwdc2026/241/
 - Build agentic app experiences with Foundation Models (WWDC26) — https://developer.apple.com/videos/play/wwdc2026/242/
