@@ -444,6 +444,14 @@ Packaging: **single SwiftPM library target `FoundationModelsAgents`**, depending
 development); `./Examples` executables are additional targets in the same package (§13).
 macOS 27+, Swift 6.1 tools, same platform commitment as the Router — no fallback paths.
 
+**Naming note:** the transitive MetadataRegistry dependency (item 1c) exports a public
+protocol named **`AgentSession`** (and `RoutedAgentSession`) — its librarian
+*selection-session* seam, nothing to do with sub-agents. This package never uses that
+name for its own types: a run drives a `RoutedSession`, and the public nouns are
+`AgentRun` / `AgentRunner` / `AgentsTool`. Keep it that way, so the overlap stays a
+documentation footnote rather than an API ambiguity (the MetadataRegistry plan's §10
+carries the mirror note).
+
 ## 11. Resolved decisions
 
 1. **FM entry point → one `AgentsTool`** with **list / run / start / check / send / cancel**
