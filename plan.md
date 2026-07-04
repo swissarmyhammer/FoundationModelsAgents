@@ -435,10 +435,10 @@ This plan **supersedes** two assumptions in the sibling plans:
    available but not load-bearing" is superseded: the interop is load-bearing and lives
    *inside* `RoutedSession`. *(Risk: session-owned KV vs an FM-driven tool loop — §7.)*
 
-Packaging: **single SwiftPM target `FoundationModelsAgents`**, depending on
+Packaging: **single SwiftPM library target `FoundationModelsAgents`**, depending on
 `FoundationModelsRouter` and `FoundationModelsSkills` (both as local/sibling packages during
-development); `./Examples` is a separate nested package (§13). macOS 27+, Swift 6.1 tools,
-same platform commitment as the Router — no fallback paths.
+development); `./Examples` executables are additional targets in the same package (§13).
+macOS 27+, Swift 6.1 tools, same platform commitment as the Router — no fallback paths.
 
 ## 11. Resolved decisions
 
@@ -481,9 +481,10 @@ same platform commitment as the Router — no fallback paths.
 13. **Layer reuse → depend on FoundationModelsSkills** for `FrontmatterDocument` +
     `FolderStack` (with the file-entry generalization) — superseding Skills decision #17's
     same-target `AgentRegistry`.
-14. **Packaging → single SwiftPM target**, macOS 27+ / Swift 6.1, sibling-package
-    dependencies on Router and Skills; runnable examples live in a separate nested
-    `./Examples` package (§13) so their dependencies stay out of the library manifest.
+14. **Packaging → one package**: a single library target plus `./Examples`
+    executable/app targets in the same `Package.swift` (§13) — no nested example
+    package. macOS 27+ / Swift 6.1, sibling-package dependencies on Router and Skills;
+    example-only dependencies join the shared manifest.
 15. **Object model → definition ≠ run ≠ session** (§7.1). `AgentDefinition` is data;
     `AgentRun` is the unit of scheduling/cancellation/UI and **drives exactly one
     never-vended routed session** — run id = session id; residency is the session's own
@@ -572,14 +573,13 @@ description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment
 ## 13. Examples — `./Examples`
 
 Runnable examples are part of the deliverable — living documentation and the human-driven
-twin of the gated integration suite (§15). `Examples/` is its **own SwiftPM package**
-depending on the library by relative path (`.package(path: "..")`), so example-only
-dependencies (e.g. `swift-argument-parser`) never touch the library manifest, and CI
-builds the examples as a separate job:
+twin of the gated integration suite (§15). `Examples/` holds **executable/app targets in
+the root package** — declared in the main `Package.swift`, not a nested package — so one
+`swift build` covers library and examples alike; example-only dependencies (e.g.
+`swift-argument-parser`) simply join the manifest:
 
 ```
 Examples/
-  Package.swift          depends on ".."; executable + app targets below
   agents/                shared agent definitions — a REAL stacked root
     code-reviewer.md       flash slot; tools: Read, Grep
     test-writer.md         standard slot
