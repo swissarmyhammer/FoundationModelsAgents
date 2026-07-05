@@ -630,7 +630,9 @@ Examples/
     summarizer.md          background: true
   DelegateCLI/           model-driven delegation: a root session with AgentsTool —
                          list / run / start / check — typed AgentEvents landing in the
-                         calling transcript (§8.2 made runnable)
+                         calling transcript (§8.2 made runnable); ends with a hot-reload
+                         beat: edit code-reviewer.md while running, the next run uses
+                         the new body (§15's live-reload case, watchable)
   FanOut/                host-driven parallelism: runner.start × N across both slots,
                          structured-concurrency await; prints the honesty clause live
                          (same-slot runs queue, cross-slot runs overlap — §8), then
@@ -654,8 +656,9 @@ Examples/
   frontmatter tiers, name validation, tool-list parsing, model mapping (pure). *(Needs
   Skills M1.)*
 - **M2 — `AgentRegistry` on `FolderStack`.** Stacked roots, recursive file entries,
-  full-replace precedence, duplicate diagnostics, watch/reload, `listing()`. *(Needs Skills
-  M2 + the file-entry generalization.)*
+  full-replace precedence, duplicate diagnostics, watch/reload — with hot reload as an
+  **explicit tested case** (the §15 battery, not a watcher footnote) — `listing()`.
+  *(Needs Skills M2 + the file-entry generalization.)*
 - **M3 — Execution substrate (the Router growth).** Tool-capable routed sessions, `spawn`,
   live recorder tap (§10); one `AgentRun` end to end: instructions + resolved tools + slot
   → spawned routed session → final text. *(The heaviest cross-repo milestone.)*
@@ -680,6 +683,18 @@ mapping, maxTurns decorator, scheduler admission/cancellation) take injected def
 **stub sessions** — no models, covered per milestone. Registry tests run against fixture
 directory stacks; watcher tests against temp dirs.
 
+**Hot reload is an explicit tested case, not a watcher footnote** — the family sets that
+bar (MetadataRegistry treats `update(items:)` as a first-class operation with defined
+costs; we hold agent definitions to the same standard). The unit battery: add / edit /
+remove a definition on disk → the registry rebuilds and `listing()` reflects it; the
+`AgentsTool` surface refreshes (the live-registry deref, §7 step 1); an **in-flight run
+is untouched** — a run resolves its definition once at start, and no reload mutates it;
+a removed agent's next invocation draws the stale-name backstop carrying the refreshed
+listing; a rapid burst of edits coalesces to a consistent final state. The registry's
+reload publication is also the exact hook a future `MetadataSearcher<AgentListing>`
+opt-in would forward to `update(items:)` (§1) — same event, second consumer, no new
+machinery.
+
 A separate **gated integration suite** (Swift Testing, `.serialized`, opt-in env var —
 the Router's pattern, tiny `mlx-community` models) proves: a definition file becomes a live
 sub-agent; delegation from a root session round-trips (root → `AgentsTool.run` → sub-agent
@@ -689,7 +704,10 @@ independently; `check`/`cancel` behave; a `send` follow-up continues a run's con
 calling session's transcript carries the run's `started`/`finished` structured segments
 (§8.2); a spawned run's `transcript.jsonl` nests under its calling session in the Router
 tree, its tool calls appear as recorded `toolCall`/`toolOutput` events, and the merged log
-stays totally ordered by `(ts, seq)`.
+stays totally ordered by `(ts, seq)`; and **hot reload end to end** — an on-disk edit to a
+definition is picked up live, the *next* delegation of that name uses the updated body and
+tools while a mid-flight run of the old definition completes unaffected (§3's live-reload
+parity, proven against a real session).
 
 ---
 
