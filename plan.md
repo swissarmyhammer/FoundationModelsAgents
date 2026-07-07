@@ -183,7 +183,7 @@ A resolved `LanguageModelProfile` supplies the models; the definition picks a sl
 
 | `model:` value | Resolves to |
 |---|---|
-| *(omitted)* / `inherit` | the environment's **default slot** (the slot backing the root session; configured on `AgentEnvironment`) |
+| *(omitted)* / `inherit` | **the caller's slot** — the bound calling session's slot (decision #19), which is exactly Claude's "the main conversation's model"; a host-driven run with no caller resolves to `.standard` |
 | `standard` *(ours, canonical)* | `profile.standard` |
 | `flash` *(ours, canonical)* | `profile.flash` |
 | `opus`, `sonnet`, `fable` *(Claude aliases)* | `profile.standard` |
@@ -197,8 +197,8 @@ slot-shaped.
 *Deliberate divergence:* Claude's full resolution order also honors a
 `CLAUDE_CODE_SUBAGENT_MODEL` environment variable and a per-invocation `model` parameter
 on its Agent tool, both outranking frontmatter. Neither exists here — the frontmatter
-slot and the environment's `defaultSlot` (what `inherit` means) are the whole story;
-per-run model steering is the profile's job, not the caller's.
+slot and the caller-derived `inherit` are the whole story; per-run model steering is the
+profile's job, not the caller's.
 
 ## 7. Execution — one run drives one routed session
 
@@ -485,20 +485,31 @@ rendering falls out of that key:
 4. the later harvesting `check` carries the **same runId**, so its `finished` segment folds
    into the existing card as the result line instead of opening a new entry.
 
-**The drill-in walk — the runner is the index; hosts never parse segments.** FM's
-`Transcript` is Apple's type, and the typed `started` segment inside a `toolOutput`
-entry is for the *model* and for replay — a host should never have to dig it out.
-Instead the runner, which created every run, is the queryable index:
-**`runner.runs(startedBy: callerId)`**, **`runner.runs`**, and **`runner.run(id:)`**
-return live `AgentRun`s (including model-started ones — the host never held a handle
-for those), and each run carries its own join keys: `run.agent`, `run.caller`,
-**`run.origin`** — the entry index of the anchoring `started` segment in the caller's
-transcript, so a UI places the card without reading segments — and **`run.recordURL`**
-— the run's `transcript.jsonl` under the caller in the Router tree, so nobody composes
-recording paths by hand. The whole walk is three steps: prompt the root session →
-`runner.runs(startedBy: root.id).last` → `run.transcript` (live) or `run.recordURL`
-(post-hoc), identical entries either way (§8.3). This exact walk is an integration test
-case (§15) and a dedicated example (`NestedTranscripts`, §13).
+**The drill-in walk — the join is positional: entry → nested transcript.** A UI renders
+a transcript linearly, entry by entry; what it needs at each step is "did *this* entry
+open a session — and if so, hand me its transcript." So that is the API. The Router
+knows the child's id at the moment it writes the delegation's `toolOutput` entry (the
+spawn happened inside that tool call, §7), and stamps it as recorded provenance:
+**`entry.child: ULID?`** — no segment parsing, present in the live transcript and in
+the jsonl alike (§9). Resolution is one call: **`transcript.nested(at: entry) →
+Transcript?`**, and for forks **`transcript.branches(at: entry) → [Transcript]`**
+(children whose `forkedFrom` names that entry). The whole UI walk:
+
+```swift
+for entry in transcript.entries {
+  render(entry)
+  if let nested = transcript.nested(at: entry) { agentCard(nested) }  // in place
+}
+```
+
+Ordering is the Router's, for free: session ids are ULIDs (lexicographically
+time-sortable, so siblings sort by creation), and the recorder actor assigns `seq`/`ts`
+at append — one total order across the whole tree; a session's transcript is a filtered
+subsequence of it. `AgentRun` keeps `recordURL` (its jsonl under the caller — nobody
+composes recording paths by hand), and the runner keeps a management index (`runs`,
+`run(id:)`) for dashboards and cancel-everything — but *display* never needs it:
+position comes from the entry itself. This exact walk is an integration test case (§15)
+and a dedicated example (`NestedTranscripts`, §13).
 
 **Forks nest logically, not just hierarchically.** A *spawned* run's transcript starts
 empty — its card renders standalone, anchored at its `started` segment. A *forked* run
@@ -519,7 +530,10 @@ lineage, never by side-band correlation. `AgentDashboard` (§13) demonstrates th
   (`recordings/<routerId>/<caller…>/<sessionId>/`) — spawned/forked runs nest under their
   calling session; host-driven runs are roots. Events carry the Router's provenance schema
   (`{ routerId, sessionId, parentId, slot, model, seq, ts, kind:
-  "session"|"prompt"|"response"|"toolCall"|"toolOutput", … }`); the agents package **adds
+  "session"|"prompt"|"response"|"toolCall"|"toolOutput", … }`) — plus the two lineage
+  pointers that make the tree navigable both ways (§8.4): a delegation's `toolOutput`
+  entry carries `child` (the spawned session id) and a forked session's opening event
+  carries `forkedFrom(parentId, seq)`; the agents package **adds
   only metadata** — the agent `name` stamped on the session's opening event — so "which
   agent was this" is answerable from the record. Merged `**/transcript.jsonl` ordering,
   `.jsonl`/`.inMemory`/`.none` sinks, redaction levels: all inherited from the Router, none
@@ -680,7 +694,6 @@ let profile = try await router.resolve(coding, reporting: progress)
 // The execution environment — the Router enters HERE, via its resolved profile:
 let env = AgentEnvironment(
   profile: profile,                            // Router-resolved LanguageModelProfile
-  defaultSlot: .flash,                         // what `inherit` means here
   modelMapping: .default,                      // Claude aliases → slots
   tools: catalog,                              // ToolCatalog: name → Tool factory
   skills: skillsRegistry,                      // SkillsRegistry — `skills:` preload (may be empty)
@@ -711,9 +724,10 @@ let root = LanguageModelSession(
 // start("code-reviewer", "Review the diff …") → runId at once; the model keeps
 // working, and a later check(runId) harvests the review as a typed finished event.
 
-// Drill into a model-started run (§8.4) — the runner is the index, no parsing:
-let nested = await runner.runs.last!       // every retained run, model-started included
-// nested.transcript live; nested.origin anchors its card; nested.recordURL post-hoc
+// Drill in (§8.4) — the join is positional: the delegation entry carries the child id
+for entry in root.transcript.entries where entry.child != nil {
+  let nested = root.transcript.nested(at: entry)!  // the run's transcript, in place
+}
 
 // Per-profile fleet observability for SwiftUI (§8.1):
 @State var activity = runner.activity          // @MainActor @Observable AgentActivity
@@ -723,9 +737,9 @@ let nested = await runner.runs.last!       // every retained run, model-started 
 Core types: `AgentDefinition` (parsed file), `AgentListing` (metadata view: name,
 description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment`,
 `ToolCatalog`, `ModelMapping`, `AgentsTool` + its `AgentEvent` output (§8.2),
-`AgentRunner` (actor; `start(_:prompt:)`; the host-side index `runs`, `runs(startedBy:)`,
-`run(id:)` over every retained run, including model-started ones — §8.4), `AgentRun`
-(handle: `id: ULID` — the session id, `agent`, `caller`, `origin`, `recordURL`, `state`,
+`AgentRunner` (actor; `start(_:prompt:)`; the management index `runs`, `run(id:)` over
+every retained run, including model-started ones — §8.4), `AgentRun`
+(handle: `id: ULID` — the session id, `agent`, `caller`, `recordURL`, `state`,
 `transcript` — a read-only `@Observable`, append-only view of the run's session record
 (§8.3), `result()`, `send(_:)`,
 `cancel()`), `AgentRunState` (`queued`, `running`, `finished(String)`,
@@ -752,12 +766,12 @@ Examples/
                          calling transcript (§8.2 made runnable); ends with a hot-reload
                          beat: edit code-reviewer.md while running, the next run uses
                          the new body (§15's live-reload case, watchable)
-  NestedTranscripts/     the §8.4 drill-in walk, minimal — no transcript parsing:
+  NestedTranscripts/     the §8.4 drill-in walk, minimal — the join is positional:
                          router → root session with a bound AgentsTool → the model
-                         starts one agent → runner.runs(startedBy: root.id) → print the
-                         child transcript as it grows; fork the conversation and show
-                         the branch (post-fork entries + forkedFrom marker); finish at
-                         run.recordURL — the same entries on disk
+                         starts one agent → walk root.transcript; at the entry whose
+                         .child is set, transcript.nested(at:) → print the nested
+                         transcript as it grows; fork the conversation, show the branch
+                         via transcript.branches(at:); finish at run.recordURL
   FanOut/                host-driven parallelism: runner.start × N across both slots,
                          structured-concurrency await; prints the honesty clause live
                          (same-slot runs queue, cross-slot runs overlap — §8), then
@@ -838,9 +852,9 @@ stays totally ordered by `(ts, seq)`; **hot reload end to end** — an on-disk e
 definition is picked up live, the *next* delegation of that name uses the updated body and
 tools while a mid-flight run of the old definition completes unaffected (§3's live-reload
 parity, proven against a real session); **the drill-in walk** (§8.4) — the model `start`s
-an agent from a routed root session, the test resolves it via `runner.runs(startedBy:
-root.id)`, observes `run.transcript` grow live, asserts `run.origin` points at the
-caller's `started` entry, and asserts the entries equal `run.recordURL`'s jsonl; and
+an agent from a routed root session, the test finds the delegation entry whose
+`entry.child` is set, resolves `transcript.nested(at:)`, observes the nested transcript
+grow live, and asserts its entries equal `run.recordURL`'s jsonl; and
 **fork nesting** — a forked run's
 transcript holds only post-fork entries, and its `forkedFrom` marker resolves to the
 correct entry of the parent's transcript.
