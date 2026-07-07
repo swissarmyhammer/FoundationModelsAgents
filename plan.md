@@ -14,8 +14,8 @@ the generic stacked-folder machinery comes from
 ## 1. Guiding principles
 
 - **An agent is just a tool — no special case.** In an FM session, sub-agents are reached
-  through one `FoundationModels.Tool` — `AgentsTool` (**list / run / start / check / send /
-  cancel**).
+  through one `FoundationModels.Tool` — `AgentsTool` (**list / start / check / send /
+  cancel** — all delegation is *background*, §8).
   The framework has no agents concept; we add a *tool*, not a new primitive. This mirrors
   Claude Code, where delegation happens through the `Agent` (né `Task`) tool. But it is a
   **special tool result**: every run-lifecycle action returns a typed `AgentEvent` that
@@ -134,8 +134,8 @@ Field support tiers — parse everything, act on tier 1, carry tier 2 as data, d
 
 | Tier | Fields | Behavior |
 |---|---|---|
-| **1 — enforced** | `name`, `description` (required); `tools`, `disallowedTools`; `model`; `skills`; `maxTurns`; `background` | Full semantics (§5–§7) |
-| **2 — data only** | `color`, plus all unrecognized `metadata`-style keys | Exposed on `AgentListing` for hosts/UI; no behavior |
+| **1 — enforced** | `name`, `description` (required); `tools`, `disallowedTools`; `model`; `skills`; `maxTurns` | Full semantics (§5–§7) |
+| **2 — data only** | `color`; `background` (every run is background here — `true` is redundantly satisfied, `false` cannot be honored and draws a diagnostic, §8); plus all unrecognized `metadata`-style keys | Exposed on `AgentListing` for hosts/UI; no behavior |
 | **3 — unsupported** | `permissionMode`, `mcpServers`, `hooks`, `memory`, `effort`, `isolation`, `initialPrompt` | Parsed, surfaced as a **diagnostic** ("field X is not supported by FoundationModelsAgents"), otherwise ignored — a Claude-authored file still loads |
 
 `description` is the delegation contract (injected into the `AgentsTool` surface) — the
@@ -293,19 +293,19 @@ RoutedSession  (internal)            the run's engine IN the Router's session an
 - **Fair FIFO admission** — at most `maxConcurrentAgents` runs in flight; excess `start`s
   queue on a fair async semaphore (the same primitive the Router uses for forks and its
   per-model serial gate).
-- **Two invocation styles through `AgentsTool`:**
-  - **`run(agent, prompt)`** — *foreground*: the tool call awaits completion and returns the
-    final text. Parallelism still happens when the root model emits **several `run` calls in
-    one turn** — FM executes parallel tool calls concurrently. *(Confirm parallel tool-call
-    execution against the shipping WWDC26 SDK — decision #12.)*
-  - **`start(agent, prompt)` → runId; `check(runId)`; `send(runId, prompt)`;
-    `cancel(runId)`** — *background*: the tool returns immediately with a ULID run id; the
-    root keeps working and polls `check`, which reports state and, when finished, the final
-    text. `send` continues a retained run's session with a follow-up (§7.1). A definition
-    with `background: true` is *always* dispatched this way, even via `run`.
-    *(Deliberate divergence: Claude ≥2.1.198 defaults unset-`background` agents to
-    background — "Claude chooses"; here the caller's chosen action — `run` vs `start` —
-    decides, and only `background: true` forces background dispatch.)*
+- **One invocation style — background only.** **`start(agent, prompt)` → runId**: the tool
+  returns immediately with the ULID run id (= session id); the calling session is never
+  parked on a delegation. The root keeps working and polls **`check`**, which reports state
+  and, when finished, the final text; **`send(runId, prompt)`** continues a retained run's
+  session with a follow-up (§7.1); **`cancel(runId)`** stops it. There is deliberately
+  **no foreground `run`**: an awaiting tool call would block the calling session for the
+  sub-agent's whole lifetime — the moment two things should happen at once, foreground is
+  the wrong default — and one dispatch path keeps the model's job simple: start, keep
+  working, check. *(Deliberate divergence: Claude offers both styles and — ≥2.1.198 —
+  already defaults unset-`background` to background; we take that to its conclusion.
+  `background:` frontmatter is accepted: `true` is redundantly satisfied, `false` cannot
+  be honored and draws a diagnostic. FM's parallel tool-call behavior is no longer
+  load-bearing — multitasking is many started runs, not parallel awaits — decision #12.)*
 - **Host-driven fan-out** needs no root session at all: `runner.start(_:prompt:)` from
   Swift returns an `AgentRun` handle to await — many handles, structured concurrency,
   `TaskGroup`-friendly.
@@ -320,16 +320,15 @@ RoutedSession  (internal)            the run's engine IN the Router's session an
 
 ### The action vocabulary
 
-The whole `AgentsTool` surface in one table (the Shelltool-plan convention). Six
-actions; every parameter is named here and nowhere else. Run-lifecycle actions return a
-typed `AgentEvent` (§8.2); `list` alone returns the catalog:
+The whole `AgentsTool` surface in one table (the Shelltool-plan convention). Five
+actions, all background; every parameter is named here and nowhere else. Run-lifecycle
+actions return typed `AgentEvent`s (§8.2); `list` alone returns the catalog:
 
 | action | parameters | returns | behavior |
 |---|---|---|---|
 | `list` | *(none)* | `[AgentListing]` | The delegation surface, live from the registry: each agent's `name`, `description`, slot, `color`. The same words the frontmatter authored — hot reload refreshes them (§15). |
-| `run` | `agent` (req), `prompt` (req) | `finished(runId, result)` / `failed(runId, reason)` | *Foreground*: resolve → spawn a routed session → await final text. Unknown/stale `agent` ⇒ error carrying the current listing. A `background: true` definition dispatches as `start` instead. Several `run` calls in one turn execute concurrently (decision #12). |
-| `start` | `agent` (req), `prompt` (req) | `started(runId, agent, slot)` | *Background*: returns immediately with the ULID run id (= session id); the run proceeds under the admission gate. Same stale-name backstop as `run`. |
-| `check` | `runId` (req) | `running(runId, lastEvent)` / `finished` / `failed` / `cancelled` / `gone` | Poll a background run. The **sole harvest point**: a finished run's final text enters the caller's context exactly once, in this `finished` event (§8.2). Released/unknown id ⇒ `gone`. |
+| `start` | `agent` (req), `prompt` (req) | `started(runId, agent, slot)` | Returns immediately with the ULID run id (= session id); the run proceeds under the admission gate while the caller keeps working. Unknown/stale `agent` ⇒ error carrying the current listing. |
+| `check` | `runId?` | one event — or the fleet | With `runId`: `running(runId, lastEvent)` / `finished` / `failed` / `cancelled` / `gone`. The **sole harvest point**: a finished run's final text enters the caller's context exactly once, in this `finished` event (§8.2). With `runId` omitted ⇒ **the fleet**: one event per live or unharvested run — in-flight runs report `running`, ready completions are harvested in the same call. Released/unknown id ⇒ `gone`. |
 | `send` | `runId` (req), `prompt` (req) | `sent(runId)` / `gone` | Follow-up into a retained run's **same session and context** (§7.1 resume semantics). `sent` deliberately carries no result — it arrives via a later `check`. |
 | `cancel` | `runId` (req) | `cancelled(runId)` / `gone` | Structured cancellation of the run's session task; the record keeps everything captured so far (§9). |
 
@@ -399,15 +398,14 @@ segments** — the custom-segment pattern — rather than dissolving into a text
 
 - **Lifecycle is first-class in the caller's transcript.** `start` writes a `started`
   segment (runId, agent, slot) at the moment of delegation; the `check` that harvests the
-  outcome writes `finished`/`failed` (a foreground `run` returns `finished` directly).
-  Replaying the calling transcript reconstructs the
+  outcome writes `finished`/`failed`. Replaying the calling transcript reconstructs the
   delegation timeline — who was started, when, on what, and how each ended — without
   parsing prose. A transcript UI renders agent chips/timeline straight from the segments.
 - **The model reads the same structure.** Tool output is model-visible, so the root model
   sees unambiguous typed state (`running` vs `finished(result:)`) instead of guessing from
   wording — which is what makes `check`-based multitasking reliable.
 - **Honesty about timing:** a tool can only write to the transcript inside its own call, so
-  a *background* run's completion appears in the caller's transcript at the harvesting
+  a run's completion appears in the caller's transcript at the harvesting
   `check` — the live, continuous view is `AgentActivity` (§8.1); the calling transcript
   records the **interaction points**. A finished run's final text enters the caller's
   context exactly once, as that harvesting `finished` event's `result` (`sent` deliberately
@@ -437,6 +435,39 @@ Progress is that same stream, delivered live:
   serial gate (why §8.1's `lanes` are truthful), the session itself, **and the event
   feed** — because the session *is* a Router session. Nothing about progress lives outside
   the session record model.
+
+### 8.4 Notifications & correlation — the display contract
+
+The library ships no GUI; it ships the **primitives a display needs**, and this is that
+contract. Notifications have two audiences with different physics:
+
+- **The calling model** learns things only at *interaction points* — an FM tool writes to
+  the transcript inside its own call, and nothing can push into a model's context between
+  turns. So the model's notifications are §8.2's typed events: `started` at delegation,
+  `running`/`finished` at each `check` (or the fleet `check` to re-orient on everything at
+  once). A host that wants the model to react promptly to a completion prepends a short
+  note to the *next* prompt ("run 01H… finished — check it"); the library surfaces the
+  completion, the host chooses the nudge.
+- **The host/UI** gets true push: the run's session events stream live from the recorder
+  tap (`run.events`, §8.3), already folded into `@Observable AgentActivity` (§8.1).
+
+**One ULID correlates everything.** The runId *is* the session id, and it appears on every
+artifact of a run: the `started` segment in the calling transcript (the anchor), every
+live `TranscriptEvent`, the `AgentRunSnapshot` row, the harvesting `check`'s
+`finished`/`failed` segment, and the recording directory in the Router tree. The intended
+rendering falls out of that key:
+
+1. the `started` segment anchors **one agent card** at the delegation point in the
+   conversation view;
+2. `AgentActivity`'s snapshot for that id updates the card **in place** — `state` plus the
+   one-line `lastEvent` ("calling tool grep…");
+3. **click to drill in**: the run's own transcript, live from `run.events` or post-hoc from
+   the lineage-nested `transcript.jsonl` (§9) — the same events either way;
+4. the later harvesting `check` carries the **same runId**, so its `finished` segment folds
+   into the existing card as the result line instead of opening a new entry.
+
+Everything about one agent stays together by construction — keyed by one id, joined by
+lineage, never by side-band correlation. `AgentDashboard` (§13) demonstrates the contract.
 
 ## 9. Recording & diagnostics
 
@@ -498,15 +529,17 @@ carries the mirror note).
 
 ## 11. Resolved decisions
 
-1. **FM entry point → one `AgentsTool`** with **list / run / start / check / send / cancel**
+1. **FM entry point → one `AgentsTool`** with **list / start / check / send / cancel**
    actions, on core `FoundationModels.Tool` — the Skills single-tool pattern.
+   Background-only: there is no foreground `run` (§8, decision #12).
 2. **Identity → frontmatter `name`** (Claude rule; agents are single files), validated
    lowercase+hyphens; full-replace override by name up the stack; duplicate-in-root ⇒
    diagnostic.
 3. **Format → Claude-compatible subset**, three tiers: enforced (`name`, `description`,
-   `tools`, `disallowedTools`, `model`, `skills`, `maxTurns`, `background`), data-only
-   (`color`, unknown keys), diagnosed-unsupported (`permissionMode`, `mcpServers`, `hooks`,
-   `memory`, `effort`, `isolation`, `initialPrompt`).
+   `tools`, `disallowedTools`, `model`, `skills`, `maxTurns`), data-only (`color`;
+   `background` — every run is background here, `false` draws a diagnostic, §8; unknown
+   keys), diagnosed-unsupported (`permissionMode`, `mcpServers`, `hooks`, `memory`,
+   `effort`, `isolation`, `initialPrompt`).
 4. **Body → literal system prompt.** No argument/shell/Stencil rendering; the dynamic input
    is the task prompt.
 5. **Models → slot-mapped**: `standard` / `flash` / `inherit` canonical; Claude aliases map
@@ -536,9 +569,12 @@ carries the mirror note).
     `transcript.jsonl` in the Router's lineage tree, nested under its caller; the agents
     package adds only the agent-name stamp on the opening event. No parallel recording
     system.
-12. **Foreground parallel `run` relies on FM parallel tool-call execution.** *(Confirm
-    against the shipping WWDC26 SDK; if tool calls execute serially, the `start`/`check`
-    path is the parallel primitive and `run` stays correct, just sequential.)*
+12. **Background-only delegation — no foreground `run`.** `start` returns immediately;
+    `check` (per-run or fleet) is the sole harvest point; multitasking is many started
+    runs, never a parked tool call — so FM's parallel tool-call behavior is **not
+    load-bearing** and its WWDC26 verification item is retired here. *(Supersedes the
+    earlier foreground-`run` design; the divergence from Claude's dual style is
+    documented in §8.)*
 13. **Layer reuse → depend on FoundationModelsSkills** for `FrontmatterDocument` +
     `FolderStack` (with the file-entry generalization) — superseding Skills decision #17's
     same-target `AgentRegistry`.
@@ -608,14 +644,15 @@ async let b = runner.start("test-writer",   prompt: p2).result()
 
 // Layer 4 — model-driven delegation from a root session:
 let agentsTool = AgentsTool.builder(runner: runner)
-  .actions([.list, .run, .start, .check, .send, .cancel])
+  .actions([.list, .start, .check, .send, .cancel])
   .build()
 let root = LanguageModelSession(
   tools: [agentsTool, skillsTool.tool],
   instructions: Instructions { "…base instructions…" }
 )
 // The root model now sees each agent's name + description and delegates:
-// run("code-reviewer", "Review the diff …") → sub-agent's final text as tool output.
+// start("code-reviewer", "Review the diff …") → runId at once; the model keeps
+// working, and a later check(runId) harvests the review as a typed finished event.
 
 // Per-profile fleet observability for SwiftUI (§8.1):
 @State var activity = runner.activity          // @MainActor @Observable AgentActivity
@@ -647,7 +684,7 @@ Examples/
     test-writer.md         standard slot
     summarizer.md          background: true
   DelegateCLI/           model-driven delegation: a root session with AgentsTool —
-                         list / run / start / check — typed AgentEvents landing in the
+                         list / start / check — typed AgentEvents landing in the
                          calling transcript (§8.2 made runnable); ends with a hot-reload
                          beat: edit code-reviewer.md while running, the next run uses
                          the new body (§15's live-reload case, watchable)
@@ -655,8 +692,10 @@ Examples/
                          structured-concurrency await; prints the honesty clause live
                          (same-slot runs queue, cross-slot runs overlap — §8), then
                          walks the Router recording tree it produced (§9)
-  AgentDashboard/        SwiftUI app on AgentActivity: run rows with color badges,
-                         slot lanes, live lastEvent fed by run.events (§8.1, §8.3)
+  AgentDashboard/        SwiftUI app on AgentActivity: one card per run updating in
+                         place (state + one-line lastEvent), color badges, slot lanes,
+                         click to drill into the run's live transcript — the §8.4
+                         display contract, demonstrated (§8.1, §8.3)
 ```
 
 - Each example is small, single-purpose, and reads top-to-bottom as the tutorial for one
@@ -680,11 +719,12 @@ Examples/
 - **M3 — Execution substrate (the Router growth).** Tool-capable routed sessions, `spawn`,
   live recorder tap (§10); one `AgentRun` end to end: instructions + resolved tools + slot
   → spawned routed session → final text. *(The heaviest cross-repo milestone.)*
-- **M4 — `AgentsTool`.** list/run on core `FoundationModels.Tool`; typed `AgentEvent`
-  output landing as structured segments in the calling transcript (§8.2); live-registry
-  deref with stale-name backstop; delegation proven from a root session.
-- **M5 — Scheduler + observability.** `AgentRunner` admission gate, background
-  `start`/`check`/`send`/`cancel`, structured cancellation, resumable runs (§7.1); the
+- **M4 — `AgentsTool`.** list/start/check on core `FoundationModels.Tool`; typed
+  `AgentEvent` output landing as structured segments in the calling transcript (§8.2);
+  live-registry deref with stale-name backstop; background delegation proven from a root
+  session (start → the model keeps working → harvesting check).
+- **M5 — Scheduler + observability.** `AgentRunner` admission gate, `send`/`cancel` and
+  the fleet `check`, structured cancellation, resumable runs (§7.1); the
   recorder's live feed surfaced as `run.events` (§8.3) and folded into `AgentActivity`
   with run snapshots + slot lanes (§8.1); `background: true` routing.
 - **M6 — Semantics fill-in.** `skills:` preload *(needs Skills M3 — `SkillsRegistry`)*,
@@ -715,8 +755,8 @@ machinery.
 
 A separate **gated integration suite** (Swift Testing, `.serialized`, opt-in env var —
 the Router's pattern, tiny `mlx-community` models) proves: a definition file becomes a live
-sub-agent; delegation from a root session round-trips (root → `AgentsTool.run` → sub-agent
-tool use → final text back); two concurrent runs on different slots make progress
+sub-agent; background delegation round-trips (root → `start` → sub-agent tool use →
+harvesting `check` returns the final text); two concurrent runs on different slots make progress
 independently; `check`/`cancel` behave; a `send` follow-up continues a run's context;
 `run.events` surfaces a sub-tool call *while the run is still in flight* (§8.3); the
 calling session's transcript carries the run's `started`/`finished` structured segments
