@@ -230,7 +230,12 @@ activity in it:
 - **Lineage is delegation.** A run started from a routed calling session is a **child
   session** — `parentId` = the caller, recording directory nested under the caller's — so
   the Router's on-disk session tree *is* the delegation tree. A host-driven run with no
-  calling session is a root session under the Router.
+  calling session is a root session under the Router. The mechanism is
+  **construction-time binding**: FM hands a tool no context object (arguments only,
+  decision #19), so an `AgentsTool` cannot *discover* its caller — the Router's
+  tool-capable `makeSession(tools:)` binds its own session id into the `AgentsTool` it
+  hosts (the §5 factory pattern), and a host-built tool takes an explicit `caller:`
+  (nil ⇒ its runs are roots).
 - **Two child flavors.** **`spawn`** — fresh context: own instructions (the agent body),
   own tools, empty cache — the named-agent case. **`fork`** — inherits the caller's context
   and prefilled KV prefix — Claude's fork-the-conversation case, which also recovers KV
@@ -354,7 +359,7 @@ struct AgentRunSnapshot: Identifiable, Sendable {
   var state: AgentRunState                 // queued → running → finished/failed/cancelled
   var startedAt: Date?; var finishedAt: Date?
   var tokensIn: Int; var tokensOut: Int    // as reported by the FM session
-  var lastEvent: String?                   // "calling tool grep…" — fed live by §8.3
+  var lastEvent: String?                   // "calling tool grep…" — the run's transcript tail (§8.3)
 }
 
 struct SlotLane: Sendable {                // one resident model = one serial lane
@@ -366,6 +371,10 @@ struct SlotLane: Sendable {                // one resident model = one serial la
 - **Lanes make the honesty clause visible.** Each slot's serial gate is drawn as a lane —
   one run generating, the rest queued behind it — so the UI shows *why* a run is waiting
   instead of an unexplained spinner.
+- **Scheduler facts live here; content lives in transcripts.** Lanes, queue position, and
+  admission are runner state that appears in *no* transcript; a card's content — the
+  one-liner, the drill-in — comes from observing `run.transcript` (§8.3, §8.4). One
+  dashboard, two sources, no duplication.
 - The `color:` frontmatter field (tier 2, data-only in the registry) is **consumed here**:
   each agent gets its stable badge color in the run list — exactly its Claude Code role.
 - Snapshots are value types published on the main actor after each state transition and
@@ -417,24 +426,29 @@ segments** — the custom-segment pattern — rather than dissolving into a text
 - *(Confirm against the shipping WWDC26 SDK how structured tool output is represented in
   `Transcript` segments — same verification item as Skills decision #18.)*
 
-### 8.3 Live progress — observe the session
+### 8.3 Live progress — observe the transcript
 
-**The thing to observe is the session.** Because agent runs are routed sessions (§7),
-every prompt, response, sub-tool call, and tool output already flows through the Router's
-recorder chokepoint as a typed, totally-ordered event (`seq`/`ts`, the schema in §9).
-Progress is that same stream, delivered live:
+**The thing to observe is the session — and the way you observe a session is its
+transcript.** This is the FM-native idiom: `LanguageModelSession` is itself `@Observable`
+with a growing `transcript` property that SwiftUI binds to directly. Routed sessions do
+the same: every prompt, response, sub-tool call, and tool output flows through the
+Router's recorder chokepoint (typed, totally ordered — the §9 schema) and **appends to an
+observable, append-only `Transcript` per session**. `AgentRun.transcript` is the run's
+read-only view of it — the session itself is still never vended (§7.1).
 
-- **One tap: the recorder.** The Router grows a live event surface (§10) — each session
-  event is published as it is appended. `AgentRun.events: AsyncStream<TranscriptEvent>` is
-  the run's session filtered out of that feed, finishing at terminal state; `AgentActivity`
-  (§8.1) is the feed folded on the main actor — `lastEvent` is the latest `toolCall`, token
-  counts come from the recorded turn events. One vocabulary, no duplicate stream.
+- **One append, two views.** The same chokepoint event becomes an entry in the observable
+  transcript *and* a line in the session's `transcript.jsonl` (§9) — live observation and
+  the durable record carry identical entries, so a UI built on live transcripts replays
+  recordings for free. **No separate event stream survives in the public API**; a host
+  that wants a stream derives one from observation.
 - **The §5 decorator stays for enforcement, not eventing.** `maxTurns` counting rides the
-  wrapped tools; tool events reach observers through the recorder like everything else.
+  wrapped tools; tool activity reaches observers through the recorded transcript like
+  everything else.
 - **The Router's role, stated exactly:** it supplies the resident model, the per-model
-  serial gate (why §8.1's `lanes` are truthful), the session itself, **and the event
-  feed** — because the session *is* a Router session. Nothing about progress lives outside
-  the session record model.
+  serial gate (why §8.1's `lanes` are truthful), the session itself, **and the nested
+  observable transcripts** — lineage (`parentId`) plus the runId keys make the set of
+  transcripts a navigable tree (§8.4). Nothing about progress lives outside the session
+  record model.
 
 ### 8.4 Notifications & correlation — the display contract
 
@@ -448,21 +462,24 @@ contract. Notifications have two audiences with different physics:
   once). A host that wants the model to react promptly to a completion prepends a short
   note to the *next* prompt ("run 01H… finished — check it"); the library surfaces the
   completion, the host chooses the nudge.
-- **The host/UI** gets true push: the run's session events stream live from the recorder
-  tap (`run.events`, §8.3), already folded into `@Observable AgentActivity` (§8.1).
+- **The host/UI** observes transcripts — the FM-native way (§8.3): the calling session's
+  transcript for the conversation, `run.transcript` for each agent card, all growing
+  live; `@Observable AgentActivity` (§8.1) adds the scheduler facts no transcript
+  contains — queue position, who holds a slot's gate.
 
 **One ULID correlates everything.** The runId *is* the session id, and it appears on every
-artifact of a run: the `started` segment in the calling transcript (the anchor), every
-live `TranscriptEvent`, the `AgentRunSnapshot` row, the harvesting `check`'s
+artifact of a run: the `started` segment in the calling transcript (the anchor), the run's
+own observable transcript, the `AgentRunSnapshot` row, the harvesting `check`'s
 `finished`/`failed` segment, and the recording directory in the Router tree. The intended
 rendering falls out of that key:
 
 1. the `started` segment anchors **one agent card** at the delegation point in the
    conversation view;
-2. `AgentActivity`'s snapshot for that id updates the card **in place** — `state` plus the
-   one-line `lastEvent` ("calling tool grep…");
-3. **click to drill in**: the run's own transcript, live from `run.events` or post-hoc from
-   the lineage-nested `transcript.jsonl` (§9) — the same events either way;
+2. observing `run.transcript` updates the card **in place** — its tail entry is the
+   one-line `lastEvent` ("calling tool grep…"); `AgentActivity` adds `state` and
+   lane/queue chips;
+3. **click to drill in**: the same transcript in full — observed live, or replayed
+   post-hoc from the lineage-nested `transcript.jsonl` (§9), identical entries either way;
 4. the later harvesting `check` carries the **same runId**, so its `finished` segment folds
    into the existing card as the result line instead of opening a new entry.
 
@@ -509,8 +526,11 @@ This plan **supersedes** two assumptions in the sibling plans:
    *inside* the recorded chokepoint, emitting the `toolCall`/`toolOutput` events its
    transcript schema already defines. (b) **`spawn`** — a child-session primitive beside
    `fork()`: lineage (`parentId`, nested recording directory) with a *fresh* cache and its
-   own instructions/tools, for fresh-context agents. (c) A **live recorder tap** — an
-   observable/streaming surface over appended events, feeding §8.3. Its plan's "interop
+   own instructions/tools, for fresh-context agents. (c) **Per-session observable
+   transcripts + the lineage index** — each session exposes an `@Observable`, append-only
+   `Transcript` built at the recorder chokepoint (the FM-native
+   `LanguageModelSession.transcript` idiom), and lineage makes the set a navigable tree,
+   feeding §8.3/§8.4. Its plan's "interop
    available but not load-bearing" is superseded: the interop is load-bearing and lives
    *inside* `RoutedSession`. *(Risk: session-owned KV vs an FM-driven tool loop — §7.)*
 
@@ -600,11 +620,22 @@ carries the mirror note).
     Background completions surface at the harvesting `check`; live state is
     `AgentActivity`'s job. *(Confirm segment representation against the shipping WWDC26
     SDK.)*
-18. **Router enters through the environment; progress is the session's record stream**
-    (§2, §8.3). The registry is model-free; the Router's single entry point is
-    `AgentEnvironment.profile`. Because runs are Router sessions, the live event feed *is*
-    the recorder's stream — surfaced as `AgentRun.events: AsyncStream<TranscriptEvent>` and
-    folded into `AgentActivity`; the §5 decorator remains for `maxTurns` enforcement only.
+18. **Router enters through the environment; progress is the session's observable
+    transcript** (§2, §8.3). The registry is model-free; the Router's single entry point
+    is `AgentEnvironment.profile`. Because runs are Router sessions, live progress *is*
+    the transcript growing — surfaced as `AgentRun.transcript` (read-only, `@Observable`,
+    append-only; the same entries the recorder writes to jsonl), with `AgentActivity`
+    adding the scheduler facts no transcript contains. No separate public event stream.
+    The §5 decorator remains for `maxTurns` enforcement only.
+19. **Tools are context-free → `AgentsTool` is session-bound.** FM's `Tool.call` receives
+    only its arguments — no session, no transcript, no caller id, no tool-call id, and no
+    mid-call output channel; everything else is captured at construction (Apple's DI
+    pattern). So: one `AgentsTool` instance per calling session — the Router's
+    `makeSession(tools:)` binds its session id in (giving §7's lineage its mechanism), a
+    host-built tool takes an explicit `caller:` (nil ⇒ runs are roots) — and the instance
+    is a stateless façade over the runner actor, safe under parallel tool calls. The
+    no-mid-call-output constraint is also why §8.4's model/host split is structural, not
+    stylistic.
 
 ## 12. Public API sketch (illustrative)
 
@@ -633,9 +664,8 @@ let runner = AgentRunner(registry: agents, environment: env)
 
 // Host-driven fan-out — root sessions under the Router; no calling session:
 let run = try await runner.start("code-reviewer", prompt: "Review:\n\(diff)")
-Task {                                         // live in-flight progress (§8.3):
-  for await event in run.events { … }          // the session's TranscriptEvents, live
-}
+// live in-flight progress (§8.3): run.transcript is @Observable and append-only —
+// bind it straight into SwiftUI; its tail entry is the agent card's one-liner (§8.4)
 let report = try await run.result()            // final text; run.state observable
 let more   = try await run.send("Now check the tests too")   // same session, same context
 // Many at once, bounded by admission:
@@ -645,7 +675,8 @@ async let b = runner.start("test-writer",   prompt: p2).result()
 // Layer 4 — model-driven delegation from a root session:
 let agentsTool = AgentsTool.builder(runner: runner)
   .actions([.list, .start, .check, .send, .cancel])
-  .build()
+  .caller(nil)   // native root session ⇒ model-started runs are Router roots;
+  .build()       // router-made sessions bind their own id instead (§7, decision #19)
 let root = LanguageModelSession(
   tools: [agentsTool, skillsTool.tool],
   instructions: Instructions { "…base instructions…" }
@@ -662,8 +693,9 @@ let root = LanguageModelSession(
 Core types: `AgentDefinition` (parsed file), `AgentListing` (metadata view: name,
 description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment`,
 `ToolCatalog`, `ModelMapping`, `AgentsTool` + its `AgentEvent` output (§8.2),
-`AgentRunner` (actor), `AgentRun` (handle: `id: ULID` — the session id, `state`, `events`
-— a live stream of the session's Router `TranscriptEvent`s (§8.3), `result()`, `send(_:)`,
+`AgentRunner` (actor), `AgentRun` (handle: `id: ULID` — the session id, `state`,
+`transcript` — a read-only `@Observable`, append-only view of the run's session record
+(§8.3), `result()`, `send(_:)`,
 `cancel()`), `AgentRunState` (`queued`, `running`, `finished(String)`,
 `failed(AgentRunFailure)`, `cancelled`), `AgentRunFailure`, `AgentActivity`
 (`@MainActor @Observable`; `AgentRunSnapshot`, `SlotLane`, `AgentColor` — §8.1),
@@ -692,10 +724,11 @@ Examples/
                          structured-concurrency await; prints the honesty clause live
                          (same-slot runs queue, cross-slot runs overlap — §8), then
                          walks the Router recording tree it produced (§9)
-  AgentDashboard/        SwiftUI app on AgentActivity: one card per run updating in
-                         place (state + one-line lastEvent), color badges, slot lanes,
-                         click to drill into the run's live transcript — the §8.4
-                         display contract, demonstrated (§8.1, §8.3)
+  AgentDashboard/        SwiftUI app on nested observable transcripts + AgentActivity:
+                         one card per run updating in place (the transcript-tail
+                         one-liner), color badges, slot lanes, click to drill into the
+                         run's live transcript — the §8.4 display contract,
+                         demonstrated (§8.1, §8.3)
 ```
 
 - Each example is small, single-purpose, and reads top-to-bottom as the tutorial for one
@@ -717,16 +750,17 @@ Examples/
   **explicit tested case** (the §15 battery, not a watcher footnote) — `listing()`.
   *(Needs Skills M2 + the file-entry generalization.)*
 - **M3 — Execution substrate (the Router growth).** Tool-capable routed sessions, `spawn`,
-  live recorder tap (§10); one `AgentRun` end to end: instructions + resolved tools + slot
-  → spawned routed session → final text. *(The heaviest cross-repo milestone.)*
+  per-session observable transcripts + lineage index (§10); one `AgentRun` end to end:
+  instructions + resolved tools + slot → spawned routed session → final text. *(The
+  heaviest cross-repo milestone.)*
 - **M4 — `AgentsTool`.** list/start/check on core `FoundationModels.Tool`; typed
   `AgentEvent` output landing as structured segments in the calling transcript (§8.2);
   live-registry deref with stale-name backstop; background delegation proven from a root
   session (start → the model keeps working → harvesting check).
 - **M5 — Scheduler + observability.** `AgentRunner` admission gate, `send`/`cancel` and
-  the fleet `check`, structured cancellation, resumable runs (§7.1); the
-  recorder's live feed surfaced as `run.events` (§8.3) and folded into `AgentActivity`
-  with run snapshots + slot lanes (§8.1); `background: true` routing.
+  the fleet `check`, structured cancellation, resumable runs (§7.1); the observable
+  `run.transcript` surface (§8.3) and `AgentActivity` with run snapshots + slot lanes
+  (§8.1).
 - **M6 — Semantics fill-in.** `skills:` preload *(needs Skills M3 — `SkillsRegistry`)*,
   `disallowedTools` order, `maxTurns` decorator, model-mapping diagnostics,
   workingDirectory isolation.
@@ -758,7 +792,7 @@ the Router's pattern, tiny `mlx-community` models) proves: a definition file bec
 sub-agent; background delegation round-trips (root → `start` → sub-agent tool use →
 harvesting `check` returns the final text); two concurrent runs on different slots make progress
 independently; `check`/`cancel` behave; a `send` follow-up continues a run's context;
-`run.events` surfaces a sub-tool call *while the run is still in flight* (§8.3); the
+`run.transcript` grows with a sub-tool call *while the run is still in flight* (§8.3); the
 calling session's transcript carries the run's `started`/`finished` structured segments
 (§8.2); a spawned run's `transcript.jsonl` nests under its calling session in the Router
 tree, its tool calls appear as recorded `toolCall`/`toolOutput` events, and the merged log
