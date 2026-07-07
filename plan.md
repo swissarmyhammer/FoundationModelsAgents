@@ -18,9 +18,10 @@ the generic stacked-folder machinery comes from
   cancel**).
   The framework has no agents concept; we add a *tool*, not a new primitive. This mirrors
   Claude Code, where delegation happens through the `Agent` (né `Task`) tool. But it is a
-  **special tool result**: every action returns a typed `AgentEvent` that lands in the
-  calling session's transcript as a structured segment (§8.2), so agent starts/stops are
-  first-class entries in the caller's record, not prose.
+  **special tool result**: every run-lifecycle action returns a typed `AgentEvent` that
+  lands in the calling session's transcript as a structured segment (§8.2; `list` alone
+  returns the catalog — the §8 action table), so agent starts/stops are first-class
+  entries in the caller's record, not prose.
 - **One session system, one recording system.** An agent is a *utility that drives
   activity in a session*. Every run is a **Router session** — a child in the Router's
   lineage-nested recording tree — so there is exactly one transcript model, one event
@@ -317,6 +318,21 @@ RoutedSession  (internal)            the run's engine IN the Router's session an
   from spreading agents across `standard` and `flash`. The scheduler makes multitasking
   *correct and bounded*; the hardware decides how simultaneous it is.
 
+### The action vocabulary
+
+The whole `AgentsTool` surface in one table (the Shelltool-plan convention). Six
+actions; every parameter is named here and nowhere else. Run-lifecycle actions return a
+typed `AgentEvent` (§8.2); `list` alone returns the catalog:
+
+| action | parameters | returns | behavior |
+|---|---|---|---|
+| `list` | *(none)* | `[AgentListing]` | The delegation surface, live from the registry: each agent's `name`, `description`, slot, `color`. The same words the frontmatter authored — hot reload refreshes them (§15). |
+| `run` | `agent` (req), `prompt` (req) | `finished(runId, result)` / `failed(runId, reason)` | *Foreground*: resolve → spawn a routed session → await final text. Unknown/stale `agent` ⇒ error carrying the current listing. A `background: true` definition dispatches as `start` instead. Several `run` calls in one turn execute concurrently (decision #12). |
+| `start` | `agent` (req), `prompt` (req) | `started(runId, agent, slot)` | *Background*: returns immediately with the ULID run id (= session id); the run proceeds under the admission gate. Same stale-name backstop as `run`. |
+| `check` | `runId` (req) | `running(runId, lastEvent)` / `finished` / `failed` / `cancelled` / `gone` | Poll a background run. The **sole harvest point**: a finished run's final text enters the caller's context exactly once, in this `finished` event (§8.2). Released/unknown id ⇒ `gone`. |
+| `send` | `runId` (req), `prompt` (req) | `sent(runId)` / `gone` | Follow-up into a retained run's **same session and context** (§7.1 resume semantics). `sent` deliberately carries no result — it arrives via a later `check`. |
+| `cancel` | `runId` (req) | `cancelled(runId)` / `gone` | Structured cancellation of the run's session task; the record keeps everything captured so far (§9). |
+
 ### 8.1 SwiftUI observability — per profile
 
 A runner is bound to **one resolved `LanguageModelProfile`** (the Router's
@@ -362,7 +378,8 @@ struct SlotLane: Sendable {                // one resident model = one serial la
 ### 8.2 Agent events in the calling session's transcript
 
 The agent system is just a tool — but its result is a **special tool result**. Every
-`AgentsTool` action returns a **typed `AgentEvent`**, never prose:
+run-lifecycle action returns a **typed `AgentEvent`**, never prose (`list` alone returns
+`[AgentListing]` — the §8 action table):
 
 ```swift
 @Generable enum AgentEvent {           // the tool's output type — structured, not text
@@ -539,9 +556,10 @@ carries the mirror note).
     serial gates; the `color:` field is consumed here for stable agent badges. Sequential
     profiles ⇒ sequential runners ⇒ one dashboard each.
 17. **Calling-transcript events → typed `AgentEvent` tool output** (§8.2). The agent system
-    is just a tool, but its result is a *special tool result*: every action returns a
-    `@Generable AgentEvent` (`started` / `running` / `finished` / `failed` / `sent` /
-    `cancelled` / `gone`) that lands in the calling session's `Transcript` as a structured
+    is just a tool, but its result is a *special tool result*: every run-lifecycle action
+    returns a `@Generable AgentEvent` (`started` / `running` / `finished` / `failed` /
+    `sent` / `cancelled` / `gone`; `list` alone returns `[AgentListing]` — the §8 action
+    table) that lands in the calling session's `Transcript` as a structured
     segment — lifecycle first-class in the caller's record, model-visible, UI-renderable.
     Background completions surface at the harvesting `check`; live state is
     `AgentActivity`'s job. *(Confirm segment representation against the shipping WWDC26
