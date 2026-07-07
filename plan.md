@@ -240,7 +240,8 @@ activity in it:
   own tools, empty cache — the named-agent case. **`fork`** — inherits the caller's context
   and prefilled KV prefix — Claude's fork-the-conversation case, which also recovers KV
   prefix reuse for template fan-outs. Both are children in one tree; both queue at the
-  Router's admission gate. A fork's transcript is a **continuation**: it records only
+  Router's admission gate, and creating either **appends an anchor entry to the parent
+  at its current tip** (§8.4). A fork's transcript is a **continuation**: it records only
   entries after the fork point (a `forkedFrom` marker names the parent entry); the
   inherited prefix stays reachable through the parent, never copied (§8.4).
 - **Recording is structural, once.** Sessions are born holding the Router's recorder; the
@@ -408,7 +409,11 @@ FoundationModels records every tool call and its output as transcript entries bu
 segments** — the custom-segment pattern — rather than dissolving into a text blob:
 
 - **Lifecycle is first-class in the caller's transcript.** `start` writes a `started`
-  segment (runId, agent, slot) at the moment of delegation; the `check` that harvests the
+  segment (runId, agent, slot) at the moment of delegation — a **self-sufficient card
+  seed**: a UI renders the agent card shell from this one entry with zero lookups, and
+  the entry's `child` provenance (§8.4) is the *same ULID* as the segment's runId, an
+  equality the tests assert (only `color` needs a registry lookup, by the name the
+  segment already carries). The `check` that harvests the
   outcome writes `finished`/`failed`. Replaying the calling transcript reconstructs the
   delegation timeline — who was started, when, on what, and how each ended — without
   parsing prose. A transcript UI renders agent chips/timeline straight from the segments.
@@ -491,9 +496,8 @@ open a session — and if so, hand me its transcript." So that is the API. The R
 knows the child's id at the moment it writes the delegation's `toolOutput` entry (the
 spawn happened inside that tool call, §7), and stamps it as recorded provenance:
 **`entry.child: ULID?`** — no segment parsing, present in the live transcript and in
-the jsonl alike (§9). Resolution is one call: **`transcript.nested(at: entry) →
-Transcript?`**, and for forks **`transcript.branches(at: entry) → [Transcript]`**
-(children whose `forkedFrom` names that entry). The whole UI walk:
+the jsonl alike (§9). Resolution is one call, for every child flavor:
+**`transcript.nested(at: entry) → Transcript?`**. The whole UI walk:
 
 ```swift
 for entry in transcript.entries {
@@ -505,20 +509,31 @@ for entry in transcript.entries {
 Ordering is the Router's, for free: session ids are ULIDs (lexicographically
 time-sortable, so siblings sort by creation), and the recorder actor assigns `seq`/`ts`
 at append — one total order across the whole tree; a session's transcript is a filtered
-subsequence of it. `AgentRun` keeps `recordURL` (its jsonl under the caller — nobody
+subsequence of it.
+
+**The anchor is self-sufficient, and attachment has one policy.** A run is born *inside*
+the tool call, so it exists before its anchor entry is written. The policy is
+**fleet-first, dock at anchor**: a freshly started run appears in `AgentActivity`
+immediately, and docks into the conversation when the delegation's `toolOutput` entry
+lands. From the entry side there is no race: by anchor-write time the child already
+exists, so **`transcript.nested(at:)` on a `started` anchor never returns nil**, and the
+entry alone — typed segment (runId, agent, slot) plus `child` provenance, one and the
+same ULID (§8.2) — seeds the card with zero lookups. `AgentRun` keeps `recordURL` (its jsonl under the caller — nobody
 composes recording paths by hand), and the runner keeps a management index (`runs`,
 `run(id:)`) for dashboards and cancel-everything — but *display* never needs it:
 position comes from the entry itself. This exact walk is an integration test case (§15)
 and a dedicated example (`NestedTranscripts`, §13).
 
-**Forks nest logically, not just hierarchically.** A *spawned* run's transcript starts
-empty — its card renders standalone, anchored at its `started` segment. A *forked* run
-inherits the caller's context, so its transcript is a **continuation**: the record holds
-only entries after the fork point plus a `forkedFrom(parentId, seq)` marker — the prefix
-is reachable through the parent, never duplicated. A UI renders a fork as a **branch off
-the parent transcript at that entry** (the conversation visibly splits), a spawn as a
-fresh card. Same tree, two nesting semantics: containment by lineage, continuation by
-fork point.
+**Forks are just children.** Creating any child — a model-started spawn or a
+host/Router fork — **appends an anchor entry to the parent at its current tip**: a
+delegation's `toolOutput`, or a `fork` event, each carrying `child`. A tool cannot run
+retroactively, so anchors only ever appear in order — rendering stays linear, and
+attachments show up as the transcript grows, never inserted into the past.
+`transcript.nested(at:)` is the one join for both flavors. The difference between them
+is the child's *starting context*, not its display: a spawn's transcript starts empty; a
+fork's is a **continuation** — it records only post-fork entries, with
+`forkedFrom(parentId, seq)` as child-side provenance naming the prefix it inherited
+(reachable through the parent, never copied).
 
 Everything about one agent stays together by construction — keyed by one id, joined by
 lineage, never by side-band correlation. `AgentDashboard` (§13) demonstrates the contract.
@@ -530,10 +545,10 @@ lineage, never by side-band correlation. `AgentDashboard` (§13) demonstrates th
   (`recordings/<routerId>/<caller…>/<sessionId>/`) — spawned/forked runs nest under their
   calling session; host-driven runs are roots. Events carry the Router's provenance schema
   (`{ routerId, sessionId, parentId, slot, model, seq, ts, kind:
-  "session"|"prompt"|"response"|"toolCall"|"toolOutput", … }`) — plus the two lineage
-  pointers that make the tree navigable both ways (§8.4): a delegation's `toolOutput`
-  entry carries `child` (the spawned session id) and a forked session's opening event
-  carries `forkedFrom(parentId, seq)`; the agents package **adds
+  "session"|"prompt"|"response"|"toolCall"|"toolOutput"|"fork", … }`) — plus the two
+  lineage pointers that make the tree navigable both ways (§8.4): every child-creating
+  entry (a delegation's `toolOutput`, a `fork` event) carries `child`, and a forked
+  session's opening event carries `forkedFrom(parentId, seq)`; the agents package **adds
   only metadata** — the agent `name` stamped on the session's opening event — so "which
   agent was this" is answerable from the record. Merged `**/transcript.jsonl` ordering,
   `.jsonl`/`.inMemory`/`.none` sinks, redaction levels: all inherited from the Router, none
@@ -770,8 +785,8 @@ Examples/
                          router → root session with a bound AgentsTool → the model
                          starts one agent → walk root.transcript; at the entry whose
                          .child is set, transcript.nested(at:) → print the nested
-                         transcript as it grows; fork the conversation, show the branch
-                         via transcript.branches(at:); finish at run.recordURL
+                         transcript as it grows; fork the conversation — its anchor
+                         entry resolves via the same nested(at:); finish at run.recordURL
   FanOut/                host-driven parallelism: runner.start × N across both slots,
                          structured-concurrency await; prints the honesty clause live
                          (same-slot runs queue, cross-slot runs overlap — §8), then
@@ -855,9 +870,9 @@ parity, proven against a real session); **the drill-in walk** (§8.4) — the mo
 an agent from a routed root session, the test finds the delegation entry whose
 `entry.child` is set, resolves `transcript.nested(at:)`, observes the nested transcript
 grow live, and asserts its entries equal `run.recordURL`'s jsonl; and
-**fork nesting** — a forked run's
-transcript holds only post-fork entries, and its `forkedFrom` marker resolves to the
-correct entry of the parent's transcript.
+**fork nesting** — forking appends a `fork` anchor entry to the parent whose `child`
+resolves through the same `transcript.nested(at:)`, the forked transcript holds only
+post-fork entries, and its `forkedFrom` marker resolves back to the correct parent entry.
 
 ---
 
