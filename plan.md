@@ -292,7 +292,8 @@ RoutedSession  (internal)            the run's engine IN the Router's session an
 - **Root sessions are peers, not parents.** The runner exists independently of any root
   session; several root sessions — or plain host code — can share one runner. The
   `AgentsTool` is just a view of the runner from inside a session, and a run never holds a
-  reference back to whoever started it.
+  reference back to whoever started it. Notification turns (§8.5) don't change this: the
+  *runner* delivers them through the Router by caller id; the run itself holds nothing.
 
 ## 8. Parallelism — the scheduler
 
@@ -538,6 +539,43 @@ fork's is a **continuation** — it records only post-fork entries, with
 Everything about one agent stays together by construction — keyed by one id, joined by
 lineage, never by side-band correlation. `AgentDashboard` (§13) demonstrates the contract.
 
+### 8.5 Waiting without blocking — the notification turn
+
+Claude Code's background agents feel like the model is "waiting" while still accepting
+messages. That waiting is a **conversational state, not a runtime state**, and it needs
+no custom agent loop — three mechanisms, all inside plain `LanguageModelSession`
+semantics:
+
+- **Turn discipline is a contract, not machinery.** The `AgentsTool` instructions state
+  it: *after starting runs, finish your turn; do not poll; you will be prompted when a
+  run completes.* The turn ends, the session goes idle, and idle sessions answer anyone —
+  the user's next prompt is an ordinary turn, during which the model handles unrelated
+  work or answers "still running" (the fleet `check` re-orients it).
+- **The notification turn.** Nothing can push into a model's context, so "proceeding
+  when done" is a new turn someone initiates. The runner initiates it: on a run's
+  terminal state it composes a short prompt — "run 01H… (code-reviewer) finished — check
+  it" — and enqueues one `respond(to:)` on the calling session. Not a loop: one
+  host-initiated turn per completion event. The model receives it like any message,
+  `check`s, harvests, and continues whatever it said it was waiting on.
+- **Serialization is the session; coalescing is ours.** FM sessions answer one turn at a
+  time, so a notification arriving mid-turn simply queues — the session *is* the
+  serializer. The runner **coalesces**: completions that accumulate while the session is
+  busy are delivered as one notification turn naming all of them; one fleet `check`
+  harvests the batch.
+
+**Delivery path — the sub-agent never touches the caller.** The run holds no reference
+back (§7.1); the *runner* knows every run's caller id (decision #19's binding) and asks
+the **Router** — the session owner — to enqueue the prompt by id (§10 growth (d)).
+Sessions stay never-vended end to end. A native-`LanguageModelSession` root has no
+routed session to prompt, so it takes `.manual` (the host observes and prompts itself) —
+the same boundary as positional nesting (§8.4).
+
+Policy lives on the environment — `notifications: .automatic` (default; the behavior
+above) / `.manual` / `.none` — and the notification prompt flows through the recorder
+chokepoint like any prompt, stamped `notifying: [runIds]`, so the transcript shows *why*
+the model spoke and a UI renders wakes distinctly from user messages. The full weave is
+an integration test case (§15).
+
 ## 9. Recording & diagnostics
 
 - **One recording system: the Router's.** An agent run's transcript is its session's
@@ -585,7 +623,9 @@ This plan **supersedes** two assumptions in the sibling plans:
    transcripts + the lineage index** — each session exposes an `@Observable`, append-only
    `Transcript` built at the recorder chokepoint (the FM-native
    `LanguageModelSession.transcript` idiom), and lineage makes the set a navigable tree,
-   feeding §8.3/§8.4. Its plan's "interop
+   feeding §8.3/§8.4. (d) **Turn delivery** — enqueue a runner-initiated prompt on a
+   session *by id* (the §8.5 notification turn), preserving never-vended sessions. Its
+   plan's "interop
    available but not load-bearing" is superseded: the interop is load-bearing and lives
    *inside* `RoutedSession`. *(Risk: session-owned KV vs an FM-driven tool loop — §7.)*
 
@@ -691,6 +731,14 @@ carries the mirror note).
     is a stateless façade over the runner actor, safe under parallel tool calls. The
     no-mid-call-output constraint is also why §8.4's model/host split is structural, not
     stylistic.
+20. **Waiting without blocking → the notification turn** (§8.5). `start` ends the turn —
+    an instructed contract, not machinery; the runner, via the Router by caller id,
+    enqueues one **coalesced** `respond(to:)` on the calling session per batch of
+    completions; the session's single-turn discipline serializes it against user turns.
+    Policy: `notifications: .automatic` (default) / `.manual` / `.none` on
+    `AgentEnvironment`; notification prompts are recorded with `notifying: [runIds]`
+    provenance; native-`LanguageModelSession` roots are `.manual`. No custom agent loop
+    anywhere — the session stays a plain `LanguageModelSession`.
 
 ## 12. Public API sketch (illustrative)
 
@@ -712,6 +760,7 @@ let env = AgentEnvironment(
   modelMapping: .default,                      // Claude aliases → slots
   tools: catalog,                              // ToolCatalog: name → Tool factory
   skills: skillsRegistry,                      // SkillsRegistry — `skills:` preload (may be empty)
+  notifications: .automatic,                   // completion wakes the caller (§8.5)
   maxConcurrentAgents: 4                       // recordings live with the Router (§9)
 )
 let runner = AgentRunner(registry: agents, environment: env)
@@ -751,7 +800,8 @@ for entry in root.transcript.entries where entry.child != nil {
 
 Core types: `AgentDefinition` (parsed file), `AgentListing` (metadata view: name,
 description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment`,
-`ToolCatalog`, `ModelMapping`, `AgentsTool` + its `AgentEvent` output (§8.2),
+`ToolCatalog`, `ModelMapping`, `NotificationPolicy` (`.automatic` / `.manual` / `.none` —
+§8.5), `AgentsTool` + its `AgentEvent` output (§8.2),
 `AgentRunner` (actor; `start(_:prompt:)`; the management index `runs`, `run(id:)` over
 every retained run, including model-started ones — §8.4), `AgentRun`
 (handle: `id: ULID` — the session id, `agent`, `caller`, `recordURL`, `state`,
@@ -872,7 +922,11 @@ an agent from a routed root session, the test finds the delegation entry whose
 grow live, and asserts its entries equal `run.recordURL`'s jsonl; and
 **fork nesting** — forking appends a `fork` anchor entry to the parent whose `child`
 resolves through the same `transcript.nested(at:)`, the forked transcript holds only
-post-fork entries, and its `forkedFrom` marker resolves back to the correct parent entry.
+post-fork entries, and its `forkedFrom` marker resolves back to the correct parent entry; and
+**the notification weave** (§8.5) — start a slow run, interleave an unrelated user turn,
+let the run finish mid-turn, then assert exactly one coalesced notification turn arrives
+after the user turn completes, recorded with `notifying: [runId]`, and the model's
+`check` in that turn harvests the result.
 
 ---
 
