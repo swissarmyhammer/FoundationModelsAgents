@@ -297,7 +297,12 @@ RoutedSession  (internal)            the run's engine IN the Router's session an
 
 ## 8. Parallelism — the scheduler
 
-**`AgentRunner`** (actor) owns every `AgentRun`:
+**`AgentRunner` is the scheduler and registrar for delegation** — the actor that turns a
+named agent + a prompt into a bounded, cancellable, findable routed session, and the
+bookkeeper that remembers which runs exist, who asked for them, and who to wake when
+they finish. It is *not* a session system, an agent loop, a display surface, or a
+recorder — every run it makes is a Router session it asked for; delegation semantics
+live here, session substrate lives in the Router. It owns every `AgentRun`:
 
 - **Fair FIFO admission** — at most `maxConcurrentAgents` runs in flight; excess `start`s
   queue on a fair async semaphore (the same primitive the Router uses for forks and its
