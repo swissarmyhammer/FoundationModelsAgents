@@ -14,13 +14,16 @@ the generic stacked-folder machinery comes from
 ## 1. Guiding principles
 
 - **An agent is just a tool — no special case.** In an FM session, sub-agents are reached
-  through one `FoundationModels.Tool` — `AgentsTool` (**list / start / check / send /
-  cancel** — all delegation is *background*, §8).
+  through one tool — `AgentsTool`, a **fused `OperationTool`** named `agents` (the sah
+  operation pattern via `../FoundationModelsOperationTool`, §10) whose six ops share
+  **one noun**: `list agents` / `search agents` / `start agent` / `check agent` /
+  `send agent` / `cancel agent` — all delegation is *background* (§8).
   The framework has no agents concept; we add a *tool*, not a new primitive. This mirrors
   Claude Code, where delegation happens through the `Agent` (né `Task`) tool. But it is a
-  **special tool result**: every run-lifecycle action returns a typed `AgentEvent` that
-  lands in the calling session's transcript as a structured segment (§8.2; `list` alone
-  returns the catalog — the §8 action table), so agent starts/stops are first-class
+  **special tool result**: every lifecycle op returns a typed `AgentEvent` that
+  lands in the calling session's transcript as a structured segment (§8.2; the catalog
+  ops `list agents`/`search agents` return listings — the §8 op table), so agent
+  starts/stops are first-class
   entries in the caller's record, not prose.
 - **One session system, one recording system.** An agent is a *utility that drives
   activity in a session*. Every run is a **Router session** — a child in the Router's
@@ -36,13 +39,16 @@ the generic stacked-folder machinery comes from
   exactly one session, which is never vended (§7.1). The run's id **is** its session's id.
   One definition, many concurrent runs; follow-ups go through the run, whose session (and
   context) lives as long as the run handle.
-- **Descriptions are the delegation contract.** Agent catalogs are small (unlike skills), so
-  each agent's `name` + `description` are baked directly into the `AgentsTool` surface — the
-  root model reads them to decide when and where to delegate. No separate search agent.
-  (If a deployment's catalog ever outgrows the baked-in surface,
-  [`../FoundationModelsMetadataRegistry`](../FoundationModelsMetadataRegistry/plan.md)
-  is the ready-made opt-in — `MetadataSearcher<AgentListing>`; its plan reserves exactly
-  that role and leaves the decision here. §10.)
+- **Descriptions are the delegation contract.** Agent catalogs are usually small (unlike
+  skills), so each agent's `name` + `description` are baked directly into the `AgentsTool`
+  surface — the root model reads them to decide when and where to delegate. When a
+  deployment's catalog outgrows the baked-in surface, the model narrows it with
+  **`search agents`** — ranked lexical retrieval (BM25 + trigram, RRF-fused) over
+  `name` + `description`, powered by
+  [`../FoundationModelsRanker`](../FoundationModelsRanker/plan.md) (§8, §10).
+  *(Supersedes the earlier reservation of `MetadataSearcher<AgentListing>` from
+  FoundationModelsMetadataRegistry for this role — the retrieval primitives now come
+  from the Ranker directly; no separate search agent, no registry detour.)*
 - **Models are routed, never named.** A definition says *how much* model it wants
   (`standard` / `flash` / `inherit`), not *which* HF repo — the Router already solved
   machine-fit. Claude aliases (`opus`, `sonnet`, `haiku`, `fable`) map onto slots.
@@ -61,8 +67,9 @@ the generic stacked-folder machinery comes from
 
 ```
 ┌─ Layer 4  FM adapter (agents) ─────────────────────────────────────────────┐
-│   AgentsTool — one core FoundationModels.Tool: list / run / start /        │
-│                check / send / cancel                                       │
+│   AgentsTool — one fused OperationTool "agents": list agents /             │
+│                search agents / start agent / check agent / send agent /    │
+│                cancel agent                                                │
 │   AgentRunner — actor: parallel runs, fair admission, cancellation         │
 │   AgentRun — drives ONE RoutedSession (run id = session id); state, result │
 │   AgentActivity — @Observable per-profile dashboard (runs + slot lanes)    │
@@ -89,8 +96,9 @@ the generic stacked-folder machinery comes from
   model mapping (§6), and skills preload (§5). Reloadable; publishes refreshed metadata.
   **Model-free**: the registry is pure files + validation; the Router never enters here
   (§6's mapping produces a *slot name*, not a model).
-- **FM adapter** (Layer 4) — `AgentsTool`, `AgentRunner`, `AgentRun`, all reading the
-  registry and executing over Router-vended models. **The Router enters exactly once,
+- **FM adapter** (Layer 4) — `AgentsTool` (one fused `OperationTool` from
+  `FoundationModelsOperations` — §8's op table, §10's dependency), `AgentRunner`,
+  `AgentRun`, all reading the registry and executing over Router-vended models. **The Router enters exactly once,
   through `AgentEnvironment.profile`** — a Router-resolved `LanguageModelProfile` (§7, §12);
   everything model-shaped flows from that one handle.
 
@@ -275,7 +283,7 @@ RoutedSession  (internal)            the run's engine IN the Router's session an
 
 - **One definition, many runs.** Concurrent runs of the same agent are fully independent —
   separate sessions, contexts, working directories, transcripts. The run id **is the
-  session id** — one ULID names the run in `check`/`send`/`cancel`, the activity row, and
+  session id** — one ULID is the `id` in `check agent`/`send agent`/`cancel agent`, the activity row, and
   the session's transcript directory in the Router tree.
 - **A run drives exactly one session** for its whole life, and the session is **never
   vended** — the Router's "no side door" rule holds. Everything crosses the run: prompts
@@ -284,8 +292,8 @@ RoutedSession  (internal)            the run's engine IN the Router's session an
   invariant — so resident models cannot be evicted mid-run, with nothing re-established at
   the agents layer.
 - **Runs are resumable while retained.** Because the run keeps its session, a follow-up
-  continues the same context after `finished` — `run.send(_:)` from Swift, the `send(runId,
-  prompt)` action from the model (Claude's resume semantics: a new invocation is fresh;
+  continues the same context after `finished` — `run.send(_:)` from Swift, the `send agent`
+  op from the model (Claude's resume semantics: a new invocation is fresh;
   resuming a run keeps its full history). Releasing the run releases the session and its
   context; a released or cancelled run's id draws a clear "gone" error, not a silent
   restart.
@@ -304,15 +312,15 @@ they finish. It is *not* a session system, an agent loop, a display surface, or 
 recorder — every run it makes is a Router session it asked for; delegation semantics
 live here, session substrate lives in the Router. It owns every `AgentRun`:
 
-- **Fair FIFO admission** — at most `maxConcurrentAgents` runs in flight; excess `start`s
-  queue on a fair async semaphore (the same primitive the Router uses for forks and its
+- **Fair FIFO admission** — at most `maxConcurrentAgents` runs in flight; excess
+  `start agent` calls queue on a fair async semaphore (the same primitive the Router uses for forks and its
   per-model serial gate).
-- **One invocation style — background only.** **`start(agent, prompt)` → runId**: the tool
-  returns immediately with the ULID run id (= session id); the calling session is never
-  parked on a delegation. The root keeps working and polls **`check`**, which reports state
-  and, when finished, the final text; **`send(runId, prompt)`** continues a retained run's
-  session with a follow-up (§7.1); **`cancel(runId)`** stops it. There is deliberately
-  **no foreground `run`**: an awaiting tool call would block the calling session for the
+- **One invocation style — background only.** **`start agent` → `started(id)`**: the tool
+  returns immediately with the ULID agent id (= session id); the calling session is never
+  parked on a delegation. The root keeps working and polls **`check agent`**, which reports
+  state and, when finished, the final text; **`send agent`** continues a retained run's
+  session with a follow-up (§7.1); **`cancel agent`** stops it. There is deliberately
+  **no foreground op**: an awaiting tool call would block the calling session for the
   sub-agent's whole lifetime — the moment two things should happen at once, foreground is
   the wrong default — and one dispatch path keeps the model's job simple: start, keep
   working, check. *(Deliberate divergence: Claude offers both styles and — ≥2.1.198 —
@@ -324,27 +332,37 @@ live here, session substrate lives in the Router. It owns every `AgentRun`:
   Swift returns an `AgentRun` handle to await — many handles, structured concurrency,
   `TaskGroup`-friendly.
 - **Cancellation** is structured: cancelling an `AgentRun` cancels its session's Swift task;
-  `cancel(runId)` does it from the model side; runner teardown cancels everything.
+  `cancel agent` does it from the model side; runner teardown cancels everything.
 - **Observability** — the runner publishes an `@MainActor @Observable` **`AgentActivity`**
-  for direct SwiftUI binding — the `ResolutionProgress` pattern, applied to the fleet (§8.1).
+  for direct SwiftUI binding — the `ResolutionProgress` pattern, applied to every live
+  agent (§8.1).
 - **Honesty clause:** concurrent runs on the *same* slot interleave at the Router's
   per-model serial gate (one generation at a time per resident model); true overlap comes
   from spreading agents across `standard` and `flash`. The scheduler makes multitasking
   *correct and bounded*; the hardware decides how simultaneous it is.
 
-### The action vocabulary
+### The op vocabulary
 
-The whole `AgentsTool` surface in one table (the Shelltool-plan convention). Five
-actions, all background; every parameter is named here and nowhere else. Run-lifecycle
-actions return typed `AgentEvent`s (§8.2); `list` alone returns the catalog:
+The whole `AgentsTool` surface in one table (the Shelltool-plan convention): one fused
+`OperationTool` named **`agents`** — `@Generable @Operation` structs, `op: "verb noun"`
+dispatch from `FoundationModelsOperations` (§10) — six ops sharing **one noun,
+`agent`**, all background; every parameter is named here and nowhere else. A `name`
+addresses a definition; an `id` addresses a live run. Lifecycle ops return typed
+`AgentEvent`s (§8.2); the catalog ops — `list agents`, `search agents` — return
+`[AgentListing]`:
 
-| action | parameters | returns | behavior |
+| op | parameters | returns | behavior |
 |---|---|---|---|
-| `list` | *(none)* | `[AgentListing]` | The delegation surface, live from the registry: each agent's `name`, `description`, slot, `color`. The same words the frontmatter authored — hot reload refreshes them (§15). |
-| `start` | `agent` (req), `prompt` (req) | `started(runId, agent, slot)` | Returns immediately with the ULID run id (= session id); the run proceeds under the admission gate while the caller keeps working. Unknown/stale `agent` ⇒ error carrying the current listing. |
-| `check` | `runId?` | one event — or the fleet | With `runId`: `running(runId, lastEvent)` / `finished` / `failed` / `cancelled` / `gone`. The **sole harvest point**: a finished run's final text enters the caller's context exactly once, in this `finished` event (§8.2). With `runId` omitted ⇒ **the fleet**: one event per live or unharvested run — in-flight runs report `running`, ready completions are harvested in the same call. Released/unknown id ⇒ `gone`. |
-| `send` | `runId` (req), `prompt` (req) | `sent(runId)` / `gone` | Follow-up into a retained run's **same session and context** (§7.1 resume semantics). `sent` deliberately carries no result — it arrives via a later `check`. |
-| `cancel` | `runId` (req) | `cancelled(runId)` / `gone` | Structured cancellation of the run's session task; the record keeps everything captured so far (§9). |
+| `list agents` | *(none)* | `[AgentListing]` | The delegation surface, live from the registry: each agent's `name`, `description`, slot, `color`. The same words the frontmatter authored — hot reload refreshes them (§15). |
+| `search agents` | `query` (req), `limit?` | `[AgentListing]` | The same live listings, **ranked**: BM25 + trigram over `name` (primary field) + `description` (body), RRF-fused — `FoundationModelsRanker` (§10). Lexical by default (no model, no embedder); cosine joins the fusion when the profile provides an embedder. The in-memory index rebuilds from the registry's reload publication (§15). |
+| `start agent` | `name` (req), `prompt` (req) | `started(id, name, slot)` | Returns immediately with the ULID agent id (= session id); the run proceeds under the admission gate while the caller keeps working. Unknown/stale `name` ⇒ error carrying the current listing. |
+| `check agent` | `id?` | one event — or one per agent | With `id`: `running(id, lastEvent)` / `finished` / `failed` / `cancelled` / `gone`. The **sole harvest point**: a finished agent's final text enters the caller's context exactly once, in this `finished` event (§8.2). With `id` omitted ⇒ **all agents**: one event per live or unharvested run — in-flight agents report `running`, ready completions are harvested in the same call. Released/unknown `id` ⇒ `gone`. |
+| `send agent` | `id` (req), `prompt` (req) | `sent(id)` / `gone` | Follow-up into a retained run's **same session and context** (§7.1 resume semantics). `sent` deliberately carries no result — it arrives via a later `check agent`. |
+| `cancel agent` | `id` (req) | `cancelled(id)` / `gone` | Structured cancellation of the run's session task; the record keeps everything captured so far (§9). |
+
+The operations package's forgiving resolver supplies verb aliases (`prompt agent` →
+`send agent`, `stop agent` → `cancel agent`, `find agents` → `search agents`) without
+widening the real vocabulary.
 
 ### 8.1 SwiftUI observability — per profile
 
@@ -355,7 +373,7 @@ profile's agent dashboard. It is `@MainActor @Observable`, bound straight into S
 ```swift
 @MainActor @Observable
 final class AgentActivity {
-  let profileName: String                  // the resolved profile this fleet runs on
+  let profileName: String                  // the resolved profile these agents run on
   var runs: [AgentRunSnapshot] = []        // live + recently finished, newest first
   var lanes: [ModelSlot: SlotLane] = [:]   // the per-model serial gates, visualized
 }
@@ -395,18 +413,18 @@ struct SlotLane: Sendable {                // one resident model = one serial la
 ### 8.2 Agent events in the calling session's transcript
 
 The agent system is just a tool — but its result is a **special tool result**. Every
-run-lifecycle action returns a **typed `AgentEvent`**, never prose (`list` alone returns
-`[AgentListing]` — the §8 action table):
+lifecycle op returns a **typed `AgentEvent`**, never prose (the catalog ops
+`list agents`/`search agents` return `[AgentListing]` — the §8 op table):
 
 ```swift
 @Generable enum AgentEvent {           // the tool's output type — structured, not text
-  case started(runId: ULID, agent: String, slot: ModelSlot)
-  case running(runId: ULID, lastEvent: String?)
-  case finished(runId: ULID, result: String)
-  case failed(runId: ULID, reason: String)
-  case sent(runId: ULID)               // follow-up accepted; result via a later check
-  case cancelled(runId: ULID)
-  case gone(runId: ULID)               // released/unknown id — §7.1's clear error
+  case started(id: ULID, name: String, slot: ModelSlot)
+  case running(id: ULID, lastEvent: String?)
+  case finished(id: ULID, result: String)
+  case failed(id: ULID, reason: String)
+  case sent(id: ULID)                  // follow-up accepted; result via a later check
+  case cancelled(id: ULID)
+  case gone(id: ULID)                  // released/unknown id — §7.1's clear error
 }
 ```
 
@@ -414,25 +432,25 @@ FoundationModels records every tool call and its output as transcript entries bu
 **segments**, so these events land in the calling session's `Transcript` as **structured
 segments** — the custom-segment pattern — rather than dissolving into a text blob:
 
-- **Lifecycle is first-class in the caller's transcript.** `start` writes a `started`
-  segment (runId, agent, slot) at the moment of delegation — a **self-sufficient card
+- **Lifecycle is first-class in the caller's transcript.** `start agent` writes a `started`
+  segment (id, name, slot) at the moment of delegation — a **self-sufficient card
   seed**: a UI renders the agent card shell from this one entry with zero lookups, and
-  the entry's `child` provenance (§8.4) is the *same ULID* as the segment's runId, an
+  the entry's `child` provenance (§8.4) is the *same ULID* as the segment's `id`, an
   equality the tests assert (only `color` needs a registry lookup, by the name the
-  segment already carries). The `check` that harvests the
+  segment already carries). The `check agent` that harvests the
   outcome writes `finished`/`failed`. Replaying the calling transcript reconstructs the
   delegation timeline — who was started, when, on what, and how each ended — without
   parsing prose. A transcript UI renders agent chips/timeline straight from the segments.
 - **The model reads the same structure.** Tool output is model-visible, so the root model
   sees unambiguous typed state (`running` vs `finished(result:)`) instead of guessing from
-  wording — which is what makes `check`-based multitasking reliable.
+  wording — which is what makes `check agent`-based multitasking reliable.
 - **Honesty about timing:** a tool can only write to the transcript inside its own call, so
   a run's completion appears in the caller's transcript at the harvesting
-  `check` — the live, continuous view is `AgentActivity` (§8.1); the calling transcript
+  `check agent` — the live, continuous view is `AgentActivity` (§8.1); the calling transcript
   records the **interaction points**. A finished run's final text enters the caller's
   context exactly once, as that harvesting `finished` event's `result` (`sent` deliberately
-  carries none — a follow-up's outcome arrives via its own later `check`).
-- **The records are one tree.** The runId in the caller's `started` segment *is* the
+  carries none — a follow-up's outcome arrives via its own later `check agent`).
+- **The records are one tree.** The `id` in the caller's `started` segment *is* the
   agent's session id, and that session's `transcript.jsonl` is nested under the caller's in
   the Router tree (§9) — caller timeline and sub-agent detail join by lineage, not by
   side-band correlation.
@@ -459,7 +477,7 @@ read-only view of it — the session itself is still never vended (§7.1).
   everything else.
 - **The Router's role, stated exactly:** it supplies the resident model, the per-model
   serial gate (why §8.1's `lanes` are truthful), the session itself, **and the nested
-  observable transcripts** — lineage (`parentId`) plus the runId keys make the set of
+  observable transcripts** — lineage (`parentId`) plus the agent-id keys make the set of
   transcripts a navigable tree (§8.4). Nothing about progress lives outside the session
   record model.
 
@@ -471,18 +489,18 @@ contract. Notifications have two audiences with different physics:
 - **The calling model** learns things only at *interaction points* — an FM tool writes to
   the transcript inside its own call, and nothing can push into a model's context between
   turns. So the model's notifications are §8.2's typed events: `started` at delegation,
-  `running`/`finished` at each `check` (or the fleet `check` to re-orient on everything at
+  `running`/`finished` at each `check agent` (id-omitted to re-orient on everything at
   once). A host that wants the model to react promptly to a completion prepends a short
-  note to the *next* prompt ("run 01H… finished — check it"); the library surfaces the
+  note to the *next* prompt ("agent 01H… finished — check it"); the library surfaces the
   completion, the host chooses the nudge.
 - **The host/UI** observes transcripts — the FM-native way (§8.3): the calling session's
   transcript for the conversation, `run.transcript` for each agent card, all growing
   live; `@Observable AgentActivity` (§8.1) adds the scheduler facts no transcript
   contains — queue position, who holds a slot's gate.
 
-**One ULID correlates everything.** The runId *is* the session id, and it appears on every
+**One ULID correlates everything.** The agent id *is* the session id, and it appears on every
 artifact of a run: the `started` segment in the calling transcript (the anchor), the run's
-own observable transcript, the `AgentRunSnapshot` row, the harvesting `check`'s
+own observable transcript, the `AgentRunSnapshot` row, the harvesting `check agent`'s
 `finished`/`failed` segment, and the recording directory in the Router tree. The intended
 rendering falls out of that key:
 
@@ -493,7 +511,7 @@ rendering falls out of that key:
    lane/queue chips;
 3. **click to drill in**: the same transcript in full — observed live, or replayed
    post-hoc from the lineage-nested `transcript.jsonl` (§9), identical entries either way;
-4. the later harvesting `check` carries the **same runId**, so its `finished` segment folds
+4. the later harvesting `check agent` carries the **same id**, so its `finished` segment folds
    into the existing card as the result line instead of opening a new entry.
 
 **The drill-in walk — the join is positional: entry → nested transcript.** A UI renders
@@ -519,11 +537,11 @@ subsequence of it.
 
 **The anchor is self-sufficient, and attachment has one policy.** A run is born *inside*
 the tool call, so it exists before its anchor entry is written. The policy is
-**fleet-first, dock at anchor**: a freshly started run appears in `AgentActivity`
+**dashboard-first, dock at anchor**: a freshly started run appears in `AgentActivity`
 immediately, and docks into the conversation when the delegation's `toolOutput` entry
 lands. From the entry side there is no race: by anchor-write time the child already
 exists, so **`transcript.nested(at:)` on a `started` anchor never returns nil**, and the
-entry alone — typed segment (runId, agent, slot) plus `child` provenance, one and the
+entry alone — typed segment (id, name, slot) plus `child` provenance, one and the
 same ULID (§8.2) — seeds the card with zero lookups. `AgentRun` keeps `recordURL` (its jsonl under the caller — nobody
 composes recording paths by hand), and the runner keeps a management index (`runs`,
 `run(id:)`) for dashboards and cancel-everything — but *display* never needs it:
@@ -555,18 +573,18 @@ semantics:
   it: *after starting runs, finish your turn; do not poll; you will be prompted when a
   run completes.* The turn ends, the session goes idle, and idle sessions answer anyone —
   the user's next prompt is an ordinary turn, during which the model handles unrelated
-  work or answers "still running" (the fleet `check` re-orients it).
+  work or answers "still running" (an id-omitted `check agent` re-orients it).
 - **The notification turn.** Nothing can push into a model's context, so "proceeding
   when done" is a new turn someone initiates. The runner initiates it: on a run's
-  terminal state it composes a short prompt — "run 01H… (code-reviewer) finished — check
+  terminal state it composes a short prompt — "agent 01H… (code-reviewer) finished — check
   it" — and enqueues one `respond(to:)` on the calling session. Not a loop: one
   host-initiated turn per completion event. The model receives it like any message,
-  `check`s, harvests, and continues whatever it said it was waiting on.
+  runs `check agent`, harvests, and continues whatever it said it was waiting on.
 - **Serialization is the session; coalescing is ours.** FM sessions answer one turn at a
   time, so a notification arriving mid-turn simply queues — the session *is* the
   serializer. The runner **coalesces**: completions that accumulate while the session is
-  busy are delivered as one notification turn naming all of them; one fleet `check`
-  harvests the batch.
+  busy are delivered as one notification turn naming all of them; one id-omitted
+  `check agent` harvests the batch.
 
 **Delivery path — the sub-agent never touches the caller.** The run holds no reference
 back (§7.1); the *runner* knows every run's caller id (decision #19's binding) and asks
@@ -577,7 +595,7 @@ the same boundary as positional nesting (§8.4).
 
 Policy lives on the environment — `notifications: .automatic` (default; the behavior
 above) / `.manual` / `.none` — and the notification prompt flows through the recorder
-chokepoint like any prompt, stamped `notifying: [runIds]`, so the transcript shows *why*
+chokepoint like any prompt, stamped `notifying: [sessionIds]`, so the transcript shows *why*
 the model spoke and a UI renders wakes distinctly from user messages. The full weave is
 an integration test case (§15).
 
@@ -602,7 +620,8 @@ an integration test case (§15).
 
 ## 10. Cross-repo prerequisites
 
-This plan **supersedes** two assumptions in the sibling plans:
+This plan **supersedes** two assumptions in the sibling plans, and adds two plain
+dependencies (items 3–4):
 
 1. **FoundationModelsSkills** — a **formal, two-part dependency**. (a) Its decision #17 /
    milestone M7 originally placed the future `AgentRegistry` *inside* the Skills target; it
@@ -633,10 +652,24 @@ This plan **supersedes** two assumptions in the sibling plans:
    plan's "interop
    available but not load-bearing" is superseded: the interop is load-bearing and lives
    *inside* `RoutedSession`. *(Risk: session-owned KV vs an FM-driven tool loop — §7.)*
+3. **[`../FoundationModelsOperationTool`](../FoundationModelsOperationTool/plan.md)** —
+   no supersession, just a dependency: `AgentsTool` is one fused `OperationTool` named
+   `agents` (§8) — `@Generable @Operation` structs per op, `op: "verb noun"` dispatch,
+   the forgiving resolver, and the dual-use CLI for free — so nothing op-shaped is
+   hand-rolled here (the Shelltool rule).
+4. **[`../FoundationModelsRanker`](../FoundationModelsRanker/plan.md)** — the retrieval
+   primitives behind `search agents` (§8): BM25 + trigram + RRF over each listing's
+   `name` (primary field) + `description` (body) — the Ranker's two-field weighting
+   as-is; cosine is an opt-in that rides the profile's embedder. The index is in-memory
+   and rebuilds from the registry's reload publication (§15). *(Supersedes the
+   `MetadataSearcher<AgentListing>` reservation this plan previously pointed at
+   FoundationModelsMetadataRegistry — retire the mirror note in that plan when it is
+   next touched.)*
 
 Packaging: **single SwiftPM library target `FoundationModelsAgents`**, depending on
-`FoundationModelsRouter` and `FoundationModelsSkills` (both as local/sibling packages during
-development); `./Examples` executables are additional targets in the same package (§13).
+`FoundationModelsRouter`, `FoundationModelsSkills`, `FoundationModelsOperations`, and
+`FoundationModelsRanker` (all as local/sibling packages during development); `./Examples`
+executables are additional targets in the same package (§13).
 macOS 27+, Swift 6.1 tools, same platform commitment as the Router — no fallback paths.
 
 **Naming note:** the transitive MetadataRegistry dependency (item 1c) exports a public
@@ -649,9 +682,11 @@ carries the mirror note).
 
 ## 11. Resolved decisions
 
-1. **FM entry point → one `AgentsTool`** with **list / start / check / send / cancel**
-   actions, on core `FoundationModels.Tool` — the Skills single-tool pattern.
-   Background-only: there is no foreground `run` (§8, decision #12).
+1. **FM entry point → one `AgentsTool`** — a fused `OperationTool` named `agents` on
+   `FoundationModelsOperations` (the sah op pattern, same as Shelltool; §10), six ops
+   sharing one noun: **`list agents` / `search agents` / `start agent` / `check agent` /
+   `send agent` / `cancel agent`**. Background-only: there is no foreground run op
+   (§8, decision #12).
 2. **Identity → frontmatter `name`** (Claude rule; agents are single files), validated
    lowercase+hyphens; full-replace override by name up the stack; duplicate-in-root ⇒
    diagnostic.
@@ -689,8 +724,9 @@ carries the mirror note).
     `transcript.jsonl` in the Router's lineage tree, nested under its caller; the agents
     package adds only the agent-name stamp on the opening event. No parallel recording
     system.
-12. **Background-only delegation — no foreground `run`.** `start` returns immediately;
-    `check` (per-run or fleet) is the sole harvest point; multitasking is many started
+12. **Background-only delegation — no foreground run op.** `start agent` returns
+    immediately; `check agent` (one `id` — or every agent, `id` omitted) is the sole
+    harvest point; multitasking is many started
     runs, never a parked tool call — so FM's parallel tool-call behavior is **not
     load-bearing** and its WWDC26 verification item is retired here. *(Supersedes the
     earlier foreground-`run` design; the divergence from Claude's dual style is
@@ -705,19 +741,19 @@ carries the mirror note).
 15. **Object model → definition ≠ run ≠ session** (§7.1). `AgentDefinition` is data;
     `AgentRun` is the unit of scheduling/cancellation/UI and **drives exactly one
     never-vended routed session** — run id = session id; residency is the session's own
-    Router invariant. Runs are **resumable while retained** — `run.send(_:)` / the `send`
-    action continue the same context; release frees session and context.
+    Router invariant. Runs are **resumable while retained** — `run.send(_:)` / the
+    `send agent` op continue the same context; release frees session and context.
 16. **Observability → per-profile `AgentActivity`** (`@MainActor @Observable`, §8.1): one
     runner per resolved profile, run snapshots + per-slot **lanes** that visualize the
     serial gates; the `color:` field is consumed here for stable agent badges. Sequential
     profiles ⇒ sequential runners ⇒ one dashboard each.
 17. **Calling-transcript events → typed `AgentEvent` tool output** (§8.2). The agent system
-    is just a tool, but its result is a *special tool result*: every run-lifecycle action
+    is just a tool, but its result is a *special tool result*: every lifecycle op
     returns a `@Generable AgentEvent` (`started` / `running` / `finished` / `failed` /
-    `sent` / `cancelled` / `gone`; `list` alone returns `[AgentListing]` — the §8 action
-    table) that lands in the calling session's `Transcript` as a structured
+    `sent` / `cancelled` / `gone`; the catalog ops `list agents`/`search agents` return
+    `[AgentListing]` — the §8 op table) that lands in the calling session's `Transcript` as a structured
     segment — lifecycle first-class in the caller's record, model-visible, UI-renderable.
-    Background completions surface at the harvesting `check`; live state is
+    Background completions surface at the harvesting `check agent`; live state is
     `AgentActivity`'s job. *(Confirm segment representation against the shipping WWDC26
     SDK.)*
 18. **Router enters through the environment; progress is the session's observable
@@ -736,14 +772,20 @@ carries the mirror note).
     is a stateless façade over the runner actor, safe under parallel tool calls. The
     no-mid-call-output constraint is also why §8.4's model/host split is structural, not
     stylistic.
-20. **Waiting without blocking → the notification turn** (§8.5). `start` ends the turn —
+20. **Waiting without blocking → the notification turn** (§8.5). `start agent` ends the turn —
     an instructed contract, not machinery; the runner, via the Router by caller id,
     enqueues one **coalesced** `respond(to:)` on the calling session per batch of
     completions; the session's single-turn discipline serializes it against user turns.
     Policy: `notifications: .automatic` (default) / `.manual` / `.none` on
-    `AgentEnvironment`; notification prompts are recorded with `notifying: [runIds]`
+    `AgentEnvironment`; notification prompts are recorded with `notifying: [sessionIds]`
     provenance; native-`LanguageModelSession` roots are `.manual`. No custom agent loop
     anywhere — the session stays a plain `LanguageModelSession`.
+21. **Catalog search → `search agents` on `FoundationModelsRanker`** (§8, §10). When the
+    baked-in `name` + `description` surface isn't enough, the model narrows the catalog
+    with a ranked query — BM25 + trigram + RRF over `name` (primary) + `description`
+    (body); lexical by default, cosine opt-in via the profile's embedder; the in-memory
+    index rebuilds from the registry's reload publication (§15). *(Supersedes §1's
+    earlier `MetadataSearcher<AgentListing>` reservation on MetadataRegistry.)*
 
 ## 12. Public API sketch (illustrative)
 
@@ -780,25 +822,28 @@ let more   = try await run.send("Now check the tests too")   // same session, sa
 async let a = runner.start("code-reviewer", prompt: p1).result()
 async let b = runner.start("test-writer",   prompt: p2).result()
 
-// Layer 4 — model-driven delegation from a root session:
-let agentsTool = AgentsTool.builder(runner: runner)
-  .actions([.list, .start, .check, .send, .cancel])
-  .caller(nil)   // native root session ⇒ model-started runs are Router roots;
-  .build()       // router-made sessions bind their own id instead (§7, decision #19)
+// Layer 4 — model-driven delegation from a root session. AgentsTool is one fused
+// OperationTool named "agents" (FoundationModelsOperations, §10) — six ops, one noun:
+// list agents / search agents / start agent / check agent / send agent / cancel agent.
+let agentsTool = AgentsTool(
+  runner: runner,
+  caller: nil    // native root session ⇒ model-started runs are Router roots;
+)                // router-made sessions bind their own id instead (§7, decision #19)
 let root = LanguageModelSession(
-  tools: [agentsTool, skillsTool.tool],
+  tools: [agentsTool.tool, skillsTool.tool],
   instructions: Instructions { "…base instructions…" }
 )
 // The root model now sees each agent's name + description and delegates:
-// start("code-reviewer", "Review the diff …") → runId at once; the model keeps
-// working, and a later check(runId) harvests the review as a typed finished event.
+// {op: "start agent", name: "code-reviewer", prompt: "Review the diff …"} → started(id)
+// at once; the model keeps working, and a later {op: "check agent", id: …} harvests
+// the review as a typed finished event.
 
 // Drill in (§8.4) — the join is positional: the delegation entry carries the child id
 for entry in root.transcript.entries where entry.child != nil {
   let nested = root.transcript.nested(at: entry)!  // the run's transcript, in place
 }
 
-// Per-profile fleet observability for SwiftUI (§8.1):
+// Per-profile agent observability for SwiftUI (§8.1):
 @State var activity = runner.activity          // @MainActor @Observable AgentActivity
 // activity.runs → rows; activity.lanes[.standard] → who's generating vs queued
 ```
@@ -806,7 +851,7 @@ for entry in root.transcript.entries where entry.child != nil {
 Core types: `AgentDefinition` (parsed file), `AgentListing` (metadata view: name,
 description, slot, tools, color, provenance), `AgentRegistry`, `AgentEnvironment`,
 `ToolCatalog`, `ModelMapping`, `NotificationPolicy` (`.automatic` / `.manual` / `.none` —
-§8.5), `AgentsTool` + its `AgentEvent` output (§8.2),
+§8.5), `AgentsTool` (a fused `OperationTool`, §8) + its `AgentEvent` output (§8.2),
 `AgentRunner` (actor; `start(_:prompt:)`; the management index `runs`, `run(id:)` over
 every retained run, including model-started ones — §8.4), `AgentRun`
 (handle: `id: ULID` — the session id, `agent`, `caller`, `recordURL`, `state`,
@@ -832,7 +877,7 @@ Examples/
     test-writer.md         standard slot
     summarizer.md          background: true
   DelegateCLI/           model-driven delegation: a root session with AgentsTool —
-                         list / start / check — typed AgentEvents landing in the
+                         list agents / start agent / check agent — typed AgentEvents in the
                          calling transcript (§8.2 made runnable); ends with a hot-reload
                          beat: edit code-reviewer.md while running, the next run uses
                          the new body (§15's live-reload case, watchable)
@@ -875,17 +920,21 @@ Examples/
   per-session observable transcripts + lineage index (§10); one `AgentRun` end to end:
   instructions + resolved tools + slot → spawned routed session → final text. *(The
   heaviest cross-repo milestone.)*
-- **M4 — `AgentsTool`.** list/start/check on core `FoundationModels.Tool`; typed
+- **M4 — `AgentsTool`.** `list agents` / `start agent` / `check agent` as one fused
+  `OperationTool` on `FoundationModelsOperations` (§10); typed
   `AgentEvent` output landing as structured segments in the calling transcript (§8.2);
   live-registry deref with stale-name backstop; background delegation proven from a root
-  session (start → the model keeps working → harvesting check).
-- **M5 — Scheduler + observability.** `AgentRunner` admission gate, `send`/`cancel` and
-  the fleet `check`, structured cancellation, resumable runs (§7.1); the observable
+  session (`start agent` → the model keeps working → harvesting `check agent`).
+- **M5 — Scheduler + observability.** `AgentRunner` admission gate, `send agent`/
+  `cancel agent` and the id-omitted `check agent`, structured cancellation, resumable
+  runs (§7.1); the observable
   `run.transcript` surface (§8.3) and `AgentActivity` with run snapshots + slot lanes
   (§8.1).
 - **M6 — Semantics fill-in.** `skills:` preload *(needs Skills M3 — `SkillsRegistry`)*,
   `disallowedTools` order, `maxTurns` decorator, model-mapping diagnostics,
-  workingDirectory isolation.
+  workingDirectory isolation; the `search agents` index *(needs
+  `FoundationModelsRanker`)* — BM25 + trigram + RRF over listings, rebuilt on registry
+  reload.
 - **M7 — Lineage + polish.** Agent-name stamping on session events, delegation-tree
   assertions over the Router recordings tree, diagnostics surface, docs; the `./Examples`
   finish line (§13) — per-example READMEs, recording-tree walk.
@@ -905,15 +954,15 @@ remove a definition on disk → the registry rebuilds and `listing()` reflects i
 is untouched** — a run resolves its definition once at start, and no reload mutates it;
 a removed agent's next invocation draws the stale-name backstop carrying the refreshed
 listing; a rapid burst of edits coalesces to a consistent final state. The registry's
-reload publication is also the exact hook a future `MetadataSearcher<AgentListing>`
-opt-in would forward to `update(items:)` (§1) — same event, second consumer, no new
-machinery.
+reload publication also feeds the `search agents` index (§8, §10) — same event, second
+consumer, no new machinery — and the battery asserts an edited `description` re-ranks
+a `search agents` result after reload.
 
 A separate **gated integration suite** (Swift Testing, `.serialized`, opt-in env var —
 the Router's pattern, tiny `mlx-community` models) proves: a definition file becomes a live
-sub-agent; background delegation round-trips (root → `start` → sub-agent tool use →
-harvesting `check` returns the final text); two concurrent runs on different slots make progress
-independently; `check`/`cancel` behave; a `send` follow-up continues a run's context;
+sub-agent; background delegation round-trips (root → `start agent` → sub-agent tool use →
+harvesting `check agent` returns the final text); two concurrent runs on different slots make progress
+independently; `check agent`/`cancel agent` behave; a `send agent` follow-up continues a run's context;
 `run.transcript` grows with a sub-tool call *while the run is still in flight* (§8.3); the
 calling session's transcript carries the run's `started`/`finished` structured segments
 (§8.2); a spawned run's `transcript.jsonl` nests under its calling session in the Router
@@ -921,7 +970,7 @@ tree, its tool calls appear as recorded `toolCall`/`toolOutput` events, and the 
 stays totally ordered by `(ts, seq)`; **hot reload end to end** — an on-disk edit to a
 definition is picked up live, the *next* delegation of that name uses the updated body and
 tools while a mid-flight run of the old definition completes unaffected (§3's live-reload
-parity, proven against a real session); **the drill-in walk** (§8.4) — the model `start`s
+parity, proven against a real session); **the drill-in walk** (§8.4) — the model starts
 an agent from a routed root session, the test finds the delegation entry whose
 `entry.child` is set, resolves `transcript.nested(at:)`, observes the nested transcript
 grow live, and asserts its entries equal `run.recordURL`'s jsonl; and
@@ -930,8 +979,8 @@ resolves through the same `transcript.nested(at:)`, the forked transcript holds 
 post-fork entries, and its `forkedFrom` marker resolves back to the correct parent entry; and
 **the notification weave** (§8.5) — start a slow run, interleave an unrelated user turn,
 let the run finish mid-turn, then assert exactly one coalesced notification turn arrives
-after the user turn completes, recorded with `notifying: [runId]`, and the model's
-`check` in that turn harvests the result.
+after the user turn completes, recorded with `notifying: [sessionId]`, and the model's
+`check agent` in that turn harvests the result.
 
 ---
 
@@ -939,6 +988,8 @@ after the user turn completes, recorded with `notifying: [runId]`, and the model
 - Claude Code sub-agents — https://code.claude.com/docs/en/sub-agents
 - FoundationModelsRouter plan — ../FoundationModelsRouter/plan.md
 - FoundationModelsSkills plan — ../FoundationModelsSkills/plan.md
+- FoundationModelsOperationTool plan (the `OperationTool` op pattern) — ../FoundationModelsOperationTool/plan.md
+- FoundationModelsRanker plan (retrieval primitives behind `search agents`) — ../FoundationModelsRanker/plan.md
 - FoundationModelsMetadataRegistry plan (transitive via Skills; our future catalog-search opt-in) — ../FoundationModelsMetadataRegistry/plan.md
 - What's new in Foundation Models (WWDC26) — https://developer.apple.com/videos/play/wwdc2026/241/
 - Build agentic app experiences with Foundation Models (WWDC26) — https://developer.apple.com/videos/play/wwdc2026/242/
