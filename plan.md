@@ -660,8 +660,19 @@ dependencies (items 3–4):
 4. **[`../FoundationModelsRanker`](../FoundationModelsRanker/plan.md)** — the retrieval
    primitives behind `search agents` (§8): BM25 + trigram + RRF over each listing's
    `name` (primary field) + `description` (body) — the Ranker's two-field weighting
-   as-is; cosine is an opt-in that rides the profile's embedder. The index is in-memory
-   and rebuilds from the registry's reload publication (§15). *(Supersedes the
+   as-is; cosine is an opt-in that rides the profile's embedder. Delegation is total —
+   we ship zero retrieval code: each listing maps to a Ranker item
+   (`id` = agent name, text = description), and the Ranker's facade owns the index.
+   **No database** — the index is a plain in-memory precompute per item (weighted
+   term-frequency map + document length for BM25, canonical trigram sets, and an
+   embedding vector when an embedder is present), rebuilt from the registry's reload
+   publication (§15): lexical structures rebuild wholesale (trivial at catalog scale),
+   embeddings re-embed **incrementally** — only items whose text changed — and always
+   at update time, never at query time (per query, only the query string is embedded).
+   Retrieval-only (`mode: .retrieval`): the Ranker's LLM selection tier stays off,
+   because the *calling model* is the selector here — `search agents` returns ranked
+   listings and the model picks whom to `start`. No embedder ⇒ keyword-only with a
+   reported diagnostic, never silent. *(Supersedes the
    `MetadataSearcher<AgentListing>` reservation this plan previously pointed at
    FoundationModelsMetadataRegistry — retire the mirror note in that plan when it is
    next touched.)*
