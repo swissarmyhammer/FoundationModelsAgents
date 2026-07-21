@@ -10,7 +10,7 @@ the generic stacked-folder machinery comes from
 **Primary target: macOS, on-device.**
 
 > **Re-layering update (2026-07-21) — agent runs execute over the harness.**
-> The family re-layered after this plan was written (harness plan §11, ACP
+> The family re-layered after this plan was written (harness plan §11, FoundationModelsACPAgent
 > plan head): `FoundationModelsAgentHarness` is now a reusable,
 > constructor-fed agent loop — `Harness(router:tools:instructions:compaction:)`
 > vending per-session `HarnessSession`s via
