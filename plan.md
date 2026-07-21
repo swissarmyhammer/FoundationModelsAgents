@@ -9,6 +9,36 @@ the generic stacked-folder machinery comes from
 [`../FoundationModelsSkills`](../FoundationModelsSkills/plan.md).
 **Primary target: macOS, on-device.**
 
+> **Re-layering update (2026-07-21) — agent runs execute over the harness.**
+> The family re-layered after this plan was written (harness plan §11, ACP
+> plan head): `FoundationModelsAgentHarness` is now a reusable,
+> constructor-fed agent loop — `Harness(router:tools:instructions:compaction:)`
+> vending per-session `HarnessSession`s via
+> `makeSession(workingDirectory:tools:instructions:compaction:)` — built
+> precisely so this package can embed it with no circular dependency (the
+> harness names no tool package). What changes here, to be folded through
+> §§6–8 in the next editing pass:
+>
+> - **Each agent run is a `HarnessSession`**, not a bare routed session:
+>   the run inherits token counting, auto-compaction (with a per-agent
+>   `CompactionInstructions` — a researcher folds differently than a
+>   reviewer — and typically a smaller `TokenBudget`), mid-turn overflow
+>   handling, tool-output caps, `HarnessEvent`s with `ToolCallID`
+>   correlation, and per-session recording — none of it built here.
+> - **`AgentsTool` is constructed capturing the `Harness`** (wiring order:
+>   harness first, then this tool, then the root session's roster includes
+>   it — harness plan §3); per-agent tools/instructions are per-session
+>   values, one resident profile under everything.
+> - **Per-agent instructions assemble over Extras' `AgentsMd`** (Extras plan
+>   §10): sub-agents read the repo's AGENTS.md context like the root does.
+> - **Parent→child lineage is recorded**: session creation metadata carries
+>   the parent session id and the parent's `ToolCallID` (harness plan §7),
+>   so transcript browsers reconstruct the agent tree from recordings alone.
+> - **§10 item 2's Router asks largely converged** with harness plan §7
+>   (tool-capable `RoutedSession`s recorded at the chokepoint); `spawn` and
+>   observable-transcript asks remain live, re-examined against
+>   `HarnessSession`/`HarnessState` in the §7–§8 rework.
+
 ---
 
 ## 1. Guiding principles
@@ -684,10 +714,25 @@ Packaging: **single SwiftPM library target `FoundationModelsAgents`**, depending
 executables are additional targets in the same package (§13).
 macOS 27+, Swift 6.1 tools, same platform commitment as the Router — no fallback paths.
 
+**Added 2026-07-21 (re-layering — see the banner up top):**
+
+5. **FoundationModelsAgentHarness** — the execution substrate. Agent runs
+   drive `HarnessSession`s minted from a `Harness` this tool captures at
+   construction; the harness (whose only dependency is Router) supplies the
+   loop, token accounting, auto-compaction, mid-turn overflow handling, and
+   `HarnessEvent`s with correlation ids. This *absorbs* part of item 2:
+   tool-capable recorded sessions are now the harness plan's §7 item 1
+   (grow `RoutedSession`); `spawn` and the observable-transcript asks stay
+   live and get re-examined against `HarnessSession`/`HarnessState` when
+   §§7–8 are reworked.
+6. **FoundationModelsExtras** — `AgentsMd` (Extras plan §10) for per-agent
+   instruction assembly, so sub-agents read the repo's AGENTS.md context.
+
 **Naming note:** the transitive MetadataRegistry dependency (item 1c) exports a public
 protocol named **`AgentSession`** (and `RoutedAgentSession`) — its librarian
 *selection-session* seam, nothing to do with sub-agents. This package never uses that
-name for its own types: a run drives a `RoutedSession`, and the public nouns are
+name for its own types: a run drives a `HarnessSession` (post-re-layering;
+formerly a bare `RoutedSession`), and the public nouns are
 `AgentRun` / `AgentRunner` / `AgentsTool`. Keep it that way, so the overlap stays a
 documentation footnote rather than an API ambiguity (the MetadataRegistry plan's §10
 carries the mirror note).
