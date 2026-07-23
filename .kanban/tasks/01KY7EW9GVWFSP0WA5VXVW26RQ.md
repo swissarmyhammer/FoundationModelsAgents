@@ -1,0 +1,6 @@
+---
+position_column: todo
+position_ordinal: '80'
+title: 'Plan rework: runs over Router sessions; discovery over Extras (M-prep)'
+---
+The gating doc pass, folding two family shifts through §§6-8/§10/§12 (the 2026-07-21 banner + the 2026-07-23 harness collapse): (1) EXECUTION — each agent run drives a Router session directly: router.makeSession(workingDirectory:tools:instructions:budget:compactionPrompt:) — self-folding (per-agent fold prompt, small TokenBudget), token-metered, event-streaming, recorded; §10 item 5 (harness) folds back into item 2 (Router), whose asks now live on Router's board (jkdae4b tools, 46adpch stream, 8213x39 auto-compaction, 6j4bven lineage metadata, ekd82f4 observable state; spawn + lineage-index remain live asks to re-examine). (2) DISCOVERY — §10 item 1 expects FrontmatterDocument + FolderStack from Skills, but that substrate now lives in FoundationModelsExtras (FrontmatterDocument, DotfolderStack.enumerate, TemplateEngine, AgentsMd); re-target M1/M2 onto Extras and shrink the Skills dependency to the skills: preload only. (3) SCHEDULER — reassess §8 against 'the shared per-model serialGate is the natural scheduler': what of AgentRunner's admission gate survives. Also rename any HarnessSession references from the banner era.
