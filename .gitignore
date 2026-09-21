@@ -6,6 +6,10 @@
 .ralph/
 .validators/
 
+# Kanban tool state that is not board content
+.kanban/*.log
+.kanban/tasks/.trash/
+
 # macOS
 .DS_Store
 
