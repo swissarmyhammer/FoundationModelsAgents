@@ -8,7 +8,7 @@
 
 # Kanban tool state that is not board content
 .kanban/*.log
-.kanban/tasks/.trash/
+.kanban/**/.trash/
 
 # macOS
 .DS_Store
