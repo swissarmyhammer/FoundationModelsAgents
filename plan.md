@@ -87,9 +87,10 @@ agents: the definition, the catalog, the delegation rules, and the tool.
   available: a slot name or a model reference. This package has no model
   names and no alias table of its own.
 - **Parallel, and honest about the GPU.** `maxConcurrentAgents` limits how
-  many runs are open at one time. The Router serializes generation on each
-  resident model. Runs on different slots overlap. Runs on the same slot
-  share the model.
+  many runs have a turn in operation at one time. A run that waits for its
+  children holds no slot. The Router serializes generation on each resident
+  model. Runs on different slots overlap. Runs on the same slot share the
+  model.
 
 ## 2. Skills and agents — what transfers
 
@@ -511,12 +512,16 @@ An `AgentRun` does these steps:
    during the turn.
 7. **Do not finish while a child is open.** Each child posts its final
    message into the session of this run (§9.2). The Router stages the post,
-   and the model reads it at the next prompt of the session. The run is the
-   only driver of its own session, so it gives the session that prompt: each
-   time a child posts, the run calls `session.dispatchNextPrompt()`. The
-   model reads the final message of the child and continues the task. It
-   can start more children. This occurs only in the session of the run. The
-   run never touches the turns of its caller.
+   emits `runSettled`, and the model reads the post at the next prompt of
+   the session. The run is the only driver of its own session, so it gives
+   the session that prompt: each time a child finishes, the run calls
+   `session.dispatchNextPrompt()`. The Router runs one turn with the staged
+   posts and its own fixed prompt ("Background work you started has settled,
+   and its result is above. Act on it, or say what you did with it."). The
+   model reads the final message of the child and continues the task. It can
+   start more children. Each such turn counts toward `maxTurns`. This occurs
+   only in the session of the run. The run never touches the turns of its
+   caller.
 8. **Finish.** When no child is open and no post is unread, the final text of
    the last turn is the result of the run. The run posts its final message to
    its caller (§9.2) and closes its session.
@@ -616,8 +621,10 @@ that gets the `agents` tool.
   > that the agent needs in the prompt. To give a task to an agent, call this
   > tool with {"op": "start agent", "name": "<name>", "prompt": "<the full
   > task>"}. The call returns at once. When the agent finishes, its final
-  > message comes to you as a tool result. You can ask about a run with
-  > {"op": "check agent", "id": "<id>"}.
+  > message comes to you as a tool result. Your answer is the text of your
+  > last turn, so give your final answer after you have the results of the
+  > agents that you started. You can ask about a run with {"op": "check
+  > agent", "id": "<id>"}.
 
 - The list of model-visible agents follows, under
   `catalogCharacterLimit` (default `SkillsTool.defaultCatalogCharacterLimit`,
@@ -650,7 +657,7 @@ a thrown error.
 | op | parameters | success answer | corrective answers |
 |---|---|---|---|
 | `list agents` | `filter?` | Plain text: one `- name: description` line for each model-visible agent that matches, from the current catalog, then the delegation sentence. | none. "No agents are available." is a success. |
-| `start agent` | `name`, `prompt` | Plain text, at once: "Agent `name` started with the id `id`. Its final message comes to you when it finishes." | An unknown or removed name: "The agent `x` is not available now. Available agents: a, b." A name that `Agent(a, b)` does not permit. A depth above `maxDepth`. A blank prompt. |
+| `start agent` | `name`, `prompt` | Plain text, at once: "Agent `name` started with the id `id`. Its final message comes to you when it finishes." | An unknown or removed name: "The agent `x` is not available now. Available agents: a, b." A name that `Agent(a, b)` does not permit. A depth above `maxDepth`. The run limit (§9.3). A blank prompt. Each is the text result of the call, in the same turn; nothing is thrown and nothing is posted. |
 | `check agent` | `id?` | Plain text, at once; it never waits. Finished: "Agent `name` (`id`) finished." and the full final text. Failed or cancelled: the state and the reason. Running: "Agent `name` (`id`) is running: `lastEvent`." and, when its turn has ended, "It waits for `N` agents that it started." With `id` absent, one short block for each run of this caller. | An unknown or removed id, or an id of a different caller: "No run has the id `x`." and the ids of this caller's runs. |
 | `cancel agent` | `id` | Plain text: the `CancelOutcome` of the run. | The same as `check agent`. |
 
@@ -671,22 +678,42 @@ and returns at once. It posts nothing during its call.
   works. All that the agent does is in the transcript of its own session.
 - **The final message.** When the run finishes (§8, step 8), it calls
   `context.post(_:)` one time, with a `.completed` event whose `detail` is
-  the final text. A failed run posts `.failed` with the reason. A cancelled
-  run posts `.cancelled`. The Router journals the post into the transcript of
-  the calling session at once, with the tool name, the op, and the token of
-  the `start agent` call. The next turn of the calling session reads it as a
-  tool result. The post does not start a turn, and it does not wait for one.
+  the final text. The Router journals the post into the transcript of the
+  calling session at once, with the tool name, the op, and the token of the
+  `start agent` call, and stages it. The next prompt of the calling session
+  reads it as a tool result. The post does not start a turn, and it does not
+  wait for one.
+- **The kind is always `.completed`.** The Router event kinds are
+  `.progress`, `.completed`, and `.elicitation`. Only `.completed` is a
+  terminal, and only a staged `.completed` makes `dispatchNextPrompt()` run
+  a turn. A failed run thus posts `.completed` with `outcome` set to the
+  failure and the text "Agent `name` (`id`) failed: reason." A cancelled run
+  posts `.completed` with the text "Agent `name` (`id`) was cancelled."
+- **The order is post, then finish.** The run posts its final message before
+  the runner marks it finished. A parent that sees a child finished can thus
+  read the post at once (§8, step 7).
 - **The full text.** The final message holds the full final text. This path
   has no length limit.
 - **One post.** The run posts nothing else. A second terminal post for the
   same token is dropped by the Router, so the final message must be the only
   post of the run.
+- **The signal is the Router's.** For each journaled `.completed` post, the
+  Router emits `SessionEvent.runSettled(event)`: into the event stream of
+  the turn in flight, or into `streamSessionEvents()` between turns. The
+  driver of the calling session thus knows that a final message has come.
+  What it does is its decision. A chat host waits for the next user prompt.
+  An autonomous host calls `dispatchNextPrompt()`, which runs one turn that
+  reads the staged posts. `respond(to:)` does not read them after its own
+  turn; that drain is only for Router mailbox runs. This package starts no
+  turn in a calling session.
 - **`check agent`** reads the runner's index. It never waits.
   **`cancel agent`** calls `run.cancel()` (§9.3).
-- **A closed caller.** When the calling session is closed before the run
-  finishes, the post goes nowhere. The runner cancels the open runs of a
-  caller when the host closes that caller through the runner, and when the
-  runner stops.
+- **A closed caller.** `close()` on a Router session knows nothing of the
+  runs of this package. A run of a closed caller continues, uses the model,
+  and posts into a closed session. The host must call
+  `runner.cancelRuns(caller: sessionID)` before it closes a session that has
+  the `agents` tool, and `runner.stop()` cancels all runs. The demo does
+  this.
 
 **Outside a Router session** `ToolContext.current` is `nil`. This is the case
 for a native `LanguageModelSession`. `start agent` then makes its own run id,
@@ -698,14 +725,25 @@ result.
 `AgentRunner` is an actor. It owns each `AgentRun`. It is not a session
 system, a tool loop, a recorder, a notifier, or a display model.
 
-- **The limit.** At most `maxConcurrentAgents` runs are open at one time. A
-  `start agent` above the limit gives a corrective answer: "`N` agents are
-  running now, and that is the limit. Start this agent when one of them
-  finishes." There is no queue. The Router's generation gate, one for each
-  resident model, serializes the generation calls of the open runs.
+- **The limit.** `maxConcurrentAgents` counts the runs that have a turn in
+  operation. Only `start agent` checks it: when that many runs are in a
+  turn, the start gives a corrective answer: "`N` agents are working now,
+  and that is the limit. Do this part of the task yourself, or start the
+  agent when one of them finishes." There is no queue. A run that waits for
+  its children holds no slot, and a child-delivery turn (§8, step 7) never
+  checks the limit. Thus the count can go above the limit for a short time.
+  That is safe: the Router's generation gate, one for each resident model,
+  serializes the generation calls. The limit guards against a model that
+  starts too many agents at one time. It does not limit depth, and a fan-out
+  of siblings does not block their children.
 - **Children.** Each run records the runs that it started. A run finishes
   only when its turn has ended and each of its children has finished (§8,
-  step 7). The cancel of a run cancels its open children first.
+  step 7). The cancel of a run cancels its open children first, waits for
+  their tasks to end, and then closes its own session. A run that fails
+  while children are open (`hitMaxTurns`, a context error in a
+  child-delivery turn) does the same before it posts its failure.
+- **`maxTurns` counts each turn** of the session of a run: the task turn and
+  each child-delivery turn.
 - **Depth.** A run that a host session, host code, or a slash command started
   has depth 1. A run that an agent run started has the depth of that run
   plus 1. `AgentEnvironment.maxDepth` (default 3) is the limit.
@@ -871,8 +909,15 @@ let root = profile.standard.makeSession(
   tools: [agentsTool] + otherTools
 )
 for try await event in root.streamEvents(to: userPrompt) {
-  // the final message of each agent run is a tool result in this transcript
+  // .runSettled says that an agent run has posted its final message
 }
+// An autonomous host reads the staged final messages now; a chat host waits
+// for the next user prompt, which reads them too.
+let followUp = try await root.dispatchNextPrompt()   // nil when nothing is staged
+
+// Before the session closes: the Router does not know these runs.
+await runner.cancelRuns(caller: root.id)
+await root.close()
 ```
 
 `AgentRegistry` has the initializer shapes of `SkillsRegistry`:
@@ -955,7 +1000,7 @@ through a `file://` source of its snapshot shape before E1.
   outside a Router session.
   `agents-demo --chat`. *Needs M2 and M3.*
 - **M5 — Scheduler and nested runs.** The `maxConcurrentAgents` limit,
-  `cancel agent`, `check agent` with no id, the records of settled runs and
+  `cancel agent`, `cancelRuns(caller:)`, `check agent` with no id, the records of settled runs and
   `maxRetainedRuns`, runner stop. Nested runs: the `agents` tool in the tool
   set of a run, a run that finishes only after its children, `inherit` from
   a calling run, `maxDepth`, cancel that goes down to the started runs.
@@ -1038,6 +1083,8 @@ has the shape of §6.1:
 - `start agent` returns at once and posts nothing during its call. The final
   message is the only post of the run, and it holds the full final text,
   also when the text is long.
+- A failed run and a cancelled run post `.completed` with the failure text
+  and the `outcome`, never a different kind.
 - `check agent` of a running run returns at once with the state.
 
 **Reload is a tested case.** Add, change, and remove a definition on disk.
@@ -1056,10 +1103,17 @@ the schema of this tool. `commandUpdates` gives the new commands.
   above `maxRetainedRuns`, the oldest record is removed.
 - A parent whose turn has ended does not finish while its child is open. The
   final message of the parent comes after the final message of the child.
-  `start agent` above `maxConcurrentAgents` gives the corrective answer and
-  starts no run. `start agent` above `maxDepth` starts no run. The cancel of
-  a parent cancels its open children. A caller cannot address a run of a
-  different caller.
+  The child posts before the runner marks it finished, so the parent reads
+  the post in its child-delivery turn each time. A parent that fails while
+  a child is open cancels the child, waits for it, and then posts its
+  failure.
+- With `maxConcurrentAgents` 2, two siblings that wait for their children
+  hold no slot, and the children start. `start agent` when that many runs
+  are in a turn gives the corrective answer and starts no run. `start agent`
+  above `maxDepth` starts no run. The cancel of a parent cancels its open
+  children. A caller cannot address a run of a different caller.
+- `runner.cancelRuns(caller:)` cancels each open run of that caller and its
+  children. `runner.stop()` cancels all runs and closes all sessions.
 
 **A real-model integration suite** is in a nested `IntegrationTests/`
 package, the Router pattern: Swift Testing, `.serialized`, enabled by an
@@ -1103,6 +1157,11 @@ package because it downloads models. It proves these cases:
 - In the session of a run, `dispatchNextPrompt()` with a staged `.completed`
   post of a child runs one turn that reads the post, and gives `nil` when no
   post is staged. (M5)
+- `SessionEvent.runSettled` is emitted for a `.completed` post of this
+  package, in the turn stream and in `streamSessionEvents()`, with no
+  Router mailbox run behind it. (M4)
+- A post into a closed session does no harm: no crash, and no write to a
+  closed recorder. (M5)
 - The plain-text answers use the Skills method: the operation gives text,
   and the wrapper decodes the JSON string that `OperationTool` makes. (M4)
 - The E1 layer (card `s8kdzy3`) has the shape of §6.1: `agents/<name>.md`
