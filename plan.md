@@ -72,13 +72,13 @@ surface transfer. Decisions about text in the current context do not.
 | CLI from `OperationCLIDriver`; demo; example library with broken files | Same (§9.4, §13) |
 | Guard tests on the source | Same (§15) |
 | `use skill` gives the body to the caller | Not copied. `start agent` gives the body to a new session. |
-| Argument substitution and quarantine | Not copied. The task prompt is not rendered. |
+| Argument substitution and quarantine | `$ARGUMENTS` only: this package puts the prompt into the body as a quarantined span (§4.3). A skill with `agent:` renders in Skills, then becomes the prompt (§9.4). |
 | Shell injection; `RenderPolicy` | Not copied. A system prompt is static. |
 | `preload: true` into the host's instructions | Not copied. The `skills:` key preloads into the agent's own context (§5). |
 | Resources and `run script` under the skill folder | Not copied. An agent is one file. |
 | `search skill` | Not copied. `list agents` gives the full catalog. |
 | `OperationDescribing`, `ForkableTool` | Not copied (§9.5). |
-| A slash command delivers the raw body as a prompt | Different: a slash command starts a run (§9.4). |
+| A slash command delivers the raw body as a prompt | Different: a slash command starts a run (§9.4). A skill with `agent:` is a command of this package, not of Skills. |
 
 ## 3. Architecture
 
@@ -195,17 +195,24 @@ You are a code reviewer. Analyze the code and give specific feedback.
    | A lower-layer file with the same name | advisory |
 
    A bad file does not stop a good file next to it.
-3. **Render the body at run start** with
-   `StenciledDotfolderStack.render(_:at:in:)`: the body, the document path
-   `agents/<id>.md`, and the winning layer, with the host's `variables`. An
-   include resolves from the folder of the document up to the layer root:
-   `agents/_partials/x.md`, then
-   `_partials/x.md`. At each level, every layer is checked, highest first;
-   the first copy found wins, so a more specific folder of a lower layer wins
-   over the root of a higher layer. `defaults` renders trusted; all other
-   layers render untrusted. A marketplace document sees its own marketplace
-   and the local layers; a local document sees the local layers only. A
-   render failure fails the run with `bodyRenderFailed`.
+3. **Render the body at run start**, in two passes:
+   1. **`$ARGUMENTS`.** This package replaces each `$ARGUMENTS` in the body
+      with the prompt, as a quarantined span of a `QuarantinedText`, so
+      prompt text is never a template. A body with no `$ARGUMENTS` is
+      unchanged. The prompt is also the first user turn (§8), with or
+      without `$ARGUMENTS`.
+   2. **Stencil.** `StenciledDotfolderStack.render(_:at:in:)` on the
+      quarantined text: the document path `agents/<id>.md`, the winning
+      layer, the host's `variables`. An include resolves from the folder of
+      the document up to the layer root: `agents/_partials/x.md`, then
+      `_partials/x.md`. At each level, every layer is checked, highest
+      first; the first copy found wins, so a more specific folder of a lower
+      layer wins over the root of a higher layer. `defaults` renders
+      trusted; all other layers render untrusted. A marketplace document
+      sees its own marketplace and the local layers; a local document sees
+      the local layers only.
+
+   A render failure fails the run with `bodyRenderFailed`.
 
 ## 5. Tools and skills for a sub-agent
 
@@ -303,7 +310,8 @@ parameter.
 ## 8. Execution — one run, one Router session
 
 1. **Resolve** `registry.catalog().definition(named:)`. The run keeps it.
-2. **Render the body** (§4.3). A failure fails the run.
+2. **Render the body** (§4.3) with the prompt as `$ARGUMENTS`. A failure
+   fails the run.
 3. **Instructions**, in order: `AgentsMd.documents(from:)` for the working
    directory, outermost first; the body; the `skills:` bodies.
 4. **Resolve tools** (§5) with the counting decorator.
@@ -481,11 +489,32 @@ recorder, or a display model.
 ### 9.4 Slash commands and the CLI
 
 `AgentRunner` conforms to `SlashCommandProviding`. `commands(workingDirectory:)`
-gives one `SlashCommand` for each user-invocable agent (`name`,
-`description`, `argumentHint: "<task>"`), with an `.action` body that starts
-a host-driven run with the arguments as the prompt and gives the final text.
-`commandUpdates` follows `onReload`. `/code-reviewer check the diff` is the
-user's delegation. The body is never a prompt for the host.
+gives two kinds of command. Each has an `.action` body that starts a
+host-driven run, waits for it, and gives the final text. The body is never a
+prompt for the host session.
+
+- **An agent.** One command for each user-invocable agent: `name`,
+  `description`, `argumentHint: "<task>"`. The text after the name is the
+  prompt, unchanged. `/code-reviewer check the diff` is the user's
+  delegation.
+- **A skill with `agent:`.** One command for each skill of the
+  `SkillsRegistry` whose `agent:` key names an agent of the catalog: the
+  skill's `id`, `description`, and `argumentHint`. The body calls
+  `registry.call(id:arguments:)` with the text after the name, so Skills
+  renders the skill with `$ARGUMENTS`, `$N`, `$name`, the shell injection, and
+  the partials, as for `use skill`. The rendered text is the prompt of a run
+  of the named agent. `/implement ^abc123` renders `implement` with
+  `$ARGUMENTS` = `^abc123` and gives the result to a new session of
+  `implementer`. An `agent:` that names no agent of the catalog is an
+  `AgentDiagnostic` warning, and the skill gets no command here.
+
+In both kinds, the prompt is `$ARGUMENTS` of the agent body (§4.3): the
+typed text, or the rendered skill.
+
+Skills gives `SkillListing.agent` from the frontmatter and leaves such a skill
+out of its own `commands()`, so one name has one provider. `use skill` on such
+a skill gives the rendered text, as for any skill. `commandUpdates` follows
+the `onReload` of the agents and of the skills.
 
 `AgentsCLI.makeDriver(runner:)` gives an `OperationCLIDriver` over the four
 operations (`agents agent list`, `agents agent start --name … --prompt …`).
@@ -520,12 +549,12 @@ the final message need a Router session as the caller. A host registers the
 |---|---|---|
 | `FoundationModelsRouter` | `FoundationModelsRouter` | `LanguageModelProfile`, `ModelSlot`, `ModelRef`, `RoutedSession`, `SessionEvent`, `ToolContext`, `OperationEvent`, `TokenBudget`, `CompactionPrompt`, `SessionSidecar.AgentSpawn` |
 | `FoundationModelsExtras` | `FoundationModelsExtras`, `Marketplace`, `Operations`, `OperationsCLI` | `DotfolderStack`, `FrontmatterDocumentStack`, `FrontmatterDocument`, `Located`, `DotfolderWatcher`, `StenciledDotfolderStack`, `QuarantinedText`, `AgentsMd`, `SlashCommand`, `SlashCommandProviding`; `MarketplaceLayerProviding`, `MarketplaceLayer`, `MarketplaceProvenance`; `OperationTool`, `@Operation`, `OperationResolver`; `OperationCLIDriver` |
-| `FoundationModelsSkills` | `FoundationModelsSkills` | `SkillsRegistry`; `SkillsTool.defaultCatalogCharacterLimit`; `CorrectiveOutcome` |
+| `FoundationModelsSkills` | `FoundationModelsSkills` | `SkillsRegistry` (`call(id:arguments:)`, `commandListing()`, `onReload`); `SkillListing.agent` (S1); `SkillsTool.defaultCatalogCharacterLimit`; `CorrectiveOutcome` |
 | Yams, ULID.swift | | `AgentFrontmatter.decode`; ids |
 
-All sibling APIs are shipped. One library target, `FoundationModelsAgents`,
-and one executable, `agents-demo`. Siblings are remote dependencies on
-`main`. Swift tools 6.2, `.macOS("27.0")`.
+All sibling APIs are shipped, except S1 (§14). One library target,
+`FoundationModelsAgents`, and one executable, `agents-demo`. Siblings are
+remote dependencies on `main`. Swift tools 6.2, `.macOS("27.0")`.
 
 Skills brings in `FoundationModelsRanker` and `FoundationModelsMetadataRegistry`,
 which export a protocol `AgentSession`. It is unrelated. This package does
@@ -593,9 +622,10 @@ Types: `AgentFrontmatter`, `AgentDefinition`, `AgentListing`, `AgentRegistry`,
 Examples/
   agent-library/            fixture layers; the tests use them too
     defaults/agents/          code-reviewer.md (flash; tools: Read, Grep)
-                              test-writer.md (standard)
+                              test-writer.md (standard; body has $ARGUMENTS)
                               lead.md (tools: Agent(code-reviewer, test-writer))
     defaults/_partials/       house-rules.md
+    defaults/skills/review/   SKILL.md with `agent: code-reviewer` and `$ARGUMENTS`
     user/agents/              a user copy of code-reviewer.md
     project/.agents/agents/   project agents; one with user-invocable: false
     marketplace/              .claude-plugin/marketplace.json
@@ -624,9 +654,9 @@ Examples/
   provenance, the cache, the rebuild on watch and `layerUpdates`, `onReload`,
   `reload()`, `AgentReloadReport`. Guard tests. Tests with
   `MarketplaceFixtures` and a fixture provider of the §6.1 shape. *Needs M1.*
-- **M3 — `AgentRun`.** One run end to end: render, instructions, tools, the
-  model match, the budget, `agentSpawn`, the final text, close. `run.cancel`.
-  *Needs M1.*
+- **M3 — `AgentRun`.** One run end to end: the two render passes,
+  instructions, tools, the model match, the budget, `agentSpawn`, the final
+  text, close. `run.cancel`. *Needs M1.*
 - **M4 — `AgentsTool`.** The description forms, the pinned schema, the
   answers, the four operations, the final message through `ToolContext`, the
   path outside a Router session. `agents-demo --chat`. *Needs M2, M3.*
@@ -634,9 +664,13 @@ Examples/
   `check agent` with no id, `maxRetainedRuns`, `stop()`. The `agents` tool in
   a run, finish after children, `inherit` from a calling run, `maxDepth`,
   cancel that goes down. `agents-demo --fan-out`. *Needs M4.*
+- **S1 — Skills: the `agent:` key.** In `FoundationModelsSkills`:
+  `SkillListing.agent` from the frontmatter; a skill with `agent:` is not in
+  the Skills `commands()`; `use skill` is unchanged.
 - **M6 — Semantics and user surfaces.** `skills:` preload, `disallowedTools`
-  and MCP patterns, `Agent(a, b)`, `maxTurns`. `SlashCommandProviding`,
-  `AgentsCLI`, the demo default, `--watch`, `--marketplace`. *Needs M4.*
+  and MCP patterns, `Agent(a, b)`, `maxTurns`. `SlashCommandProviding` for
+  agents and for skills with `agent:`, `AgentsCLI`, the demo default,
+  `--watch`, `--marketplace`. *Needs M4, S1.*
 - **M7 — Marketplace agents end to end.** The integration cases with a real
   `MarketplaceStore` and a git source. *Needs M2.*
 - **M8 — Finish.** DocC, README with a compiled example, a document on
@@ -663,6 +697,10 @@ Router test-support sessions; no real model:
   untrusted; a local body cannot include a marketplace-only partial
   (`bodyRenderFailed`); each `broken/` file gives its diagnostic and the good
   files load.
+- `$ARGUMENTS`: each `$ARGUMENTS` in the body is the whole prompt; a prompt
+  that holds `{{ project }}` or `{% include %}` lands as text, not as a
+  template; a body with no `$ARGUMENTS` is unchanged; the prompt is the
+  first user turn in every case.
 - Marketplace: agents of the layer are in the catalog with provenance; the
   same layer feeds a `SkillsRegistry` and a `skills:` preload of its own
   plugin works; a body includes a partial of `<layer root>/_partials/`, and a
@@ -675,9 +713,13 @@ Router test-support sessions; no real model:
   `start agent` posts nothing during its call; the final message is the only
   post and holds the full text, also when long; a failed or cancelled run
   posts `.completed`; `check agent` never waits.
+- Commands: `/name text` gives `text` as the prompt, unchanged; `/implement
+  x` renders the skill with `$ARGUMENTS` = `x` and starts `implementer` with
+  the rendered text; an `agent:` that names no agent warns and gives no
+  command; a skill with `agent:` is in the runner's commands only.
 - Reload: add, change, remove; a burst gives one final catalog; a run in
   operation is unchanged; the pre-reload tool behavior of §9.1;
-  `commandUpdates`.
+  `commandUpdates` after an agent reload and after a skill reload.
 - Runs: the model match table; a finished run holds no session;
   `maxRetainedRuns`; a parent finishes after its child and reads the child
   post in a delivery turn; a failing parent cancels its children first; with
@@ -722,6 +764,10 @@ Router test-support sessions; no real model:
 - `render(_:at:in:)` with `agents/<id>.md` reaches `<layer root>/_partials/`.
   (M3)
 - A `file://` source with `path:` gives the folder unchanged. (M2)
+- `registry.call(id:arguments:)` with one element that holds the whole typed
+  text gives the same `$0`, `$1`, and `$name` values as `use skill`. (M6)
+- `render(_:at:in:)` on a `QuarantinedText` never scans a quarantined span,
+  so `{{ }}` and `{% %}` inside a substituted prompt stay text. (M3)
 
 ---
 
