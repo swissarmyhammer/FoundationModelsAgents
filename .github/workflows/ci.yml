@@ -1,0 +1,27 @@
+name: CI
+
+# The org test contract (swissarmyhammer/workflows' README) applies here in
+# full. This repository satisfies it with the shared workflow:
+#
+# - The unit job of the shared workflow runs `swift test` at the root. Each
+#   suite of the `FoundationModelsAgentsTests` target is a unit test: no suite
+#   needs a network, a GPU, or a real model.
+# - This file has one job, and that job has no `steps:` of its own. The shared
+#   workflow does each test run.
+# - `CIWorkflowTests` pins this shape from the package side: the `uses:`
+#   target, the single job with no `steps:`, the triggers, and the concurrency
+#   group.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: swissarmyhammer/workflows/.github/workflows/swift-ci.yaml@main
