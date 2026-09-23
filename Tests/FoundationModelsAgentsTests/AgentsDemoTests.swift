@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModelsAgents
+import FoundationModelsRouter
 import Testing
 
 @testable import agents_demo
@@ -72,6 +73,8 @@ struct AgentsDemoTests {
         #expect(AgentsDemoMode(arguments: []) == .usage)
         #expect(AgentsDemoMode(arguments: [AgentsDemoMode.watchFlag]) == .watch)
         #expect(AgentsDemoMode(arguments: [AgentsDemoMode.marketplaceFlag]) == .marketplace)
+        #expect(AgentsDemoMode(arguments: [AgentsDemoMode.chatFlag]) == .chat)
+        #expect(AgentsDemoMode(arguments: [AgentsDemoMode.fanOutFlag]) == .fanOut)
         #expect(AgentsDemoMode(arguments: [Self.unknownFlag]) == .unknown(Self.unknownFlag))
     }
 
@@ -188,5 +191,187 @@ struct AgentsDemoTests {
         let candidates = bundleFolders.map { $0.appendingPathComponent(binaryName) }
             + [PackageRoot.directory.appendingPathComponent(".build/debug/\(binaryName)")]
         return try #require(candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) })
+    }
+}
+
+/// The contract of the two modes of `agents-demo` that need a resolved
+/// profile: `--chat` and `--fan-out` (plan.md §12, §13).
+///
+/// Each case gives a scripted profile to the function of the mode. The root
+/// session and the `lead` run are on the `standard` slot. The one gated run
+/// is code-reviewer on the `flash` slot, thus the gated turn does not hold
+/// the generation gate of another turn.
+@Suite("agents-demo with a profile")
+struct AgentsDemoProfileModeTests {
+    /// The prompt that the root session gives to the `lead` run.
+    private static let leadKey = "demo-lead-key: divide the task"
+
+    /// The prompt that the lead gives to the code-reviewer child.
+    private static let reviewerKey = "demo-reviewer-key: review the parser"
+
+    /// The prompt that the lead gives to the test-writer child.
+    private static let testWriterKey = "demo-test-writer-key: test the parser"
+
+    /// The prompt of the code-reviewer run that the root session starts in
+    /// its delivery turn. The run waits on a gate that never opens.
+    private static let lateReviewerKey = "demo-late-key: review the parser again"
+
+    /// The final text of the code-reviewer runs.
+    private static let reviewerText = "The parser is correct."
+
+    /// The final text of the test-writer runs.
+    private static let testWriterText = "The tests of the parser pass."
+
+    /// The text that the gated run gives when its gate opens.
+    private static let lateReviewerText = "The parser is still correct."
+
+    /// The answer of the first turn of the root session.
+    private static let rootText = "I started the lead agent."
+
+    /// The answer of the delivery turn of the root session.
+    private static let deliveredText = "The lead agent finished."
+
+    /// The file that each Router session writes in its recording directory.
+    private static let sidecarName = "session.json"
+
+    @Test("the chat mode writes the result of each child and the final text of lead", .timeLimit(.minutes(1)))
+    func chatModeWritesEachResult() async throws {
+        let script = ScriptedAgentScript([
+            ScriptedAgentPlay(
+                key: AgentsDemoModes.chatInstructions,
+                steps: [
+                    NestedRunTests.startStep(AgentsDemoModes.leadAgent, prompt: Self.leadKey),
+                    .finalText(Self.rootText),
+                    .finalText(Self.deliveredText)
+                ]),
+            NestedRunTests.parentPlay(
+                Self.leadKey,
+                children: [
+                    (AgentsDemoModes.reviewerAgent, Self.reviewerKey),
+                    (AgentsDemoModes.testWriterAgent, Self.testWriterKey)
+                ]),
+            ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)]),
+            ScriptedAgentPlay(key: Self.testWriterKey, steps: [.finalText(Self.testWriterText)])
+        ])
+
+        let written = try await Self.chatLines(script: script)
+        let leadPrefix = AgentsDemoModes.runLine(agent: AgentsDemoModes.leadAgent, status: "", level: 0)
+        let leadLine = try #require(written.first { $0.hasPrefix(leadPrefix) })
+
+        #expect(written.contains(AgentsDemoModes.rootLine(Self.rootText)))
+        #expect(written.contains(AgentsDemoModes.rootLine(Self.deliveredText)))
+        #expect(written.contains { $0.hasPrefix(AgentsDemoModes.settledPrefix) })
+        #expect(written.contains(
+            AgentsDemoModes.runLine(agent: AgentsDemoModes.reviewerAgent, status: Self.reviewerText, level: 1)))
+        #expect(written.contains(
+            AgentsDemoModes.runLine(agent: AgentsDemoModes.testWriterAgent, status: Self.testWriterText, level: 1)))
+        #expect(leadLine.contains(Self.reviewerText))
+        #expect(leadLine.contains(Self.testWriterText))
+    }
+
+    @Test("the chat mode cancels the open runs of the root session before it closes the session",
+        .timeLimit(.minutes(1)))
+    func chatModeCancelsOpenRunsBeforeClose() async throws {
+        let gate = ScriptedGate()
+        defer { gate.open() }
+        let script = ScriptedAgentScript([
+            ScriptedAgentPlay(
+                key: AgentsDemoModes.chatInstructions,
+                steps: [
+                    NestedRunTests.startStep(AgentsDemoModes.leadAgent, prompt: Self.leadKey),
+                    .finalText(Self.rootText),
+                    NestedRunTests.startStep(AgentsDemoModes.reviewerAgent, prompt: Self.lateReviewerKey),
+                    .finalText(Self.deliveredText)
+                ]),
+            NestedRunTests.parentPlay(Self.leadKey, children: [(AgentsDemoModes.reviewerAgent, Self.reviewerKey)]),
+            ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)]),
+            ScriptedAgentPlay(key: Self.lateReviewerKey, steps: [.wait(gate), .finalText(Self.lateReviewerText)])
+        ])
+
+        let written = try await Self.chatLines(script: script)
+        let cancelledLine = AgentsDemoModes.runLine(
+            agent: AgentsDemoModes.reviewerAgent, status: AgentsDemoModes.status(of: .cancelled), level: 0)
+
+        #expect(written.contains(cancelledLine))
+        #expect(written.contains(AgentsDemoModes.rootLine(Self.deliveredText)))
+        #expect(!written.contains { $0.contains(Self.lateReviewerText) })
+    }
+
+    @Test("the fan-out mode writes two results, one from each generation slot", .timeLimit(.minutes(1)))
+    func fanOutModeWritesOneResultFromEachSlot() async throws {
+        let recordings = try TemporaryLayer.makeEmpty()
+        defer { try? recordings.delete() }
+        let workingDirectory = try TemporaryLayer.makeEmpty()
+        defer { try? workingDirectory.delete() }
+        let script = ScriptedAgentScript([
+            ScriptedAgentPlay(key: AgentsDemoModes.reviewerPrompt, steps: [.finalText(Self.reviewerText)]),
+            ScriptedAgentPlay(key: AgentsDemoModes.testWriterPrompt, steps: [.finalText(Self.testWriterText)])
+        ])
+        let (router, profile) = try await ScriptedProfile.make(script: script, recordingsDir: recordings.root)
+
+        let written = try await Self.lines { output in
+            try await AgentsDemoModes.fanOut(
+                profile: profile, registry: AgentRegistry(stack: FixtureLibrary.stack()),
+                workingDirectory: workingDirectory.root, output: output)
+        }
+        let slots = try Self.recordedSlots(in: recordings.root)
+        withExtendedLifetime(router) {}
+
+        #expect(written.sorted() == [
+            AgentsDemoModes.fanOutLine(
+                agent: AgentsDemoModes.reviewerAgent, model: ModelSlot.flash.rawValue, text: Self.reviewerText),
+            AgentsDemoModes.fanOutLine(
+                agent: AgentsDemoModes.testWriterAgent, model: ModelSlot.standard.rawValue, text: Self.testWriterText)
+        ].sorted())
+        #expect(slots.map(\.rawValue).sorted() == [ModelSlot.flash, ModelSlot.standard].map(\.rawValue).sorted())
+    }
+
+    // MARK: - Helpers
+
+    /// Runs the chat mode over the fixture library with a scripted profile
+    /// that plays `script`.
+    ///
+    /// - Parameter script: The script of each generation slot.
+    /// - Returns: The lines that the mode wrote, in order.
+    /// - Throws: The error of the profile, of the file system, or of the mode.
+    private static func chatLines(script: ScriptedAgentScript) async throws -> [String] {
+        let recordings = try TemporaryLayer.makeEmpty()
+        defer { try? recordings.delete() }
+        let workingDirectory = try TemporaryLayer.makeEmpty()
+        defer { try? workingDirectory.delete() }
+        let (router, profile) = try await ScriptedProfile.make(script: script, recordingsDir: recordings.root)
+        let written = try await lines { output in
+            try await AgentsDemoModes.chat(
+                profile: profile, registry: AgentRegistry(stack: FixtureLibrary.stack()),
+                workingDirectory: workingDirectory.root, output: output)
+        }
+        withExtendedLifetime(router) {}
+        return written
+    }
+
+    /// Runs `body` with an output that keeps each line.
+    ///
+    /// - Parameter body: The work that writes the lines.
+    /// - Returns: The lines that `body` wrote, in order.
+    /// - Throws: The error of `body`.
+    private static func lines(
+        of body: (@escaping AgentsDemoOutput) async throws -> Void
+    ) async throws -> [String] {
+        let (stream, continuation) = AsyncStream.makeStream(of: String.self)
+        try await body { continuation.yield($0) }
+        continuation.finish()
+        return await stream.reduce(into: []) { $0.append($1) }
+    }
+
+    /// Reads the slot of each Router session that recorded under `directory`.
+    ///
+    /// - Parameter directory: The recordings root of the router.
+    /// - Returns: The slot of each `session.json` under the folder.
+    /// - Throws: The error of `#require`, of the read, or of the decode.
+    private static func recordedSlots(in directory: URL) throws -> [ModelSlot] {
+        let files = try #require(FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil))
+        return try files.compactMap { $0 as? URL }
+            .filter { $0.lastPathComponent == sidecarName }
+            .map { try RecordedSidecar.read(in: $0.deletingLastPathComponent()).slot }
     }
 }

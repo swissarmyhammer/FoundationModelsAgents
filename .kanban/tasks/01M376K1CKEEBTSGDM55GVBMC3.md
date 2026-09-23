@@ -1,12 +1,38 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m384s84nfb8aze8yvjme23jb
+  text: |-
+    Research done.
+    - The demo target cannot see internal symbols. `AgentRunner.runs(caller:)` is internal. The chat mode needs it to find the runs that the root session started and their children. Plan: make `runs(caller:)` public (it has a doc comment).
+    - `runSettled` of a run always goes to `streamSessionEvents()` (the turn sink also forwards to the session feed). Subscribe before the first turn. The chat loop waits for one `runSettled` for each run of the first turn, calls `dispatchNextPrompt()` after each one, then calls `cancelRuns(caller:)`, then `close()`.
+    - Real profile: `Router(recordingsDir:, loader: LiveModelLoader(downloader: #hubDownloader(), tokenizerLoader: #huggingFaceTokenizerLoader()))`, then `router.resolve(profile: ProfileDefinition(...), reporting: ResolutionProgress())`. This is the pattern of `../FoundationModelsACPAgent/Sources/acp-agent/AgentComposition.swift`. The macros need the products MLXHuggingFace + MLXLMCommon (mlx-swift-lm, branch stable), HuggingFace (swift-huggingface), and Tokenizers (swift-transformers). Only the demo target links them. The library target does not.
+    - Fan-out: code-reviewer is on flash and test-writer is on standard, so the two runs use different generation gates. The test reads the slot of each session from its `session.json`.
+  timestamp: 2026-09-23T22:04:37.909892+00:00
+- actor: claude-code
+  id: 01m385t35eb3hr8ws3aaw1kzbk
+  text: |-
+    ### implement — changed
+    - evidence: 8 files — Examples/agents-demo/DemoModes.swift (chat, fanOut, line helpers), Examples/agents-demo/AgentsDemoMode.swift (--chat, --fan-out, usage), Examples/agents-demo/AgentsDemoMain.swift (withResolvedProfile), Examples/agents-demo/AgentsDemoProfile.swift (new: live Router + ProfileDefinition), Examples/agents-demo/AgentsDemoLibrary.swift (projectDirectory), Package.swift (live loader products for the demo target only), Sources/FoundationModelsAgents/Run/AgentRunner.swift (runs(caller:) is public), Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift (3 new cases + 2 flag checks).
+    - `swift build --build-tests -Xswiftc -warnings-as-errors`: clean. `swift test --filter AgentsDemo`: 8 tests in 2 suites pass. swiftlint: 0. periphery: no new result (the 6 `AgentDefinitionRules` unused-parameter results were there before).
+    - Notes: `RoutedSession.streamSessionEvents()` is actor-isolated, so call it with `await`. The chat test proves `cancelRuns(caller:)`: the root starts a gated code-reviewer (flash) in its delivery turn, and the run tree after close shows it as `cancelled`.
+    - next: test
+  timestamp: 2026-09-23T22:22:34.158913+00:00
+- actor: claude-code
+  id: 01m3860wrtvcjrdz0bn40fjgjr
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 278 tests in 38 suites passed, 0 failed, 0 skipped; `swiftlint lint --quiet Sources Tests Examples` — 0 violations. The mlx-swift "missing creator" build note is not ours.
+    - next: commit
+  timestamp: 2026-09-23T22:26:16.986015+00:00
 depends_on:
 - 01M376JMYEG67MVT9NDNATM2AG
 - 01M376HQNY14K766HPNACT3999
 - 01M376JWWCB68BJF7NGECCBVKH
-position_column: todo
-position_ordinal: '9780'
+position_column: doing
+position_ordinal: '80'
 title: 'agents-demo: --chat and --fan-out'
 ---
 ## What

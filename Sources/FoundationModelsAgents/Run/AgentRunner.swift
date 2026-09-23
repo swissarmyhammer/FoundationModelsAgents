@@ -182,7 +182,7 @@ public actor AgentRunner {
     ///   host-driven runs.
     /// - Returns: The runs whose ``AgentRun/caller`` is `caller`, sorted by
     ///   id.
-    func runs(caller: ULID?) -> [AgentRun] {
+    public func runs(caller: ULID?) -> [AgentRun] {
         retireEndedRuns()
         return (Array(openRuns.values) + records).lazy.map(\.run)
             .filter { $0.caller == caller }

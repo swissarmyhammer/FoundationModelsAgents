@@ -50,6 +50,21 @@ let commonDependencies: [Target.Dependency] = [
     .product(name: "ULID", package: "ULID.swift"),
 ]
 
+/// The products that only the example links: the live model loader of
+/// `agents-demo --chat` and `agents-demo --fan-out` (plan.md §13).
+///
+/// The `MLXHuggingFace` macros `#hubDownloader()` and
+/// `#huggingFaceTokenizerLoader()` expand to code that uses
+/// `HuggingFace.HubClient` and `Tokenizers.AutoTokenizer`. Thus the example
+/// links the two Hub packages too. The library links none of them: the host
+/// gives the resolved profile.
+let liveLoaderDependencies: [Target.Dependency] = [
+    .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
+    .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
+    .product(name: "HuggingFace", package: "swift-huggingface"),
+    .product(name: "Tokenizers", package: "swift-transformers")
+]
+
 /// The test-only products. Only the test target links them.
 ///
 /// The library links none of them, thus a host gets no test code.
@@ -85,6 +100,11 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", exact: "6.2.2"),
         // The same pin as the ULID.swift pin of `FoundationModelsRouter`.
         .package(url: "https://github.com/yaslab/ULID.swift.git", from: "1.3.1"),
+        // The same pins as the pins of `FoundationModelsRouter`. Only the
+        // example uses them, for the live model loader.
+        .package(url: "https://github.com/swissarmyhammer/mlx-swift-lm", branch: "stable"),
+        .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.9.0"),
+        .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0")
     ],
     targets: [
         .target(
@@ -95,7 +115,7 @@ let package = Package(
         // `swift build` builds the library and the example.
         .executableTarget(
             name: demoTargetName,
-            dependencies: [.byName(name: packageName)] + commonDependencies,
+            dependencies: [.byName(name: packageName)] + commonDependencies + liveLoaderDependencies,
             path: "Examples/\(demoTargetName)"
         ),
         // The test target depends on the example. Thus `swift test` builds the

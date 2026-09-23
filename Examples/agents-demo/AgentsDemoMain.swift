@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModelsAgents
+import FoundationModelsRouter
 import FoundationModelsSkills
 
 /// The entry point of `agents-demo`, the example of plan.md §13.
@@ -50,10 +51,34 @@ enum AgentsDemoMain {
             let registry = AgentRegistry(
                 marketplaces: store, stack: AgentsDemoLibrary.stack(libraryRoot: AgentsDemoLibrary.root))
             try await AgentsDemoModes.marketplace(registry: registry, output: standardOutput)
+        case .chat:
+            try await withResolvedProfile(AgentsDemoModes.chat)
+        case .fanOut:
+            try await withResolvedProfile(AgentsDemoModes.fanOut)
         case .unknown(let flag):
             StandardStream.error.write(line: "agents-demo: unknown mode \(flag)")
             StandardStream.error.write(line: AgentsDemoUsage.text)
             exit(usageExitCode)
         }
+    }
+
+    /// Resolves the real profile of ``AgentsDemoProfile``, then runs a mode
+    /// that needs a profile over the stack of `Examples/agent-library`.
+    ///
+    /// Only `--chat` and `--fan-out` call this function. The router stays
+    /// alive until the mode returns.
+    ///
+    /// - Parameter mode: The function of the mode.
+    /// - Throws: The error of the resolve or of the mode.
+    private static func withResolvedProfile(
+        _ mode: (LanguageModelProfile, AgentRegistry, URL, AgentsDemoOutput) async throws -> Void
+    ) async throws {
+        let router = AgentsDemoProfile.makeRouter()
+        let profile = try await AgentsDemoProfile.resolve(with: router)
+        let registry = AgentRegistry(stack: AgentsDemoLibrary.stack(libraryRoot: AgentsDemoLibrary.root))
+        try await mode(
+            profile, registry, AgentsDemoLibrary.projectDirectory(libraryRoot: AgentsDemoLibrary.root),
+            standardOutput)
+        withExtendedLifetime(router) {}
     }
 }

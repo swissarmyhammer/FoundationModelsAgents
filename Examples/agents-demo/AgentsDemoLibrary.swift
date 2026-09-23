@@ -32,6 +32,16 @@ enum AgentsDemoLibrary {
         FileManager.default.temporaryDirectory.appendingPathComponent("agents-demo-marketplace", isDirectory: true)
     }
 
+    /// The project folder of a library: the working directory of its stack
+    /// and of the runs of the example. Its project layer is
+    /// `project/.agents/`.
+    ///
+    /// - Parameter libraryRoot: The root of the library.
+    /// - Returns: `<libraryRoot>/project`.
+    static func projectDirectory(libraryRoot: URL) -> URL {
+        libraryRoot.appendingPathComponent("project", isDirectory: true)
+    }
+
     /// The local layer stack over a library: `defaults < user < project`.
     ///
     /// The environment is empty. Thus `AGENTS_DEFAULTS_DIR` and
@@ -43,7 +53,7 @@ enum AgentsDemoLibrary {
     static func stack(libraryRoot: URL) -> DotfolderStack {
         DotfolderStack(
             name: dotfolderName,
-            workingDirectory: libraryRoot.appendingPathComponent("project", isDirectory: true),
+            workingDirectory: projectDirectory(libraryRoot: libraryRoot),
             defaultsDirectory: libraryRoot.appendingPathComponent("defaults", isDirectory: true),
             userDirectory: libraryRoot.appendingPathComponent("user", isDirectory: true),
             environment: [:])
