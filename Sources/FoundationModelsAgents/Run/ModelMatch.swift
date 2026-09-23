@@ -92,7 +92,7 @@ enum ModelMatch {
     static func warning(model: String, profile: LanguageModelProfile, inherited: ModelSlot) -> String {
         let names = [inheritValue] + generationSlots.map(\.slot.rawValue)
             + generationSlots.map { profile[keyPath: $0.model].chosen.stringValue }
-        let valid = names.map { "`\($0)`" }.joined(separator: ", ")
+        let valid = names.lazy.map { "`\($0)`" }.joined(separator: ", ")
         return "The model `\(model)` is not a slot or a model of the profile "
             + "`\(profile.definitionName)`. The run uses the `\(inherited.rawValue)` slot. "
             + "Use one of these values: \(valid)."
