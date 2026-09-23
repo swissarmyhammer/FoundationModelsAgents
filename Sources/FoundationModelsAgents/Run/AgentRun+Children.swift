@@ -131,8 +131,10 @@ extension AgentRun {
     /// of the run (plan.md §8 steps 7 and 8).
     ///
     /// While a child is open, the run waits for a child to end. It then
-    /// calls `session.dispatchNextPrompt()`: the Router runs one turn with
-    /// the staged posts, and the model can start more children. The loop
+    /// calls `session.dispatchNextPrompt()` through
+    /// ``dispatchCountingPasses(on:)``: the Router runs one turn with the
+    /// staged posts, and the model can start more children. The passes of
+    /// each delivery turn add to the `maxTurns` count of the run. The loop
     /// ends when no child was open before a dispatch and the dispatch ran
     /// no turn. Thus no post stays unread.
     ///
@@ -144,7 +146,8 @@ extension AgentRun {
     ///   - taskTurnText: The text of the task turn.
     /// - Returns: The text of the last turn.
     /// - Throws: `CancellationError` when the run is cancelled while it
-    ///   waits, or the error of a delivery turn.
+    ///   waits, ``AgentRunFailure/hitMaxTurns(partial:)`` when the count
+    ///   goes above the `maxTurns` limit, or the error of a delivery turn.
     func finishAfterChildren(on session: any RoutedSession, taskTurnText: String) async throws -> String {
         var endings = children.endings.makeAsyncIterator()
         var text = taskTurnText
@@ -158,7 +161,7 @@ extension AgentRun {
             }
             enter(.delivery)
             try Task.checkCancellation()
-            if let delivered = try await session.dispatchNextPrompt() {
+            if let delivered = try await dispatchCountingPasses(on: session) {
                 text = delivered
                 continue
             }

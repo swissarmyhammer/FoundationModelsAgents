@@ -4,7 +4,7 @@ import FoundationModels
 ///
 /// The first three cases occur before the run makes its session. A run that
 /// fails for one of them has no session and no recording directory. The last
-/// two cases occur in the turn of the run.
+/// three cases occur in the turns of the run.
 public enum AgentRunFailure: Error, Sendable, Equatable {
     /// The render of the body at run start failed (plan.md §4.3 step 3). The
     /// text is the description of the render error: for example a template
@@ -29,6 +29,12 @@ public enum AgentRunFailure: Error, Sendable, Equatable {
     /// description of the error.
     case modelFailed(String)
 
+    /// The run went above the `maxTurns` limit of its agent (plan.md §5).
+    /// The run counts one turn for each pass of the control loop, in the
+    /// task turn and in each delivery turn. `partial` is the text of the
+    /// turn when the count went above the limit.
+    case hitMaxTurns(partial: String)
+
     /// The reason of the failure as a clause for a model or a person: for
     /// example "the model failed: <description>". It has no period at the
     /// end, thus a sentence can hold it.
@@ -44,17 +50,24 @@ public enum AgentRunFailure: Error, Sendable, Equatable {
             "the context of the session is full: \(text)"
         case .modelFailed(let text):
             "the model failed: \(text)"
+        case .hitMaxTurns(let partial):
+            "the agent used more turns than its maxTurns limit; its text so far: \(partial)"
         }
     }
 
     /// Gives the failure for an error that the turn of a run threw.
     ///
+    /// An ``AgentRunFailure`` stays as it is: for example
+    /// ``hitMaxTurns(partial:)`` from the turn count.
     /// `LanguageModelError.contextSizeExceeded` gives ``contextOverflow(_:)``.
     /// Each other error gives ``modelFailed(_:)``.
     ///
     /// - Parameter error: The error of the turn. It is not a cancellation.
     /// - Returns: The failure of the run.
     static func turnFailure(for error: any Error) -> AgentRunFailure {
+        if let failure = error as? AgentRunFailure {
+            return failure
+        }
         let text = String(describing: error)
         if case LanguageModelError.contextSizeExceeded = error {
             return .contextOverflow(text)

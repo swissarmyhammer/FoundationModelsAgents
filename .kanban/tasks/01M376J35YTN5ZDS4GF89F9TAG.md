@@ -1,10 +1,37 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m3802mjm4s5c2mfyn512pss8
+  text: |-
+    Research (implement):
+    - The Router emits `entryRecorded` from the turn diff at the END of each Router turn (RoutedSessionActorRecording.recordTranscriptDelta). Each event goes to the turn sink AND to each `streamSessionEvents()` subscription (RoutedSessionActorTurnExecution.turnEventSink). This is true for `dispatchNextPrompt()` turns too.
+    - Thus the passes of a delivery turn are visible with no Router change: open `session.streamSessionEvents()` before `dispatchNextPrompt()`. When the dispatch gives text, all events of that turn are already in the buffer. Read them until the `entryRecorded(.response)` of the answer pass. A cancel of the run ends the read.
+    - The task turn counts from its own `streamEvents` stream. A throw in the loop abandons the stream, and that cancels the turn.
+    - `turnEnded` is not a safe end marker: the Router emits it only when the backend reports usage, and the scripted backend meters nothing.
+    - The cleanup in `startTurn` already cancels open children, waits, closes, and posts one `.completed`. A `hitMaxTurns` throw only has to reach `drive`'s catch.
+  timestamp: 2026-09-23T20:42:22.676036+00:00
+- actor: claude-code
+  id: 01m380bm4w7wf26vs38m6rcrtd
+  text: |-
+    ### implement — changed
+    - evidence: 8 files — Sources/FoundationModelsAgents/Run/AgentRun+TurnLimit.swift (new: AgentRunTurns, dispatchCountingPasses(on:)), Run/AgentRun.swift (turns, count in the task-turn stream loop), Run/AgentRun+Children.swift (delivery turns go through dispatchCountingPasses), Run/AgentRunFailure.swift (hitMaxTurns(partial:), reason, turnFailure keeps an AgentRunFailure), Tests/.../MaxTurnsTests.swift (new, 7 tests), Tests/.../Support/ScriptedAgentModel.swift (new step repeatedToolCall: many calls in one .toolCalls entry; step switch split for complexity), Tests/.../AgentBodyRendererTests.swift (switch case .hitMaxTurns).
+    - `swift test --filter MaxTurnsTests`: 7/7 pass. swiftlint: 0. build -warnings-as-errors: clean.
+    - No Router change. The delivery-turn passes come from `streamSessionEvents()`, opened before `dispatchNextPrompt()`.
+    - next: test
+  timestamp: 2026-09-23T20:47:17.148084+00:00
+- actor: claude-code
+  id: 01m380cs1rghzq9ajwn25ed1w8
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 234 tests in 31 suites passed, 0 failed, 0 skipped; swiftlint lint --quiet Sources Tests Examples — 0 violations
+    - next: commit
+  timestamp: 2026-09-23T20:47:54.936759+00:00
 depends_on:
 - 01M376HQNY14K766HPNACT3999
-position_column: todo
-position_ordinal: '9280'
+position_column: doing
+position_ordinal: '80'
 title: 'maxTurns: count each pass through the tool loop; hitMaxTurns'
 ---
 ## What

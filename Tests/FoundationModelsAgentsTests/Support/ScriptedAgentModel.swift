@@ -14,6 +14,10 @@ enum ScriptedAgentStep: Sendable {
     /// after it makes the script.
     case deferredToolCall(name: String, arguments: ScriptedArguments)
 
+    /// Calls the mounted tool `name` `count` times with `argumentsJSON` in
+    /// one pass: one `.toolCalls` entry that holds `count` calls.
+    case repeatedToolCall(name: String, argumentsJSON: String, count: Int)
+
     /// Answers with `text`. The turn ends here.
     case finalText(String)
 
@@ -167,8 +171,9 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     /// One step that gives output: the steps of ``ScriptedAgentStep``
     /// without the gate and the failure.
     private enum Output {
-        /// Calls the tool `name` with `argumentsJSON`.
-        case toolCall(name: String, argumentsJSON: String)
+        /// Calls the tool `name` `count` times with `argumentsJSON` in one
+        /// `.toolCalls` entry.
+        case toolCalls(name: String, argumentsJSON: String, count: Int)
 
         /// Answers with the text.
         case finalText(String)
@@ -177,6 +182,9 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     /// The token count of each emitted fragment. The scripted model meters
     /// nothing.
     private static let emittedTokenCount = 1
+
+    /// The count of calls in the pass of a step with one tool call.
+    private static let singleCall = 1
 
     /// Makes an executor. The configuration holds nothing that the executor
     /// reads: the script arrives with the model on each call.
@@ -247,52 +255,78 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     ) async throws -> Output {
         var outputsSeen = 0
         for step in play.steps {
-            let output: Output
-            switch step {
-            case .wait(let gate):
-                if outputsSeen == position {
-                    try await gate.wait()
-                }
-                continue
-            case .fail(let error):
-                if outputsSeen == position {
-                    throw error
-                }
-                continue
-            case .toolCall(let name, let argumentsJSON):
-                output = .toolCall(name: name, argumentsJSON: argumentsJSON)
-            case .deferredToolCall(let name, let arguments):
-                output = .toolCall(name: name, argumentsJSON: arguments.json)
-            case .finalText(let text):
-                output = .finalText(text)
-            case .finalTextOfLaterPrompts:
-                output = .finalText(ScriptedTranscriptText.laterPrompts(of: transcript))
+            if let output = output(of: step, in: transcript) {
+                if outputsSeen == position { return output }
+                outputsSeen += 1
+            } else if outputsSeen == position {
+                try await hold(at: step)
             }
-            if outputsSeen == position { return output }
-            outputsSeen += 1
         }
         throw ScriptedAgentModelError.playExhausted(key: play.key)
+    }
+
+    /// Gives the output of `step`.
+    ///
+    /// - Parameters:
+    ///   - step: A step of the play.
+    ///   - transcript: The transcript of the generation call. A
+    ///     ``ScriptedAgentStep/finalTextOfLaterPrompts`` step reads its
+    ///     prompts.
+    /// - Returns: The output, or `nil` for a gate or a failure step.
+    private static func output(of step: ScriptedAgentStep, in transcript: Transcript) -> Output? {
+        switch step {
+        case .wait, .fail:
+            nil
+        case .toolCall(let name, let argumentsJSON):
+            .toolCalls(name: name, argumentsJSON: argumentsJSON, count: singleCall)
+        case .deferredToolCall(let name, let arguments):
+            .toolCalls(name: name, argumentsJSON: arguments.json, count: singleCall)
+        case .repeatedToolCall(let name, let argumentsJSON, let count):
+            .toolCalls(name: name, argumentsJSON: argumentsJSON, count: count)
+        case .finalText(let text):
+            .finalText(text)
+        case .finalTextOfLaterPrompts:
+            .finalText(ScriptedTranscriptText.laterPrompts(of: transcript))
+        }
+    }
+
+    /// Runs a step that gives no output: it waits on the gate of a
+    /// ``ScriptedAgentStep/wait(_:)`` step, or throws the error of a
+    /// ``ScriptedAgentStep/fail(_:)`` step.
+    ///
+    /// - Parameter step: A step with no output.
+    /// - Throws: `CancellationError` from a gate, or the error of the step.
+    private static func hold(at step: ScriptedAgentStep) async throws {
+        if case .wait(let gate) = step {
+            try await gate.wait()
+        }
+        if case .fail(let error) = step {
+            throw error
+        }
     }
 
     /// Emits one output step into `channel`.
     ///
     /// - Parameters:
     ///   - output: The output step.
-    ///   - position: The position of the step, which makes the tool call id.
+    ///   - position: The position of the step, which makes the entry id and
+    ///     the tool call ids.
     ///   - channel: The channel that the output goes into.
     private static func emit(
         _ output: Output, position: Int, into channel: LanguageModelExecutorGenerationChannel
     ) async {
         switch output {
-        case .toolCall(let name, let argumentsJSON):
-            let callID = "scripted-call-\(position)"
-            await channel.send(
-                .toolCalls(
-                    entryID: callID + "-entry",
-                    action: .toolCall(
-                        id: callID,
-                        name: name,
-                        action: .appendArguments(argumentsJSON, tokenCount: emittedTokenCount))))
+        case .toolCalls(let name, let argumentsJSON, let count):
+            let entryID = "scripted-call-\(position)-entry"
+            for index in 0..<count {
+                await channel.send(
+                    .toolCalls(
+                        entryID: entryID,
+                        action: .toolCall(
+                            id: "scripted-call-\(position)-\(index)",
+                            name: name,
+                            action: .appendArguments(argumentsJSON, tokenCount: emittedTokenCount))))
+            }
         case .finalText(let text):
             await channel.send(.response(action: .appendText(text, tokenCount: emittedTokenCount)))
         }

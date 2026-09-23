@@ -73,6 +73,10 @@ public final class AgentRun: Sendable {
     /// them ends (plan.md §9.3, children).
     let children: AgentRunChildren
 
+    /// The count of the passes of the control loop over all the turns of
+    /// the run, and the `maxTurns` limit of the agent (plan.md §5).
+    let turns: AgentRunTurns
+
     /// The mutable state of the run.
     private let storage: Mutex<Storage>
 
@@ -133,6 +137,7 @@ public final class AgentRun: Sendable {
         self.context = request.context
         self.parent = request.parent
         self.children = children
+        self.turns = AgentRunTurns(limit: request.definition.maxTurns)
         self.storage = Mutex(Storage(state: state, session: made?.session, turn: nil))
     }
 
@@ -292,21 +297,28 @@ public final class AgentRun: Sendable {
     }
 
     /// Drives the task turn with `prompt`, collects the text of the answer,
-    /// and records the last event of work. Then delivers the final messages
-    /// of the children in delivery turns (``finishAfterChildren(on:taskTurnText:)``).
+    /// records the last event of work, and adds the passes of the turn to
+    /// ``turns``. Then delivers the final messages of the children in
+    /// delivery turns (``finishAfterChildren(on:taskTurnText:)``).
+    ///
+    /// When the count goes above the `maxTurns` limit, the run stops its
+    /// read of the turn stream, and that cancels the turn. The run then
+    /// fails with ``AgentRunFailure/hitMaxTurns(partial:)``.
     ///
     /// - Parameters:
     ///   - session: The session of the run.
     ///   - prompt: The prompt of the task turn.
     /// - Returns: The final state: ``AgentRunState/finished(_:)`` with the
     ///   text of the last turn, ``AgentRunState/cancelled`` for a cancelled
-    ///   run, or ``AgentRunState/failed(_:)`` for an error of a turn.
+    ///   run, or ``AgentRunState/failed(_:)`` for an error of a turn or for
+    ///   a count above the `maxTurns` limit.
     private func drive(_ session: any RoutedSession, prompt: String) async -> AgentRunState {
         var text = TurnText()
         do {
             for try await event in await session.streamEvents(to: prompt) {
                 text.apply(event)
                 record(event)
+                try turns.add(event, partial: text.value)
             }
             let result = try await finishAfterChildren(on: session, taskTurnText: text.value)
             return Task.isCancelled ? .cancelled : .finished(result)
