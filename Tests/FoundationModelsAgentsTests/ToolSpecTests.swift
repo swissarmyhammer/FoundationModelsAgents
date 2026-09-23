@@ -47,6 +47,18 @@ struct ToolSpecTests {
         #expect(ToolSpec.parse(row.entry) == row.expected)
     }
 
+    @Test("the entry text of a value parses to the same value", arguments: rows)
+    func entryTextParsesToTheSameValue(row: Row) {
+        #expect(ToolSpec.parse(row.expected.entry) == row.expected)
+    }
+
+    @Test("the entry text of Agent(a, b) holds each name")
+    func agentEntryTextHoldsEachName() {
+        #expect(ToolSpec.agent(allowed: ["a", "b"]).entry == "Agent(a, b)")
+        #expect(ToolSpec.agent(allowed: nil).entry == "Agent")
+        #expect(ToolSpec.mcpAll.entry == "mcp__*")
+    }
+
     @Test("a decoded tools text keeps the names of Agent(a, b) in one entry")
     func decodedToolsTextParsesEachEntry() throws {
         let frontmatter = try #require(AgentFrontmatter.decode("tools: Agent(code-reviewer, test-writer), Read"))

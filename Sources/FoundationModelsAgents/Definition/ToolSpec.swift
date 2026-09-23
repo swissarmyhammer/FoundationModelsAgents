@@ -40,6 +40,48 @@ enum ToolSpec: Sendable, Equatable {
     /// The wildcard of the MCP patterns.
     private static let wildcard = "*"
 
+    /// The separator between two names of an `Agent(...)` entry.
+    private static let agentNameSeparator = ", "
+
+    /// The entry text of this value, as the frontmatter can write it.
+    ///
+    /// `parse(_:)` of the text gives this value again. The diagnostics of the
+    /// tool resolution quote it.
+    var entry: String {
+        switch self {
+        case .name(let name):
+            name
+        case .mcpPrefix(let prefix):
+            prefix
+        case .mcpAll:
+            Self.mcpMarker + Self.wildcard
+        case .agent(let allowed):
+            allowed.map { names in
+                Self.agentListOpening + names.joined(separator: Self.agentNameSeparator) + Self.agentListClosing
+            } ?? Self.agentEntry
+        }
+    }
+
+    /// Tells if this MCP pattern matches one tool name.
+    ///
+    /// `mcpPrefix("mcp__srv")` matches each name that starts with
+    /// `mcp__srv__`, thus it does not match a tool of the server `srvx`.
+    /// `mcpAll` matches each name that starts with `mcp__`. A value that is
+    /// not an MCP pattern matches no name.
+    ///
+    /// - Parameter toolName: The name of one catalog tool.
+    /// - Returns: `true` when the pattern matches the name.
+    func matchesMCPTool(named toolName: String) -> Bool {
+        switch self {
+        case .mcpPrefix(let prefix):
+            toolName.hasPrefix(prefix + Self.mcpSeparator)
+        case .mcpAll:
+            toolName.hasPrefix(Self.mcpMarker)
+        case .name, .agent:
+            false
+        }
+    }
+
     /// Parses one entry of `tools` or `disallowedTools`.
     ///
     /// - `Agent` gives `agent(allowed: nil)`. `Agent(a, b)` gives
