@@ -35,7 +35,7 @@ enum AgentDefinitionRules {
     static let hyphen: Character = "-"
 
     /// Two hyphens in sequence, which an id must not hold.
-    static let doubledHyphen = String(repeating: hyphen, count: 2)
+    static let doubledHyphen = "\(hyphen)\(hyphen)"
 
     /// The frontmatter rules, in the order of their findings: the warnings
     /// first, then the advisories.

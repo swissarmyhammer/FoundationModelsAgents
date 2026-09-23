@@ -143,13 +143,14 @@ struct AgentDefinitionTests {
 
     @Test("the definition keeps each field of the frontmatter")
     func definitionKeepsEachField() throws {
+        let maxTurns = 7
         let yaml = """
             \(Rows.cleanLines)
             tools: Read, Grep
             disallowedTools: Bash
             skills: [review]
             model: flash
-            maxTurns: 7
+            maxTurns: \(maxTurns)
             compactionPrompt: Keep each file path.
             color: blue
             background: true
@@ -163,7 +164,7 @@ struct AgentDefinitionTests {
         #expect(definition.disallowedTools == ["Bash"])
         #expect(definition.skills == ["review"])
         #expect(definition.model == "flash")
-        #expect(definition.maxTurns == 7)
+        #expect(definition.maxTurns == maxTurns)
         #expect(definition.compactionPrompt?.text == "Keep each file path.")
         #expect(definition.compactionPrompt?.name != CompactionPrompt.default.name)
         #expect(definition.color == "blue")

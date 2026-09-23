@@ -21,9 +21,13 @@ struct AgentDefinitionAttempt {
     /// The URL of the inline documents.
     static let inlineURL = inlineLayer.root.appendingPathComponent("agents/\(inlineID).md")
 
+    /// The layer position of the inline documents: the project layer of a
+    /// `defaults < user < project` stack.
+    static let inlineLayerIndex = 2
+
     /// The provenance of the inline documents.
     static let inlineProvenance = AgentDiagnostic.Provenance(
-        layerIndex: 2, layerRoot: inlineLayer.root, url: inlineURL)
+        layerIndex: inlineLayerIndex, layerRoot: inlineLayer.root, url: inlineURL)
 
     /// The body of the inline documents. It holds a `$ARGUMENTS` and a
     /// Stencil tag, which the definition must keep as raw text.
