@@ -1,10 +1,37 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m37svwx49cjsvzg1jk590c87
+  text: |-
+    ### Research
+    - The Router generation gate is held for the WHOLE turn (RoutedSessionActorTurnGating admits turnLock, then generationGate, at turn start). A tool call in the turn does not release it, except `awaitingUser`. Thus a gated tool does not free the slot. Plan: each gated run is on its own slot (code-reviewer = flash, test-writer = standard). A root session on standard can start a child on standard: the child turn waits for the gate until the root turn ends.
+    - `ToolContext.init` is internal to the Router. A test gets a caller only through a real root session that calls the tool. For "check/cancel with the id of a different caller", the script needs the id at run time: add a deferred tool-call step (a Sendable box that the test fills) to the scripted model. To read the tool answers in a root session, the script records each `.toolOutput` text.
+    - `SessionEvent` has no library evolution and asks for a `default` arm; the review rule forbids a `default` that hides cases. The `lastEvent` phrase table uses `if case` tests, not a `switch`.
+    - Check with no id: one block for each run of the caller (`runner.runs(caller:)` reports), joined with a blank line. No run: "You have no runs." as a success.
+    - Limit: count of open runs in `.running`, plus the starts in setup (actor reentrancy at `await AgentRun.start`). Only `start agent` checks it.
+  timestamp: 2026-09-23T18:53:50.372533+00:00
+- actor: claude-code
+  id: 01m37y52gbtr9yb43vac2gnzs3
+  text: |-
+    ### implement — changed
+    - evidence: Run/AgentRunActivity.swift (new, lastEvent phrases), Run/AgentRun.swift (lastEvent), Run/AgentRun+FinalMessage.swift ("is running: lastEvent."), Run/AgentRunner.swift (startWithinLimit, LimitedStart, cancelRuns(caller:), shared cancel), Tool/AgentsToolText.swift (atLimit, reports, noRuns; missingID removed), Tool/AgentsToolContext.swift (caller isolation, reportsOfCallerRuns), Tool/AgentsToolOperations.swift; Tests: AgentSchedulingTests.swift (new, 7 tests), Support/ScriptedArguments.swift (new), Support/ScriptedAgentModel.swift (deferredToolCall, toolOutputs), Support/AgentRunHarness.swift + AgentsToolHarness.swift (maxConcurrentAgents), AgentsToolOperationsTests.swift + FinalMessageTests.swift updated.
+    - discovery: FinalMessageTests.cancelledRunPostsOneCompleted cancelled a root-started child with a host call (caller nil). Caller isolation now refuses that, and `finalState()` waited for ever (the whole test process hung, no worker threads). The test now cancels through `runner.cancelRuns(caller: root.id)`.
+    - discovery: stdout of `swift test` into a file is block-buffered; a hung run prints nothing. Run single tests with `timeout` to find a hang.
+    - next: test
+  timestamp: 2026-09-23T20:08:45.323198+00:00
+- actor: claude-code
+  id: 01m37yak421rn7w5gnzfr6kpay
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 217 tests in 28 suites passed, 0 failed, 0 skipped; `swiftlint lint --quiet Sources Tests Examples` — 0 violations (after line-length and type-body-length fixes in AgentSchedulingTests; the phrase test moved to AgentRunActivityTests.swift).
+    - next: commit
+  timestamp: 2026-09-23T20:11:46.178569+00:00
 depends_on:
 - 01M376H7W3JTVB6X8M5GBDQNNN
-position_column: todo
-position_ordinal: '9080'
+position_column: doing
+position_ordinal: '80'
 title: 'Scheduler: maxConcurrentAgents, caller isolation, cancelRuns(caller:), check with no id'
 ---
 ## What

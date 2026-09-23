@@ -15,7 +15,7 @@ extension AgentRun {
 
     /// The text that tells the state of the run, as `check agent` gives it.
     ///
-    /// - A run in operation: "Agent `name` (`id`) is running."
+    /// - A run in operation: "Agent `name` (`id`) is running: `lastEvent`."
     /// - A finished run: "Agent `name` (`id`) finished.", then the full text
     ///   of its last turn.
     /// - A failed or a cancelled run: the detail of its final message.
@@ -30,7 +30,7 @@ extension AgentRun {
     func report(of state: AgentRunState) -> String {
         switch state {
         case .running:
-            "\(subject) is running."
+            "\(subject) is running: \(lastEvent)."
         case .finished(let text):
             "\(subject) finished.\n\n\(text)"
         case .failed(let failure):

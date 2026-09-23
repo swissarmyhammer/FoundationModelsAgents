@@ -37,6 +37,17 @@ public actor AgentRunner {
         let completionToken: String?
     }
 
+    /// The outcome of a start that checks
+    /// ``AgentEnvironment/maxConcurrentAgents``.
+    enum LimitedStart {
+        /// The runner started the run and put it in the index.
+        case started(AgentRun)
+
+        /// The limit is full: `working` runs have a turn in operation, and
+        /// the runner started no run.
+        case atLimit(working: Int)
+    }
+
     /// The depth of a host-started run (plan.md §9.3).
     static let hostDepth = 1
 
@@ -59,6 +70,11 @@ public actor AgentRunner {
     /// The id of each run in the index, by the completion token of the tool
     /// call that started it.
     private var runIDsByCompletionToken: [String: ULID] = [:]
+
+    /// The count of limited starts whose setup is in operation. The actor
+    /// can run a second call while a setup waits, thus the limit counts
+    /// these starts too.
+    private var limitedStartsInSetup = 0
 
     /// Makes a runner. It stores its inputs and does no I/O.
     ///
@@ -117,6 +133,28 @@ public actor AgentRunner {
         return run
     }
 
+    /// Starts the run of `request` when fewer than
+    /// ``AgentEnvironment/maxConcurrentAgents`` runs are working
+    /// (plan.md §9.3, the limit).
+    ///
+    /// Only `start agent` calls it. A host-driven ``start(_:prompt:)`` does
+    /// not check the limit. There is no queue: at the limit, the runner
+    /// starts no run.
+    ///
+    /// - Parameter request: The inputs of the run.
+    /// - Returns: ``LimitedStart/started(_:)`` with the run, or
+    ///   ``LimitedStart/atLimit(working:)`` with the count of working runs.
+    func startWithinLimit(_ request: AgentRunRequest) async -> LimitedStart {
+        retireEndedRuns()
+        let working = openRuns.values.count { $0.run.state == .running } + limitedStartsInSetup
+        guard working < environment.maxConcurrentAgents else {
+            return .atLimit(working: working)
+        }
+        limitedStartsInSetup += 1
+        defer { limitedStartsInSetup -= 1 }
+        return .started(await start(request))
+    }
+
     /// Finds a run in operation or the record of a finished run.
     ///
     /// - Parameter id: The id of the run.
@@ -170,11 +208,32 @@ public actor AgentRunner {
     /// session. Each such run goes to ``AgentRunState/cancelled``, unless its
     /// turn ended first.
     public func stop() async {
-        let stopped = openRuns.values.map(\.run)
-        for run in stopped {
+        await cancel(openRuns.values.map(\.run))
+    }
+
+    /// Cancels each run in operation of one caller, and waits for each to
+    /// close its session (plan.md §9.2, a closed caller).
+    ///
+    /// `RoutedSession.close()` does not know the runs that the session
+    /// started. Thus the host calls this before it closes a session that has
+    /// the `agents` tool. Each such run posts its final message, then goes
+    /// to ``AgentRunState/cancelled``, unless its turn ended first. The runs
+    /// of each other caller stay as they are.
+    ///
+    /// - Parameter caller: The id of the session of the caller.
+    public func cancelRuns(caller: ULID) async {
+        await cancel(Array(openRuns.values.lazy.map(\.run).filter { $0.caller == caller }))
+    }
+
+    /// Cancels each run of `runs`, waits for each to end, and then moves
+    /// each ended run to the records.
+    ///
+    /// - Parameter runs: The runs to cancel.
+    private func cancel(_ runs: [AgentRun]) async {
+        for run in runs {
             run.cancel()
         }
-        for run in stopped {
+        for run in runs {
             _ = await run.finalState()
         }
         retireEndedRuns()

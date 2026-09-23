@@ -48,23 +48,40 @@ public struct AgentsToolContext: Sendable {
         runner.catalog().definitions.filter(canStart)
     }
 
-    /// Finds the run `id`, and gives the answer of `body` for it.
+    /// Finds the run `id` of the caller, and gives the answer of `body` for
+    /// it.
+    ///
+    /// The caller is the session of `ToolContext.current`, or `nil` outside
+    /// a Router session. A run of a different caller gives the same
+    /// corrective as an id that no run has (plan.md §9.1), thus one caller
+    /// cannot check or cancel the runs of another.
     ///
     /// - Parameters:
     ///   - id: The id that the model gave. The case of the letters does not
     ///     matter.
     ///   - body: Gives the answer for the run.
     /// - Returns: The answer of `body`, or a corrective with the ids of the
-    ///   runs of the caller when no run has the id `id`.
+    ///   runs of the caller when no run of the caller has the id `id`.
     func answer(
         forRun id: String, _ body: (AgentRun) -> AgentsToolAnswer
     ) async -> AgentsToolAnswer {
+        let caller = ToolContext.current?.sessionID
         guard let runID = ULID(ulidString: id.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()),
-            let run = await runner.run(id: runID)
+            let run = await runner.run(id: runID),
+            run.caller == caller
         else {
-            let callerRuns = await runner.runs(caller: ToolContext.current?.sessionID)
+            let callerRuns = await runner.runs(caller: caller)
             return .corrective(AgentsToolText.unknownRun(id, ids: callerRuns.map(\.id.description)))
         }
         return body(run)
+    }
+
+    /// Gives the answer of `check agent` with no id: one block for each run
+    /// of the caller, and only those runs.
+    ///
+    /// - Returns: The report of each run of the caller in id order, or "You
+    ///   have no runs." Both are a success.
+    func reportsOfCallerRuns() async -> AgentsToolAnswer {
+        .success(AgentsToolText.reports(of: await runner.runs(caller: ToolContext.current?.sessionID)))
     }
 }

@@ -219,7 +219,7 @@ struct AgentsToolOperationsTests {
                 Agent code-reviewer started with the id \(run.id). \
                 Ask about it with {"op": "check agent", "id": "\(run.id)"}.
                 """)
-        #expect(running == "Agent code-reviewer (\(run.id)) is running.")
+        #expect(running == "Agent code-reviewer (\(run.id)) is running: the turn started.")
         #expect(finished == "Agent code-reviewer (\(run.id)) finished.\n\n\(Self.finalText)")
         #expect(run.context == nil)
     }
@@ -278,7 +278,7 @@ struct AgentsToolOperationsTests {
 
         #expect(shown == (try await harness.call("list agents")))
         #expect(started.hasPrefix("Agent code-reviewer started with the id \(run.id)."))
-        #expect(status == "Agent code-reviewer (\(run.id)) is running.")
+        #expect(status == "Agent code-reviewer (\(run.id)) is running: the turn started.")
         #expect(stopped.hasPrefix("The cancel of Agent code-reviewer (\(run.id)) was sent"))
         #expect(await run.finalState() == .cancelled)
     }
@@ -338,14 +338,14 @@ struct AgentsToolOperationsTests {
         #expect(cancelled == checked)
     }
 
-    @Test("check agent with no id gives a corrective that asks for the id")
-    func checkWithNoIDIsCorrective() async throws {
+    @Test("check agent with no id and no run is the success You have no runs.")
+    func checkWithNoIDAndNoRunGivesNoRuns() async throws {
         let harness = try await AgentsToolHarness.make()
         defer { try? harness.delete() }
 
         let answer = try await harness.call("check agent")
 
-        #expect(answer == #"Give the id of a run: {"op": "check agent", "id": "<id>"}."#)
+        #expect(answer == "You have no runs.")
     }
 
     @Test("after a reload, a changed agent runs with the new definition and a removed agent is a corrective")

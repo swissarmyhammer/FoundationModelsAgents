@@ -214,7 +214,7 @@ struct FinalMessageTests {
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
         await childGate.waitForArrival()
         let run = try await Self.childRun(in: harness, of: root)
-        _ = try await harness.call("cancel agent", ["id": run.id.description])
+        await harness.runner.cancelRuns(caller: root.id)
         let state = await run.finalState()
         let posts = try Self.journaledPosts(of: run, in: root)
         await root.close()

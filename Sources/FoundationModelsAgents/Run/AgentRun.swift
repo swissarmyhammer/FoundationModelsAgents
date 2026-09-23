@@ -30,6 +30,10 @@ public final class AgentRun: Sendable {
         /// The background task of the turn, or `nil` for a run whose setup
         /// failed. It gives the final state of the run.
         var turn: Task<AgentRunState, Never>?
+
+        /// The phrase of the last event of the turn that tells a kind of
+        /// work (``AgentRunActivity``).
+        var lastEvent = AgentRunActivity.started
     }
 
     /// The id of the run. It is the session id and the name of the
@@ -77,6 +81,13 @@ public final class AgentRun: Sendable {
     /// caller.
     var heldSession: (any RoutedSession)? {
         storage.withLock { $0.session }
+    }
+
+    /// The phrase of the last event of the turn that tells a kind of work,
+    /// for example "it called the tool Read". It is
+    /// ``AgentRunActivity/started`` until the turn gives such an event.
+    var lastEvent: String {
+        storage.withLock { $0.lastEvent }
     }
 
     /// Makes a run.
@@ -185,7 +196,7 @@ public final class AgentRun: Sendable {
     ///   - prompt: The prompt of the turn.
     private func startTurn(on session: any RoutedSession, prompt: String) {
         let turn = Task.detached {
-            let final = await Self.drive(session, prompt: prompt)
+            let final = await self.drive(session, prompt: prompt)
             await session.close()
             await self.postFinalMessage(for: final)
             self.end(in: final)
@@ -204,7 +215,19 @@ public final class AgentRun: Sendable {
         }
     }
 
-    /// Drives one turn with `prompt`, and collects the text of the answer.
+    /// Records the phrase of `event` as ``lastEvent``, when the event tells
+    /// a kind of work.
+    ///
+    /// - Parameter event: An event of the turn.
+    private func record(_ event: SessionEvent) {
+        guard let phrase = AgentRunActivity.phrase(for: event) else {
+            return
+        }
+        storage.withLock { $0.lastEvent = phrase }
+    }
+
+    /// Drives one turn with `prompt`, collects the text of the answer, and
+    /// records the last event of work.
     ///
     /// - Parameters:
     ///   - session: The session of the run.
@@ -212,11 +235,12 @@ public final class AgentRun: Sendable {
     /// - Returns: The final state: ``AgentRunState/finished(_:)`` with the
     ///   text of the turn, ``AgentRunState/cancelled`` for a cancelled turn,
     ///   or ``AgentRunState/failed(_:)`` for an error of the turn.
-    private static func drive(_ session: any RoutedSession, prompt: String) async -> AgentRunState {
+    private func drive(_ session: any RoutedSession, prompt: String) async -> AgentRunState {
         var text = TurnText()
         do {
             for try await event in await session.streamEvents(to: prompt) {
                 text.apply(event)
+                record(event)
             }
         } catch {
             return Task.isCancelled || error is CancellationError

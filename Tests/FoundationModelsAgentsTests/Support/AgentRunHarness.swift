@@ -58,25 +58,42 @@ struct AgentRunHarness {
         environment(maxRetainedRuns: AgentEnvironment.defaultMaxRetainedRuns)
     }
 
-    /// Makes the environment of each run with a count of retained records.
+    /// Makes the environment of each run with a count of retained records
+    /// and a run limit.
     ///
-    /// - Parameter maxRetainedRuns: The count of finished run records that
-    ///   a runner keeps.
+    /// - Parameters:
+    ///   - maxRetainedRuns: The count of finished run records that a runner
+    ///     keeps.
+    ///   - maxConcurrentAgents: The count of runs that `start agent` lets
+    ///     work at one time. The default is
+    ///     `AgentEnvironment.defaultMaxConcurrentAgents`.
     /// - Returns: The environment.
-    func environment(maxRetainedRuns: Int) -> AgentEnvironment {
+    func environment(
+        maxRetainedRuns: Int,
+        maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents
+    ) -> AgentEnvironment {
         AgentEnvironment(
             profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory,
-            maxRetainedRuns: maxRetainedRuns, budget: budget)
+            maxConcurrentAgents: maxConcurrentAgents, maxRetainedRuns: maxRetainedRuns, budget: budget)
     }
 
     /// Makes a runner over the registry and the environment of the harness.
     ///
-    /// - Parameter maxRetainedRuns: The count of finished run records that
-    ///   the runner keeps. The default is
-    ///   `AgentEnvironment.defaultMaxRetainedRuns`.
+    /// - Parameters:
+    ///   - maxRetainedRuns: The count of finished run records that the
+    ///     runner keeps. The default is
+    ///     `AgentEnvironment.defaultMaxRetainedRuns`.
+    ///   - maxConcurrentAgents: The count of runs that `start agent` lets
+    ///     work at one time. The default is
+    ///     `AgentEnvironment.defaultMaxConcurrentAgents`.
     /// - Returns: The runner.
-    func makeRunner(maxRetainedRuns: Int = AgentEnvironment.defaultMaxRetainedRuns) -> AgentRunner {
-        AgentRunner(registry: registry, environment: environment(maxRetainedRuns: maxRetainedRuns))
+    func makeRunner(
+        maxRetainedRuns: Int = AgentEnvironment.defaultMaxRetainedRuns,
+        maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents
+    ) -> AgentRunner {
+        AgentRunner(
+            registry: registry,
+            environment: environment(maxRetainedRuns: maxRetainedRuns, maxConcurrentAgents: maxConcurrentAgents))
     }
 
     /// Makes a harness.

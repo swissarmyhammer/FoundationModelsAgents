@@ -70,9 +70,13 @@ extension StartAgent {
     /// The call reads the catalog again, thus after a reload a changed agent
     /// runs with its new definition, and a removed agent gives a corrective.
     ///
+    /// Only this operation checks ``AgentEnvironment/maxConcurrentAgents``
+    /// (plan.md §9.3). At the limit it starts no run, and there is no queue.
+    ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The id of the run, or a corrective for a blank prompt, for
-    ///   a name that the tool cannot start, or for a name that no agent has.
+    ///   a name that the tool cannot start, for a name that no agent has, or
+    ///   for a full run limit.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
         guard AgentDefinitionRules.holdsText(prompt) else {
             return .corrective(AgentsToolText.blankPrompt)
@@ -83,14 +87,17 @@ extension StartAgent {
         }
         let callContext = ToolContext.current
         let runner = context.runner
-        let run = await runner.start(
+        let start = await runner.startWithinLimit(
             AgentRunRequest(
                 definition: definition, prompt: prompt, context: callContext,
                 inheritedSlot: runner.environment.defaultSlot, depth: AgentRunner.hostDepth, agentsTool: nil))
-        guard !run.isSetupFailure else {
-            return .success(run.report)
+        switch start {
+        case .atLimit(let working):
+            return .corrective(AgentsToolText.atLimit(working: working))
+        case .started(let run):
+            return .success(run.isSetupFailure
+                ? run.report : AgentsToolText.started(run, postsFinalMessage: callContext != nil))
         }
-        return .success(AgentsToolText.started(run, postsFinalMessage: callContext != nil))
     }
 
     /// Gives the corrective for a name that the tool cannot start.
@@ -119,16 +126,17 @@ struct CheckAgent {
 }
 
 extension CheckAgent {
-    /// Gives the state of the run `id` at once. The call never waits for the
-    /// run.
+    /// Gives the state of the run `id` at once, or of each run of the caller
+    /// when there is no `id`. The call never waits for a run.
     ///
     /// - Parameter context: The shared context of the tool.
-    /// - Returns: The report of the run: running, finished with the full
-    ///   text, failed with the reason, or cancelled. A corrective for an
-    ///   unknown id or for no id.
+    /// - Returns: The report of the run: running with its last event,
+    ///   finished with the full text, failed with the reason, or cancelled.
+    ///   With no `id`, one report for each run of the caller. A corrective
+    ///   for an id that no run of the caller has.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
         guard let id else {
-            return .corrective(AgentsToolText.missingID)
+            return await context.reportsOfCallerRuns()
         }
         return await context.answer(forRun: id) { run in .success(run.report) }
     }
@@ -147,8 +155,8 @@ extension CancelAgent {
     /// Cancels the run `id`, and gives the `CancelOutcome` as text.
     ///
     /// - Parameter context: The shared context of the tool.
-    /// - Returns: The text of the `CancelOutcome`, or a corrective for an
-    ///   unknown id.
+    /// - Returns: The text of the `CancelOutcome`, or a corrective for an id
+    ///   that no run of the caller has.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
         await context.answer(forRun: id) { run in
             .success(AgentsToolText.cancel(run.requestCancel(), of: run))

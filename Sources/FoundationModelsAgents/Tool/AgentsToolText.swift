@@ -14,13 +14,41 @@ enum AgentsToolText {
         The prompt is blank. An agent sees only its prompt, so put the full task in the prompt.
         """
 
-    /// The corrective of `check agent` with no id.
-    static let missingID = """
-        Give the id of a run: {"op": "check agent", "id": "<id>"}.
-        """
+    /// The answer of `check agent` with no id for a caller with no run, and
+    /// the end of the unknown-id corrective for such a caller.
+    static let noRuns = "You have no runs."
 
     /// The text between two names or two ids of a list.
     private static let listSeparator = ", "
+
+    /// The text between two run blocks of `check agent` with no id.
+    private static let blockSeparator = "\n\n"
+
+    /// Gives the corrective of `start agent` when the run limit is full
+    /// (plan.md §9.3).
+    ///
+    /// - Parameter working: The count of runs that have a turn in operation.
+    /// - Returns: "`N` agents are working now, and that is the limit." and
+    ///   what the model can do now.
+    static func atLimit(working: Int) -> String {
+        """
+        \(working) agents are working now, and that is the limit. \
+        Do this part of the task yourself, or start the agent when one of them finishes.
+        """
+    }
+
+    /// Gives the answer of `check agent` with no id: one block for each run
+    /// of the caller.
+    ///
+    /// - Parameter runs: The runs of the caller, sorted by id.
+    /// - Returns: The ``AgentRun/report`` of each run, with a blank line
+    ///   between two reports, or ``noRuns`` when there is no run.
+    static func reports(of runs: [AgentRun]) -> String {
+        guard !runs.isEmpty else {
+            return noRuns
+        }
+        return runs.lazy.map(\.report).joined(separator: blockSeparator)
+    }
 
     /// Gives the answer of `start agent` for a run in operation.
     ///
@@ -69,7 +97,7 @@ enum AgentsToolText {
     /// - Returns: The corrective, with the ids of the caller.
     static func unknownRun(_ id: String, ids: [String]) -> String {
         let known = ids.isEmpty
-            ? "You have no runs."
+            ? noRuns
             : "The ids of your runs are: \(ids.joined(separator: listSeparator))."
         return "\(noRun(id)) \(known)"
     }

@@ -9,6 +9,11 @@ enum ScriptedAgentStep: Sendable {
     /// into the transcript. The next step then runs.
     case toolCall(name: String, argumentsJSON: String)
 
+    /// Calls the mounted tool `name` with the arguments that `arguments`
+    /// holds when the model reaches the step. The test sets the arguments
+    /// after it makes the script.
+    case deferredToolCall(name: String, arguments: ScriptedArguments)
+
     /// Answers with `text`. The turn ends here.
     case finalText(String)
 
@@ -46,18 +51,21 @@ enum ScriptedAgentModelError: Error, Equatable {
 
 /// The script that each ``ScriptedAgentModel`` of one profile plays.
 ///
-/// The script also records each prompt that the model gets, thus a test
-/// reads the prompts back from the script it made.
+/// The script also records each prompt and each tool output that the model
+/// gets, thus a test reads them back from the script it made.
 ///
 /// A class, because each slot model and the test share one script. The
 /// identity of the script is the cache key of the executor. A `Mutex`
-/// guards the prompt log, thus the `Sendable` conformance is compiler-checked.
+/// guards each log, thus the `Sendable` conformance is compiler-checked.
 final class ScriptedAgentScript: Sendable {
     /// The plays, in match order. The first play that matches wins.
     let plays: [ScriptedAgentPlay]
 
     /// The prompts that the model got, in arrival order.
     private let promptLog = Mutex<[String]>([])
+
+    /// The tool outputs that the model got, in arrival order.
+    private let toolOutputLog = Mutex<[String]>([])
 
     /// Makes a script of `plays`.
     ///
@@ -77,6 +85,20 @@ final class ScriptedAgentScript: Sendable {
     /// - Parameter prompt: The prompt that the model got.
     func record(prompt: String) {
         promptLog.withLock { $0.append(prompt) }
+    }
+
+    /// The text of each tool output that the model got, in arrival order.
+    /// Each tool round records the output of its last tool call one time.
+    var toolOutputs: [String] {
+        toolOutputLog.withLock { $0 }
+    }
+
+    /// Records the text of a tool output.
+    ///
+    /// - Parameter toolOutput: The text of the tool output that the model
+    ///   got.
+    func record(toolOutput: String) {
+        toolOutputLog.withLock { $0.append(toolOutput) }
     }
 
     /// The play whose key is in `instructions` or in `firstPrompt`.
@@ -175,6 +197,9 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
         if case .prompt(let prompt) = transcript.last {
             model.script.record(prompt: ScriptedTranscriptText.text(of: prompt.segments))
         }
+        if case .toolOutput(let output) = transcript.last {
+            model.script.record(toolOutput: ScriptedTranscriptText.text(of: output.segments))
+        }
         let play = try model.script.play(
             instructions: ScriptedTranscriptText.instructions(of: transcript),
             firstPrompt: ScriptedTranscriptText.firstPrompt(of: transcript))
@@ -225,6 +250,8 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
                 continue
             case .toolCall(let name, let argumentsJSON):
                 output = .toolCall(name: name, argumentsJSON: argumentsJSON)
+            case .deferredToolCall(let name, let arguments):
+                output = .toolCall(name: name, argumentsJSON: arguments.json)
             case .finalText(let text):
                 output = .finalText(text)
             }
