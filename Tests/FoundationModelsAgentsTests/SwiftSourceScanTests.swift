@@ -2,7 +2,8 @@ import Testing
 
 /// Holds `SwiftSourceScan`, the source reader that the guard suites share, to
 /// its contract: it counts the lines of a text from 1, it walks the Swift
-/// files of a directory, and it stops a walk that finds no Swift file.
+/// files of a directory, it stops a walk that finds no Swift file, it finds a
+/// comment line, and it finds a full token in a line.
 ///
 /// Each guard suite gives the reader one test of a line. This suite holds the
 /// steps under that test, thus no guard keeps a case for them.
@@ -51,6 +52,31 @@ struct SwiftSourceScanTests {
             reported.allSatisfy {
                 $0.hasPrefix("\(Self.exampleDirectory)/") && $0.contains(Self.lineNumberMarker)
             })
+    }
+
+    @Test(arguments: ["// a comment", "    /// a doc comment", "\t// a comment after a tab"])
+    func aLineThatOpensWithTheCommentMarkerIsAComment(line: String) {
+        #expect(SwiftSourceScan.isComment(line))
+    }
+
+    @Test(arguments: ["let url = \"https://example.com\"", "value // a comment after code"])
+    func aLineThatOpensWithCodeIsNotAComment(line: String) {
+        #expect(!SwiftSourceScan.isComment(line))
+    }
+
+    @Test(arguments: ["Name", "let name = Name", "(Name)", "a.Name", "Name_x Name"])
+    func aNameThatStandsAloneIsAFullToken(line: String) {
+        #expect(SwiftSourceScan.holds(token: "Name", in: line))
+    }
+
+    @Test(arguments: ["MyName", "Names", "Name_x", "_Name", "Name2", "no token here"])
+    func aNameInsideALongerNameIsNotAFullToken(line: String) {
+        #expect(!SwiftSourceScan.holds(token: "Name", in: line))
+    }
+
+    @Test func aTokenThatEndsInPunctuationIgnoresTheCharacterAfterIt() {
+        #expect(SwiftSourceScan.holds(token: "call(", in: "call(value)"))
+        #expect(!SwiftSourceScan.holds(token: "call(", in: "recall(value)"))
     }
 
     @Test func aWalkThatFindsNoSwiftFileStops() {
