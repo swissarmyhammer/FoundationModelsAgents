@@ -47,12 +47,24 @@ comments:
     - commit: de71dc9
     - review: findings (1) — AgentsDemoTests.swift:358
   timestamp: 2026-09-23T22:36:00.717727+00:00
+- actor: claude-code
+  id: 01m386rtjyb005d2cgy32hv9vw
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD — 0 findings (7 validators attempted, 0 failed); the one prior finding is checked.
+
+    ### finish iteration 2 — clean
+    - implement: changed (AgentsDemoTests.swift:358, `@escaping` moved outside the parameter list)
+    - test: green (`swift test -Xswiftc -warnings-as-errors` — 278 tests in 38 suites; swiftlint 0)
+    - commit: 06b5ead
+    - review: clean
+  timestamp: 2026-09-23T22:39:21.182560+00:00
 depends_on:
 - 01M376JMYEG67MVT9NDNATM2AG
 - 01M376HQNY14K766HPNACT3999
 - 01M376JWWCB68BJF7NGECCBVKH
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: 9a80
 title: 'agents-demo: --chat and --fan-out'
 ---
 ## What
@@ -82,4 +94,4 @@ Plan.md §12, §13, the demo modes that need a resolved profile.
 > 2 file(s) not reviewed — excluded by an ignore rule:
 > - `.kanban/ (from .reviewignore)` — 2 file(s)
 
-- [ ] `Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift:358` `completeness/public-output-contract` — Function parameter type has incorrect syntax — `@escaping` attribute is incorrectly nested inside parentheses, which changes the meaning of the type signature. The signature declares an input parameter of type `@escaping AgentsDemoOutput`, which is invalid; it should declare the parameter as an escaping function that takes an `AgentsDemoOutput` and returns async-throwing-Void. Change line 358 from `of body: (@escaping AgentsDemoOutput) async throws -> Void` to `of body: @escaping (AgentsDemoOutput) async throws -> Void` — move the `@escaping` attribute outside the parentheses so it applies to the entire function type.
+- [x] `Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift:358` `completeness/public-output-contract` — Function parameter type has incorrect syntax — `@escaping` attribute is incorrectly nested inside parentheses, which changes the meaning of the type signature. The signature declares an input parameter of type `@escaping AgentsDemoOutput`, which is invalid; it should declare the parameter as an escaping function that takes an `AgentsDemoOutput` and returns async-throwing-Void. Change line 358 from `of body: (@escaping AgentsDemoOutput) async throws -> Void` to `of body: @escaping (AgentsDemoOutput) async throws -> Void` — move the `@escaping` attribute outside the parentheses so it applies to the entire function type.
