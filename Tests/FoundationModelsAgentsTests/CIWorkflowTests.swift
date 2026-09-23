@@ -29,10 +29,6 @@ struct CIWorkflowTests {
     /// The path of the workflow file, relative to the package root.
     private static let workflowRelativePath = ".github/workflows/ci.yml"
 
-    /// The number of path components from the package root to this file:
-    /// `Tests`, `FoundationModelsAgentsTests`, and `CIWorkflowTests.swift`.
-    private static let depthBelowPackageRoot = 3
-
     /// The lines that the `on:` block must hold, with their indentation.
     ///
     /// The indentation is part of each line. It makes `branches: [main]` a
@@ -112,17 +108,13 @@ struct CIWorkflowTests {
 
     /// Reads the workflow file from the package root.
     ///
-    /// The package root is found from the `#filePath` of this file. Thus the
-    /// read does not depend on the working directory of the test run.
+    /// ``PackageRoot`` finds the package root. Thus the read does not depend
+    /// on the working directory of the test run.
     ///
     /// - Returns: Each line of the workflow file.
     /// - Throws: An error when the file cannot be read.
     private static func workflowLines() throws -> [Substring] {
-        var root = URL(fileURLWithPath: #filePath)
-        for _ in 0 ..< depthBelowPackageRoot {
-            root.deleteLastPathComponent()
-        }
-        let url = root.appendingPathComponent(workflowRelativePath)
+        let url = PackageRoot.directory.appendingPathComponent(workflowRelativePath)
         let text = try String(contentsOf: url, encoding: .utf8)
         return text.split(separator: "\n", omittingEmptySubsequences: false)
     }
