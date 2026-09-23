@@ -20,11 +20,31 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 309 tests in 43 suites passed, 0 failed, 0 skipped; `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
     - next: commit
   timestamp: 2026-09-23T23:49:08.484082+00:00
+- actor: claude-code
+  id: 01m38arvg6b9zt8d2kq8334t8j
+  text: |-
+    ### commit — changed
+    - evidence: 3246e1c docs: skills-and-agents.md with the §2 table and DocsTests (the ^422kjy5 card files are not staged)
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T23:49:16.422273+00:00
+- actor: claude-code
+  id: 01m38ax21r8md5pt08yam7b3sm
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` — 0 findings, 0 confirmed, 0 refuted (7 attempted). No validator matches README.md or docs/skills-and-agents.md. The Swift files were reviewed.
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed — docs/skills-and-agents.md, DocsTests.swift, Support/MarkdownLinks.swift, DocumentationTests.swift (speedWords internal), README.md
+    - test: green — 309 tests in 43 suites passed; swiftlint 0 violations
+    - commit: changed — 3246e1c
+    - review: clean — 0 findings
+  timestamp: 2026-09-23T23:51:34.200834+00:00
 depends_on:
 - 01M376KBXZPH1WESVB084SCRS7
 - 01M376JGKJAWX7DHWQC08C4GCH
-position_column: doing
-position_ordinal: '8180'
+position_column: done
+position_ordinal: '9e80'
 title: docs/skills-and-agents.md
 ---
 ## What
@@ -34,13 +54,13 @@ Plan.md §14 M8: a document on skills and agents. ASD-STE100 Simplified Technica
 - Add a test in `Tests/FoundationModelsAgentsTests/DocsTests.swift` that checks the file exists, holds the §2 table header row, and that each relative link in it resolves to a file in the repository.
 
 ## Acceptance Criteria
-- [ ] `docs/skills-and-agents.md` exists and holds the §2 table.
-- [ ] It states that skills and agents are separate, and how an agent uses a skill.
-- [ ] Each relative link in it resolves.
+- [x] `docs/skills-and-agents.md` exists and holds the §2 table.
+- [x] It states that skills and agents are separate, and how an agent uses a skill.
+- [x] Each relative link in it resolves.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/DocsTests.swift`.
-- [ ] Run `swift test --filter DocsTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/DocsTests.swift`.
+- [x] Run `swift test --filter DocsTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
