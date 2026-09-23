@@ -1,7 +1,5 @@
 import FoundationModels
 
-// The run start and `runner.catalog()` of later tasks call this type.
-// periphery:ignore
 /// Resolves the `tools` and `disallowedTools` entries of one agent to new
 /// tool instances, with the Claude semantics of plan.md §5.
 ///
