@@ -2,8 +2,8 @@
 /// loaded, and every diagnostic of the load.
 ///
 /// A catalog is a value. `AgentRegistry.catalog()` gives the cached value,
-/// and `AgentRegistry.reload()` swaps in a new one. A catalog that a caller
-/// holds does not change.
+/// and `AgentRegistry.load()` or `AgentRegistry.reload()` swaps in a new
+/// one. A catalog that a caller holds does not change.
 public struct AgentCatalog: Sendable {
     /// Each agent that loaded, sorted by id.
     public let definitions: [AgentDefinition]

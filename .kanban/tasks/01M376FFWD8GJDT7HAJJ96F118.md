@@ -43,10 +43,56 @@ comments:
     - commit: changed — 2a0e662 feat(registry): read marketplace layers below the local layers and keep their provenance.
     - review: stuck — 1 finding, `swift/initialization` at AgentRegistry.swift:123, in a true conflict with plan.md §4.1 and §12. Recorded as a blocker in the description.
   timestamp: 2026-09-23T15:50:26.983801+00:00
+- actor: claude-code
+  id: 01m37hrx5cwpjpn0nndhgnxhac
+  text: |-
+    Implementation notes (load step):
+    - `AgentRegistry` init stores its inputs only; the current build starts as `Generation.empty`. `load() async throws` and `reload() async throws` both call one private `build()`: it checks cancellation, calls `Generation.read(marketplaces:localLayers:)`, and swaps the build in under the Mutex.
+    - Test helper `AgentRegistry.loadedCatalog()` (Support/AgentRegistry+LoadedCatalog.swift) calls `load()`, then gives `catalog()`.
+    - Test helper `CountingMarketplaceProvider(wrapping:)` counts the calls of `marketplaceLayers()`.
+    - Discovery: `GitFixtureRepository` and `MarketplaceStoreFixture` remove their folders on deinit. A store that starts after they are released installs nothing (the layer id is "fixture" and the sha is nil). Thus `FixtureMarketplaceProvider.makeUnstarted()` gives an `Unstarted` value that keeps both until its `start()` returns.
+  timestamp: 2026-09-23T16:32:23.724470+00:00
+- actor: claude-code
+  id: 01m37hrzq79crara464d61n5wa
+  text: |-
+    ### implement — changed
+    - evidence: 7 files — Sources/FoundationModelsAgents/Registry/AgentRegistry.swift, Sources/FoundationModelsAgents/Registry/AgentCatalog.swift, Tests/FoundationModelsAgentsTests/AgentRegistryTests.swift, Tests/FoundationModelsAgentsTests/AgentRegistryMarketplaceTests.swift, Tests/FoundationModelsAgentsTests/Support/FixtureMarketplaceProvider.swift, Tests/FoundationModelsAgentsTests/Support/AgentRegistry+LoadedCatalog.swift, Tests/FoundationModelsAgentsTests/Support/CountingMarketplaceProvider.swift. `swift test --filter AgentRegistry`: 22 tests pass.
+    - next: test
+  timestamp: 2026-09-23T16:32:26.343713+00:00
+- actor: claude-code
+  id: 01m37hsk8v299g916pkcdd2ejd
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 140 tests in 17 suites passed, 0 failed, 0 skipped (the mlx-swift "missing creator" note is not ours); `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
+    - next: commit
+  timestamp: 2026-09-23T16:32:46.363674+00:00
+- actor: claude-code
+  id: 01m37hstt3z83bmcj0a1mfgncd
+  text: |-
+    ### commit — changed
+    - evidence: 166e365 refactor(registry): read the agent files in load(), not in init
+    - next: review
+  timestamp: 2026-09-23T16:32:54.083034+00:00
+- actor: claude-code
+  id: 01m37hydvzt6j7zavsjqd9fgmc
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` — 0 findings (0 confirmed, 0 refuted), 7 files reviewed. The prior `swift/initialization` finding is checked.
+    - next: done
+  timestamp: 2026-09-23T16:35:24.671972+00:00
+- actor: claude-code
+  id: 01m37hyg6jvvqrnxpqxazfrs2g
+  text: |-
+    ### finish iteration 2 — done
+    - implement: changed — AgentRegistry (load/reload async throws, one private build, empty catalog before load), AgentCatalog doc, AgentRegistryTests, AgentRegistryMarketplaceTests, FixtureMarketplaceProvider (makeUnstarted/Unstarted), AgentRegistry+LoadedCatalog, CountingMarketplaceProvider.
+    - test: green — 140 tests in 17 suites pass, 0 failed, 0 skipped; swiftlint 0 violations.
+    - commit: changed — 166e365 refactor(registry): read the agent files in load(), not in init.
+    - review: clean — 0 findings; the `swift/initialization` finding is checked.
+  timestamp: 2026-09-23T16:35:27.058029+00:00
 depends_on:
 - 01M376F14G9B9QWNG0TTA6VRKT
-position_column: review
-position_ordinal: '80'
+position_column: done
+position_ordinal: 8c80
 title: 'AgentRegistry: marketplace layers and provenance'
 ---
 ## What
@@ -63,14 +109,14 @@ Layer 2, marketplace part (plan.md §4.1, §6.1). No watcher and no reload strea
 - [x] A project agent with the same name wins over a marketplace agent, with an advisory.
 - [x] A marketplace layer with no `agents/` folder gives no agents and no error.
 - [x] A `file://` source with `path:` gives its folder unchanged (plan.md §16), tested with a `MarketplaceStore` over a local folder.
-- [ ] No `init` of `AgentRegistry` reads a file or calls `marketplaceLayers()`: `catalog()` right after `init` is empty.
-- [ ] After `try await load()`, `catalog()` holds the agents; a file that changes after `load()` shows in `catalog()` only after `try await reload()`.
-- [ ] A registry made before the marketplace store starts, then loaded after `market.start()`, holds the marketplace agents in its first loaded catalog.
+- [x] No `init` of `AgentRegistry` reads a file or calls `marketplaceLayers()`: `catalog()` right after `init` is empty.
+- [x] After `try await load()`, `catalog()` holds the agents; a file that changes after `load()` shows in `catalog()` only after `try await reload()`.
+- [x] A registry made before the marketplace store starts, then loaded after `market.start()`, holds the marketplace agents in its first loaded catalog.
 
 ## Tests
 - [x] `Tests/FoundationModelsAgentsTests/AgentRegistryMarketplaceTests.swift` covers each criterion.
-- [ ] Add the load-step cases to `AgentRegistryTests.swift` and `AgentRegistryMarketplaceTests.swift`.
-- [ ] Run `swift test --filter "AgentRegistry"`, then the full suite. Expected: pass.
+- [x] Add the load-step cases to `AgentRegistryTests.swift` and `AgentRegistryMarketplaceTests.swift`.
+- [x] Run `swift test --filter "AgentRegistry"`, then the full suite. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
@@ -82,7 +128,7 @@ Layer 2, marketplace part (plan.md §4.1, §6.1). No watcher and no reload strea
 > 2 file(s) not reviewed — excluded by an ignore rule:
 > - `.kanban/ (from .reviewignore)` — 2 file(s)
 
-- [ ] `Sources/FoundationModelsAgents/Registry/AgentRegistry.swift:123` `swift/initialization` — Init performs slow work: creating the Generation calls `marketplaceLayers()` on the provider and runs `AgentCatalogBuilder.build()`, which reads and parses files. Callers expect init to return immediately. Defer the catalog build to an explicit `load() throws` method. Store only the provider and local layers in init; build the catalog on demand or when explicitly requested by the caller.
+- [x] `Sources/FoundationModelsAgents/Registry/AgentRegistry.swift:123` `swift/initialization` — Init performs slow work: creating the Generation calls `marketplaceLayers()` on the provider and runs `AgentCatalogBuilder.build()`, which reads and parses files. Callers expect init to return immediately. Defer the catalog build to an explicit `load() throws` method. Store only the provider and local layers in init; build the catalog on demand or when explicitly requested by the caller.
 
 ## Decision
 The user decided (2026-09-23): move the build out of `init` into `load() async throws`. The reason is that the I/O shows at each call site, not speed. plan.md §4.1 and §12 now state the load step.

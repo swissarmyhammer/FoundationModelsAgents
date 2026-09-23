@@ -9,11 +9,14 @@ import Synchronization
 /// marketplace layers come from `MarketplaceLayerProviding.marketplaceLayers()`,
 /// and the local layers come from the host.
 ///
-/// The registry builds its catalog one time, when it is made, and keeps it.
-/// `catalog()` does no I/O: it gives the cached value. `reload()` asks the
-/// provider for its layers again, reads the layers again, and swaps the new
-/// catalog in atomically. A caller that holds a catalog keeps a value that
-/// does not change.
+/// Each `init` stores its inputs and reads no file. `load()` asks the
+/// provider for its layers, reads the agent files, and swaps the catalog in.
+/// `load()` is `async`, thus each call site shows the I/O. A host calls
+/// `load()` one time, after `market.start()`. Agent files change while the
+/// host runs, thus `reload()` is a normal path: it does the same build
+/// again. `catalog()` does no I/O: it gives the cached value, and it gives an
+/// empty catalog before the first `load()`. A caller that holds a catalog
+/// keeps a value that does not change.
 ///
 /// The registry keeps `layers` and `variables` for the render of a body at
 /// run start (plan.md §4.3 step 3). Each definition names the layer that
@@ -32,10 +35,11 @@ public final class AgentRegistry: Sendable {
     private let marketplaces: (any MarketplaceLayerProviding)?
 
     /// The current build: the marketplace layers that it read, and its
-    /// catalog.
+    /// catalog. It is the empty build until the first `load()`.
     private let current: Mutex<Generation>
 
     /// The marketplace layers of the last build, lowest precedence first.
+    /// It is empty before the first `load()`.
     public var marketplaceLayers: [MarketplaceLayer] {
         current.withLock { $0.marketplaceLayers }
     }
@@ -48,8 +52,8 @@ public final class AgentRegistry: Sendable {
         marketplaceLayers.map(\.layer) + localLayers
     }
 
-    /// Makes a registry over the layers of a `DotfolderStack`, and builds
-    /// its catalog.
+    /// Makes a registry over the layers of a `DotfolderStack`. It reads no
+    /// file: call `load()` to build the catalog.
     ///
     /// - Parameters:
     ///   - stack: The dotfolder stack. Its layers are the layers of the
@@ -63,7 +67,8 @@ public final class AgentRegistry: Sendable {
     }
 
     // periphery:ignore:parameters watch
-    /// Makes a registry over a list of layers, and builds its catalog.
+    /// Makes a registry over a list of layers. It reads no file: call
+    /// `load()` to build the catalog.
     ///
     /// A host that wants `~/.claude` appends a layer to the list.
     ///
@@ -83,7 +88,9 @@ public final class AgentRegistry: Sendable {
 
     // periphery:ignore:parameters watch
     /// Makes a registry over the layers of a marketplace provider and the
-    /// layers of a `DotfolderStack`, and builds its catalog.
+    /// layers of a `DotfolderStack`. It reads no file and does not call
+    /// `marketplaces.marketplaceLayers()`: call `load()` to build the
+    /// catalog.
     ///
     /// The build reads the `.md` files directly in `agents/` of each layer
     /// of `marketplaces.marketplaceLayers()`, one level. A marketplace layer
@@ -107,7 +114,7 @@ public final class AgentRegistry: Sendable {
         self.init(marketplaces: marketplaces, localLayers: stack.layers, variables: variables)
     }
 
-    /// Makes a registry, and builds its catalog.
+    /// Makes a registry that stores its inputs. It reads no file.
     ///
     /// - Parameters:
     ///   - marketplaces: The provider of the marketplace layers, or `nil`.
@@ -120,30 +127,59 @@ public final class AgentRegistry: Sendable {
         self.marketplaces = marketplaces
         self.localLayers = localLayers
         self.variables = variables
-        self.current = Mutex(Generation(marketplaces: marketplaces, localLayers: localLayers))
+        self.current = Mutex(.empty)
     }
 
     /// Gives the cached catalog. This call does no I/O.
     ///
-    /// - Returns: The catalog of the last build.
+    /// - Returns: The catalog of the last build, or an empty catalog before
+    ///   the first `load()`.
     public func catalog() -> AgentCatalog {
         current.withLock { $0.catalog }
     }
 
-    /// Asks the provider for its layers again, reads the layers again, and
-    /// swaps the new catalog in atomically.
+    /// Asks the provider for its layers, reads the agent files, and swaps the
+    /// catalog in. A host calls it one time, after `market.start()`.
     ///
+    /// - Throws: `CancellationError` when the task is cancelled before the
+    ///   build. The catalog then does not change.
+    public func load() async throws {
+        try build()
+    }
+
+    /// Asks the provider for its layers again, reads the agent files again,
+    /// and swaps the new catalog in atomically.
+    ///
+    /// Agent files change while the host runs, thus this is a normal path.
     /// The build runs outside the lock. Thus a `catalog()` call during a
     /// reload gives the previous catalog, and never waits for the read of
     /// the files.
-    public func reload() {
-        let rebuilt = Generation(marketplaces: marketplaces, localLayers: localLayers)
+    ///
+    /// - Throws: `CancellationError` when the task is cancelled before the
+    ///   build. The catalog then does not change.
+    public func reload() async throws {
+        try build()
+    }
+
+    /// Reads the layers of the provider and the local layers, and swaps the
+    /// new build in. `load()` and `reload()` share this build.
+    ///
+    /// - Throws: `CancellationError` when the task is cancelled before the
+    ///   build.
+    private func build() throws {
+        try Task.checkCancellation()
+        let rebuilt = Generation.read(marketplaces: marketplaces, localLayers: localLayers)
         current.withLock { $0 = rebuilt }
     }
 
     /// One build of the registry: the marketplace layers that the build
     /// read, and the catalog of those layers and the local layers.
     private struct Generation: Sendable {
+        /// The build before the first `load()`: no marketplace layer and an
+        /// empty catalog.
+        static let empty = Generation(
+            marketplaceLayers: [], catalog: AgentCatalog(definitions: [], diagnostics: []))
+
         /// The marketplace layers of the build, lowest precedence first.
         let marketplaceLayers: [MarketplaceLayer]
 
@@ -156,9 +192,14 @@ public final class AgentRegistry: Sendable {
         ///   - marketplaces: The provider of the marketplace layers, or
         ///     `nil` for no marketplace layer.
         ///   - localLayers: The local layers, lowest precedence first.
-        init(marketplaces: (any MarketplaceLayerProviding)?, localLayers: [DotfolderStack.Layer]) {
-            marketplaceLayers = marketplaces?.marketplaceLayers() ?? []
-            catalog = AgentCatalogBuilder.build(marketplaceLayers: marketplaceLayers, localLayers: localLayers)
+        /// - Returns: The build of those layers.
+        static func read(
+            marketplaces: (any MarketplaceLayerProviding)?, localLayers: [DotfolderStack.Layer]
+        ) -> Generation {
+            let marketplaceLayers = marketplaces?.marketplaceLayers() ?? []
+            return Generation(
+                marketplaceLayers: marketplaceLayers,
+                catalog: AgentCatalogBuilder.build(marketplaceLayers: marketplaceLayers, localLayers: localLayers))
         }
     }
 }

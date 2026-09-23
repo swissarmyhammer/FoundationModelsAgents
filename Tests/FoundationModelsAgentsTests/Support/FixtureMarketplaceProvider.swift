@@ -39,13 +39,49 @@ struct FixtureMarketplaceProvider: MarketplaceLayerProviding {
     /// - Throws: The error of a file read, of the repository, or of the
     ///   cache folder.
     static func make() async throws -> FixtureMarketplaceProvider {
+        let unstarted = try makeUnstarted()
+        await unstarted.start()
+        return unstarted.provider
+    }
+
+    /// Commits the fixture marketplace, and makes a new store over it that
+    /// has not started. The store gives no layer until `start()`.
+    ///
+    /// - Returns: The provider with no snapshot installed, and the fixtures
+    ///   that the store reads when it starts.
+    /// - Throws: The error of a file read, of the repository, or of the
+    ///   cache folder.
+    static func makeUnstarted() throws -> Unstarted {
         let repository = try GitFixtureRepository()
         let sha = try repository.commit(files: fixtureTree())
         let cache = try TemporaryLayer.makeEmpty()
         let fixture = try MarketplaceStoreFixture(
             sources: [MarketplaceSource(repository.url)], cacheDirectory: cache.root)
-        await fixture.store.start()
-        return FixtureMarketplaceProvider(sha: sha, cache: cache, store: fixture.store)
+        let provider = FixtureMarketplaceProvider(sha: sha, cache: cache, store: fixture.store)
+        return Unstarted(provider: provider, repository: repository, fixture: fixture)
+    }
+
+    /// A provider whose store has not started, with the fixtures that the
+    /// store reads when it starts.
+    ///
+    /// The repository and the store fixture remove their folders when they
+    /// are released. This value keeps them until `start()` returns.
+    struct Unstarted {
+        /// The provider. It gives no layer until `start()`.
+        let provider: FixtureMarketplaceProvider
+
+        /// The repository that holds the commit of the fixture marketplace.
+        let repository: GitFixtureRepository
+
+        /// The store fixture: its local folder is the source of the store.
+        let fixture: MarketplaceStoreFixture
+
+        /// Starts the store: it installs the snapshot of the fixture
+        /// marketplace, as `market.start()` does in a host.
+        func start() async {
+            await provider.store.start()
+            withExtendedLifetime((repository, fixture)) {}
+        }
     }
 
     /// Gives the layers of the store, lowest precedence first.

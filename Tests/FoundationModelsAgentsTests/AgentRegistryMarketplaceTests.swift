@@ -32,6 +32,10 @@ struct AgentRegistryMarketplaceTests {
     /// The count of marketplace layers of a store with one source.
     private static let oneSourceLayerCount = 1
 
+    /// The count of the calls of `marketplaceLayers()` that one `load()`
+    /// makes.
+    private static let callsOfOneLoad = 1
+
     /// The agent in the plugin shape under the `file://` folder.
     private static let pluginAgent = "plugin-agent"
 
@@ -62,7 +66,8 @@ struct AgentRegistryMarketplaceTests {
         defer { try? provider.delete() }
         let marketplace = try #require(provider.marketplaceLayers().first)
 
-        let catalog = AgentRegistry(marketplaces: provider, stack: DotfolderStack(layers: [])).catalog()
+        let registry = AgentRegistry(marketplaces: provider, stack: DotfolderStack(layers: []))
+        let catalog = try await registry.loadedCatalog()
 
         #expect(marketplace.provenance.id == FixtureMarketplaceProvider.marketplaceID)
         #expect(marketplace.provenance.sha == provider.sha)
@@ -87,6 +92,7 @@ struct AgentRegistryMarketplaceTests {
         let marketplace = try #require(provider.marketplaceLayers().first)
 
         let registry = AgentRegistry(marketplaces: provider, stack: DotfolderStack(layers: [project.layer]))
+        try await registry.load()
 
         #expect(registry.layers.map(\.root) == [marketplace.layer.root, project.root])
         #expect(registry.marketplaceLayers.map(\.provenance) == [marketplace.provenance])
@@ -102,7 +108,8 @@ struct AgentRegistryMarketplaceTests {
         try project.write(Self.agentText(named: Self.sharedAgent), at: Self.agentPath(Self.sharedAgent))
         let marketplace = try #require(provider.marketplaceLayers().first)
 
-        let catalog = AgentRegistry(marketplaces: provider, stack: DotfolderStack(layers: [project.layer])).catalog()
+        let registry = AgentRegistry(marketplaces: provider, stack: DotfolderStack(layers: [project.layer]))
+        let catalog = try await registry.loadedCatalog()
 
         let definition = try #require(catalog.definition(named: Self.sharedAgent))
         let expected = AgentDiagnostic(
@@ -119,21 +126,55 @@ struct AgentRegistryMarketplaceTests {
     }
 
     @Test("a marketplace layer with no agents/ folder gives no agents and no error")
-    func marketplaceLayerWithNoAgentsFolderGivesNoAgents() throws {
+    func marketplaceLayerWithNoAgentsFolderGivesNoAgents() async throws {
         let folder = try TemporaryLayer.makeEmpty()
         defer { try? folder.delete() }
         try folder.write(Self.skillText, at: Self.skillPath)
         let fixture = try MarketplaceStoreFixture(sources: [MarketplaceSource(Self.url(ofFolder: folder.root))])
 
         let registry = AgentRegistry(marketplaces: fixture.store, stack: DotfolderStack(layers: []))
+        let catalog = try await registry.loadedCatalog()
 
         #expect(registry.marketplaceLayers.count == Self.oneSourceLayerCount)
+        #expect(catalog.definitions.isEmpty)
+        #expect(catalog.diagnostics.isEmpty)
+    }
+
+    @Test("no init calls marketplaceLayers(): catalog() right after init is empty, and load() asks one time")
+    func initAsksTheProviderForNoLayers() async throws {
+        let provider = try await FixtureMarketplaceProvider.make()
+        defer { try? provider.delete() }
+        let counting = CountingMarketplaceProvider(wrapping: provider)
+
+        let registry = AgentRegistry(marketplaces: counting, stack: FixtureLibrary.stack())
+
+        #expect(counting.callCount == .zero)
+        #expect(registry.marketplaceLayers.isEmpty)
         #expect(registry.catalog().definitions.isEmpty)
         #expect(registry.catalog().diagnostics.isEmpty)
+
+        try await registry.load()
+
+        #expect(counting.callCount == Self.callsOfOneLoad)
+        #expect(registry.catalog().definition(named: Self.sharedAgent)?.marketplace != nil)
+    }
+
+    @Test("a registry made before market.start() holds the marketplace agents in its first loaded catalog")
+    func registryMadeBeforeStartLoadsTheMarketplaceAgents() async throws {
+        let market = try FixtureMarketplaceProvider.makeUnstarted()
+        let provider = market.provider
+        defer { try? provider.delete() }
+        let registry = AgentRegistry(marketplaces: provider, stack: DotfolderStack(layers: []))
+
+        await market.start()
+        let catalog = try await registry.loadedCatalog()
+
+        #expect(catalog.definitions.map(\.id) == FixtureMarketplaceProvider.agentIDs)
+        #expect(registry.marketplaceLayers.map(\.provenance) == provider.marketplaceLayers().map(\.provenance))
     }
 
     @Test("a file:// source with path: gives its folder unchanged")
-    func fileSourceWithPathGivesItsFolderUnchanged() throws {
+    func fileSourceWithPathGivesItsFolderUnchanged() async throws {
         let folder = try TemporaryLayer.makeEmpty()
         defer { try? folder.delete() }
         let library = "\(Self.libraryFolderName)/"
@@ -143,7 +184,8 @@ struct AgentRegistryMarketplaceTests {
             sources: [MarketplaceSource(Self.url(ofFolder: folder.root), path: Self.libraryFolderName)])
         let libraryRoot = folder.root.appendingPathComponent(Self.libraryFolderName, isDirectory: true)
 
-        let catalog = AgentRegistry(marketplaces: fixture.store, stack: DotfolderStack(layers: [])).catalog()
+        let registry = AgentRegistry(marketplaces: fixture.store, stack: DotfolderStack(layers: []))
+        let catalog = try await registry.loadedCatalog()
 
         let definition = try #require(catalog.definition(named: Self.libraryAgent))
         #expect(catalog.definitions.map(\.id) == [Self.libraryAgent])

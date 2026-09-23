@@ -33,14 +33,20 @@ struct AgentRegistryTests {
     /// The path of an agent file in a child folder of `agents/`.
     private static let nestedAgentPath = "agents/nested/deep-agent.md"
 
+    /// The id of the agent in `validAgentText`.
+    private static let validAgentID = "deep-agent"
+
+    /// The path of the file of `validAgentID` directly in `agents/`.
+    private static let topLevelAgentPath = "agents/\(validAgentID).md"
+
     /// A valid agent file.
     private static let validAgentText = """
         ---
-        name: deep-agent
-        description: An agent in a child folder.
+        name: \(validAgentID)
+        description: A valid agent of a test.
         ---
 
-        You are not read.
+        You are an agent of a test.
         """
 
     /// An agent file whose frontmatter is a list, not a mapping, thus the
@@ -58,8 +64,8 @@ struct AgentRegistryTests {
     private static let listFrontmatterID = "list-frontmatter"
 
     @Test("the fixture stack gives the local ids, and each file name is the id")
-    func fixtureStackGivesTheLocalIDs() {
-        let catalog = AgentRegistry(stack: FixtureLibrary.stack()).catalog()
+    func fixtureStackGivesTheLocalIDs() async throws {
+        let catalog = try await AgentRegistry(stack: FixtureLibrary.stack()).loadedCatalog()
 
         #expect(catalog.definitions.map(\.id) == FixtureLibrary.localAgentIDs.sorted())
         #expect(catalog.definitions.allSatisfy { $0.url.lastPathComponent == "\($0.id).md" })
@@ -67,9 +73,10 @@ struct AgentRegistryTests {
     }
 
     @Test("each definition keeps its URL, its layer, and its layer index")
-    func definitionKeepsItsProvenance() throws {
+    func definitionKeepsItsProvenance() async throws {
         let stack = FixtureLibrary.stack()
-        let definition = try #require(AgentRegistry(stack: stack).catalog().definition(named: Self.sharedAgent))
+        let catalog = try await AgentRegistry(stack: stack).loadedCatalog()
+        let definition = try #require(catalog.definition(named: Self.sharedAgent))
         let projectLayer = stack.layers[Self.projectLayerIndex]
 
         #expect(definition.provenance.layerIndex == Self.projectLayerIndex)
@@ -80,9 +87,9 @@ struct AgentRegistryTests {
     }
 
     @Test("the user code-reviewer.md wins over the defaults copy, with one advisory")
-    func userCopyWinsWithOneAdvisory() throws {
+    func userCopyWinsWithOneAdvisory() async throws {
         let layers = Array(FixtureLibrary.stack().layers.prefix(Self.layersBelowProject))
-        let catalog = AgentRegistry(layers: layers).catalog()
+        let catalog = try await AgentRegistry(layers: layers).loadedCatalog()
         let definition = try #require(catalog.definition(named: Self.sharedAgent))
         let hiddenURL = layers[Self.defaultsLayerIndex].root.appendingPathComponent("agents/\(Self.sharedAgent).md")
         let expected = AgentDiagnostic(
@@ -95,8 +102,8 @@ struct AgentRegistryTests {
     }
 
     @Test("the project copy hides the user copy and the defaults copy, with one advisory each")
-    func projectCopyHidesEachLowerCopy() {
-        let catalog = AgentRegistry(stack: FixtureLibrary.stack()).catalog()
+    func projectCopyHidesEachLowerCopy() async throws {
+        let catalog = try await AgentRegistry(stack: FixtureLibrary.stack()).loadedCatalog()
         let advisories = catalog.diagnostics.filter { $0.agent == Self.sharedAgent && $0.severity == .advisory }
 
         #expect(advisories.count == Self.layersBelowProject)
@@ -104,20 +111,20 @@ struct AgentRegistryTests {
     }
 
     @Test("a .md file in a child folder of agents/ is not read")
-    func childFolderFileIsNotRead() throws {
+    func childFolderFileIsNotRead() async throws {
         let layer = try TemporaryLayer.copy(of: FixtureLibrary.defaultsDirectory)
         defer { try? layer.delete() }
         try layer.write(Self.validAgentText, at: Self.nestedAgentPath)
 
-        let catalog = AgentRegistry(layers: [layer.layer]).catalog()
+        let catalog = try await AgentRegistry(layers: [layer.layer]).loadedCatalog()
 
         #expect(catalog.definitions.map(\.id) == Self.defaultsAgentIDs)
         #expect(catalog.diagnostics.allSatisfy { !$0.provenance.url.path.contains("/nested/") })
     }
 
     @Test("a broken file gives its diagnostics", arguments: AgentDefinitionRows.broken)
-    func brokenFileGivesItsDiagnostics(row: AgentDefinitionRows.BrokenRow) {
-        let catalog = Self.brokenCatalog()
+    func brokenFileGivesItsDiagnostics(row: AgentDefinitionRows.BrokenRow) async throws {
+        let catalog = try await Self.brokenCatalog()
         let diagnostics = catalog.diagnostics.filter { $0.provenance.url.lastPathComponent == "\(row.id).md" }
 
         #expect(diagnostics.map(\.severity) == row.severities)
@@ -125,30 +132,50 @@ struct AgentRegistryTests {
     }
 
     @Test("the good files next to the broken files load")
-    func goodFilesNextToBrokenFilesLoad() {
+    func goodFilesNextToBrokenFilesLoad() async throws {
         let loaded = AgentDefinitionRows.broken.filter(\.loads).map(\.id).sorted()
+        let catalog = try await Self.brokenCatalog()
 
-        #expect(Self.brokenCatalog().definitions.map(\.id) == loaded)
+        #expect(catalog.definitions.map(\.id) == loaded)
     }
 
     @Test("a frontmatter that does not decode gives an advisory, then a skip")
-    func undecodedFrontmatterGivesAnAdvisoryThenASkip() throws {
+    func undecodedFrontmatterGivesAnAdvisoryThenASkip() async throws {
         let layer = try TemporaryLayer.makeEmpty()
         defer { try? layer.delete() }
         try layer.write(Self.listFrontmatterText, at: "agents/\(Self.listFrontmatterID).md")
 
-        let catalog = AgentRegistry(layers: [layer.layer]).catalog()
+        let catalog = try await AgentRegistry(layers: [layer.layer]).loadedCatalog()
 
         #expect(catalog.definitions.isEmpty)
         #expect(catalog.diagnostics.map(\.severity) == [.advisory, .skip])
         #expect(catalog.diagnostics.allSatisfy { $0.agent == Self.listFrontmatterID })
     }
 
+    @Test("no init reads a file: catalog() right after init is empty")
+    func catalogIsEmptyBeforeLoad() {
+        let registry = AgentRegistry(stack: FixtureLibrary.stack())
+
+        #expect(registry.catalog().definitions.isEmpty)
+        #expect(registry.catalog().diagnostics.isEmpty)
+        #expect(registry.catalog().listing.isEmpty)
+    }
+
+    @Test("after load(), catalog() holds the agents of the files")
+    func loadFillsTheCatalog() async throws {
+        let registry = AgentRegistry(layers: [FixtureLibrary.stack().layers[Self.defaultsLayerIndex]])
+
+        try await registry.load()
+
+        #expect(registry.catalog().definitions.map(\.id) == Self.defaultsAgentIDs)
+    }
+
     @Test("catalog() gives the same catalog after the files are deleted, until reload()")
-    func catalogDoesNoIOAfterTheBuild() throws {
+    func catalogDoesNoIOAfterTheBuild() async throws {
         let layer = try TemporaryLayer.copy(of: FixtureLibrary.defaultsDirectory)
         defer { try? layer.delete() }
         let registry = AgentRegistry(layers: [layer.layer])
+        try await registry.load()
         let before = registry.catalog()
 
         try layer.remove(MarketplaceLayer.agentsDirectoryName)
@@ -159,26 +186,42 @@ struct AgentRegistryTests {
         #expect(after.definitions.map(\.body) == before.definitions.map(\.body))
         #expect(before.definitions.map(\.id) == Self.defaultsAgentIDs)
 
-        registry.reload()
+        try await registry.reload()
 
         #expect(registry.catalog().definitions.isEmpty)
     }
 
-    @Test("reload() reads a new file")
-    func reloadReadsANewFile() throws {
+    @Test("a file written after load() shows in catalog() only after reload()")
+    func newFileShowsOnlyAfterReload() async throws {
         let layer = try TemporaryLayer.makeEmpty()
         defer { try? layer.delete() }
         let registry = AgentRegistry(layers: [layer.layer])
-        try layer.write(Self.validAgentText, at: "agents/deep-agent.md")
+        try await registry.load()
 
-        registry.reload()
+        try layer.write(Self.validAgentText, at: Self.topLevelAgentPath)
 
-        #expect(registry.catalog().definitions.map(\.id) == ["deep-agent"])
+        #expect(registry.catalog().definitions.isEmpty)
+
+        try await registry.reload()
+
+        #expect(registry.catalog().definitions.map(\.id) == [Self.validAgentID])
+    }
+
+    @Test("a load() in a cancelled task throws, and the catalog stays empty")
+    func cancelledLoadKeepsTheCatalog() async throws {
+        let registry = AgentRegistry(stack: FixtureLibrary.stack())
+        let load = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await registry.load()
+        }
+
+        await #expect(throws: CancellationError.self) { try await load.value }
+        #expect(registry.catalog().definitions.isEmpty)
     }
 
     @Test("modelVisible holds only the model-visible definitions")
-    func modelVisibleHoldsOnlyVisibleDefinitions() {
-        let catalog = AgentRegistry(stack: FixtureLibrary.stack()).catalog()
+    func modelVisibleHoldsOnlyVisibleDefinitions() async throws {
+        let catalog = try await AgentRegistry(stack: FixtureLibrary.stack()).loadedCatalog()
 
         #expect(catalog.modelVisible.map(\.id) == catalog.definitions.filter(\.isModelVisible).map(\.id))
         #expect(!catalog.modelVisible.contains { $0.id == "release-manager" })
@@ -198,9 +241,10 @@ struct AgentRegistryTests {
     ///
     /// - Returns: The catalog of a registry over the one layer whose
     ///   `agents/` folder is `broken/agents/`.
-    private static func brokenCatalog() -> AgentCatalog {
+    /// - Throws: The error of `load()`.
+    private static func brokenCatalog() async throws -> AgentCatalog {
         let layer = DotfolderStack.Layer(
             source: .project, root: FixtureLibrary.brokenAgentsDirectory.deletingLastPathComponent())
-        return AgentRegistry(layers: [layer]).catalog()
+        return try await AgentRegistry(layers: [layer]).loadedCatalog()
     }
 }
