@@ -1,10 +1,31 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m37ba7qdvc68tpdbx112gm9r
+  text: |-
+    Research notes:
+    - The stack uses `DotfolderStack(name: "agents", ...)`. Thus the project layer root is `project/.agents/`, and the project agents are in `project/.agents/agents/`.
+    - The include form is `{% include "house-rules.md" %}`. StenciledDotfolderStack walks from the folder of the document up to the layer root and searches `_partials/` at each level.
+    - marketplace.json follows the Extras catalog shape (name, owner, metadata, plugins with `source: ./plugins/<name>` and `strict: false`). The plugins give no `agents` list, thus Extras reads each `.md` in `<plugin>/agents/`.
+    - `Bad_Name.md` has `name: Bad_Name`, thus its one defect is the file name.
+
+    ### implement — changed
+    - evidence: 23 files — 21 fixtures under Examples/agent-library, Tests/FoundationModelsAgentsTests/Support/FixtureLibrary.swift, Tests/FoundationModelsAgentsTests/FixtureLibraryTests.swift; swiftlint 0 violations
+    - next: test
+  timestamp: 2026-09-23T14:39:31.565432+00:00
+- actor: claude-code
+  id: 01m37bby31tp7vcd3fdtakzwhc
+  text: |-
+    ### test — green
+    - evidence: swift test -Xswiftc -warnings-as-errors — 53 tests in 9 suites pass, 0 failed, 0 skipped (the one note is the mlx-swift "missing creator" build-system note, not ours); swiftlint lint --quiet Sources Tests Examples — 0 violations
+    - next: commit
+  timestamp: 2026-09-23T14:40:27.233546+00:00
 depends_on:
 - 01M376D9AJZB96ZHWEEXGW96QC
-position_column: todo
-position_ordinal: '8380'
+position_column: doing
+position_ordinal: '80'
 title: Fixture library Examples/agent-library
 ---
 ## What

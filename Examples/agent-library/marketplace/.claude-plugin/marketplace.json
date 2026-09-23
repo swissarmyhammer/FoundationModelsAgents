@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agent-library",
+  "owner": { "name": "swissarmyhammer" },
+  "metadata": {
+    "description": "The fixture marketplace of FoundationModelsAgents: two plugins with agents.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "code-tools",
+      "source": "./plugins/code-tools",
+      "strict": false,
+      "description": "A review skill, a security-reviewer agent, and the house rules."
+    },
+    {
+      "name": "docs-tools",
+      "source": "./plugins/docs-tools",
+      "strict": false,
+      "description": "A doc-writer agent."
+    }
+  ]
+}
