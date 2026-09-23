@@ -43,8 +43,21 @@ enum SwiftSourceScan {
     ///   - isReported: Tells whether one line breaks the rule.
     /// - Returns: The number of each reported line. The first line is 1.
     static func lineNumbers(in lines: [String], matching isReported: (String) -> Bool) -> [Int] {
-        lines.enumerated()
-            .filter { isReported($0.element) }
+        lineNumbers(of: lines.map(isReported))
+    }
+
+    /// Finds the number of each line that a rule reported.
+    ///
+    /// A rule that must read the lines above a line gives one flag for each
+    /// line, in order, and this call gives the numbers of the flags that are
+    /// set.
+    ///
+    /// - Parameter flags: One flag for each line of a source text, in order.
+    ///   A flag is `true` when the rule reported its line.
+    /// - Returns: The number of each reported line. The first line is 1.
+    static func lineNumbers(of flags: [Bool]) -> [Int] {
+        flags.enumerated()
+            .filter(\.element)
             .map { $0.offset + firstLineNumber }
     }
 
@@ -130,6 +143,31 @@ enum SwiftSourceScan {
     static func reportedLines(
         inDirectory directory: String, matching isReported: (String) -> Bool
     ) throws -> [String] {
+        try reportedLines(inDirectory: directory) { lines in
+            lineNumbers(in: lines, matching: isReported)
+        }
+    }
+
+    /// Finds each reported line of each Swift file under `directory`, with a
+    /// rule that reads all the lines of a file.
+    ///
+    /// A rule that must read the lines above a line, such as the doc comment
+    /// rule of `DocumentationTests`, uses this form.
+    ///
+    /// - Parameters:
+    ///   - directory: A directory path relative to the package root, such as
+    ///     `"Sources"`.
+    ///   - reportedNumbers: Gives the number of each line of one file that
+    ///     breaks the rule. The first line is 1.
+    /// - Returns: One text for each reported line, in the form
+    ///   `<directory>/<relative path>:<line number>`.
+    /// - Throws: ``ScanError/noSwiftFile(directory:)`` when the directory
+    ///   holds no Swift file, because a walk that reads no file proves
+    ///   nothing. Also an error when the directory or a file of it is
+    ///   unreadable, or when a file is not UTF-8 text.
+    static func reportedLines(
+        inDirectory directory: String, findingIn reportedNumbers: ([String]) -> [Int]
+    ) throws -> [String] {
         let root = PackageRoot.directory.appendingPathComponent(directory, isDirectory: true)
         let files = try FileManager.default.subpathsOfDirectory(atPath: root.path)
             .filter { $0.hasSuffix(swiftFileSuffix) }
@@ -140,7 +178,8 @@ enum SwiftSourceScan {
 
         return try files.flatMap { relativePath in
             let text = try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
-            return lineNumbers(in: text, matching: isReported).map { "\(directory)/\(relativePath):\($0)" }
+            return reportedNumbers(text.components(separatedBy: .newlines))
+                .map { "\(directory)/\(relativePath):\($0)" }
         }
     }
 }
