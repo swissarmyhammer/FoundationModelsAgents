@@ -38,10 +38,19 @@ comments:
     - commit: changed — bb69d2e feat(tool): AgentsTool.make declares the four operations, builds the description forms, and pins the name enum
     - review: findings — 2 findings: AgentsToolDescription.swift:97 (idioms-swift preferLazyMap), AgentsToolDescription.swift:135 (swift/immutability var accumulator).
   timestamp: 2026-09-23T18:20:16.736151+00:00
+- actor: claude-code
+  id: 01m37rkp4zgx3d4mqcb7vpssrs
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — AgentsToolDescription.swift: `describedList` maps lazily before `joined`; `partialNameList` finds the shown count with `names.indices.prefix(while:)` over a new `partialList(_:shownCount:)`, with no `var` accumulator. The same cause in AgentsToolSchemaTests.swift (`map` into `Dictionary(uniqueKeysWithValues:)`) is now `lazy.map`.
+    - test: green — `swift test -Xswiftc -warnings-as-errors`, 191 tests in 24 suites pass; swiftlint 0 violations.
+    - commit: changed — 4b5d18b refactor(tool): the agents description builds the partial name list with no accumulator and maps lazily before a single pass
+    - review: clean — `review sha HEAD~1..HEAD`, 0 findings. The 2 findings of 13:15 are fixed and checked.
+  timestamp: 2026-09-23T18:31:52.735996+00:00
 depends_on:
 - 01M376GQ5AB99BJYWHWW67DVCR
-position_column: review
-position_ordinal: '80'
+position_column: done
+position_ordinal: '9080'
 title: 'AgentsTool.make: the operation declarations, the description forms, the pinned schema'
 ---
 ## What
@@ -80,5 +89,5 @@ Plan.md §9.1, the tool surface. The operation bodies come in the next task.
 > 2 file(s) not reviewed — excluded by an ignore rule:
 > - `.kanban/ (from .reviewignore)` — 2 file(s)
 
-- [ ] `Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift:97` `code-hygiene/idioms-swift` — preferLazyMap: Prefer lazy.map over map before single-pass operations like min().
-- [ ] `Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift:135` `swift/immutability` — Using a `var shown: [String] = []` accumulator appended to in a for loop (line 144) to build a collection, instead of using functional operations like `map`, `filter`, `compactMap`, or `reduce`. Rewrite using `reduce` to thread state through the collection build, or use `prefix(while:)` with external mutable state if greedy prefix logic suffices.
+- [x] `Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift:97` `code-hygiene/idioms-swift` — preferLazyMap: Prefer lazy.map over map before single-pass operations like min().
+- [x] `Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift:135` `swift/immutability` — Using a `var shown: [String] = []` accumulator appended to in a for loop (line 144) to build a collection, instead of using functional operations like `map`, `filter`, `compactMap`, or `reduce`. Rewrite using `reduce` to thread state through the collection build, or use `prefix(while:)` with external mutable state if greedy prefix logic suffices.
