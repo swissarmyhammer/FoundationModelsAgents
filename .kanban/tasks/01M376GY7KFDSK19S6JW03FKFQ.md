@@ -1,10 +1,38 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m37q9zdm2csv7qtnbaanxcwa
+  text: |-
+    Research:
+    - The model is FoundationModelsSkills `SkillsTool.make` + `SkillsCatalogTool` + `SkillsToolSchema` + `SkillsToolDescription`. Those types are internal to Skills, thus this package needs its own copies for agents. Only `SkillsTool.defaultCatalogCharacterLimit` and `CorrectiveOutcome` are public.
+    - `SchemaFusion.fuse` does not read `ParamMeta.allowedValues`. Thus the schema builder makes the fused shape itself and pins the `name` field to an enum of the visible agent names (an empty list keeps a plain string).
+    - The `@Operation` macro needs `@Generable` on the struct (see Extras Examples/NotesTool). The body goes in an extension with `execute(in:)`.
+    - `SkillsRegistry.truncatedForMenu` is internal. The 200-character cut is local here.
+    - Verb aliases and the plain-text decode belong to the next task (^gbdqnnn).
+    - The tool name is `ToolVocabulary.agentsToolName` ("agents").
+  timestamp: 2026-09-23T18:09:05.972456+00:00
+- actor: claude-code
+  id: 01m37qjzfcnw48b7dx5n33b1ek
+  text: |-
+    ### implement — changed
+    - evidence: 7 files — Sources/FoundationModelsAgents/Tool/{AgentsTool,AgentsToolContext,AgentsToolOperations,AgentsToolDescription,AgentsToolSchema}.swift, Tests/FoundationModelsAgentsTests/{AgentsToolDescriptionTests,AgentsToolSchemaTests}.swift, Tests/FoundationModelsAgentsTests/Support/AgentsToolHarness.swift. `swift test --filter "AgentsToolDescriptionTests|AgentsToolSchemaTests"`: 19 tests pass. swiftlint: 0 violations.
+    - note: the op of the list operation is `list agents` (noun `agents`), as plan §9.1 and the card say. The other three have the noun `agent`. The CLI task (§9.4 says `agents agent list`) must add a noun alias or accept this shape.
+    - first try: the partial-form tests used short names, so form 3 (names only) fitted first. The tests now use long names.
+    - next: test
+  timestamp: 2026-09-23T18:14:00.940716+00:00
+- actor: claude-code
+  id: 01m37qm6p14mzmh0mbshers4n1
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 191 tests in 24 suites pass, 0 failed, 0 skipped (the guard tests are in this run); `swiftlint lint --quiet Sources Tests Examples` — 0 violations. The mlx-swift "missing creator" note is not ours.
+    - next: commit
+  timestamp: 2026-09-23T18:14:41.089048+00:00
 depends_on:
 - 01M376GQ5AB99BJYWHWW67DVCR
-position_column: todo
-position_ordinal: '8e80'
+position_column: doing
+position_ordinal: '80'
 title: 'AgentsTool.make: the operation declarations, the description forms, the pinned schema'
 ---
 ## What
@@ -23,15 +51,15 @@ Plan.md §9.1, the tool surface. The operation bodies come in the next task.
 - No `OperationDescribing` and no `ForkableTool` conformance.
 
 ## Acceptance Criteria
-- [ ] Each of the four forms and the empty form appear at the right limits.
-- [ ] The fixed sentences are present and complete in each form.
-- [ ] A `disable-model-invocation: true` agent is not in the description or the schema.
-- [ ] With the allowed names `a`, `b`, the schema and the description hold only `a` and `b`.
-- [ ] The schema holds the four operations and their parameters.
+- [x] Each of the four forms and the empty form appear at the right limits.
+- [x] The fixed sentences are present and complete in each form.
+- [x] A `disable-model-invocation: true` agent is not in the description or the schema.
+- [x] With the allowed names `a`, `b`, the schema and the description hold only `a` and `b`.
+- [x] The schema holds the four operations and their parameters.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/AgentsToolDescriptionTests.swift` and `Tests/FoundationModelsAgentsTests/AgentsToolSchemaTests.swift`.
-- [ ] Run `swift test --filter "AgentsToolDescriptionTests|AgentsToolSchemaTests"`, then the guard tests. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/AgentsToolDescriptionTests.swift` and `Tests/FoundationModelsAgentsTests/AgentsToolSchemaTests.swift`.
+- [x] Run `swift test --filter "AgentsToolDescriptionTests|AgentsToolSchemaTests"`, then the guard tests. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
