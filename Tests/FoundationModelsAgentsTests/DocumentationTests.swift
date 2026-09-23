@@ -175,7 +175,7 @@ struct DocumentationTests {
 
     @Test func eachPublicSymbolOfTheLibraryHasADocComment() throws {
         let offenders = try SwiftSourceScan.reportedLines(
-            inDirectory: Self.sourceDirectory, findingIn: DocCommentRule.undocumentedLines)
+            inDirectory: Self.sourceDirectory, using: DocCommentRule.undocumentedLines)
 
         #expect(
             offenders.isEmpty,
