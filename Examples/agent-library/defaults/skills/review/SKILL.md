@@ -1,7 +1,6 @@
 ---
 name: review
-description: Reviews the code that the arguments name, with the code-reviewer agent.
-agent: code-reviewer
+description: Reviews the code that the arguments name.
 ---
 
 Review this code and give specific feedback:

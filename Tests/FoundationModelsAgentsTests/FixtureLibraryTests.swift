@@ -111,6 +111,13 @@ struct FixtureLibraryTests {
         #expect(text.contains("{% include \"house-rules.md\" %}"))
     }
 
+    @Test("the defaults review skill takes $ARGUMENTS and names no agent")
+    func defaultsReviewSkillNamesNoAgent() throws {
+        let text = try Self.fixtureText("defaults/skills/review/SKILL.md")
+        #expect(text.contains("\n$ARGUMENTS\n"))
+        #expect(!text.contains("\nagent:"))
+    }
+
     @Test("doc-writer.md names the model sonnet")
     func docWriterNamesSonnet() throws {
         let text = try Self.fixtureText("marketplace/plugins/docs-tools/agents/doc-writer.md")

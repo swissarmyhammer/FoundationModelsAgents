@@ -19,7 +19,9 @@ public struct AgentReloadReport: Sendable, Equatable {
     /// How many agents of the catalog came from a marketplace layer.
     public let marketplaceAgentCount: Int
 
-    /// The names of the slash commands of the catalog, in listing order.
+    /// The names of the slash commands of the catalog: the id of each
+    /// user-invocable agent, sorted (plan.md §9.4). `AgentRunner` gives one
+    /// command with each of these names.
     public let slashCommandNames: [String]
 
     /// How many diagnostics the catalog holds, for each severity. Each
@@ -35,14 +37,12 @@ public struct AgentReloadReport: Sendable, Equatable {
     ///   - catalog: The catalog that `onReload` published.
     ///   - marketplaceLayers: The marketplace layers of the same build, for
     ///     example `AgentRegistry.marketplaceLayers`.
-    ///   - slashCommandNames: The names of the slash commands of the
-    ///     catalog. The default is no names.
-    public init(catalog: AgentCatalog, marketplaceLayers: [MarketplaceLayer], slashCommandNames: [String] = []) {
+    public init(catalog: AgentCatalog, marketplaceLayers: [MarketplaceLayer]) {
         agentCount = catalog.definitions.count
         modelVisibleCount = catalog.modelVisible.count
         marketplaceLayerCount = marketplaceLayers.count
         marketplaceAgentCount = catalog.definitions.count { $0.marketplaceLayer != nil }
-        self.slashCommandNames = slashCommandNames
+        slashCommandNames = catalog.userInvocable.map(\.id)
         diagnosticCounts = Dictionary(
             uniqueKeysWithValues: AgentDiagnostic.Severity.allCases.lazy.map { severity in
                 (severity, catalog.diagnostics.count { $0.severity == severity })

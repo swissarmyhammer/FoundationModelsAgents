@@ -25,6 +25,12 @@ public struct AgentCatalog: Sendable {
         definitions.filter(\.isModelVisible)
     }
 
+    /// Each agent that the user can start as a slash command, sorted by id
+    /// (plan.md §9.4).
+    public var userInvocable: [AgentDefinition] {
+        definitions.filter(\.isUserInvocable)
+    }
+
     /// Makes a catalog.
     ///
     /// - Parameters:

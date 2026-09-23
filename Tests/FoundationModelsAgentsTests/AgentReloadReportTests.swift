@@ -17,8 +17,9 @@ struct AgentReloadReportTests {
     /// the defaults copy and the user copy of code-reviewer are hidden.
     private static let fixtureAdvisoryCount = 2
 
-    /// The slash command names that a row gives to the report.
-    private static let commandNames = ["code-reviewer", "test-writer"]
+    /// The agents of the fixture library that are not slash commands:
+    /// internal-helper has `user-invocable: false`.
+    private static let commandHiddenIDs: Set = ["internal-helper"]
 
     @Test("the counts match the fixture library and the fixture marketplace")
     func countsMatchTheFixtureLibrary() async throws {
@@ -34,7 +35,7 @@ struct AgentReloadReportTests {
         #expect(report.modelVisibleCount == agentIDs.subtracting(Self.modelHiddenIDs).count)
         #expect(report.marketplaceLayerCount == Self.fixtureMarketplaceLayerCount)
         #expect(report.marketplaceAgentCount == FixtureMarketplaceProvider.agentIDs.count)
-        #expect(report.slashCommandNames.isEmpty)
+        #expect(report.slashCommandNames == agentIDs.subtracting(Self.commandHiddenIDs).sorted())
         #expect(
             report.diagnosticCounts == [.advisory: Self.fixtureAdvisoryCount, .warning: .zero, .skip: .zero])
     }
@@ -55,15 +56,14 @@ struct AgentReloadReportTests {
         let registry = AgentRegistry(marketplaces: provider, stack: FixtureLibrary.stack())
         let catalog = try await registry.loadedCatalog()
 
-        let report = AgentReloadReport(
-            catalog: catalog, marketplaceLayers: registry.marketplaceLayers, slashCommandNames: Self.commandNames)
+        let report = AgentReloadReport(catalog: catalog, marketplaceLayers: registry.marketplaceLayers)
 
         #expect(
             report.lines == [
                 "reload: 7 agents, 6 model-visible",
                 "marketplaces: 1 layers, 2 agents",
                 "diagnostics: 2 advisory, 0 warning, 0 skip",
-                "commands: code-reviewer, test-writer"
+                "commands: code-reviewer, doc-writer, lead, release-manager, security-reviewer, test-writer"
             ])
     }
 }
