@@ -28,10 +28,30 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 217 tests in 28 suites passed, 0 failed, 0 skipped; `swiftlint lint --quiet Sources Tests Examples` — 0 violations (after line-length and type-body-length fixes in AgentSchedulingTests; the phrase test moved to AgentRunActivityTests.swift).
     - next: commit
   timestamp: 2026-09-23T20:11:46.178569+00:00
+- actor: claude-code
+  id: 01m37yawz2359s6hmeaeqsydah
+  text: |-
+    ### commit — changed
+    - evidence: 4493dbf feat(scheduler): start agent checks maxConcurrentAgents, callers see only their own runs, and cancelRuns(caller:) cancels one caller
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T20:11:56.258281+00:00
+- actor: claude-code
+  id: 01m37ygp20a8p61r9af6bayz1r
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (4493dbf) — 0 findings, 0 confirmed, 0 refuted; 7 validator runs, 0 failed; 15 files reviewed (.kanban excluded by .reviewignore). No prior findings.
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed (11 source/test files + 4 new files)
+    - test: green — 217 tests in 28 suites, 0 failed, 0 skipped; swiftlint 0 violations; -warnings-as-errors clean
+    - commit: changed — 4493dbf
+    - review: clean — 0 findings
+  timestamp: 2026-09-23T20:15:05.792048+00:00
 depends_on:
 - 01M376H7W3JTVB6X8M5GBDQNNN
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '9280'
 title: 'Scheduler: maxConcurrentAgents, caller isolation, cancelRuns(caller:), check with no id'
 ---
 ## What
@@ -47,15 +67,15 @@ Plan.md §9.2 (a closed caller), §9.3 (the limit, the index). M5, first part.
 - Verify (plan.md §16): a post into a closed session does no harm.
 
 ## Acceptance Criteria
-- [ ] With `maxConcurrentAgents` 2 and two gated runs, a third `start agent` gives the corrective; after one finishes, a new start succeeds.
-- [ ] Caller A cannot check or cancel a run of caller B.
-- [ ] `check agent` with no id lists only the runs of the caller.
-- [ ] `cancelRuns(caller:)` cancels only that caller's runs.
-- [ ] A run that finishes after its caller session closed does not crash and gives its record.
+- [x] With `maxConcurrentAgents` 2 and two gated runs, a third `start agent` gives the corrective; after one finishes, a new start succeeds.
+- [x] Caller A cannot check or cancel a run of caller B.
+- [x] `check agent` with no id lists only the runs of the caller.
+- [x] `cancelRuns(caller:)` cancels only that caller's runs.
+- [x] A run that finishes after its caller session closed does not crash and gives its record.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/AgentSchedulingTests.swift` covers each criterion.
-- [ ] Run `swift test --filter AgentSchedulingTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/AgentSchedulingTests.swift` covers each criterion.
+- [x] Run `swift test --filter AgentSchedulingTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
