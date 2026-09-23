@@ -29,9 +29,18 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 191 tests in 24 suites pass, 0 failed, 0 skipped (the guard tests are in this run); `swiftlint lint --quiet Sources Tests Examples` — 0 violations. The mlx-swift "missing creator" note is not ours.
     - next: commit
   timestamp: 2026-09-23T18:14:41.089048+00:00
+- actor: claude-code
+  id: 01m37qyef0nd7axtt4w7tykb37
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 8 files under Sources/FoundationModelsAgents/Tool/ and Tests/FoundationModelsAgentsTests/.
+    - test: green — `swift test -Xswiftc -warnings-as-errors`, 191 tests in 24 suites pass; swiftlint 0 violations.
+    - commit: changed — bb69d2e feat(tool): AgentsTool.make declares the four operations, builds the description forms, and pins the name enum
+    - review: findings — 2 findings: AgentsToolDescription.swift:97 (idioms-swift preferLazyMap), AgentsToolDescription.swift:135 (swift/immutability var accumulator).
+  timestamp: 2026-09-23T18:20:16.736151+00:00
 depends_on:
 - 01M376GQ5AB99BJYWHWW67DVCR
-position_column: doing
+position_column: review
 position_ordinal: '80'
 title: 'AgentsTool.make: the operation declarations, the description forms, the pinned schema'
 ---
@@ -63,3 +72,13 @@ Plan.md §9.1, the tool surface. The operation bodies come in the next task.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
+
+## Review Findings (2026-09-23 13:15)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 8 file(s) reviewed, 2 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+- [ ] `Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift:97` `code-hygiene/idioms-swift` — preferLazyMap: Prefer lazy.map over map before single-pass operations like min().
+- [ ] `Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift:135` `swift/immutability` — Using a `var shown: [String] = []` accumulator appended to in a for loop (line 144) to build a collection, instead of using functional operations like `map`, `filter`, `compactMap`, or `reduce`. Rewrite using `reduce` to thread state through the collection build, or use `prefix(while:)` with external mutable state if greedy prefix logic suffices.

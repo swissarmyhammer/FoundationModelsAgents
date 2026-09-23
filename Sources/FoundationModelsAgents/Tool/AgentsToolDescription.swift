@@ -94,7 +94,7 @@ enum AgentsToolDescription {
     /// - Parameter agents: The agents, each description on one line.
     /// - Returns: The lines, joined with line breaks.
     private static func describedList(_ agents: [Entry]) -> String {
-        agents.map { agent in
+        agents.lazy.map { agent in
             agent.description.map { "- \(agent.name): \($0)" } ?? "- \(agent.name)"
         }.joined(separator: lineBreak)
     }
@@ -132,20 +132,26 @@ enum AgentsToolDescription {
     ///   - characterLimit: The most characters that the list can have.
     /// - Returns: The names that fit and the count line.
     private static func partialNameList(_ names: [String], characterLimit: Int) -> String {
-        var shown: [String] = []
-        var nameLineLength = 0
-        for name in names {
-            let separatorLength = shown.isEmpty ? 0 : nameSeparator.count
-            let lengthWithName = nameLineLength + separatorLength + name.count
-            let countLine = notListedLine(count: names.count - shown.count - 1)
-            guard lengthWithName + lineBreak.count + countLine.count <= characterLimit else {
-                break
-            }
-            shown.append(name)
-            nameLineLength = lengthWithName
+        let shownCount = names.indices.prefix { index in
+            partialList(names, shownCount: index + 1).count <= characterLimit
+        }.count
+        return partialList(names, shownCount: shownCount)
+    }
+
+    /// Gives the first `shownCount` names on one line, then the line that
+    /// counts the other names.
+    ///
+    /// - Parameters:
+    ///   - names: Each name, in list order.
+    ///   - shownCount: The number of names to show.
+    /// - Returns: The name line and the count line, or the count line only
+    ///   when `shownCount` is zero.
+    private static func partialList(_ names: [String], shownCount: Int) -> String {
+        let countLine = notListedLine(count: names.count - shownCount)
+        guard shownCount > 0 else {
+            return countLine
         }
-        let countLine = notListedLine(count: names.count - shown.count)
-        return shown.isEmpty ? countLine : shown.joined(separator: nameSeparator) + lineBreak + countLine
+        return names.prefix(shownCount).joined(separator: nameSeparator) + lineBreak + countLine
     }
 
     /// Gives the line that counts the names that are not listed.

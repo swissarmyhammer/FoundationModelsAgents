@@ -50,7 +50,7 @@ struct AgentsToolSchemaTests {
         defer { try? harness.delete() }
 
         let parameters = Dictionary(
-            uniqueKeysWithValues: harness.tool.operationTool.operations.map { operation in
+            uniqueKeysWithValues: harness.tool.operationTool.operations.lazy.map { operation in
                 (operation.opString, operation.parameters.map { "\($0.name)\($0.required ? "" : "?")" })
             })
 
