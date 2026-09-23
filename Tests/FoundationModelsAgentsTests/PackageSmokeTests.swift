@@ -18,7 +18,7 @@ struct PackageSmokeTests {
 
     /// The test target links the Router test support product.
     @Test("The test target links FoundationModelsRouterTestSupport")
-    func testTargetLinksRouterTestSupport() {
+    func linksRouterTestSupport() {
         #expect(
             String(reflecting: ConcurrencyPeakObserver.self)
                 == "FoundationModelsRouterTestSupport.ConcurrencyPeakObserver"
@@ -27,7 +27,7 @@ struct PackageSmokeTests {
 
     /// The test target links the marketplace fixtures product.
     @Test("The test target links MarketplaceFixtures")
-    func testTargetLinksMarketplaceFixtures() {
+    func linksMarketplaceFixtures() {
         #expect(String(reflecting: ManualClock.self) == "MarketplaceFixtures.ManualClock")
     }
 }
