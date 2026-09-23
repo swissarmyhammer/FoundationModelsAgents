@@ -18,3 +18,4 @@
 .swiftpm/
 DerivedData/
 *.xcodeproj/xcuserdata/
+Package.resolved
