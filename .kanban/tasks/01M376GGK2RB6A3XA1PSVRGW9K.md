@@ -1,12 +1,38 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m37k5h0d1b64jt92w0hs7wgm
+  text: |-
+    Implementation notes.
+
+    - New: Run/AgentRun.swift (public final class, Mutex state), Run/AgentRunState.swift, Run/AgentRunRequest.swift (internal inputs: definition, prompt, context, inheritedSlot, depth, agentsTool), Run/AgentSessionMaker.swift (plan §8 steps 2-5, typed throws AgentRunFailure). ModelMatch.model(of:in:) gives the RoutedLLM of a slot. AgentBodyRenderer.render is now throws(AgentRunFailure).
+    - AgentRunFailure has new cases: agentsMdUnreadable, toolsFailed (setup, no session), contextOverflow (LanguageModelError.contextSizeExceeded), modelFailed (each other turn error). The Router ContextBudgetError is internal, so a hard-ceiling error maps to modelFailed.
+    - The turn runs in Task.detached, so it does not take the ToolContext of the calling tool. The text of the turn is the textDelta events after the last textReset.
+    - Discovery (plan §16, M3): the Router journals no plain tool invocation record. ToolContext.completionToken reaches transcript.jsonl only through a post through that context (a .toolOutput entry with the OperationEventSegment, correlationID = token, tool = tool name). The lineage test posts .completed through the kept context after the call returns, as M4 will do, and finds that entry.
+    - Test support: ScriptedAgentStep.fail(error), AgentRunHarness, AgentStartProbe, RecordedSidecar/RecordedTranscript. AgentRunTests is split in 3 files (Failures and Lineage are nested suites) to keep swiftlint file_length and type_body_length.
+  timestamp: 2026-09-23T16:56:45.837954+00:00
+- actor: claude-code
+  id: 01m37k5kn1m1zt7hmyzrzw3w3d
+  text: |-
+    ### implement — changed
+    - evidence: Sources Run/AgentRun.swift, AgentRunState.swift, AgentRunRequest.swift, AgentSessionMaker.swift, AgentRunFailure.swift, AgentBodyRenderer.swift, ModelMatch.swift; Tests AgentRunTests.swift, AgentRunTests+Failures.swift, AgentRunTests+Lineage.swift, AgentBodyRendererTests.swift, Support/AgentRunHarness.swift, AgentStartProbe.swift, RecordedSession.swift, ScriptedAgentModel.swift. swift test --filter AgentRunTests: 16 tests in 3 suites pass. swiftlint 0.
+    - next: test
+  timestamp: 2026-09-23T16:56:48.545394+00:00
+- actor: claude-code
+  id: 01m37k686jnt5hg8e1csh4cw1b
+  text: |-
+    ### test — green
+    - evidence: swift test -Xswiftc -warnings-as-errors — 164 tests in 21 suites pass, 0 failed, 0 skipped; swiftlint lint --quiet Sources Tests Examples — 0 violations
+    - next: commit
+  timestamp: 2026-09-23T16:57:09.586601+00:00
 depends_on:
 - 01M376FT1NDWQF9SG4D3XDESSM
 - 01M376G12C6R66FY7CM7WBR9XV
 - 01M376G689KE03CJKWBS836T5T
-position_column: todo
-position_ordinal: 8c80
+position_column: doing
+position_ordinal: '80'
 title: 'AgentRun: one run drives one RoutedSession end to end'
 ---
 ## What

@@ -65,6 +65,18 @@ enum ModelMatch {
         return (matched.slot, nil)
     }
 
+    /// Gives the model of the generation slot `slot` in `profile`.
+    ///
+    /// - Parameters:
+    ///   - slot: The slot of a match: `.standard` or `.flash`.
+    ///   - profile: The resolved profile.
+    /// - Returns: The model of the slot in ``generationSlots``. A slot that is
+    ///   not in the list gives the model of the first slot, `standard`.
+    static func model(of slot: ModelSlot, in profile: LanguageModelProfile) -> RoutedLLM {
+        let generationSlot = generationSlots.first { $0.slot == slot } ?? generationSlots[0]
+        return profile[keyPath: generationSlot.model]
+    }
+
     /// Gives the values that name the model of a slot: the full reference
     /// and the part before `@`, in lower case.
     ///

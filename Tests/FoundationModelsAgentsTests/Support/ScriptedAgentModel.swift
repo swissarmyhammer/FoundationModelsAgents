@@ -15,6 +15,11 @@ enum ScriptedAgentStep: Sendable {
     /// Holds the turn until the test opens the gate. The step gives no
     /// output, thus the next output step runs in the same generation call.
     case wait(ScriptedGate)
+
+    /// Throws `error` from the generation call that reaches the step. The
+    /// step gives no output, thus a later call at the same position throws
+    /// again.
+    case fail(any Error & Sendable)
 }
 
 /// The steps that a session plays when its key matches.
@@ -130,7 +135,7 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     typealias Model = ScriptedAgentModel
 
     /// One step that gives output: the steps of ``ScriptedAgentStep``
-    /// without the gate.
+    /// without the gate and the failure.
     private enum Output {
         /// Calls the tool `name` with `argumentsJSON`.
         case toolCall(name: String, argumentsJSON: String)
@@ -159,7 +164,8 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     ///   - model: The model with the script.
     ///   - channel: The channel that the output goes into.
     /// - Throws: ``ScriptedAgentModelError`` when no play matches or the play
-    ///   has no more output steps, or `CancellationError` from a gate.
+    ///   has no more output steps, `CancellationError` from a gate, or the
+    ///   error of a ``ScriptedAgentStep/fail(_:)`` step.
     func respond(
         to request: LanguageModelExecutorGenerationRequest,
         model: ScriptedAgentModel,
@@ -198,7 +204,8 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     ///   - position: The count of played output steps.
     /// - Returns: The next output step.
     /// - Throws: ``ScriptedAgentModelError/playExhausted(key:)`` when the play
-    ///   has no more output steps, or `CancellationError` from a gate.
+    ///   has no more output steps, `CancellationError` from a gate, or the
+    ///   error of a ``ScriptedAgentStep/fail(_:)`` step.
     private static func nextOutputStep(
         of play: ScriptedAgentPlay, after position: Int
     ) async throws -> Output {
@@ -209,6 +216,11 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
             case .wait(let gate):
                 if outputsSeen == position {
                     try await gate.wait()
+                }
+                continue
+            case .fail(let error):
+                if outputsSeen == position {
+                    throw error
                 }
                 continue
             case .toolCall(let name, let argumentsJSON):

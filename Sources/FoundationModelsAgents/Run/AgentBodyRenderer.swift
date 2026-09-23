@@ -46,7 +46,7 @@ struct AgentBodyRenderer: Sendable {
     /// - Returns: The rendered body: the system prompt of the run.
     /// - Throws: `AgentRunFailure.bodyRenderFailed` with the description of
     ///   the render error.
-    func render(_ definition: AgentDefinition, prompt: String) throws -> String {
+    func render(_ definition: AgentDefinition, prompt: String) throws(AgentRunFailure) -> String {
         let stack = StenciledDotfolderStack(
             base: DotfolderStack(layers: scopedLayers(of: definition)), variables: variables)
         do {
