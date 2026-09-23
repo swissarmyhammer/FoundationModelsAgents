@@ -29,10 +29,18 @@ enum ScriptedProfile {
     ///   - script: The script that each generation slot plays.
     ///   - recordingsDir: The durable transcripts root, or `nil` (the
     ///     default) to record nothing to disk.
+    ///   - standard: The model of the `standard` slot. The default is
+    ///     ``standardModel``.
+    ///   - flash: The model of the `flash` slot. The default is
+    ///     ``flashModel``. Give ``standardModel`` to make a profile whose
+    ///     two generation slots share one model.
     /// - Returns: The router and the resolved profile.
     /// - Throws: Whatever `Router.resolve(profile:reporting:)` throws.
     static func make(
-        script: ScriptedAgentScript, recordingsDir: URL? = nil
+        script: ScriptedAgentScript,
+        recordingsDir: URL? = nil,
+        standard: ModelRef = standardModel,
+        flash: ModelRef = flashModel
     ) async throws -> (Router, LanguageModelProfile) {
         let router = Router(
             cacheDir: FileManager.default.temporaryDirectory.appending(path: "ScriptedProfile-\(UUID().uuidString)"),
@@ -45,8 +53,8 @@ enum ScriptedProfile {
             profile: ProfileDefinition(
                 name: "scripted",
                 description: "A profile whose models play a script.",
-                standard: [standardModel],
-                flash: [flashModel],
+                standard: [standard],
+                flash: [flash],
                 embedding: [embeddingModel]),
             reporting: ResolutionProgress())
         return (router, profile)
