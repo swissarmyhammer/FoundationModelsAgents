@@ -37,6 +37,18 @@ enum AgentsToolText {
         """
     }
 
+    /// Gives the corrective of `start agent` when the new run would be deeper
+    /// than ``AgentEnvironment/maxDepth`` (plan.md §9.3, depth).
+    ///
+    /// - Parameter maxDepth: The depth limit.
+    /// - Returns: The corrective, with what the model can do now.
+    static func atDepthLimit(maxDepth: Int) -> String {
+        """
+        You cannot start an agent here: a run that you start would be more than \(maxDepth) levels deep, \
+        and that is the limit. Do this part of the task yourself.
+        """
+    }
+
     /// Gives the answer of `check agent` with no id: one block for each run
     /// of the caller.
     ///

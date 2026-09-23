@@ -251,7 +251,7 @@ struct AgentRunnerTests {
             await runner.start(
                 AgentRunRequest(
                     definition: definition, prompt: Self.firstPrompt, context: context,
-                    inheritedSlot: .standard, depth: AgentRunner.hostDepth, agentsTool: nil))
+                    inheritedSlot: .standard, depth: AgentRunner.hostDepth, parent: nil, agentsTool: nil))
         }
         let parent = harness.profile.standard.makeSession(instructions: Self.parentKey, tools: [probe])
 

@@ -17,6 +17,14 @@ enum ScriptedAgentStep: Sendable {
     /// Answers with `text`. The turn ends here.
     case finalText(String)
 
+    /// Answers with the text of each prompt of the session after the first
+    /// prompt, with a blank line between two prompts. The turn ends here.
+    ///
+    /// A run that waits for its children reads their final messages in the
+    /// prompts of its delivery turns. Thus this answer holds each final
+    /// message that the run read.
+    case finalTextOfLaterPrompts
+
     /// Holds the turn until the test opens the gate. The step gives no
     /// output, thus the next output step runs in the same generation call.
     case wait(ScriptedGate)
@@ -204,7 +212,7 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
             instructions: ScriptedTranscriptText.instructions(of: transcript),
             firstPrompt: ScriptedTranscriptText.firstPrompt(of: transcript))
         let position = Self.outputCount(in: transcript)
-        let step = try await Self.nextOutputStep(of: play, after: position)
+        let step = try await Self.nextOutputStep(of: play, after: position, in: transcript)
         await Self.emit(step, position: position, into: channel)
     }
 
@@ -227,12 +235,15 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     /// - Parameters:
     ///   - play: The play of the session.
     ///   - position: The count of played output steps.
+    ///   - transcript: The transcript of the generation call. A
+    ///     ``ScriptedAgentStep/finalTextOfLaterPrompts`` step reads its
+    ///     prompts.
     /// - Returns: The next output step.
     /// - Throws: ``ScriptedAgentModelError/playExhausted(key:)`` when the play
     ///   has no more output steps, `CancellationError` from a gate, or the
     ///   error of a ``ScriptedAgentStep/fail(_:)`` step.
     private static func nextOutputStep(
-        of play: ScriptedAgentPlay, after position: Int
+        of play: ScriptedAgentPlay, after position: Int, in transcript: Transcript
     ) async throws -> Output {
         var outputsSeen = 0
         for step in play.steps {
@@ -254,6 +265,8 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
                 output = .toolCall(name: name, argumentsJSON: arguments.json)
             case .finalText(let text):
                 output = .finalText(text)
+            case .finalTextOfLaterPrompts:
+                output = .finalText(ScriptedTranscriptText.laterPrompts(of: transcript))
             }
             if outputsSeen == position { return output }
             outputsSeen += 1
@@ -312,6 +325,23 @@ enum ScriptedTranscriptText {
             }
         }
         return ""
+    }
+
+    /// The text of each `.prompt` entry of `transcript` after the first,
+    /// with a blank line between two prompts.
+    ///
+    /// - Parameter transcript: The transcript to read.
+    /// - Returns: The text, or the empty string when there is one prompt or
+    ///   none.
+    static func laterPrompts(of transcript: Transcript) -> String {
+        transcript.compactMap { entry -> String? in
+            if case .prompt(let prompt) = entry {
+                return text(of: prompt.segments)
+            }
+            return nil
+        }
+        .dropFirst()
+        .joined(separator: "\n\n")
     }
 
     /// The joined text of `segments`.

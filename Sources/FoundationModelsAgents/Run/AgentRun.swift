@@ -34,6 +34,9 @@ public final class AgentRun: Sendable {
         /// The phrase of the last event of the turn that tells a kind of
         /// work (``AgentRunActivity``).
         var lastEvent = AgentRunActivity.started
+
+        /// The part of the life of the run after its setup.
+        var phase = AgentRunPhase.taskTurn
     }
 
     /// The id of the run. It is the session id and the name of the
@@ -61,6 +64,14 @@ public final class AgentRun: Sendable {
     /// host-driven run. The run posts its final message through it
     /// (plan.md §9.2).
     let context: ToolContext?
+
+    /// The run that started this run with its `agents` tool, or `nil` when
+    /// the caller is not a run. The run tells it when the run ends.
+    let parent: ParentRun?
+
+    /// The runs that this run started. The run finishes only after each of
+    /// them ends (plan.md §9.3, children).
+    let children: AgentRunChildren
 
     /// The mutable state of the run.
     private let storage: Mutex<Storage>
@@ -90,14 +101,29 @@ public final class AgentRun: Sendable {
         storage.withLock { $0.lastEvent }
     }
 
+    /// The part of the life of the run after its setup.
+    var phase: AgentRunPhase {
+        storage.withLock { $0.phase }
+    }
+
+    /// `true` when the run holds a place in the run limit: it is in
+    /// operation and does not wait for its children (plan.md §9.3).
+    var isWorking: Bool {
+        storage.withLock { storage in storage.state == .running && storage.phase != .waitingForChildren }
+    }
+
     /// Makes a run.
     ///
     /// - Parameters:
     ///   - id: The id of the run.
     ///   - request: The inputs of the run.
     ///   - made: The session and its slot, or `nil` when the setup failed.
+    ///   - children: The list of the runs that this run starts.
     ///   - state: The first state of the run.
-    private init(id: ULID, request: AgentRunRequest, made: AgentSessionMaker.Made?, state: AgentRunState) {
+    private init(
+        id: ULID, request: AgentRunRequest, made: AgentSessionMaker.Made?, children: AgentRunChildren,
+        state: AgentRunState
+    ) {
         self.id = id
         self.agent = request.definition
         self.caller = request.context?.sessionID
@@ -105,13 +131,34 @@ public final class AgentRun: Sendable {
         self.recordingDirectory = made?.session.recordingDirectory
         self.slot = made?.slot
         self.context = request.context
+        self.parent = request.parent
+        self.children = children
         self.storage = Mutex(Storage(state: state, session: made?.session, turn: nil))
     }
 
-    /// Starts the run of `request` (plan.md §8 steps 1 to 6 and 8).
+    /// Gives the maker of the `agents` tool of each run that `runner`
+    /// starts (plan.md §8 step 4, §9.3).
+    ///
+    /// The tool of a run is new for each run. `Agent(a, b)` limits it to
+    /// the names `a` and `b`. The tool knows the run as its ``ParentRun``,
+    /// thus each run that it starts has this run as its caller, the depth of
+    /// this run plus one, and the slot of this run for `model: inherit`.
+    ///
+    /// - Parameter runner: The runner that owns each run that the tool
+    ///   starts.
+    /// - Returns: The maker.
+    static func agentsTool(of runner: AgentRunner) -> AgentRunRequest.AgentsToolMaker {
+        { parent, allowedNames in
+            try await AgentsTool.make(
+                context: AgentsToolContext(runner: runner, allowedNames: allowedNames, parent: parent))
+        }
+    }
+
+    /// Starts the run of `request` (plan.md §8).
     ///
     /// The setup is done when the call returns, thus the run has its id.
-    /// The turn then runs in the background.
+    /// A run whose caller is a run adds itself to the children of that run
+    /// before its turn starts. The turn then runs in the background.
     ///
     /// - Parameters:
     ///   - request: The inputs of the run.
@@ -122,15 +169,20 @@ public final class AgentRun: Sendable {
     static func start(
         _ request: AgentRunRequest, environment: AgentEnvironment, renderer: AgentBodyRenderer
     ) async -> AgentRun {
+        let children = AgentRunChildren()
         let made: AgentSessionMaker.Made
         do {
             made = try await AgentSessionMaker(environment: environment, renderer: renderer)
-                .makeSession(for: request)
+                .makeSession(for: request, children: children)
         } catch {
-            return AgentRun(id: ULID(), request: request, made: nil, state: .failed(error))
+            return AgentRun(id: ULID(), request: request, made: nil, children: children, state: .failed(error))
         }
-        let run = AgentRun(id: made.session.id, request: request, made: made, state: .running)
+        let run = AgentRun(id: made.session.id, request: request, made: made, children: children, state: .running)
+        let isAdopted = request.parent?.children.add(run) ?? true
         run.startTurn(on: made.session, prompt: request.prompt)
+        if !isAdopted {
+            run.cancel()
+        }
         return run
     }
 
@@ -160,8 +212,10 @@ public final class AgentRun: Sendable {
         return await turn?.value ?? state
     }
 
-    /// Cancels the turn of the run. The run then closes its session and goes
-    /// to ``AgentRunState/cancelled``. A run that ended stays as it is.
+    /// Cancels the turn of the run and the runs that it started. The run
+    /// cancels its open children and waits for them, then closes its session,
+    /// posts its final message, and goes to ``AgentRunState/cancelled``. A
+    /// run that ended stays as it is.
     public func cancel() {
         storage.withLock { $0.turn }?.cancel()
     }
@@ -181,28 +235,39 @@ public final class AgentRun: Sendable {
         return .alreadySettled(finalMessage)
     }
 
-    /// Starts the background task that drives the one turn of the run.
+    /// Starts the background task that drives the turns of the run.
     ///
     /// The task is detached, thus it does not take the `ToolContext` of the
     /// tool call that started the run. The tools of the session bind their
     /// own contexts.
     ///
-    /// When the turn ends, the task closes the session, posts the final
-    /// message, and then records the final state. Thus a caller that sees
-    /// the final state knows that the post is done.
+    /// When the last turn ends, the task cancels the open children and waits
+    /// for them (a cancel or a failure can leave children open), closes the
+    /// session, posts the final message, records the final state, and then
+    /// tells the parent run. Thus a caller that sees the final state knows
+    /// that the post is done.
     ///
     /// - Parameters:
     ///   - session: The session of the run.
-    ///   - prompt: The prompt of the turn.
+    ///   - prompt: The prompt of the task turn.
     private func startTurn(on session: any RoutedSession, prompt: String) {
         let turn = Task.detached {
             let final = await self.drive(session, prompt: prompt)
+            await self.children.cancelOpenRuns()
             await session.close()
             await self.postFinalMessage(for: final)
             self.end(in: final)
+            self.parent?.children.childDidEnd()
             return final
         }
         storage.withLock { $0.turn = turn }
+    }
+
+    /// Records the part of the life of the run that starts now.
+    ///
+    /// - Parameter phase: The new phase.
+    func enter(_ phase: AgentRunPhase) {
+        storage.withLock { $0.phase = phase }
     }
 
     /// Records the final state, and lets go of the session.
@@ -226,15 +291,16 @@ public final class AgentRun: Sendable {
         storage.withLock { $0.lastEvent = phrase }
     }
 
-    /// Drives one turn with `prompt`, collects the text of the answer, and
-    /// records the last event of work.
+    /// Drives the task turn with `prompt`, collects the text of the answer,
+    /// and records the last event of work. Then delivers the final messages
+    /// of the children in delivery turns (``finishAfterChildren(on:taskTurnText:)``).
     ///
     /// - Parameters:
     ///   - session: The session of the run.
-    ///   - prompt: The prompt of the turn.
+    ///   - prompt: The prompt of the task turn.
     /// - Returns: The final state: ``AgentRunState/finished(_:)`` with the
-    ///   text of the turn, ``AgentRunState/cancelled`` for a cancelled turn,
-    ///   or ``AgentRunState/failed(_:)`` for an error of the turn.
+    ///   text of the last turn, ``AgentRunState/cancelled`` for a cancelled
+    ///   run, or ``AgentRunState/failed(_:)`` for an error of a turn.
     private func drive(_ session: any RoutedSession, prompt: String) async -> AgentRunState {
         var text = TurnText()
         do {
@@ -242,11 +308,12 @@ public final class AgentRun: Sendable {
                 text.apply(event)
                 record(event)
             }
+            let result = try await finishAfterChildren(on: session, taskTurnText: text.value)
+            return Task.isCancelled ? .cancelled : .finished(result)
         } catch {
             return Task.isCancelled || error is CancellationError
                 ? .cancelled : .failed(AgentRunFailure.turnFailure(for: error))
         }
-        return Task.isCancelled ? .cancelled : .finished(text.value)
     }
 }
 

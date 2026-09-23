@@ -16,15 +16,51 @@ public struct AgentsToolContext: Sendable {
     /// `nil` when the tool can start each model-visible agent.
     public let allowedNames: [String]?
 
-    /// Makes a context.
+    /// The run whose session holds the tool, or `nil` when the session is
+    /// not a run, for example the root session of a host.
+    let parent: ParentRun?
+
+    /// Makes a context for a session that is not a run, for example the
+    /// root session of a host.
     ///
     /// - Parameters:
     ///   - runner: The runner that owns each run that the tool starts.
     ///   - allowedNames: The names of `Agent(a, b)`, or `nil` for each
     ///     model-visible agent. The default is `nil`.
     public init(runner: AgentRunner, allowedNames: [String]? = nil) {
+        self.init(runner: runner, allowedNames: allowedNames, parent: nil)
+    }
+
+    /// Makes a context.
+    ///
+    /// - Parameters:
+    ///   - runner: The runner that owns each run that the tool starts.
+    ///   - allowedNames: The names of `Agent(a, b)`, or `nil` for each
+    ///     model-visible agent.
+    ///   - parent: The run whose session holds the tool, or `nil` when the
+    ///     session is not a run.
+    init(runner: AgentRunner, allowedNames: [String]?, parent: ParentRun?) {
         self.runner = runner
         self.allowedNames = allowedNames
+        self.parent = parent
+    }
+
+    /// The depth of a run that the tool starts (plan.md §9.3, depth): the
+    /// depth of the calling run plus one, or ``AgentRunner/hostDepth`` when
+    /// the session is not a run.
+    var childDepth: Int {
+        parent.map { $0.depth + 1 } ?? AgentRunner.hostDepth
+    }
+
+    /// The slot that `model: inherit`, or an absent `model`, selects for a
+    /// run that the tool starts (plan.md §7).
+    ///
+    /// The rule: a child of a run uses the slot of the calling run. A run
+    /// that a session starts, and the session is not a run (for example the
+    /// root session of a host), uses ``AgentEnvironment/defaultSlot``. It
+    /// does not use the slot of that session.
+    var inheritedSlot: ModelSlot {
+        parent?.slot ?? runner.environment.defaultSlot
     }
 
     /// Tells whether the tool can start `definition`.

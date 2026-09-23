@@ -73,10 +73,16 @@ extension StartAgent {
     /// Only this operation checks ``AgentEnvironment/maxConcurrentAgents``
     /// (plan.md §9.3). At the limit it starts no run, and there is no queue.
     ///
+    /// The new run gets the depth of the calling run plus one, and the slot
+    /// of the calling run for `model: inherit`. A session that is not a run
+    /// gives depth one and ``AgentEnvironment/defaultSlot``. Above
+    /// ``AgentEnvironment/maxDepth`` the call starts no run. The new run gets
+    /// an `agents` tool of its own.
+    ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The id of the run, or a corrective for a blank prompt, for
-    ///   a name that the tool cannot start, for a name that no agent has, or
-    ///   for a full run limit.
+    ///   a name that the tool cannot start, for a name that no agent has, for
+    ///   a depth above the limit, or for a full run limit.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
         guard AgentDefinitionRules.holdsText(prompt) else {
             return .corrective(AgentsToolText.blankPrompt)
@@ -85,12 +91,17 @@ extension StartAgent {
         guard let definition = startable.first(where: { $0.id == name }) else {
             return .corrective(unavailableText(startable: startable.map(\.id), in: context))
         }
-        let callContext = ToolContext.current
         let runner = context.runner
+        let maxDepth = runner.environment.maxDepth
+        guard context.childDepth <= maxDepth else {
+            return .corrective(AgentsToolText.atDepthLimit(maxDepth: maxDepth))
+        }
+        let callContext = ToolContext.current
         let start = await runner.startWithinLimit(
             AgentRunRequest(
                 definition: definition, prompt: prompt, context: callContext,
-                inheritedSlot: runner.environment.defaultSlot, depth: AgentRunner.hostDepth, agentsTool: nil))
+                inheritedSlot: context.inheritedSlot, depth: context.childDepth, parent: context.parent,
+                agentsTool: AgentRun.agentsTool(of: runner)))
         switch start {
         case .atLimit(let working):
             return .corrective(AgentsToolText.atLimit(working: working))
@@ -130,8 +141,9 @@ extension CheckAgent {
     /// when there is no `id`. The call never waits for a run.
     ///
     /// - Parameter context: The shared context of the tool.
-    /// - Returns: The report of the run: running with its last event,
-    ///   finished with the full text, failed with the reason, or cancelled.
+    /// - Returns: The report of the run: running with its last event and,
+    ///   after its task turn, the count of open runs that it started;
+    ///   finished with the full text; failed with the reason; or cancelled.
     ///   With no `id`, one report for each run of the caller. A corrective
     ///   for an id that no run of the caller has.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {

@@ -98,7 +98,8 @@ public actor AgentRunner {
     ///
     /// The run has no caller and depth one. An agent with no `model`, or
     /// with `model: inherit`, runs on ``AgentEnvironment/defaultSlot``. The
-    /// run is in the index when the call returns.
+    /// run gets its own `agents` tool when its `tools` permit it. The run is
+    /// in the index when the call returns.
     ///
     /// - Parameters:
     ///   - name: The id of the agent in the catalog of the registry.
@@ -115,7 +116,8 @@ public actor AgentRunner {
         return await start(
             AgentRunRequest(
                 definition: definition, prompt: prompt, context: nil,
-                inheritedSlot: environment.defaultSlot, depth: Self.hostDepth, agentsTool: nil))
+                inheritedSlot: environment.defaultSlot, depth: Self.hostDepth, parent: nil,
+                agentsTool: AgentRun.agentsTool(of: self)))
     }
 
     /// Starts the run of `request`, and puts it in the index.
@@ -137,16 +139,23 @@ public actor AgentRunner {
     /// ``AgentEnvironment/maxConcurrentAgents`` runs are working
     /// (plan.md §9.3, the limit).
     ///
-    /// Only `start agent` calls it. A host-driven ``start(_:prompt:)`` does
-    /// not check the limit. There is no queue: at the limit, the runner
-    /// starts no run.
+    /// Only `start agent` calls it. A host-driven ``start(_:prompt:)`` and a
+    /// child-delivery turn do not check the limit. There is no queue: at the
+    /// limit, the runner starts no run.
+    ///
+    /// The count holds each run in operation that does not wait for its
+    /// children (``AgentRun/isWorking``), and not the calling run: after its
+    /// turn the calling run waits for the new child, and a run that waits
+    /// holds no place (plan.md §9.3). Thus a fan-out of siblings does not
+    /// block their children.
     ///
     /// - Parameter request: The inputs of the run.
     /// - Returns: ``LimitedStart/started(_:)`` with the run, or
     ///   ``LimitedStart/atLimit(working:)`` with the count of working runs.
     func startWithinLimit(_ request: AgentRunRequest) async -> LimitedStart {
         retireEndedRuns()
-        let working = openRuns.values.count { $0.run.state == .running } + limitedStartsInSetup
+        let callerID = request.context?.sessionID
+        let working = openRuns.values.count { $0.run.isWorking && $0.run.id != callerID } + limitedStartsInSetup
         guard working < environment.maxConcurrentAgents else {
             return .atLimit(working: working)
         }
@@ -194,8 +203,8 @@ public actor AgentRunner {
     /// The catalog adds, for each agent in id order, the warning of a
     /// `model` value that matches no slot of the profile, then the warnings
     /// of the `tools` and `disallowedTools` entries that match no tool. The
-    /// diagnostics of the registry come first. The runs of this runner get
-    /// no `agents` tool, thus `Agent` entries match no tool.
+    /// diagnostics of the registry come first. Each run of this runner gets
+    /// the `agents` tool, thus `Agent` entries match it.
     ///
     /// - Returns: The catalog. It is empty before `registry.load()`.
     public nonisolated func catalog() -> AgentCatalog {
@@ -251,7 +260,7 @@ public actor AgentRunner {
                 .diagnostic(agent: definition.id, provenance: definition.provenance)]
         } ?? []
         return modelWarnings
-            + ToolResolver.diagnostics(of: definition, catalog: environment.tools, hasAgentsTool: false)
+            + ToolResolver.diagnostics(of: definition, catalog: environment.tools, hasAgentsTool: true)
     }
 
     /// Moves each ended run from the runs in operation to the records, in

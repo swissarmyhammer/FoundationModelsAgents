@@ -58,8 +58,8 @@ struct AgentRunHarness {
         environment(maxRetainedRuns: AgentEnvironment.defaultMaxRetainedRuns)
     }
 
-    /// Makes the environment of each run with a count of retained records
-    /// and a run limit.
+    /// Makes the environment of each run with a count of retained records,
+    /// a run limit, and a depth limit.
     ///
     /// - Parameters:
     ///   - maxRetainedRuns: The count of finished run records that a runner
@@ -67,14 +67,18 @@ struct AgentRunHarness {
     ///   - maxConcurrentAgents: The count of runs that `start agent` lets
     ///     work at one time. The default is
     ///     `AgentEnvironment.defaultMaxConcurrentAgents`.
+    ///   - maxDepth: The depth limit of the runs. The default is
+    ///     `AgentEnvironment.defaultMaxDepth`.
     /// - Returns: The environment.
     func environment(
         maxRetainedRuns: Int,
-        maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents
+        maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents,
+        maxDepth: Int = AgentEnvironment.defaultMaxDepth
     ) -> AgentEnvironment {
         AgentEnvironment(
             profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory,
-            maxConcurrentAgents: maxConcurrentAgents, maxRetainedRuns: maxRetainedRuns, budget: budget)
+            maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth, maxRetainedRuns: maxRetainedRuns,
+            budget: budget)
     }
 
     /// Makes a runner over the registry and the environment of the harness.
@@ -86,14 +90,18 @@ struct AgentRunHarness {
     ///   - maxConcurrentAgents: The count of runs that `start agent` lets
     ///     work at one time. The default is
     ///     `AgentEnvironment.defaultMaxConcurrentAgents`.
+    ///   - maxDepth: The depth limit of the runs. The default is
+    ///     `AgentEnvironment.defaultMaxDepth`.
     /// - Returns: The runner.
     func makeRunner(
         maxRetainedRuns: Int = AgentEnvironment.defaultMaxRetainedRuns,
-        maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents
+        maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents,
+        maxDepth: Int = AgentEnvironment.defaultMaxDepth
     ) -> AgentRunner {
         AgentRunner(
             registry: registry,
-            environment: environment(maxRetainedRuns: maxRetainedRuns, maxConcurrentAgents: maxConcurrentAgents))
+            environment: environment(
+                maxRetainedRuns: maxRetainedRuns, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth))
     }
 
     /// Makes a harness.
@@ -137,13 +145,14 @@ struct AgentRunHarness {
         _ agent: String,
         prompt: String,
         context: ToolContext? = nil,
-        agentsTool: ToolResolver.AgentsToolFactory? = nil
+        agentsTool: AgentRunRequest.AgentsToolMaker? = nil
     ) async throws -> AgentRun {
         let definition = try #require(registry.catalog().definition(named: agent))
         let environment = environment
         let request = AgentRunRequest(
             definition: definition, prompt: prompt, context: context,
-            inheritedSlot: environment.defaultSlot, depth: 1, agentsTool: agentsTool)
+            inheritedSlot: environment.defaultSlot, depth: AgentRunner.hostDepth, parent: nil,
+            agentsTool: agentsTool)
         return await AgentRun.start(
             request, environment: environment, renderer: AgentBodyRenderer(registry: registry))
     }

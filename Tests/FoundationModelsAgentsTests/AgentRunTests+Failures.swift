@@ -77,7 +77,7 @@ extension AgentRunTests {
             defer { try? harness.delete() }
 
             let run = try await harness.start(
-                Self.lead, prompt: AgentRunTests.prompt, agentsTool: { _ in throw CancellationError() })
+                Self.lead, prompt: AgentRunTests.prompt, agentsTool: { _, _ in throw CancellationError() })
 
             #expect(Self.isToolsFailure(run.state))
             #expect(run.recordingDirectory == nil)

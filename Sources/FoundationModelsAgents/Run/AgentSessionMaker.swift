@@ -10,7 +10,9 @@ import FoundationModelsRouter
 /// 4. Resolve the tools.
 /// 5. Match the model, and make the session on the slot of the match.
 ///
-/// Each step that fails stops the run before it makes a session.
+/// The model match comes before the tools, because the `agents` tool of the
+/// run gives the slot of the run to each child with `model: inherit`. Each
+/// step that fails stops the run before it makes a session.
 struct AgentSessionMaker: Sendable {
     /// The session of a run and the slot that it runs on.
     struct Made {
@@ -32,19 +34,25 @@ struct AgentSessionMaker: Sendable {
 
     /// Makes the session of the run of `request`.
     ///
-    /// - Parameter request: The run to make the session for.
+    /// - Parameters:
+    ///   - request: The run to make the session for.
+    ///   - children: The list of the runs that the new run starts. The
+    ///     `agents` tool of the run adds to it.
     /// - Returns: The new session and its slot.
     /// - Throws: ``AgentRunFailure/bodyRenderFailed(_:)``,
     ///   ``AgentRunFailure/agentsMdUnreadable(_:)``, or
     ///   ``AgentRunFailure/toolsFailed(_:)``.
-    func makeSession(for request: AgentRunRequest) async throws(AgentRunFailure) -> Made {
+    func makeSession(
+        for request: AgentRunRequest, children: AgentRunChildren
+    ) async throws(AgentRunFailure) -> Made {
         let definition = request.definition
         let instructions = try instructions(
             body: renderer.render(definition, prompt: request.prompt))
-        let tools = try await tools(for: request)
         let slot = ModelMatch.match(
             definition.model, profile: environment.profile, inherited: request.inheritedSlot
         ).slot
+        let tools = try await tools(
+            for: request, as: ParentRun(depth: request.depth, slot: slot, children: children))
         let model = ModelMatch.model(of: slot, in: environment.profile)
         let session = model.makeSession(
             instructions: instructions,
@@ -78,19 +86,26 @@ struct AgentSessionMaker: Sendable {
     /// The run skips each entry that matches no tool. `runner.catalog()`
     /// gives the warnings of those entries.
     ///
-    /// - Parameter request: The run.
+    /// - Parameters:
+    ///   - request: The run.
+    ///   - parent: The new run as the `agents` tool sees it.
     /// - Returns: The tools of the session.
-    /// - Throws: ``AgentRunFailure/toolsFailed(_:)`` when the factory of the
+    /// - Throws: ``AgentRunFailure/toolsFailed(_:)`` when the maker of the
     ///   `agents` tool throws.
-    private func tools(for request: AgentRunRequest) async throws(AgentRunFailure) -> [any Tool] {
+    private func tools(
+        for request: AgentRunRequest, as parent: ParentRun
+    ) async throws(AgentRunFailure) -> [any Tool] {
         let definition = request.definition
+        let agentsTool = request.agentsTool.map { maker -> ToolResolver.AgentsToolFactory in
+            { allowedNames in try await maker(parent, allowedNames) }
+        }
         do {
             return try await ToolResolver(agent: definition.id, provenance: definition.provenance)
                 .resolve(
                     tools: definition.tools?.map(ToolSpec.parse),
                     disallowed: definition.disallowedTools.map(ToolSpec.parse),
                     catalog: environment.tools,
-                    agentsTool: request.agentsTool
+                    agentsTool: agentsTool
                 ).tools
         } catch {
             throw .toolsFailed(String(describing: error))
