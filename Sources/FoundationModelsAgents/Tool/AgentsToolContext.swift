@@ -84,6 +84,24 @@ public struct AgentsToolContext: Sendable {
         runner.catalog().definitions.filter(canStart)
     }
 
+    /// Gives the agents that the tool can start now and that match `filter`.
+    ///
+    /// The `list agents` operation of the tool and the `agent list` command
+    /// of `AgentsCLI` use this function.
+    ///
+    /// - Parameter filter: Text that the name or the description of an agent
+    ///   must hold. The case of the letters does not matter. A `nil` or blank
+    ///   filter matches each agent.
+    /// - Returns: Each agent of ``startableAgents()`` that matches, in catalog
+    ///   order.
+    func startableAgents(matching filter: String?) -> [AgentDefinition] {
+        let text = filter?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return startableAgents().filter { agent in
+            text.isEmpty || agent.id.localizedCaseInsensitiveContains(text)
+                || agent.description?.localizedCaseInsensitiveContains(text) == true
+        }
+    }
+
     /// Finds the run `id` of the caller, and gives the answer of `body` for
     /// it.
     ///

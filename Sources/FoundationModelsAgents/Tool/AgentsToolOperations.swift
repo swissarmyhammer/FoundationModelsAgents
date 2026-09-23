@@ -29,16 +29,11 @@ extension ListAgents {
     /// - Returns: The lines and the delegation sentence, or "No agents are
     ///   available." when no agent matches. Both are a success.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
-        let text = filter?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let matches = context.startableAgents().filter { agent in
-            text.isEmpty || agent.id.localizedCaseInsensitiveContains(text)
-                || agent.description?.localizedCaseInsensitiveContains(text) == true
-        }
+        let matches = context.startableAgents(matching: filter)
         guard !matches.isEmpty else {
             return .success(AgentsToolText.noAgents)
         }
-        let lines = AgentsToolDescription.lines(
-            for: matches.map { AgentsToolDescription.Entry(name: $0.id, description: $0.description) })
+        let lines = AgentsToolDescription.lines(for: matches.map(AgentsToolDescription.Entry.init))
         return .success(lines + "\n\n" + AgentsToolDescription.delegationSentence)
     }
 }

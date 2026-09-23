@@ -101,7 +101,7 @@ public struct AgentsTool: Tool {
         let operationTool = try OperationTool(
             name: ToolVocabulary.agentsToolName,
             description: AgentsToolDescription.make(
-                agents: agents.map { AgentsToolDescription.Entry(name: $0.id, description: $0.description) },
+                agents: agents.map(AgentsToolDescription.Entry.init),
                 characterLimit: catalogCharacterLimit),
             context: context,
             operations: [

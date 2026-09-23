@@ -185,3 +185,13 @@ enum AgentsToolDescription {
         "\(count) \(notListedNote)"
     }
 }
+
+extension AgentsToolDescription.Entry {
+    /// Makes the entry of an agent of the catalog: its id and its
+    /// description.
+    ///
+    /// - Parameter definition: The agent.
+    init(_ definition: AgentDefinition) {
+        self.init(name: definition.id, description: definition.description)
+    }
+}

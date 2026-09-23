@@ -509,10 +509,25 @@ text. The body is never a prompt for the host session. `/code-reviewer check
 the diff` is the user's delegation. The prompt is `$ARGUMENTS` of the agent body
 (§4.3). `commandUpdates` follows the `onReload` of the agents.
 
-`AgentsCLI.makeDriver(runner:)` gives an `OperationCLIDriver` over the four
-operations (`agents agent list`, `agents agent start --name … --prompt …`).
-The CLI `start` waits for the run and prints the final text. `check` and
-`cancel` are for a host process that stays alive.
+`AgentsCLI.makeDriver(runner:)` gives an `OperationCLIDriver` over four
+commands. Each command has the noun `agent`:
+
+- `agents agent list [--filter <text>]`: one `- name: description` line for
+  each model-visible agent that matches, with no delegation sentence.
+- `agents agent start --name <name> --prompt <task>`: a host-driven run
+  (`runner.start(_:prompt:)`, no `ToolContext`, thus no post). The command
+  waits for the run and gives the final text.
+- `agents agent check [--id <id>]` and `agents agent cancel --id <id>`: the
+  answers of `check agent` and `cancel agent`. They are for a host process
+  that stays alive.
+
+`OperationCLIDriver` has no noun alias, and the tool op `list agents` has the
+noun `agents`. Thus the CLI has its own four operations with the noun `agent`
+over the same `AgentsToolContext` and texts. The tool ops keep their names.
+The library writes nothing to standard output: the driver gives a `CLIResult`
+to the host. A command that works gives one JSON string and exit code 0. A
+corrective (a blank prompt, an unknown name, an unknown id) or a run that
+fails gives the text of the reason and a non-zero exit code.
 
 ### 9.5 Not a code-mode surface
 
