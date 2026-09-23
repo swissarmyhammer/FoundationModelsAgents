@@ -25,10 +25,23 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 270 tests in 36 suites passed, 0 failed, 0 skipped (NoStandardOutWriteTests included); `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
     - next: commit
   timestamp: 2026-09-23T21:31:26.590663+00:00
+- actor: claude-code
+  id: 01m38321zwasmv3k1xpd25b5zq
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` (18946c6) — 0 findings, 0 confirmed, 2 refuted, 7 files attempted; plan.md and .kanban not matched by a validator.
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed — CLI/AgentsCLI.swift, CLI/AgentsCLIOperations.swift, AgentsCLITests.swift (10 tests), Tool/* shared helpers, plan.md §9.4
+    - test: green — 270 tests in 36 suites, 0 failed; swiftlint 0
+    - commit: changed — 18946c6 feat(cli): AgentsCLI.makeDriver with agents agent list/start/check/cancel
+    - review: clean — 0 findings
+  timestamp: 2026-09-23T21:34:29.372627+00:00
 depends_on:
 - 01M376H7W3JTVB6X8M5GBDQNNN
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '9880'
 title: AgentsCLI.makeDriver over the four operations
 ---
 ## What
