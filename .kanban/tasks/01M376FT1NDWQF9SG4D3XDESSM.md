@@ -1,10 +1,36 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m37j3an54a0tra3qf5sx4qfg
+  text: |-
+    Research:
+    - `StenciledDotfolderStack.render(_:at:in:)` takes a `QuarantinedText`, a document path relative to the layer root, and a layer. The trust comes from `layer.source` (`.defaults` is trusted). Extras scopes the partials by itself from `base.layers` (a marketplace document sees its own layer plus the local layers). The renderer also builds the base stack from the scoped layers, as the card says.
+    - `SpanBuilder` (Extras) builds the spans: `appendOriginal`, `appendQuarantined` (an empty value adds no span), `finish()`.
+    - The untrusted render allows no filter (`TemplateEngine.untrustedAllowedFilters` is empty). The trust test uses `{{ "agent"|upper }}`.
+    - The fixture marketplace has only `house-rules.md`, and `defaults` has the same name. The test of a marketplace-only partial uses a registry with the fixture marketplace provider and one temporary local layer with no `_partials/`.
+    - The document path is `MarketplaceLayer.agentsDirectoryName + "/<id>.md"`.
+  timestamp: 2026-09-23T16:38:05.221874+00:00
+- actor: claude-code
+  id: 01m37j73vkwr23ev5vk5pp2tn9
+  text: |-
+    ### implement — changed
+    - evidence: 3 files — Sources/FoundationModelsAgents/Run/AgentBodyRenderer.swift, Sources/FoundationModelsAgents/Run/AgentRunFailure.swift, Tests/FoundationModelsAgentsTests/AgentBodyRendererTests.swift. `swift test -Xswiftc -warnings-as-errors --filter AgentBodyRendererTests`: 8 tests pass. swiftlint: 0 violations.
+    - note: the Stencil filter is `uppercase`, not `upper`. A trusted render with `upper` fails with "Unknown filter".
+    - next: test
+  timestamp: 2026-09-23T16:40:09.331608+00:00
+- actor: claude-code
+  id: 01m37j84mxysh2ds22j89yjrbg
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 148 tests in 18 suites pass, 0 failed, 0 skipped. `swiftlint lint --quiet Sources Tests Examples` — 0 violations. The only build note is the mlx-swift "missing creator" note.
+    - next: commit
+  timestamp: 2026-09-23T16:40:42.909558+00:00
 depends_on:
 - 01M376FFWD8GJDT7HAJJ96F118
-position_column: todo
-position_ordinal: '8980'
+position_column: doing
+position_ordinal: '80'
 title: 'Body render: $ARGUMENTS as a quarantined span, then Stencil at agents/<id>.md'
 ---
 ## What
