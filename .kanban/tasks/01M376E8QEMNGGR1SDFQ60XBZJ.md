@@ -1,11 +1,36 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m37bmkct8skgre9sz3dfxjy4
+  text: |-
+    Research:
+    - `FrontmatterDocumentStack.MetadataDecoder` is `@Sendable (String) -> Metadata?`. Thus `decode(_:) -> AgentFrontmatter?` fits, and `nil` makes the stack send one diagnostic.
+    - Extras gives `YAMLValue.parse(_:)`, which parses with Yams. The decode uses it. Thus the unknown keys and the tier 3 keys are a `[String: YAMLValue]` map, and no Node conversion is copied.
+    - The Skills colon retry (`FrontmatterDecoder.quotingFallback`) is private to Skills. This package keeps its own copy of the rule: quote the one top-level `description:` line, escape `\` and `"`, keep a trailing `\r`, and give no retry when the value is empty or already quoted.
+    - A flow list `[Agent(a, b)]` splits at the comma in YAML. Only the text form and the block list keep `Agent(a, b)` as one entry.
+  timestamp: 2026-09-23T14:45:11.194277+00:00
+- actor: claude-code
+  id: 01m37bz41jqxdmy3p1hfb79dqn
+  text: |-
+    ### implement — changed
+    - evidence: 5 files — Sources/FoundationModelsAgents/Definition/{AgentFrontmatter,AgentFrontmatterField,AgentFrontmatterReader,DescriptionColonRetry}.swift, Tests/FoundationModelsAgentsTests/AgentFrontmatterTests.swift. `swift test -Xswiftc -warnings-as-errors --filter AgentFrontmatterTests`: 13 tests pass. swiftlint: 0 violations.
+    - notes: a 12-case `switch` over the keys failed `cyclomatic_complexity` (12 > 10). The fix is the `AgentFrontmatterField.byKey` table of `WritableKeyPath & Sendable`. A plain `WritableKeyPath` in a `Sendable` enum does not compile.
+    - next: test
+  timestamp: 2026-09-23T14:50:55.922154+00:00
+- actor: claude-code
+  id: 01m37c09zkhk8nhpmzjs11kntg
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 66 tests in 10 suites pass, 0 failed, 0 skipped; `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
+    - next: commit
+  timestamp: 2026-09-23T14:51:34.771653+00:00
 depends_on:
 - 01M376D9AJZB96ZHWEEXGW96QC
 - 01M376DZSHS7M9CD50Z24X1ZBZ
-position_column: todo
-position_ordinal: '8480'
+position_column: doing
+position_ordinal: '80'
 title: AgentFrontmatter.decode with the colon retry
 ---
 ## What
