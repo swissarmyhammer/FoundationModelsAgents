@@ -71,6 +71,13 @@ public struct AgentDefinition: Sendable {
     /// and the marketplace.
     public let provenance: AgentDiagnostic.Provenance
 
+    /// The marketplace layer that gave the file, or `nil` for a local layer.
+    ///
+    /// The render of the body uses it for the partial scope: a marketplace
+    /// document sees its own marketplace and the local layers (plan.md §4.3
+    /// step 3).
+    public let marketplaceLayer: MarketplaceLayer?
+
     /// The URL of the agent file.
     public var url: URL {
         provenance.url
@@ -97,12 +104,16 @@ public struct AgentDefinition: Sendable {
     ///   - id: The file name with no `.md`.
     ///   - document: The winning copy of the file, or `nil`.
     ///   - provenance: The file of the agent. The caller makes it from the
-    ///     same located document.
+    ///     same located document. For a marketplace file, its
+    ///     `marketplace` is the provenance of `marketplaceLayer`.
+    ///   - marketplaceLayer: The marketplace layer that gave the file. The
+    ///     default is `nil`, a local layer.
     ///   - diagnostics: The list that receives the diagnostics of the file.
     public init?(
         id: String,
         document: Located<FrontmatterDocument<AgentFrontmatter>>?,
         provenance: AgentDiagnostic.Provenance,
+        marketplaceLayer: MarketplaceLayer? = nil,
         diagnostics: inout [AgentDiagnostic]
     ) {
         guard AgentDefinitionRules.isValidID(id) else {
@@ -120,7 +131,7 @@ public struct AgentDefinition: Sendable {
         }
         self.init(
             id: id, frontmatter: frontmatter, body: document.value.content, layer: document.layer,
-            provenance: provenance)
+            provenance: provenance, marketplaceLayer: marketplaceLayer)
     }
 
     /// Makes a definition from a frontmatter that passed the skip rules.
@@ -131,12 +142,15 @@ public struct AgentDefinition: Sendable {
     ///   - body: The raw body of the file.
     ///   - layer: The layer that gave the file.
     ///   - provenance: The file of the agent.
+    ///   - marketplaceLayer: The marketplace layer that gave the file, or
+    ///     `nil` for a local layer.
     private init(
         id: String,
         frontmatter: AgentFrontmatter,
         body: String,
         layer: DotfolderStack.Layer,
-        provenance: AgentDiagnostic.Provenance
+        provenance: AgentDiagnostic.Provenance,
+        marketplaceLayer: MarketplaceLayer?
     ) {
         let hasValidDescription = AgentDefinitionRules.holdsText(frontmatter.description)
         self.id = id
@@ -157,5 +171,6 @@ public struct AgentDefinition: Sendable {
         self.isUserInvocable = frontmatter.userInvocable != false
         self.layer = layer
         self.provenance = provenance
+        self.marketplaceLayer = marketplaceLayer
     }
 }

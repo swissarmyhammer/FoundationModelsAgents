@@ -3,8 +3,8 @@ import FoundationModelsExtras
 import Marketplace
 import Synchronization
 
-/// Builds one `AgentCatalog` from a list of layers (plan.md §4.1, §4.3
-/// step 1).
+/// Builds one `AgentCatalog` from the marketplace layers and the local
+/// layers (plan.md §4.1, §4.3 step 1, §6.1).
 ///
 /// The stack of Extras does each read, and `FrontmatterDocumentStack` does
 /// each split. `AgentFrontmatter.decode` decodes the frontmatter, and
@@ -14,23 +14,34 @@ enum AgentCatalogBuilder {
     /// The suffix of an agent file.
     static let fileSuffix = ".md"
 
-    /// Builds the catalog of `layers`.
+    /// Builds the catalog of the marketplace layers and the local layers.
     ///
-    /// An agent file is a `.md` file directly in `agents/` of the combined
-    /// view: a file in a child folder of `agents/` is not read. The file
-    /// name is the id. The highest layer that holds a path wins it, and each
-    /// lower copy gives one advisory on the diagnostics of the winner. A bad
-    /// file does not stop a good file next to it.
+    /// The layers are `marketplace[0] < … < marketplace[n] < local layers`
+    /// (plan.md §4.1). An agent file is a `.md` file directly in `agents/`
+    /// of the combined view: a file in a child folder of `agents/` is not
+    /// read. The file name is the id. The highest layer that holds a path
+    /// wins it, and each lower copy gives one advisory on the diagnostics of
+    /// the winner. A bad file does not stop a good file next to it. A
+    /// definition from a marketplace layer keeps that layer and its
+    /// provenance.
     ///
-    /// - Parameter layers: The layers, lowest precedence first.
+    /// - Parameters:
+    ///   - marketplaceLayers: The marketplace layers, lowest precedence
+    ///     first.
+    ///   - localLayers: The local layers, lowest precedence first.
     /// - Returns: The catalog.
-    static func build(layers: [DotfolderStack.Layer]) -> AgentCatalog {
-        let plain = DotfolderStack(layers: layers)
+    static func build(
+        marketplaceLayers: [MarketplaceLayer], localLayers: [DotfolderStack.Layer]
+    ) -> AgentCatalog {
+        let plain = DotfolderStack(layers: marketplaceLayers.map(\.layer) + localLayers)
         let decodeFailures = DecodeFailureLog()
         let documents = FrontmatterDocumentStack(
             base: plain, decode: AgentFrontmatter.decode, onDiagnostic: decodeFailures.record)
         let loads = agentFiles(in: plain).map { file in
-            load(file, documents: documents, decodeFailures: decodeFailures)
+            let marketplaceLayer =
+                marketplaceLayers.indices.contains(file.winnerIndex) ? marketplaceLayers[file.winnerIndex] : nil
+            return load(
+                file, marketplaceLayer: marketplaceLayer, documents: documents, decodeFailures: decodeFailures)
         }
         return AgentCatalog(
             definitions: loads.compactMap(\.definition), diagnostics: loads.flatMap(\.diagnostics))
@@ -110,26 +121,31 @@ enum AgentCatalogBuilder {
     ///
     /// - Parameters:
     ///   - file: The agent file.
+    ///   - marketplaceLayer: The marketplace layer that wins the file, or
+    ///     `nil` when a local layer wins it.
     ///   - documents: The document stack of all the layers.
     ///   - decodeFailures: The log that `documents` reports each decode
     ///     failure to.
     /// - Returns: The agent, or `nil`, with the diagnostics of the file.
     private static func load(
         _ file: AgentFile,
+        marketplaceLayer: MarketplaceLayer?,
         documents: FrontmatterDocumentStack<DotfolderStack, AgentFrontmatter>,
         decodeFailures: DecodeFailureLog
     ) -> AgentFileLoad {
         let layers = documents.layers
         let provenance = AgentDiagnostic.Provenance(
             layerIndex: file.winnerIndex, layerRoot: layers[file.winnerIndex].root,
-            url: layers[file.winnerIndex].root.appendingPathComponent(file.path))
+            url: layers[file.winnerIndex].root.appendingPathComponent(file.path),
+            marketplace: marketplaceLayer?.provenance)
         let document = documents.item(at: file.path)
         let agent = AgentDefinitionRules.isValidID(file.id) ? file.id : nil
         var diagnostics = decodeFailures.removeAll().map { failure in
             AgentDiagnostic(severity: .advisory, agent: agent, provenance: provenance, message: failure.message)
         }
         let definition = AgentDefinition(
-            id: file.id, document: document, provenance: provenance, diagnostics: &diagnostics)
+            id: file.id, document: document, provenance: provenance, marketplaceLayer: marketplaceLayer,
+            diagnostics: &diagnostics)
         diagnostics += file.hiddenIndices.map { index in
             let hiddenURL = layers[index].root.appendingPathComponent(file.path)
             return AgentDiagnostic(

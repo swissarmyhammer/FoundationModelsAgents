@@ -1,10 +1,35 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m37ec1t0s3066d0jnw49skha
+  text: |-
+    Research:
+    - `MarketplaceStore` is an actor. `marketplaceLayers()`, `layerUpdates`, and `diagnostics` are nonisolated. The default policy has no periodic check.
+    - A git source over `GitFixtureRepository` gives a snapshot in the §6.1 shape: `agents/<name>.md` of all plugins, `review/SKILL.md`, `_partials/`. The provenance id is the catalog name `agent-library`, and the catalog version is `1.0.0`.
+    - A `file://` folder source (no `.git` suffix) with `path:` gives the folder as the layer root. The store copies nothing, and the layer is watchable.
+    - `MarketplaceStoreFixture(sources:cacheDirectory:)` with an explicit cache does not remove the cache on deinit. Thus a Sendable struct provider can keep the store and remove the cache itself.
+    - `AgentDefinition` already has `layer` and `provenance.marketplace`. Plan: add `marketplaceLayer: MarketplaceLayer?`, and give the builder the marketplace layers.
+  timestamp: 2026-09-23T15:32:56.768516+00:00
+- actor: claude-code
+  id: 01m37er7f72p3j14asc317w6wq
+  text: |-
+    ### implement — changed
+    - evidence: 5 files — Sources/FoundationModelsAgents/Registry/AgentRegistry.swift, Sources/FoundationModelsAgents/Registry/AgentCatalogBuilder.swift, Sources/FoundationModelsAgents/Definition/AgentDefinition.swift, Tests/FoundationModelsAgentsTests/Support/FixtureMarketplaceProvider.swift, Tests/FoundationModelsAgentsTests/AgentRegistryMarketplaceTests.swift. `swift test -Xswiftc -warnings-as-errors --filter AgentRegistryMarketplaceTests`: 5 tests pass. swiftlint: 0 violations.
+    - next: test
+  timestamp: 2026-09-23T15:39:35.783102+00:00
+- actor: claude-code
+  id: 01m37f14mwmpx0adjm5ysvfnq0
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 102 tests in 14 suites passed, 0 failed, 0 skipped (the mlx-swift "missing creator" note is not ours); `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
+    - next: commit
+  timestamp: 2026-09-23T15:44:27.804075+00:00
 depends_on:
 - 01M376F14G9B9QWNG0TTA6VRKT
-position_column: todo
-position_ordinal: '8880'
+position_column: doing
+position_ordinal: '80'
 title: 'AgentRegistry: marketplace layers and provenance'
 ---
 ## What
