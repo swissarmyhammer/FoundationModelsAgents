@@ -90,10 +90,10 @@ struct AgentsDemoTests {
         var iterator = lines.makeAsyncIterator()
 
         let loadReport = await Self.nextLine(
-            of: &iterator, startingWith: Self.reportPrefix(agentCount: FixtureLibrary.localAgentIDs.count))
+            of: &iterator, startingWith: Self.reportPrefix(for: FixtureLibrary.localAgentIDs.count))
         try library.write(Self.addedAgentText, at: Self.addedAgentPath)
         let changeReport = await Self.nextLine(
-            of: &iterator, startingWith: Self.reportPrefix(agentCount: FixtureLibrary.localAgentIDs.count + 1))
+            of: &iterator, startingWith: Self.reportPrefix(for: FixtureLibrary.localAgentIDs.count + 1))
 
         #expect(loadReport != nil)
         #expect(changeReport != nil)
@@ -126,7 +126,7 @@ struct AgentsDemoTests {
     ///
     /// - Parameter agentCount: The number of agents in the catalog.
     /// - Returns: The prefix of the report line.
-    private static func reportPrefix(agentCount: Int) -> String {
+    private static func reportPrefix(for agentCount: Int) -> String {
         "\(reportPrefix)\(agentCount) agents"
     }
 

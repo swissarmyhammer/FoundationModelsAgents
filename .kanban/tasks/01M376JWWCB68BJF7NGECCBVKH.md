@@ -26,10 +26,30 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 275 tests in 37 suites passed, 0 failed, 0 skipped; `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
     - next: commit
   timestamp: 2026-09-23T21:41:30.991060+00:00
+- actor: claude-code
+  id: 01m383f59nxp6cp2wep4ate31j
+  text: |-
+    ### commit — changed
+    - evidence: 9c085e1 feat(demo): agents-demo --watch and --marketplace modes
+    - next: review
+  timestamp: 2026-09-23T21:41:38.741072+00:00
+- actor: claude-code
+  id: 01m383zame5k371v4n5hf9cxmk
+  text: |-
+    ### review — findings
+    - evidence: 8 findings — Examples/agents-demo/AgentsDemoLibrary.swift:22, :31; Examples/agents-demo/main.swift:14, :17, :20, :25, :38; Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift:129
+    - next: implement (iteration 2)
+
+    ### finish iteration 1 — findings
+    - implement: changed (6 files)
+    - test: green (275 tests, 0 failed, 0 skipped; swiftlint 0)
+    - commit: changed (9c085e1)
+    - review: findings (8)
+  timestamp: 2026-09-23T21:50:28.494922+00:00
 depends_on:
 - 01M376D9AJZB96ZHWEEXGW96QC
 - 01M376XK8GJY5DVQ66492JW7TT
-position_column: doing
+position_column: review
 position_ordinal: '80'
 title: 'agents-demo: --watch and --marketplace'
 ---
@@ -52,3 +72,19 @@ Plan.md §13, the demo modes that need no profile. There is no default CLI mode:
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
+
+## Review Findings (2026-09-23 16:41)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 6 file(s) reviewed, 2 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+- [ ] `Examples/agents-demo/AgentsDemoLibrary.swift:22` `code-hygiene/dead-code-swift` — var.static `root` is unused.
+- [ ] `Examples/agents-demo/AgentsDemoLibrary.swift:31` `code-hygiene/dead-code-swift` — var.static `cacheDirectory` is unused.
+- [ ] `Examples/agents-demo/main.swift:14` `code-hygiene/dead-code-swift` — var.static `usageExitCode` is unused.
+- [ ] `Examples/agents-demo/main.swift:17` `code-hygiene/dead-code-swift` — var.static `failureExitCode` is unused.
+- [ ] `Examples/agents-demo/main.swift:20` `code-hygiene/dead-code-swift` — var.static `standardOutput` is unused.
+- [ ] `Examples/agents-demo/main.swift:25` `code-hygiene/dead-code-swift` — function.method.static `run(arguments:)` is unused.
+- [ ] `Examples/agents-demo/main.swift:38` `code-hygiene/dead-code-swift` — function.method.static `run(mode:)` is unused.
+- [ ] `Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift:129` `swift/fluent-usage` — Argument label `agentCount` should be `for` to form a grammatical phrase at the call site. Currently reads as awkward "report prefix agent count"; should read as "report prefix for [value]". Change function signature from `private static func reportPrefix(agentCount: Int) -> String` to `private static func reportPrefix(for agentCount: Int) -> String`, and update call sites accordingly.

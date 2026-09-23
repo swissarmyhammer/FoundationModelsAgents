@@ -1,14 +1,17 @@
-// The entry point of `agents-demo`, the example of plan.md §13.
-//
-// The first argument selects the mode. With no mode, the example writes the
-// usage to standard output and exits 0. The work of each mode is in
-// `AgentsDemoModes`, thus a test calls it with no process.
-
 import Foundation
 import FoundationModelsAgents
 import FoundationModelsSkills
 
-/// Runs `agents-demo` and ends the process with its exit code.
+/// The entry point of `agents-demo`, the example of plan.md §13.
+///
+/// The first argument selects the mode. With no mode, the example writes the
+/// usage to standard output and exits 0. The work of each mode is in
+/// `AgentsDemoModes`, thus a test calls it with no process.
+///
+/// The entry point is a `@main` type and not the top-level code of a
+/// `main.swift` file. The test target imports this module, and periphery
+/// reads no reference from top-level code in such a module.
+@main
 enum AgentsDemoMain {
     /// The exit code of a run with an unknown mode (`EX_USAGE`).
     static let usageExitCode: Int32 = 64
@@ -19,19 +22,17 @@ enum AgentsDemoMain {
     /// Writes one line to standard output.
     static let standardOutput: AgentsDemoOutput = { StandardStream.output.write(line: $0) }
 
-    /// Runs the mode of `arguments`.
-    ///
-    /// - Parameter arguments: The arguments, with no executable name.
-    static func run(arguments: [String]) async {
+    /// Parses the mode from the arguments of the process, and runs it.
+    static func main() async {
         do {
-            try await run(mode: AgentsDemoMode(arguments: arguments))
+            try await run(mode: AgentsDemoMode(arguments: Array(CommandLine.arguments.dropFirst())))
         } catch {
             StandardStream.error.write(line: "agents-demo: \(error)")
             exit(failureExitCode)
         }
     }
 
-    /// Runs one mode.
+    /// Runs one mode over the stack of `Examples/agent-library`.
     ///
     /// - Parameter mode: The mode to run.
     /// - Throws: The error of the mode.
@@ -56,5 +57,3 @@ enum AgentsDemoMain {
         }
     }
 }
-
-await AgentsDemoMain.run(arguments: Array(CommandLine.arguments.dropFirst()))
