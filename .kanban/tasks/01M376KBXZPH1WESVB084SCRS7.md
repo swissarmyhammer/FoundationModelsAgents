@@ -28,13 +28,33 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 290 tests in 40 suites pass, 0 failed, 0 skipped, no warnings; `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
     - next: commit
   timestamp: 2026-09-23T22:55:22.178747+00:00
+- actor: claude-code
+  id: 01m387phqb62t33bk0mqm5mmx9
+  text: |-
+    ### commit — changed
+    - evidence: 4101b2c test(marketplace): marketplace agents end to end over a git source; reload during a run
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T22:55:35.147871+00:00
+- actor: claude-code
+  id: 01m3882qj65vbnvrv7y879prte
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` — 0 findings, 0 confirmed, 1 refuted; 5 files reviewed (.kanban excluded by .reviewignore).
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed (5 test files; no library change needed)
+    - test: green (290 tests in 40 suites, 0 failed, 0 skipped; swiftlint 0)
+    - commit: changed (4101b2c)
+    - review: clean (0 findings)
+  timestamp: 2026-09-23T23:02:14.342734+00:00
 depends_on:
 - 01M376XK8GJY5DVQ66492JW7TT
 - 01M376FT1NDWQF9SG4D3XDESSM
 - 01M376J7SAXPM4H7MP8NYTAV8F
 - 01M376H7W3JTVB6X8M5GBDQNNN
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: 9b80
 title: Marketplace agents end to end with a git source; reload during a run
 ---
 ## What
@@ -54,12 +74,12 @@ Plan.md §6, §14 M7, and the reload cases of §15. Hermetic: a real `Marketplac
 - Fix defects in the library that these tests find; do not change Extras from this task (raise a task in Extras if Extras is wrong).
 
 ## Acceptance Criteria
-- [ ] Each case above passes.
-- [ ] No test needs the network.
+- [x] Each case above passes.
+- [x] No test needs the network.
 
 ## Tests
-- [ ] The two test files above.
-- [ ] Run `swift test --filter "MarketplaceEndToEndTests|ReloadDuringRunTests"`. Expected: pass.
+- [x] The two test files above.
+- [x] Run `swift test --filter "MarketplaceEndToEndTests|ReloadDuringRunTests"`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
