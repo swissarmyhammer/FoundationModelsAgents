@@ -45,7 +45,23 @@ comments:
     - note: with `--swift-version 6.2`, swiftformat wants raw identifiers (func `The ...`()). The review engine runs with no Swift version, and there it wants only the `test` prefix gone. The repository has no `.swift-version` file.
     - next: test
   timestamp: 2026-09-23T13:45:05.716490+00:00
-position_column: doing
+- actor: claude-code
+  id: 01m3789pn5902tcvz2xeakvdpd
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` — 0 findings, 0 confirmed, 0 refuted. All 3 prior findings are checked.
+    - next: none; task in done
+  timestamp: 2026-09-23T13:46:48.357264+00:00
+- actor: claude-code
+  id: 01m3789re2pm3sjwt0f7mhkn11
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — Examples/agents-demo/main.swift (StandardStream in place of print), Tests/FoundationModelsAgentsTests/PackageSmokeTests.swift (no `test` prefix)
+    - test: green — 3 tests in 1 suite pass; `swift build --build-tests -Xswiftc -warnings-as-errors` passes
+    - commit: 0484e3f
+    - review: clean — 0 findings; task moved to done
+  timestamp: 2026-09-23T13:46:50.178520+00:00
+position_column: done
 position_ordinal: '80'
 title: Scaffold the Swift package and the namespace
 ---
