@@ -46,11 +46,24 @@ comments:
     - commit: changed (9c085e1)
     - review: findings (8)
   timestamp: 2026-09-23T21:50:28.494922+00:00
+- actor: claude-code
+  id: 01m384bq2n0yb863pwr3agmv1q
+  text: |-
+    Iteration 2 notes:
+    - The dead-code-swift findings came from periphery: it reads no reference from `main.swift` top-level code in a module that the test target imports (tested: a synchronous reference was also not seen). The fix is a `@main enum AgentsDemoMain` in `Examples/agents-demo/AgentsDemoMain.swift`. `main.swift` is removed, because a module with `main.swift` cannot have `@main`. The entry point still parses the mode, builds the stack over `Examples/agent-library`, and dispatches.
+    - `reportPrefix(agentCount:)` is now `reportPrefix(for:)`.
+
+    ### finish iteration 2 — clean
+    - implement: changed (AgentsDemoMain.swift replaces main.swift; AgentsDemoTests.swift label)
+    - test: green (`swift test -Xswiftc -warnings-as-errors` — 275 tests, 0 failed, 0 skipped; swiftlint 0; periphery 0 in Examples)
+    - commit: changed (5fdb840 fix(demo): @main entry point and a fluent test helper label)
+    - review: clean (`review sha HEAD~1..HEAD` — 0 findings; all 8 prior findings checked)
+  timestamp: 2026-09-23T21:57:14.453076+00:00
 depends_on:
 - 01M376D9AJZB96ZHWEEXGW96QC
 - 01M376XK8GJY5DVQ66492JW7TT
-position_column: review
-position_ordinal: '80'
+position_column: done
+position_ordinal: '9980'
 title: 'agents-demo: --watch and --marketplace'
 ---
 ## What
@@ -62,13 +75,13 @@ Plan.md §13, the demo modes that need no profile. There is no default CLI mode:
   - `--marketplace`: use `Examples/agent-library/marketplace` as a `file://` source of a `MarketplaceStore`, and list the agents with provenance.
 
 ## Acceptance Criteria
-- [ ] `swift run agents-demo` with no mode prints the usage and exits 0.
-- [ ] The `--watch` function prints a report after a file in a temporary copy of the library changes.
-- [ ] The `--marketplace` function lists `security-reviewer` and `doc-writer` with their marketplace provenance.
+- [x] `swift run agents-demo` with no mode prints the usage and exits 0.
+- [x] The `--watch` function prints a report after a file in a temporary copy of the library changes.
+- [x] The `--marketplace` function lists `security-reviewer` and `doc-writer` with their marketplace provenance.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift`: run the built binary with no mode, and call the `--watch` and `--marketplace` functions directly.
-- [ ] Run `swift test --filter AgentsDemoTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift`: run the built binary with no mode, and call the `--watch` and `--marketplace` functions directly.
+- [x] Run `swift test --filter AgentsDemoTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
@@ -80,11 +93,11 @@ Plan.md §13, the demo modes that need no profile. There is no default CLI mode:
 > 2 file(s) not reviewed — excluded by an ignore rule:
 > - `.kanban/ (from .reviewignore)` — 2 file(s)
 
-- [ ] `Examples/agents-demo/AgentsDemoLibrary.swift:22` `code-hygiene/dead-code-swift` — var.static `root` is unused.
-- [ ] `Examples/agents-demo/AgentsDemoLibrary.swift:31` `code-hygiene/dead-code-swift` — var.static `cacheDirectory` is unused.
-- [ ] `Examples/agents-demo/main.swift:14` `code-hygiene/dead-code-swift` — var.static `usageExitCode` is unused.
-- [ ] `Examples/agents-demo/main.swift:17` `code-hygiene/dead-code-swift` — var.static `failureExitCode` is unused.
-- [ ] `Examples/agents-demo/main.swift:20` `code-hygiene/dead-code-swift` — var.static `standardOutput` is unused.
-- [ ] `Examples/agents-demo/main.swift:25` `code-hygiene/dead-code-swift` — function.method.static `run(arguments:)` is unused.
-- [ ] `Examples/agents-demo/main.swift:38` `code-hygiene/dead-code-swift` — function.method.static `run(mode:)` is unused.
-- [ ] `Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift:129` `swift/fluent-usage` — Argument label `agentCount` should be `for` to form a grammatical phrase at the call site. Currently reads as awkward "report prefix agent count"; should read as "report prefix for [value]". Change function signature from `private static func reportPrefix(agentCount: Int) -> String` to `private static func reportPrefix(for agentCount: Int) -> String`, and update call sites accordingly.
+- [x] `Examples/agents-demo/AgentsDemoLibrary.swift:22` `code-hygiene/dead-code-swift` — var.static `root` is unused.
+- [x] `Examples/agents-demo/AgentsDemoLibrary.swift:31` `code-hygiene/dead-code-swift` — var.static `cacheDirectory` is unused.
+- [x] `Examples/agents-demo/main.swift:14` `code-hygiene/dead-code-swift` — var.static `usageExitCode` is unused.
+- [x] `Examples/agents-demo/main.swift:17` `code-hygiene/dead-code-swift` — var.static `failureExitCode` is unused.
+- [x] `Examples/agents-demo/main.swift:20` `code-hygiene/dead-code-swift` — var.static `standardOutput` is unused.
+- [x] `Examples/agents-demo/main.swift:25` `code-hygiene/dead-code-swift` — function.method.static `run(arguments:)` is unused.
+- [x] `Examples/agents-demo/main.swift:38` `code-hygiene/dead-code-swift` — function.method.static `run(mode:)` is unused.
+- [x] `Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift:129` `swift/fluent-usage` — Argument label `agentCount` should be `for` to form a grammatical phrase at the call site. Currently reads as awkward "report prefix agent count"; should read as "report prefix for [value]". Change function signature from `private static func reportPrefix(agentCount: Int) -> String` to `private static func reportPrefix(for agentCount: Int) -> String`, and update call sites accordingly.
