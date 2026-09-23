@@ -55,16 +55,22 @@ Layer 2, marketplace part (plan.md §4.1, §6.1). No watcher and no reload strea
 - In `Sources/FoundationModelsAgents/Registry/AgentRegistry.swift` add `init(marketplaces: any MarketplaceLayerProviding, stack:variables:watch:)`. The layers are `marketplace[0] < … < marketplace[n] < local layers`, from `provider.marketplaceLayers()`. The build reads `marketplace.layer.root/agents/` of each layer, one level.
 - Each marketplace definition keeps its `MarketplaceProvenance` and its marketplace layer (the render task needs the layer for the partial scope).
 - Create `Tests/FoundationModelsAgentsTests/Support/FixtureMarketplaceProvider.swift`: a `MarketplaceLayerProviding` over `Examples/agent-library/marketplace` in the §6.1 shape, with `MarketplaceFixtures`.
+- **Load step (plan.md §4.1, §12).** Every `init` of `AgentRegistry` stores only its inputs and reads no file. Add `public func load() async throws`: it asks the provider for its layers, reads the agent files, and swaps in the catalog. `reload()` becomes `public func reload() async throws` and does the same build again. The two share one private build. `load()` is `async` so that each call site shows the I/O. Agent files change while the host runs, so `reload()` is a normal path, not an error path; the watch task calls it. `catalog()` does no I/O and gives an empty catalog before the first `load()`.
+- Change the existing tests and test helpers that make a registry and read `catalog()` so that they call `try await registry.load()` first.
 
 ## Acceptance Criteria
 - [x] A fixture provider of the §6.1 shape gives its agents with provenance.
 - [x] A project agent with the same name wins over a marketplace agent, with an advisory.
 - [x] A marketplace layer with no `agents/` folder gives no agents and no error.
 - [x] A `file://` source with `path:` gives its folder unchanged (plan.md §16), tested with a `MarketplaceStore` over a local folder.
+- [ ] No `init` of `AgentRegistry` reads a file or calls `marketplaceLayers()`: `catalog()` right after `init` is empty.
+- [ ] After `try await load()`, `catalog()` holds the agents; a file that changes after `load()` shows in `catalog()` only after `try await reload()`.
+- [ ] A registry made before the marketplace store starts, then loaded after `market.start()`, holds the marketplace agents in its first loaded catalog.
 
 ## Tests
 - [x] `Tests/FoundationModelsAgentsTests/AgentRegistryMarketplaceTests.swift` covers each criterion.
-- [x] Run `swift test --filter AgentRegistryMarketplaceTests`. Expected: pass.
+- [ ] Add the load-step cases to `AgentRegistryTests.swift` and `AgentRegistryMarketplaceTests.swift`.
+- [ ] Run `swift test --filter "AgentRegistry"`, then the full suite. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
@@ -78,9 +84,5 @@ Layer 2, marketplace part (plan.md §4.1, §6.1). No watcher and no reload strea
 
 - [ ] `Sources/FoundationModelsAgents/Registry/AgentRegistry.swift:123` `swift/initialization` — Init performs slow work: creating the Generation calls `marketplaceLayers()` on the provider and runs `AgentCatalogBuilder.build()`, which reads and parses files. Callers expect init to return immediately. Defer the catalog build to an explicit `load() throws` method. Store only the provider and local layers in init; build the catalog on demand or when explicitly requested by the caller.
 
-## Blocker
-The finding `swift/initialization` at `AgentRegistry.swift:123` is in a true conflict with the documented contract of plan.md:
-- plan.md §4.1: "The catalog is cached. `catalog()` does no I/O."
-- plan.md §12: the host makes `AgentRegistry(marketplaces:stack:variables:watch:)` and then calls `agents.catalog().listing` with no load call. §12 also says "`AgentRegistry` has the `SkillsRegistry` initializers", and `SkillsRegistry` builds its catalog in its initializer.
-- The rule requires that `init` does no slow work, and that the build moves to an explicit `load()`. Then `catalog()` either reads the files (against §4.1) or gives an empty catalog until the host calls `load()` (against §12).
-A person must decide: change the rule for registry initializers, or change plan.md §4.1/§12 to add an explicit load step.
+## Decision
+The user decided (2026-09-23): move the build out of `init` into `load() async throws`. The reason is that the I/O shows at each call site, not speed. plan.md §4.1 and §12 now state the load step.

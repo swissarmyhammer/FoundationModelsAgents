@@ -131,9 +131,12 @@ surface transfer. Decisions about text in the current context do not.
   advisory.
 - **Provenance.** Each definition keeps its URL, its layer, and its
   `MarketplaceProvenance` when it has one.
-- **The catalog is cached.** `catalog()` does no I/O. The registry rebuilds
+- **The catalog is cached.** `init` stores its inputs and reads no file. The
+  host calls `try await registry.load()` one time, after `market.start()`;
+  `load()` is `async` so that each call site shows the I/O. `catalog()` does
+  no I/O and gives an empty catalog before `load()`. The registry rebuilds
   and swaps atomically on a `DotfolderWatcher` change, on `layerUpdates`, or
-  on `reload()`. `onReload` publishes each new catalog.
+  on `try await reload()`. `onReload` publishes each new catalog.
 
 ### 4.2 Format
 
@@ -584,6 +587,7 @@ let skills  = SkillsRegistry(marketplaces: market, stack: stack, watch: true)
 let agents = AgentRegistry(marketplaces: market, stack: stack,
                            variables: ["project": "acme"], watch: true)
 await market.start()
+try await agents.load()                        // reads the files; after market.start()
 agents.catalog().listing                       // [AgentListing]
 agents.catalog().diagnostics                   // [AgentDiagnostic]
 for await catalog in agents.onReload { … }
@@ -615,7 +619,8 @@ await root.close()
 ```
 
 `AgentRegistry` has the `SkillsRegistry` initializers: `init(stack:variables:watch:)`,
-`init(layers:variables:watch:)`, `init(marketplaces:stack:variables:watch:)`.
+`init(layers:variables:watch:)`, `init(marketplaces:stack:variables:watch:)`. Unlike
+`SkillsRegistry`, the build is in `load()`, not in `init`.
 
 Types: `AgentFrontmatter`, `AgentDefinition`, `AgentListing`, `AgentRegistry`,
 `AgentCatalog`, `AgentDiagnostic`, `AgentReloadReport`, `AgentEnvironment`,
