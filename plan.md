@@ -230,9 +230,14 @@ You are a code reviewer. Analyze the code and give specific feedback.
 - **`skills:` preload.** At run start, `SkillsRegistry.call(id:)` gives each
   rendered body, and the run appends it to the instructions of the new
   session. An unknown or not-visible skill is a warning and is skipped.
-- **`maxTurns`** is enforced on tool calls with a counting decorator. Above
-  the limit, the run cancels its turn and fails with `hitMaxTurns`, with the
-  partial text. Claude counts turns and stops silently; this is tighter.
+- **`maxTurns`** counts the passes of the control loop. In each pass the
+  model generates, then it calls tools and the loop goes around again, or it
+  answers and the loop ends. Each pass records one transcript entry, and the
+  Router emits `entryRecorded` with kind `.toolCalls` or `.response` for it.
+  The run counts these events over all its turns: the task turn and each
+  delivery turn. One pass that calls three tools is one. Above the limit, the
+  run cancels its turn and fails with `hitMaxTurns`, with the partial text.
+  Claude stops silently; this is tighter. No Router change.
 
 ## 6. Marketplaces of agents
 
@@ -314,7 +319,7 @@ parameter.
    fails the run.
 3. **Instructions**, in order: `AgentsMd.documents(from:)` for the working
    directory, outermost first; the body; the `skills:` bodies.
-4. **Resolve tools** (§5) with the counting decorator.
+4. **Resolve tools** (§5).
 5. **Match the model** (§7) and make the session:
 
    ```swift
@@ -333,8 +338,8 @@ parameter.
    Each time a child finishes, the run calls `session.dispatchNextPrompt()`.
    The Router runs one turn with the staged posts and its fixed prompt
    ("Background work you started has settled… Act on it, or say what you
-   did with it."). The model can start more children. Each such turn counts
-   toward `maxTurns`. This touches only the session of the run.
+   did with it."). The model can start more children. The passes of each such
+   turn count toward `maxTurns` (§5). This touches only the session of the run.
 8. **Finish.** When no child is open and no post is unread, the text of the
    last turn is the result. The run posts its final message (§9.2) and closes
    its session.
@@ -357,7 +362,9 @@ RoutedSession  (Router)            made and closed with the run
 ```
 
 - Runs of one agent are independent. `AgentRun.id` is its session id and its
-  recording directory name.
+  recording directory name. `start` renders the body and makes the session
+  before it returns (both are synchronous), so the id exists at once. A run
+  whose render fails has no session; it gets a new ULID and no recording.
 - A run holds its session and does not give it to other code. The session
   lives as long as the task. A finished run holds no session.
 - The record of a finished run (id, name, state, final text) stays for
@@ -428,8 +435,9 @@ Verb aliases: `stop` → `cancel`, `run` → `start`, `status` → `check`,
 ### 9.2 The final message
 
 - `start agent` reads `ToolContext.current`, gives it to the run, starts the
-  run as a runner task, and returns. It posts nothing. The run id is the
-  `completionToken` of the call.
+  run as a runner task, and returns. It posts nothing. The answer gives the
+  run id (§8.1). The runner index maps the `completionToken` of the call to
+  the run.
 - The run posts nothing while it works. All its work is in its own
   transcript.
 - On finish, the run calls `context.post(_:)` one time with a `.completed`
@@ -452,7 +460,7 @@ Verb aliases: `stop` → `cancel`, `run` → `start`, `status` → `check`,
   `runner.cancelRuns(caller: sessionID)` before it closes a session that has
   the `agents` tool. `runner.stop()` cancels all.
 - **Outside a Router session** (`ToolContext.current == nil`) `start agent`
-  makes its own id, no final message comes back, and the model uses
+  works the same, no final message comes back, and the model uses
   `check agent`.
 
 ### 9.3 `AgentRunner`
@@ -472,7 +480,8 @@ recorder, or a display model.
   they finish. A cancel, or a failure with open children (`hitMaxTurns`, a
   context error), cancels the children, waits for their tasks, then closes
   the session and posts.
-- **`maxTurns`** counts the task turn and each child-delivery turn.
+- **`maxTurns`** counts the passes of the control loop in the task turn and
+  in each child-delivery turn (§5).
 - **Depth.** A host-started run has depth 1; a child has its parent's depth
   plus 1. `maxDepth` is the limit.
 - **The index.** `runs`, `run(id:)`, token → run, and for each run its
@@ -636,7 +645,7 @@ Examples/
     broken/agents/            bad-colon-description.md, missing-description.md,
                               bad-name.md, no-frontmatter.md,
                               unknown-model.md, unknown-disallowed-tool.md
-  agents-demo/              (default)       the CLI
+  agents-demo/              (no mode)       the usage
                             --chat          a Router session with the agents tool;
                                             the lead agent starts two agents
                             --fan-out       host-driven runs on the two slots
@@ -644,7 +653,8 @@ Examples/
                             --marketplace   the marketplace fixture as a source
 ```
 
-`--chat` needs a resolved profile. The marketplace fixture is a git source.
+`--chat` and `--fan-out` need a resolved profile; there is no default CLI
+mode, because the CLI needs a profile. The marketplace fixture is a git source.
 
 ## 14. Milestones
 
@@ -669,7 +679,7 @@ Examples/
   the Skills `commands()`; `use skill` is unchanged.
 - **M6 — Semantics and user surfaces.** `skills:` preload, `disallowedTools`
   and MCP patterns, `Agent(a, b)`, `maxTurns`. `SlashCommandProviding` for
-  agents and for skills with `agent:`, `AgentsCLI`, the demo default,
+  agents and for skills with `agent:`, `AgentsCLI`,
   `--watch`, `--marketplace`. *Needs M4, S1.*
 - **M7 — Marketplace agents end to end.** The integration cases with a real
   `MarketplaceStore` and a git source. *Needs M2.*

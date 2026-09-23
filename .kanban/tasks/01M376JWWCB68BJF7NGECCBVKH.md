@@ -9,7 +9,7 @@ position_ordinal: '9680'
 title: 'agents-demo: --watch and --marketplace'
 ---
 ## What
-Plan.md §13, the demo modes that need no profile. There is no default CLI mode: the CLI needs a resolved profile. Update §13 of `plan.md` in this task to remove the default mode. Look at `../FoundationModelsSkills/Examples/skills-demo/` and `SkillsDemoTests.swift` for the method.
+Plan.md §13, the demo modes that need no profile. There is no default CLI mode: the CLI needs a resolved profile. Look at `../FoundationModelsSkills/Examples/skills-demo/` and `SkillsDemoTests.swift` for the method.
 
 - `Examples/agents-demo/main.swift`: parse the mode, build the stack over `Examples/agent-library`, and dispatch. With no mode, print the usage.
 - `Examples/agents-demo/DemoModes.swift`: put the work of each mode in functions that take their dependencies (registry, an output closure), so tests call them with no process.
