@@ -1,10 +1,30 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m37cncjrg1sjwn9q9fm5n6nr
+  text: 'Research: SkillDiagnostic (Skills Validation/SkillDiagnostic.swift) has Severity {advisory, warning, skip}, a nested Provenance (rootIndex, root, marketplace), and message. Skills keeps an over-limit description as data (still model-visible), thus a description is valid when it is not empty. FrontmatterDocument gives metadata nil both for no frontmatter and for a decode failure, thus one skip rule covers both. DotfolderStack.Layer is not Equatable, thus AgentDefinition is not Equatable; AgentListing holds the provenance and not the layer, thus it can be Equatable. Plan: AgentDiagnostic.Provenance (layerIndex, layerRoot, url, marketplace); init?(id:document:provenance:diagnostics: inout).'
+  timestamp: 2026-09-23T15:03:05.560548+00:00
+- actor: claude-code
+  id: 01m37cxsqhe5fvj5brx7z80nfw
+  text: |-
+    ### implement — changed
+    - evidence: 6 files — Sources/FoundationModelsAgents/Definition/{AgentDiagnostic,AgentDefinition,AgentDefinitionRules,AgentListing}.swift, Tests/FoundationModelsAgentsTests/{AgentDefinitionTests,AgentDefinitionRows}.swift, Tests/FoundationModelsAgentsTests/Support/AgentDefinitionAttempt.swift. `swift test -Xswiftc -warnings-as-errors`: 85 tests in 12 suites pass. swiftlint: 0 violations.
+    - note: the first test file had 446 lines (file_length, type_body_length). The rows went to AgentDefinitionRows.swift and the builders went to Support/AgentDefinitionAttempt.swift.
+    - next: test
+  timestamp: 2026-09-23T15:07:41.169356+00:00
+- actor: claude-code
+  id: 01m37cxyvn6sc3se4gh6t1zs5t
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 85 tests in 12 suites passed, 0 failed, 0 skipped; `swiftlint lint --quiet Sources Tests Examples` — 0 violations; no disabled or skipped test in Tests/.
+    - next: commit
+  timestamp: 2026-09-23T15:07:46.421632+00:00
 depends_on:
 - 01M376E8QEMNGGR1SDFQ60XBZJ
-position_column: todo
-position_ordinal: '8680'
+position_column: doing
+position_ordinal: '80'
 title: 'AgentDefinition: validation, diagnostics, visibility'
 ---
 ## What
