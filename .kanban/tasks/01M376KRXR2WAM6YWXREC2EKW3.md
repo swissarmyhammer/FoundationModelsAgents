@@ -61,13 +61,33 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 298 tests in 41 suites passed, 0 failed, 0 skipped; swiftlint 0 violations.
     - next: commit
   timestamp: 2026-09-23T23:22:13.642282+00:00
+- actor: claude-code
+  id: 01m3897g38hcbd6gmvf734fdsb
+  text: |-
+    ### commit — changed
+    - evidence: 0bcd5da test(docs): name the whole-file rule parameter of reportedLines 'using'
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T23:22:19.112324+00:00
+- actor: claude-code
+  id: 01m389a3ecrq8jzbf9g0w3qf5c
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD — 0 findings (0 confirmed, 0 refuted); the prior finding SwiftSourceScan.swift:169 is fixed in 0bcd5da and checked.
+    - next: done
+
+    ### finish iteration 2 — clean
+    - implement: changed (label `findingIn:` renamed to `using:`)
+    - test: green (298 tests in 41 suites, 0 failed; swiftlint 0)
+    - commit: changed 0bcd5da
+    - review: clean (0 findings)
+  timestamp: 2026-09-23T23:23:44.460250+00:00
 depends_on:
 - 01M376K1CKEEBTSGDM55GVBMC3
 - 01M376KBXZPH1WESVB084SCRS7
 - 01M376J35YTN5ZDS4GF89F9TAG
 - 01M376JGKJAWX7DHWQC08C4GCH
-position_column: doing
-position_ordinal: '8180'
+position_column: done
+position_ordinal: 9c80
 title: 'Documentation: DocC catalog and doc comments'
 ---
 ## What
@@ -78,13 +98,13 @@ Plan.md §14 M8, the API documentation. All text in ASD-STE100 Simplified Techni
 - Create `Tests/FoundationModelsAgentsTests/DocumentationTests.swift` with one rule: the method of `../FoundationModelsSkills/Tests/FoundationModelsSkillsTests/DocumentationTests.swift`.
 
 ## Acceptance Criteria
-- [ ] `DocumentationTests` passes.
-- [ ] `DocumentationTests` fails when a public symbol loses its doc comment (a test on an in-memory source).
-- [ ] The DocC catalog has the landing page and the four articles.
+- [x] `DocumentationTests` passes.
+- [x] `DocumentationTests` fails when a public symbol loses its doc comment (a test on an in-memory source).
+- [x] The DocC catalog has the landing page and the four articles.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/DocumentationTests.swift`.
-- [ ] Run `swift test --filter DocumentationTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/DocumentationTests.swift`.
+- [x] Run `swift test --filter DocumentationTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
@@ -93,4 +113,4 @@ Plan.md §14 M8, the API documentation. All text in ASD-STE100 Simplified Techni
 
 > Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 3 file(s) reviewed, 7 not reviewed.
 
-- [ ] `Tests/FoundationModelsAgentsTests/Support/SwiftSourceScan.swift:169` `swift/fluent-usage` — The parameter label `findingIn:` does not form a complete grammatical phrase at the call site. When read aloud, 'report lines in directory finding in [rule]' is incomplete—'finding in' lacks a complement to be grammatical. Rename the label to `reportedBy:` or `using:` to form a complete phrase: 'report lines in directory reported by [rule]' or 'report lines in directory using [rule]'.
+- [x] `Tests/FoundationModelsAgentsTests/Support/SwiftSourceScan.swift:169` `swift/fluent-usage` — The parameter label `findingIn:` does not form a complete grammatical phrase at the call site. When read aloud, 'report lines in directory finding in [rule]' is incomplete—'finding in' lacks a complement to be grammatical. Rename the label to `reportedBy:` or `using:` to form a complete phrase: 'report lines in directory reported by [rule]' or 'report lines in directory using [rule]'.
