@@ -27,12 +27,32 @@ comments:
     - evidence: swift test -Xswiftc -warnings-as-errors — 164 tests in 21 suites pass, 0 failed, 0 skipped; swiftlint lint --quiet Sources Tests Examples — 0 violations
     - next: commit
   timestamp: 2026-09-23T16:57:09.586601+00:00
+- actor: claude-code
+  id: 01m37k6g8c346ew93gfzkpzd63
+  text: |-
+    ### commit — changed
+    - evidence: 2ef8f6a feat(run): AgentRun drives one RoutedSession from start to result
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T16:57:17.836556+00:00
+- actor: claude-code
+  id: 01m37kbxyzm6jeqawbshghwptf
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD — 0 findings, 0 confirmed, 0 refuted (7 attempted, 15 files reviewed)
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed (4 new Run sources, 3 changed sources, 3 test files, 3 new support files)
+    - test: green — swift test -Xswiftc -warnings-as-errors, 164 tests in 21 suites pass; swiftlint 0
+    - commit: changed — 2ef8f6a
+    - review: clean — 0 findings
+  timestamp: 2026-09-23T17:00:15.711863+00:00
 depends_on:
 - 01M376FT1NDWQF9SG4D3XDESSM
 - 01M376G12C6R66FY7CM7WBR9XV
 - 01M376G689KE03CJKWBS836T5T
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '8e80'
 title: 'AgentRun: one run drives one RoutedSession end to end'
 ---
 ## What
@@ -51,20 +71,20 @@ Plan.md §8 steps 1–6 and 8, §8.1, §8.2 (M3). No children, no delivery turns
 - Lineage: read `ToolContext.current`; `AgentSpawn(parentSessionId: sessionID, parentToolCallId: completionToken)`; `nil` for a host-driven run.
 
 ## Acceptance Criteria
-- [ ] A scripted run of `code-reviewer` finishes with the scripted final text, on the `flash` slot.
-- [ ] `run.id` equals the session id, and `recordingDirectory == <recordingsDir>/<routerId>/<run.id>`.
-- [ ] The id is available when `start` returns, before the turn ends (gated turn).
-- [ ] A body render failure gives `.failed(.bodyRenderFailed)`, makes no session, has an id, and has no recording directory.
-- [ ] The session instructions hold the `AGENTS.md` text first, then the body.
-- [ ] The first user prompt of the session is the prompt, with or without `$ARGUMENTS` in the body.
-- [ ] The frontmatter `compactionPrompt` reaches `makeSession`; with no key, `.default` reaches it.
-- [ ] `environment.budget` gets `model.contextTokens`.
-- [ ] `cancel()` during a gated turn gives `.cancelled` and closes the session; a finished run holds no session.
-- [ ] A run started inside a tool call of a Router session records `agentSpawn` in its `session.json`, and `parentToolCallId` joins to that tool call in the Router transcript; a host-driven run records none.
+- [x] A scripted run of `code-reviewer` finishes with the scripted final text, on the `flash` slot.
+- [x] `run.id` equals the session id, and `recordingDirectory == <recordingsDir>/<routerId>/<run.id>`.
+- [x] The id is available when `start` returns, before the turn ends (gated turn).
+- [x] A body render failure gives `.failed(.bodyRenderFailed)`, makes no session, has an id, and has no recording directory.
+- [x] The session instructions hold the `AGENTS.md` text first, then the body.
+- [x] The first user prompt of the session is the prompt, with or without `$ARGUMENTS` in the body.
+- [x] The frontmatter `compactionPrompt` reaches `makeSession`; with no key, `.default` reaches it.
+- [x] `environment.budget` gets `model.contextTokens`.
+- [x] `cancel()` during a gated turn gives `.cancelled` and closes the session; a finished run holds no session.
+- [x] A run started inside a tool call of a Router session records `agentSpawn` in its `session.json`, and `parentToolCallId` joins to that tool call in the Router transcript; a host-driven run records none.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/AgentRunTests.swift` with `ScriptedProfile` covers each criterion.
-- [ ] Run `swift test --filter AgentRunTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/AgentRunTests.swift` with `ScriptedProfile` covers each criterion.
+- [x] Run `swift test --filter AgentRunTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
