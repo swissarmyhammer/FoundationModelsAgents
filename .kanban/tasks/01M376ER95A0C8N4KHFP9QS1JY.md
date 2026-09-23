@@ -41,10 +41,23 @@ comments:
     - commit: changed (5ec07c4)
     - review: findings (2, magic-numbers-swift)
   timestamp: 2026-09-23T15:10:37.289600+00:00
+- actor: claude-code
+  id: 01m37d889sefq3x5sv2za1wect
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (59d8014) — 0 findings; the 2 prior findings are checked.
+    - next: done
+
+    ### finish iteration 2 — clean
+    - implement: changed (AgentDefinitionRules.swift doubledHyphen with no literal 2; AgentDefinitionAttempt.inlineLayerIndex; maxTurns constant in AgentDefinitionTests)
+    - test: green (85 tests in 12 suites, 0 lint violations)
+    - commit: changed (59d8014)
+    - review: clean (0 findings)
+  timestamp: 2026-09-23T15:13:23.769240+00:00
 depends_on:
 - 01M376E8QEMNGGR1SDFQ60XBZJ
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '8880'
 title: 'AgentDefinition: validation, diagnostics, visibility'
 ---
 ## What
@@ -63,13 +76,13 @@ Layer 1, part 2 (plan.md §4.2, §4.3 step 2, §10). Make one validated definiti
 - The unknown tool, unknown skill, and model-match warnings come in later tasks, because they need the tool catalog, the skills registry, and the profile.
 
 ## Acceptance Criteria
-- [ ] Each rule of the table gives the stated severity, tested with `broken/` files and inline documents: `bad-name.md` warns; `Bad_Name.md` is skipped.
-- [ ] `isModelVisible == description valid && disable-model-invocation != true`; `isUserInvocable == user-invocable != false`.
-- [ ] A Claude file with `permissionMode`, `hooks`, and `model: sonnet` loads with advisories and no skip.
+- [x] Each rule of the table gives the stated severity, tested with `broken/` files and inline documents: `bad-name.md` warns; `Bad_Name.md` is skipped.
+- [x] `isModelVisible == description valid && disable-model-invocation != true`; `isUserInvocable == user-invocable != false`.
+- [x] A Claude file with `permissionMode`, `hooks`, and `model: sonnet` loads with advisories and no skip.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/AgentDefinitionTests.swift`.
-- [ ] Run `swift test --filter AgentDefinitionTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/AgentDefinitionTests.swift`.
+- [x] Run `swift test --filter AgentDefinitionTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
