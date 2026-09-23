@@ -12,7 +12,8 @@ import Testing
 /// walks each Swift file under `Sources/`. A line declares the extension when
 /// it holds the text `extension DotfolderStack` and the character after that
 /// text is not a letter or a digit. Thus `extension DotfolderStackFixture` is
-/// not reported, and a call of the initializer is not reported.
+/// not reported, and a call of the initializer is not reported. A comment line
+/// holds no code, thus the walk passes over it, as the other guard suites do.
 @Suite("No DotfolderStack extension")
 struct NoDotfolderStackExtensionTests {
     /// The text that opens an extension of the layer stack.
@@ -35,7 +36,9 @@ struct NoDotfolderStackExtensionTests {
         "let stack = DotfolderStack(layers: layers)",
         "extension DotfolderStackFixture {",
         "extension DotfolderStack2 {",
-        "extension AgentRegistry {"
+        "extension AgentRegistry {",
+        "/// Do not write `extension DotfolderStack {` in this package.",
+        "    // extension DotfolderStack {"
     ])
     func aLineThatOpensNoSuchExtensionIsNotReported(line: String) {
         #expect(!Self.declaresADotfolderStackExtension(line))
@@ -44,7 +47,7 @@ struct NoDotfolderStackExtensionTests {
     @Test func theRuleFindsTheExtensionInAListOfLines() {
         let lines = [
             "import FoundationModelsExtras",
-            "let stack = DotfolderStack(layers: layers)",
+            "/// extension DotfolderStack {",
             "extension DotfolderStack {",
             "}"
         ]
@@ -67,11 +70,12 @@ struct NoDotfolderStackExtensionTests {
     /// Tells whether `line` opens an extension of `DotfolderStack` itself.
     ///
     /// - Parameter line: The line to read.
-    /// - Returns: `true` when the line holds the marker, and no letter and no
-    ///   digit comes after the marker.
+    /// - Returns: `true` when the line is not a comment, the line holds the
+    ///   marker, and no letter and no digit comes after the marker.
     private static func declaresADotfolderStackExtension(_ line: String) -> Bool {
-        line.components(separatedBy: extensionMarker).dropFirst().contains { textAfterMarker in
-            textAfterMarker.first.map { !$0.isLetter && !$0.isNumber } ?? true
-        }
+        !SwiftSourceScan.isComment(line)
+            && line.components(separatedBy: extensionMarker).dropFirst().contains { textAfterMarker in
+                textAfterMarker.first.map { !$0.isLetter && !$0.isNumber } ?? true
+            }
     }
 }
