@@ -1,3 +1,4 @@
+import Foundation
 import FoundationModels
 import FoundationModelsSkills
 import Operations
@@ -96,7 +97,7 @@ public struct AgentsTool: Tool {
         context: AgentsToolContext,
         catalogCharacterLimit: Int = SkillsTool.defaultCatalogCharacterLimit
     ) async throws -> AgentsTool {
-        let agents = context.runner.catalog().definitions.filter(context.canStart)
+        let agents = context.startableAgents()
         let operationTool = try OperationTool(
             name: ToolVocabulary.agentsToolName,
             description: AgentsToolDescription.make(
@@ -108,18 +109,36 @@ public struct AgentsTool: Tool {
                 AnyOperation(StartAgent.self),
                 AnyOperation(CheckAgent.self),
                 AnyOperation(CancelAgent.self)
-            ]
+            ],
+            resolver: OperationResolver(verbAliases: verbAliases)
         )
         return try AgentsTool(operationTool: operationTool, agentNames: agents.map(\.id))
     }
 
+    /// The verb aliases of plan.md §9.1: `stop` → `cancel`, `run` → `start`,
+    /// `status` → `check`, `show` → `list`. The resolver puts them over its
+    /// default aliases, thus `show` gives `list`, not the default `get`.
+    static let verbAliases: [String: String] = [
+        "stop": CancelAgent.verb,
+        "run": StartAgent.verb,
+        "status": CheckAgent.verb,
+        "show": ListAgents.verb
+    ]
+
     /// Resolves `arguments` to one operation and dispatches it through
     /// `operationTool`.
     ///
+    /// Each operation gives plain text, and `OperationTool` encodes it as a
+    /// JSON string. This call decodes that string, thus the model reads the
+    /// text itself (plan.md §16). A corrective of the resolver is plain text
+    /// already, and the call gives it as it is.
+    ///
     /// - Parameter arguments: The payload of the model.
-    /// - Returns: The answer of the operation, or a corrective message.
+    /// - Returns: The plain-text answer of the operation, or a corrective
+    ///   message.
     /// - Throws: The error of `OperationTool.call(arguments:)`.
     public func call(arguments: GeneratedContent) async throws -> String {
-        try await operationTool.call(arguments: arguments)
+        let answer = try await operationTool.call(arguments: arguments)
+        return (try? JSONDecoder().decode(String.self, from: Data(answer.utf8))) ?? answer
     }
 }

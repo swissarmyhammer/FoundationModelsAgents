@@ -29,6 +29,24 @@ public enum AgentRunFailure: Error, Sendable, Equatable {
     /// description of the error.
     case modelFailed(String)
 
+    /// The reason of the failure as a clause for a model or a person: for
+    /// example "the model failed: <description>". It has no period at the
+    /// end, thus a sentence can hold it.
+    var reason: String {
+        switch self {
+        case .bodyRenderFailed(let text):
+            "the body of the agent did not render: \(text)"
+        case .agentsMdUnreadable(let text):
+            "an AGENTS.md file is not readable: \(text)"
+        case .toolsFailed(let text):
+            "the tools of the agent could not be made: \(text)"
+        case .contextOverflow(let text):
+            "the context of the session is full: \(text)"
+        case .modelFailed(let text):
+            "the model failed: \(text)"
+        }
+    }
+
     /// Gives the failure for an error that the turn of a run threw.
     ///
     /// `LanguageModelError.contextSizeExceeded` gives ``contextOverflow(_:)``.

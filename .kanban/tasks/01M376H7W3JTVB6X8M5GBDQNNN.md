@@ -1,10 +1,37 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m37sc571ak2z4gpakzac97ej
+  text: |-
+    Research and implementation notes:
+    - The Skills `PlainTextOperations` is internal to Skills. All four agents operations give text, thus `AgentsTool.call` decodes each answer that is one JSON string, and keeps a resolver corrective as it is.
+    - The default `OperationResolver` aliases map `show` to `get`. `AgentsTool.verbAliases` puts `show` → `list` over it, with `stop` → `cancel`, `run` → `start`, `status` → `check`.
+    - `AgentRun` now keeps `context` (the `ToolContext` of the start call). The turn task closes the session, posts the final message (`AgentRun+FinalMessage.swift`), then records the final state. Outcome: `.succeeded`, `.failed`, `.cancelled`.
+    - `cancel agent` gives a `CancelOutcome` from `AgentRun.requestCancel()`: `.reported(.cancelled)` for a run in operation, `.alreadySettled(finalMessage)` for an ended run.
+    - New runner call `runs(caller:)` (open runs and records) gives the ids for the unknown-id corrective.
+    - The run posts the final message into the caller transcript with the token, and the Router emits `runSettled`. The next prompt holds the preamble line `[agents] start agent (<token>) completed: <detail>`.
+    - The lineage test in `AgentRunTests+Lineage.swift` posted by hand. The run now posts itself, thus the test reads the post of the run.
+  timestamp: 2026-09-23T18:45:14.593637+00:00
+- actor: claude-code
+  id: 01m37sc7z0anbxzf957beyw1cb
+  text: |-
+    ### implement — changed
+    - evidence: Sources/FoundationModelsAgents/Tool/{AgentsTool,AgentsToolContext,AgentsToolDescription,AgentsToolOperations,AgentsToolText}.swift, Run/{AgentRun,AgentRun+FinalMessage,AgentRunFailure,AgentRunner}.swift, Tests/FoundationModelsAgentsTests/{AgentsToolOperationsTests,FinalMessageTests,AgentRunTests+Lineage}.swift, Support/AgentsToolHarness.swift. `swift test --filter "AgentsToolOperationsTests|FinalMessageTests|AgentRunTests"`: 35 tests pass. swiftlint: 0 violations.
+    - next: test
+  timestamp: 2026-09-23T18:45:17.408554+00:00
+- actor: claude-code
+  id: 01m37sdczhbpe0x4my242kaz5k
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors`: 210 tests in 26 suites pass, 0 failed, 0 skipped. `swiftlint lint --quiet Sources Tests Examples`: 0 violations.
+    - next: commit
+  timestamp: 2026-09-23T18:45:55.313481+00:00
 depends_on:
 - 01M376GY7KFDSK19S6JW03FKFQ
-position_column: todo
-position_ordinal: 8f80
+position_column: doing
+position_ordinal: '80'
 title: AgentsTool operations and the final message through ToolContext
 ---
 ## What

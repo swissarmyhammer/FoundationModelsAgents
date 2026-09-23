@@ -1,3 +1,7 @@
+import Foundation
+import FoundationModelsRouter
+import ULID
+
 /// The shared environment of the four operations of the `agents` tool
 /// (plan.md §9.1).
 ///
@@ -30,5 +34,37 @@ public struct AgentsToolContext: Sendable {
     ///   names, if any, hold its id.
     func canStart(_ definition: AgentDefinition) -> Bool {
         definition.isModelVisible && (allowedNames?.contains(definition.id) ?? true)
+    }
+
+    /// Gives the agents that the tool can start now.
+    ///
+    /// The call reads the catalog of `runner` again, thus a reload shows: a
+    /// changed agent has its new definition, and a removed agent is not
+    /// there.
+    ///
+    /// - Returns: Each agent of the catalog that ``canStart(_:)`` permits, in
+    ///   catalog order.
+    func startableAgents() -> [AgentDefinition] {
+        runner.catalog().definitions.filter(canStart)
+    }
+
+    /// Finds the run `id`, and gives the answer of `body` for it.
+    ///
+    /// - Parameters:
+    ///   - id: The id that the model gave. The case of the letters does not
+    ///     matter.
+    ///   - body: Gives the answer for the run.
+    /// - Returns: The answer of `body`, or a corrective with the ids of the
+    ///   runs of the caller when no run has the id `id`.
+    func answer(
+        forRun id: String, _ body: (AgentRun) -> AgentsToolAnswer
+    ) async -> AgentsToolAnswer {
+        guard let runID = ULID(ulidString: id.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()),
+            let run = await runner.run(id: runID)
+        else {
+            let callerRuns = await runner.runs(caller: ToolContext.current?.sessionID)
+            return .corrective(AgentsToolText.unknownRun(id, ids: callerRuns.map(\.id.description)))
+        }
+        return body(run)
     }
 }

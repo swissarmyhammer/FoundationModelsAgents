@@ -26,12 +26,18 @@ enum AgentsToolDescription {
         let description: String?
     }
 
+    /// The delegation sentence: how to give a task to an agent. The fixed
+    /// sentences hold it, and the answer of `list agents` ends with it.
+    static let delegationSentence = """
+        To give a task to an agent, call this tool with {"op": "start agent", "name": "<name>", \
+        "prompt": "<the full task>"}.
+        """
+
     /// The fixed sentences: what an agent is and how to delegate to one.
     private static let fixedSentences = """
         An agent is a model session that works in the background. Each agent starts with an empty context \
         and sees only the prompt that you give it, so put all that the agent needs in the prompt. \
-        To give a task to an agent, call this tool with {"op": "start agent", "name": "<name>", \
-        "prompt": "<the full task>"}. The call returns at once. When the agent finishes, its final \
+        \(delegationSentence) The call returns at once. When the agent finishes, its final \
         message comes to you as a tool result. Your answer is the text of your last turn, so give your \
         final answer after you have the results of the agents that you started. You can ask about a run \
         with {"op": "check agent", "id": "<id>"}.
@@ -72,6 +78,23 @@ enum AgentsToolDescription {
         return fixedSentences + listSeparator + list
     }
 
+    /// Gives one `- name: description` line for each agent, each description
+    /// on one line and not cut. The answer of `list agents` uses these lines.
+    ///
+    /// - Parameter agents: The agents, in list order.
+    /// - Returns: The lines, joined with line breaks.
+    static func lines(for agents: [Entry]) -> String {
+        describedList(oneLineEntries(agents))
+    }
+
+    /// Puts the description of each agent on one line.
+    ///
+    /// - Parameter agents: The agents, in list order.
+    /// - Returns: The same agents, each description on one line.
+    private static func oneLineEntries(_ agents: [Entry]) -> [Entry] {
+        agents.map { Entry(name: $0.name, description: $0.description.map(oneLine)) }
+    }
+
     /// Gives the list of the first form that fits `characterLimit`.
     ///
     /// - Parameters:
@@ -79,7 +102,7 @@ enum AgentsToolDescription {
     ///   - characterLimit: The most characters that the list can have.
     /// - Returns: The list.
     private static func list(for agents: [Entry], characterLimit: Int) -> String {
-        let oneLineAgents = agents.map { Entry(name: $0.name, description: $0.description.map(oneLine)) }
+        let oneLineAgents = oneLineEntries(agents)
         let names = agents.map(\.name)
         let fullList = describedList(oneLineAgents)
         let cutList = describedList(oneLineAgents.map { Entry(name: $0.name, description: $0.description.map(cut)) })

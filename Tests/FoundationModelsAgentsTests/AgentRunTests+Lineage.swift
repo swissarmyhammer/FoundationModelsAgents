@@ -20,9 +20,6 @@ extension AgentRunTests {
         /// The arguments of the scripted call of the probe tool.
         private static let probeArguments = #"{"text":"start"}"#
 
-        /// The text of the operation event that the test posts.
-        private static let postedDetail = "The reviewer finished."
-
         /// Makes the script of the lineage test: the parent calls the probe
         /// tool, and the run answers with the final text.
         ///
@@ -40,8 +37,9 @@ extension AgentRunTests {
         }
 
         /// The `ToolContext.completionToken` of the call joins to the call:
-        /// the Router journals a post through that context into the parent
-        /// transcript with the token and the tool name.
+        /// the Router journals the final message that the run posts through
+        /// that context into the parent transcript with the token and the
+        /// tool name.
         @Test("a run started in a tool call records agentSpawn that joins to the call in the Router transcript")
         func toolCallRunRecordsAgentSpawn() async throws {
             let harness = try await AgentRunHarness.make(script: Self.makeScript())
@@ -56,10 +54,6 @@ extension AgentRunTests {
             let context = try #require(started.context)
             #expect(try await started.run.result() == AgentRunTests.finalText)
             let spawn = try #require(try AgentRunTests.sidecar(of: started.run).agentSpawn)
-            await context.post(
-                OperationEvent(
-                    tool: context.tool, op: context.op, correlationID: context.completionToken,
-                    kind: .completed, detail: Self.postedDetail))
             await parent.close()
             let journaled = try RecordedTranscript.operationEvents(in: parent.recordingDirectory)
                 .filter { $0.correlationID == spawn.parentToolCallId }
@@ -70,7 +64,7 @@ extension AgentRunTests {
                         parentSessionId: parent.id, parentToolCallId: context.completionToken))
             #expect(started.run.caller == parent.id)
             #expect(journaled.map(\.tool) == [AgentStartProbe.toolName])
-            #expect(journaled.map(\.detail) == [Self.postedDetail])
+            #expect(journaled.map(\.detail) == [AgentRunTests.finalText])
         }
 
         @Test("a host-driven run records no agentSpawn")

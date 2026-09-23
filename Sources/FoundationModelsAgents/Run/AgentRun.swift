@@ -53,8 +53,19 @@ public final class AgentRun: Sendable {
     /// The slot of the session, or `nil` for a run whose setup failed.
     let slot: ModelSlot?
 
+    /// The context of the tool call that started the run, or `nil` for a
+    /// host-driven run. The run posts its final message through it
+    /// (plan.md §9.2).
+    let context: ToolContext?
+
     /// The mutable state of the run.
     private let storage: Mutex<Storage>
+
+    /// `true` when the setup of the run failed: the run made no session and
+    /// ran no turn. Its state is ``AgentRunState/failed(_:)`` from the start.
+    var isSetupFailure: Bool {
+        slot == nil
+    }
 
     /// The state of the run.
     public var state: AgentRunState {
@@ -82,6 +93,7 @@ public final class AgentRun: Sendable {
         self.depth = request.depth
         self.recordingDirectory = made?.session.recordingDirectory
         self.slot = made?.slot
+        self.context = request.context
         self.storage = Mutex(Storage(state: state, session: made?.session, turn: nil))
     }
 
@@ -143,11 +155,30 @@ public final class AgentRun: Sendable {
         storage.withLock { $0.turn }?.cancel()
     }
 
+    /// Cancels the run, and tells what the cancel did (plan.md §9.1,
+    /// `cancel agent`).
+    ///
+    /// - Returns: ``CancelOutcome/reported(_:)`` with `.cancelled` when the
+    ///   run was in operation: the cancel is sent, and the run stops when its
+    ///   turn unwinds. ``CancelOutcome/alreadySettled(_:)`` with the final
+    ///   message when the run had ended before the cancel.
+    func requestCancel() -> CancelOutcome {
+        guard let finalMessage = finalMessage(for: state) else {
+            cancel()
+            return .reported(.cancelled)
+        }
+        return .alreadySettled(finalMessage)
+    }
+
     /// Starts the background task that drives the one turn of the run.
     ///
     /// The task is detached, thus it does not take the `ToolContext` of the
     /// tool call that started the run. The tools of the session bind their
     /// own contexts.
+    ///
+    /// When the turn ends, the task closes the session, posts the final
+    /// message, and then records the final state. Thus a caller that sees
+    /// the final state knows that the post is done.
     ///
     /// - Parameters:
     ///   - session: The session of the run.
@@ -156,6 +187,7 @@ public final class AgentRun: Sendable {
         let turn = Task.detached {
             let final = await Self.drive(session, prompt: prompt)
             await session.close()
+            await self.postFinalMessage(for: final)
             self.end(in: final)
             return final
         }

@@ -1,4 +1,6 @@
+import Foundation
 import FoundationModels
+import FoundationModelsRouter
 import FoundationModelsSkills
 import Operations
 
@@ -6,16 +8,9 @@ import Operations
 ///
 /// Each answer is plain text: `.success` or `.corrective(String)`
 /// (plan.md §9.1). A correction is a text result in the same turn, never a
-/// thrown error.
+/// thrown error, and never a post. `AgentsTool` decodes the JSON string that
+/// `OperationTool` makes of the answer, thus the model reads plain text.
 typealias AgentsToolAnswer = CorrectiveOutcome<String>
-
-extension AgentsToolAnswer {
-    /// The answer of an operation whose body is not written yet. The
-    /// operations task of plan.md §9.1 replaces each use.
-    static var notImplemented: AgentsToolAnswer {
-        .corrective("not implemented")
-    }
-}
 
 /// Lists the agents that the model can start (`list agents`).
 @Generable
@@ -27,12 +22,24 @@ struct ListAgents {
 }
 
 extension ListAgents {
-    /// Gives the agents that match `filter`.
+    /// Gives one `- name: description` line for each agent that the tool
+    /// can start and that matches `filter`, then the delegation sentence.
     ///
     /// - Parameter context: The shared context of the tool.
-    /// - Returns: The answer of the operation.
+    /// - Returns: The lines and the delegation sentence, or "No agents are
+    ///   available." when no agent matches. Both are a success.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
-        .notImplemented
+        let text = filter?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let matches = context.startableAgents().filter { agent in
+            text.isEmpty || agent.id.localizedCaseInsensitiveContains(text)
+                || agent.description?.localizedCaseInsensitiveContains(text) == true
+        }
+        guard !matches.isEmpty else {
+            return .success(AgentsToolText.noAgents)
+        }
+        let lines = AgentsToolDescription.lines(
+            for: matches.map { AgentsToolDescription.Entry(name: $0.id, description: $0.description) })
+        return .success(lines + "\n\n" + AgentsToolDescription.delegationSentence)
     }
 }
 
@@ -52,12 +59,53 @@ struct StartAgent {
 }
 
 extension StartAgent {
-    /// Starts the agent `name` with `prompt`.
+    /// Starts the agent `name` with `prompt`, and returns at once.
+    ///
+    /// The run gets `ToolContext.current`, the context of this call. The
+    /// runner maps the `completionToken` of the call to the run. The call
+    /// posts nothing: the run posts its final message through the context
+    /// when it finishes (plan.md §9.2). Outside a Router session there is no
+    /// context, the run posts nothing, and the model uses `check agent`.
+    ///
+    /// The call reads the catalog again, thus after a reload a changed agent
+    /// runs with its new definition, and a removed agent gives a corrective.
     ///
     /// - Parameter context: The shared context of the tool.
-    /// - Returns: The answer of the operation.
+    /// - Returns: The id of the run, or a corrective for a blank prompt, for
+    ///   a name that the tool cannot start, or for a name that no agent has.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
-        .notImplemented
+        guard AgentDefinitionRules.holdsText(prompt) else {
+            return .corrective(AgentsToolText.blankPrompt)
+        }
+        let startable = context.startableAgents()
+        guard let definition = startable.first(where: { $0.id == name }) else {
+            return .corrective(unavailableText(startable: startable.map(\.id), in: context))
+        }
+        let callContext = ToolContext.current
+        let runner = context.runner
+        let run = await runner.start(
+            AgentRunRequest(
+                definition: definition, prompt: prompt, context: callContext,
+                inheritedSlot: runner.environment.defaultSlot, depth: AgentRunner.hostDepth, agentsTool: nil))
+        guard !run.isSetupFailure else {
+            return .success(run.report)
+        }
+        return .success(AgentsToolText.started(run, postsFinalMessage: callContext != nil))
+    }
+
+    /// Gives the corrective for a name that the tool cannot start.
+    ///
+    /// - Parameters:
+    ///   - startable: The names of the agents that the tool can start now.
+    ///   - context: The shared context of the tool.
+    /// - Returns: The not-permitted corrective when the catalog has a
+    ///   model-visible agent `name` that `Agent(a, b)` does not permit.
+    ///   Otherwise the unknown-agent corrective.
+    private func unavailableText(startable: [String], in context: AgentsToolContext) -> String {
+        let isVisible = context.runner.catalog().definition(named: name)?.isModelVisible == true
+        return isVisible
+            ? AgentsToolText.notPermitted(name, available: startable)
+            : AgentsToolText.unknownAgent(name, available: startable)
     }
 }
 
@@ -71,12 +119,18 @@ struct CheckAgent {
 }
 
 extension CheckAgent {
-    /// Gives the state of the run `id`.
+    /// Gives the state of the run `id` at once. The call never waits for the
+    /// run.
     ///
     /// - Parameter context: The shared context of the tool.
-    /// - Returns: The answer of the operation.
+    /// - Returns: The report of the run: running, finished with the full
+    ///   text, failed with the reason, or cancelled. A corrective for an
+    ///   unknown id or for no id.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
-        .notImplemented
+        guard let id else {
+            return .corrective(AgentsToolText.missingID)
+        }
+        return await context.answer(forRun: id) { run in .success(run.report) }
     }
 }
 
@@ -90,11 +144,14 @@ struct CancelAgent {
 }
 
 extension CancelAgent {
-    /// Cancels the run `id`.
+    /// Cancels the run `id`, and gives the `CancelOutcome` as text.
     ///
     /// - Parameter context: The shared context of the tool.
-    /// - Returns: The answer of the operation.
+    /// - Returns: The text of the `CancelOutcome`, or a corrective for an
+    ///   unknown id.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
-        .notImplemented
+        await context.answer(forRun: id) { run in
+            .success(AgentsToolText.cancel(run.requestCancel(), of: run))
+        }
     }
 }

@@ -127,6 +127,20 @@ public actor AgentRunner {
         return openRuns[id]?.run ?? records.first { $0.run.id == id }?.run
     }
 
+    /// Gives each run of one caller: the runs in operation and the records of
+    /// the finished runs.
+    ///
+    /// - Parameter caller: The session of the caller, or `nil` for the
+    ///   host-driven runs.
+    /// - Returns: The runs whose ``AgentRun/caller`` is `caller`, sorted by
+    ///   id.
+    func runs(caller: ULID?) -> [AgentRun] {
+        retireEndedRuns()
+        return (Array(openRuns.values) + records).lazy.map(\.run)
+            .filter { $0.caller == caller }
+            .sorted { $0.id < $1.id }
+    }
+
     /// Finds the run that a tool call started.
     ///
     /// - Parameter completionToken: The `ToolContext.completionToken` of the
