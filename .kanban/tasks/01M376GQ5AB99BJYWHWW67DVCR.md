@@ -28,10 +28,23 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 172 tests in 22 suites passed, 0 failed, 0 skipped, no warnings (the mlx-swift "missing creator" build note is not ours); `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
     - next: commit
   timestamp: 2026-09-23T18:03:10.439974+00:00
+- actor: claude-code
+  id: 01m37q419haaepnn0vq4rk02a4
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` — 0 findings, 0 confirmed, 0 refuted; 5 files reviewed (2 .kanban files excluded by .reviewignore).
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed — AgentRunner.swift, AgentRunnerError.swift, AgentRun.swift, AgentRunnerTests.swift, AgentRunHarness.swift
+    - test: green — `swift test -Xswiftc -warnings-as-errors` 172 passed, 0 failed, 0 skipped; swiftlint 0
+    - commit: changed — caa2c1c feat(run): AgentRunner starts host-driven runs, keeps the run index and records, adds catalog warnings, and stops all runs
+    - review: clean — 0 findings
+  timestamp: 2026-09-23T18:05:51.281561+00:00
 depends_on:
 - 01M376GGK2RB6A3XA1PSVRGW9K
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: 8f80
 title: 'AgentRunner: start, the run index, catalog() with model warnings, retained records, stop()'
 ---
 ## What
@@ -46,16 +59,16 @@ The actor that owns each run (plan.md §8.1, §9.3), the host-driven part. No co
 - One runner holds one profile.
 
 ## Acceptance Criteria
-- [ ] Two host-driven runs with `async let` finish independently with their own texts.
-- [ ] `start` with an unknown name throws `unknownAgent` with the available names.
-- [ ] `run(id:)` finds a running run and a finished record.
-- [ ] With `maxRetainedRuns` 2, a third finished run removes the oldest record.
-- [ ] `catalog()` has a warning for `unknown-model.md` and for an unknown tool name.
-- [ ] `stop()` cancels two gated runs, and both reach `.cancelled`.
+- [x] Two host-driven runs with `async let` finish independently with their own texts.
+- [x] `start` with an unknown name throws `unknownAgent` with the available names.
+- [x] `run(id:)` finds a running run and a finished record.
+- [x] With `maxRetainedRuns` 2, a third finished run removes the oldest record.
+- [x] `catalog()` has a warning for `unknown-model.md` and for an unknown tool name.
+- [x] `stop()` cancels two gated runs, and both reach `.cancelled`.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/AgentRunnerTests.swift` with `ScriptedProfile` covers each criterion.
-- [ ] Run `swift test --filter AgentRunnerTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/AgentRunnerTests.swift` with `ScriptedProfile` covers each criterion.
+- [x] Run `swift test --filter AgentRunnerTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
