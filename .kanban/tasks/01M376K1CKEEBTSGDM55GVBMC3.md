@@ -27,6 +27,26 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 278 tests in 38 suites passed, 0 failed, 0 skipped; `swiftlint lint --quiet Sources Tests Examples` — 0 violations. The mlx-swift "missing creator" build note is not ours.
     - next: commit
   timestamp: 2026-09-23T22:26:16.986015+00:00
+- actor: claude-code
+  id: 01m3861bdb86fx9kcn7c396ztf
+  text: |-
+    ### commit — changed
+    - evidence: de71dc9 feat(demo): agents-demo --chat and --fan-out over a resolved profile
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T22:26:31.979610+00:00
+- actor: claude-code
+  id: 01m386jptdx1e9bv0r4be1msws
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD — 1 finding (1 confirmed, 0 refuted): Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift:358 completeness/public-output-contract
+    - next: implement (move `@escaping` outside the parentheses of `lines(of:)`)
+
+    ### finish iteration 1 — findings
+    - implement: changed (8 files)
+    - test: green (278 tests, 38 suites)
+    - commit: de71dc9
+    - review: findings (1) — AgentsDemoTests.swift:358
+  timestamp: 2026-09-23T22:36:00.717727+00:00
 depends_on:
 - 01M376JMYEG67MVT9NDNATM2AG
 - 01M376HQNY14K766HPNACT3999
@@ -44,13 +64,22 @@ Plan.md §12, §13, the demo modes that need a resolved profile.
 - `main.swift` resolves a real profile for these two modes only.
 
 ## Acceptance Criteria
-- [ ] The `--chat` function with the scripted profile prints the two child results and the final text of `lead`.
-- [ ] The `--chat` function calls `cancelRuns(caller:)` before it closes the root session.
-- [ ] The `--fan-out` function with the scripted profile prints two results, one from each slot.
+- [x] The `--chat` function with the scripted profile prints the two child results and the final text of `lead`.
+- [x] The `--chat` function calls `cancelRuns(caller:)` before it closes the root session.
+- [x] The `--fan-out` function with the scripted profile prints two results, one from each slot.
 
 ## Tests
-- [ ] Add cases to `Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift` that call the two functions with `ScriptedProfile`.
-- [ ] Run `swift test --filter AgentsDemoTests`. Expected: pass.
+- [x] Add cases to `Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift` that call the two functions with `ScriptedProfile`.
+- [x] Run `swift test --filter AgentsDemoTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
+
+## Review Findings (2026-09-23 17:26)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 8 file(s) reviewed, 2 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+- [ ] `Tests/FoundationModelsAgentsTests/AgentsDemoTests.swift:358` `completeness/public-output-contract` — Function parameter type has incorrect syntax — `@escaping` attribute is incorrectly nested inside parentheses, which changes the meaning of the type signature. The signature declares an input parameter of type `@escaping AgentsDemoOutput`, which is invalid; it should declare the parameter as an escaping function that takes an `AgentsDemoOutput` and returns async-throwing-Void. Change line 358 from `of body: (@escaping AgentsDemoOutput) async throws -> Void` to `of body: @escaping (AgentsDemoOutput) async throws -> Void` — move the `@escaping` attribute outside the parentheses so it applies to the entire function type.

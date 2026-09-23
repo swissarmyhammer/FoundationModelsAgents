@@ -355,7 +355,7 @@ struct AgentsDemoProfileModeTests {
     /// - Returns: The lines that `body` wrote, in order.
     /// - Throws: The error of `body`.
     private static func lines(
-        of body: (@escaping AgentsDemoOutput) async throws -> Void
+        of body: @escaping (AgentsDemoOutput) async throws -> Void
     ) async throws -> [String] {
         let (stream, continuation) = AsyncStream.makeStream(of: String.self)
         try await body { continuation.yield($0) }
