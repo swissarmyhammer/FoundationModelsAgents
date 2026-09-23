@@ -28,10 +28,30 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 234 tests in 31 suites passed, 0 failed, 0 skipped; swiftlint lint --quiet Sources Tests Examples — 0 violations
     - next: commit
   timestamp: 2026-09-23T20:47:54.936759+00:00
+- actor: claude-code
+  id: 01m380d249277gfk3w5ph9enyn
+  text: |-
+    ### commit — changed
+    - evidence: 64e6909 feat(run): maxTurns counts each pass of the control loop in the task turn and each delivery turn, and fails with hitMaxTurns
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T20:48:04.233925+00:00
+- actor: claude-code
+  id: 01m380jtsvbvnch8vf5801w8xk
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD — 0 findings, 0 confirmed, 0 refuted; 7 files reviewed (.kanban excluded by .reviewignore)
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed (8 files)
+    - test: green (234 tests in 31 suites, 0 failed, 0 skipped; swiftlint 0)
+    - commit: changed (64e6909)
+    - review: clean (0 findings)
+  timestamp: 2026-09-23T20:51:13.339165+00:00
 depends_on:
 - 01M376HQNY14K766HPNACT3999
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '9480'
 title: 'maxTurns: count each pass through the tool loop; hitMaxTurns'
 ---
 ## What
@@ -43,16 +63,16 @@ Plan.md §5 and §9.3. **One turn is one pass through the control loop.** In eac
 - No `maxTurns` key: no limit.
 
 ## Acceptance Criteria
-- [ ] A task turn with two tool passes and one answer counts 3.
-- [ ] One pass that calls three tools counts 1.
-- [ ] `maxTurns: 2` with a script of three passes fails with `hitMaxTurns` and the partial text.
-- [ ] Passes in delivery turns add to the same count.
-- [ ] A run with no `maxTurns` finishes with any number of passes.
-- [ ] A `hitMaxTurns` run with an open child cancels the child first, then posts one `.completed`.
+- [x] A task turn with two tool passes and one answer counts 3.
+- [x] One pass that calls three tools counts 1.
+- [x] `maxTurns: 2` with a script of three passes fails with `hitMaxTurns` and the partial text.
+- [x] Passes in delivery turns add to the same count.
+- [x] A run with no `maxTurns` finishes with any number of passes.
+- [x] A `hitMaxTurns` run with an open child cancels the child first, then posts one `.completed`.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/MaxTurnsTests.swift` covers each criterion with `ScriptedProfile`.
-- [ ] Run `swift test --filter MaxTurnsTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/MaxTurnsTests.swift` covers each criterion with `ScriptedProfile`.
+- [x] Run `swift test --filter MaxTurnsTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
