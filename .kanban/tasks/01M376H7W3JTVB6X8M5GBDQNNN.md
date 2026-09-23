@@ -28,10 +28,30 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors`: 210 tests in 26 suites pass, 0 failed, 0 skipped. `swiftlint lint --quiet Sources Tests Examples`: 0 violations.
     - next: commit
   timestamp: 2026-09-23T18:45:55.313481+00:00
+- actor: claude-code
+  id: 01m37sdna55dt3x2ksb9byw2ks
+  text: |-
+    ### commit — changed
+    - evidence: 76dbb9e feat(tool): the agents operations answer in plain text, and a run posts one final message through ToolContext
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T18:46:03.845409+00:00
+- actor: claude-code
+  id: 01m37smbs03c39g6s0svysanw6
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD: 0 findings, 0 confirmed, 0 refuted (7 attempted, 13 files reviewed). No prior Review Findings sections.
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed (11 source and test files)
+    - test: green (swift test -Xswiftc -warnings-as-errors: 210 tests in 26 suites pass; swiftlint 0 violations)
+    - commit: changed (76dbb9e)
+    - review: clean (0 findings)
+  timestamp: 2026-09-23T18:49:43.456871+00:00
 depends_on:
 - 01M376GY7KFDSK19S6JW03FKFQ
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '9180'
 title: AgentsTool operations and the final message through ToolContext
 ---
 ## What
@@ -47,20 +67,20 @@ Plan.md §9.1 (the operations table), §9.2 (the final message). M4. The operati
 - The run-limit and depth correctives, the running texts, `check agent` with no id, and caller isolation come in later tasks.
 
 ## Acceptance Criteria
-- [ ] Success texts: `list agents` lines and the delegation sentence; "No agents are available."; the `start agent` text; the finished, failed, and cancelled `check agent` texts.
-- [ ] Corrective texts: an unknown or removed name with the available names; a name outside `Agent(a, b)`; a blank prompt; an unknown id.
-- [ ] Each verb alias reaches its operation.
-- [ ] The answer text is plain text, not a JSON string (the wrapper decodes it; plan.md §16).
-- [ ] `start agent` returns before the scripted child turn ends (child gated), and posts nothing during its call.
-- [ ] `check agent` on a gated run returns at once.
-- [ ] The final message is the only post and holds the full text, also when longer than 4096 characters (plan.md §16).
-- [ ] A failed run and a cancelled run each post one `.completed`.
-- [ ] The calling session emits `runSettled` with no mailbox run behind it, and its next prompt reads the post (plan.md §16).
-- [ ] A post that arrives during a turn of the calling session stays staged and is read by the next prompt (plan.md §16).
+- [x] Success texts: `list agents` lines and the delegation sentence; "No agents are available."; the `start agent` text; the finished, failed, and cancelled `check agent` texts.
+- [x] Corrective texts: an unknown or removed name with the available names; a name outside `Agent(a, b)`; a blank prompt; an unknown id.
+- [x] Each verb alias reaches its operation.
+- [x] The answer text is plain text, not a JSON string (the wrapper decodes it; plan.md §16).
+- [x] `start agent` returns before the scripted child turn ends (child gated), and posts nothing during its call.
+- [x] `check agent` on a gated run returns at once.
+- [x] The final message is the only post and holds the full text, also when longer than 4096 characters (plan.md §16).
+- [x] A failed run and a cancelled run each post one `.completed`.
+- [x] The calling session emits `runSettled` with no mailbox run behind it, and its next prompt reads the post (plan.md §16).
+- [x] A post that arrives during a turn of the calling session stays staged and is read by the next prompt (plan.md §16).
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/AgentsToolOperationsTests.swift` and `Tests/FoundationModelsAgentsTests/FinalMessageTests.swift`, with a scripted root session that calls the tool.
-- [ ] Run `swift test --filter "AgentsToolOperationsTests|FinalMessageTests"`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/AgentsToolOperationsTests.swift` and `Tests/FoundationModelsAgentsTests/FinalMessageTests.swift`, with a scripted root session that calls the tool.
+- [x] Run `swift test --filter "AgentsToolOperationsTests|FinalMessageTests"`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
