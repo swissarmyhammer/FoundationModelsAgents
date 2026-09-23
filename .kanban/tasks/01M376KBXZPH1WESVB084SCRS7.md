@@ -1,0 +1,38 @@
+---
+assignees:
+- claude-code
+depends_on:
+- 01M376XK8GJY5DVQ66492JW7TT
+- 01M376FT1NDWQF9SG4D3XDESSM
+- 01M376J7SAXPM4H7MP8NYTAV8F
+- 01M376H7W3JTVB6X8M5GBDQNNN
+position_column: todo
+position_ordinal: '9880'
+title: Marketplace agents end to end with a git source; reload during a run
+---
+## What
+Plan.md §6, §14 M7, and the reload cases of §15. Hermetic: a real `MarketplaceStore` over a local git fixture from `MarketplaceFixtures` (`GitFixtureRepository`), and the scripted profile.
+
+- Create `Tests/FoundationModelsAgentsTests/MarketplaceEndToEndTests.swift`:
+  - Commit `Examples/agent-library/marketplace` into a fixture git repository; make a `MarketplaceStore` with it as a source and `.all`; one store feeds a `SkillsRegistry` and an `AgentRegistry`.
+  - Selection `.plugins(["code-tools"])` gives `security-reviewer` only; `.skills([...])` gives no agents.
+  - An agent body of the plugin includes `house-rules.md` from `<layer root>/_partials/`.
+  - A `skills:` preload of a skill of its own plugin works.
+  - A `model: sonnet` marketplace file warns and runs on `inherit`.
+  - A new commit and a store update give a new catalog through `layerUpdates`.
+- Create `Tests/FoundationModelsAgentsTests/ReloadDuringRunTests.swift`:
+  - A run in operation keeps its definition after the file changes.
+  - A tool made before a reload: a changed agent runs with the new definition; a removed agent gives the corrective with the current names; an added agent is in `list agents` and not in the old schema.
+- Verify (plan.md §16): the Extras layer has the §6.1 shape for a catalog source and for a tree source, with the partials at `<snapshot>/_partials/`.
+- Fix defects in the library that these tests find; do not change Extras from this task (raise a task in Extras if Extras is wrong).
+
+## Acceptance Criteria
+- [ ] Each case above passes.
+- [ ] No test needs the network.
+
+## Tests
+- [ ] The two test files above.
+- [ ] Run `swift test --filter "MarketplaceEndToEndTests|ReloadDuringRunTests"`. Expected: pass.
+
+## Workflow
+- Use `/tdd` — write failing tests first, then implement to make them pass.
