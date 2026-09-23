@@ -44,15 +44,6 @@ struct FixtureLibraryTests {
         "marketplace/plugins/docs-tools/agents/doc-writer.md"
     ]
 
-    /// The agent ids of the combined view of the three local layers.
-    private static let localAgentIds: Set = [
-        "code-reviewer",
-        "test-writer",
-        "lead",
-        "internal-helper",
-        "release-manager"
-    ]
-
     /// The path of the agent that each local layer holds a copy of.
     private static let sharedAgentPath = "agents/code-reviewer.md"
 
@@ -98,7 +89,7 @@ struct FixtureLibraryTests {
     @Test("the project copy of code-reviewer.md wins, and the view holds each local agent")
     func projectCopyWins() {
         let agents = FixtureLibrary.stack().enumerate("agents", suffix: ".md")
-        #expect(Set(agents.keys) == Self.localAgentIds)
+        #expect(Set(agents.keys) == FixtureLibrary.localAgentIDs)
         #expect(agents["code-reviewer"]?.layer.source == .project)
     }
 

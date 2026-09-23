@@ -1,11 +1,37 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m37deqf7cyt1smmc9xega9et
+  text: |-
+    Research done.
+    - `DotfolderStack.enumerate("agents", suffix: ".md")` gives the top level only, keyed by name with the suffix removed. It gives the winning `Located<String>`.
+    - `DotfolderStack.locate(_:)` gives the URLs of all copies, but not the layer index. The registry finds the layers that hold a path with `DotfolderStack(layers: [layer]).exists(path)` for each layer. The last index is the winner; each lower index is a hidden copy.
+    - `FrontmatterDocumentStack.onDiagnostic` fires only when a frontmatter block does not decode. No broken fixture fires it (the colon retry decodes `bad-colon-description`; `no-frontmatter` has no block).
+    - `SkillsRegistry` holds its catalog in an `NSLock` box. This task uses `Mutex` from `Synchronization` (macOS 27 floor).
+    - `FixtureLibraryTests.localAgentIds` holds the five local ids. The registry tests need the same set, thus it moves to `FixtureLibrary.localAgentIDs`.
+  timestamp: 2026-09-23T15:16:55.911798+00:00
+- actor: claude-code
+  id: 01m37dtwzkk56n4ystprcnv2tq
+  text: |-
+    ### implement — changed
+    - evidence: 6 files — Sources/FoundationModelsAgents/Registry/AgentCatalog.swift, Sources/FoundationModelsAgents/Registry/AgentCatalogBuilder.swift, Sources/FoundationModelsAgents/Registry/AgentRegistry.swift, Tests/FoundationModelsAgentsTests/AgentRegistryTests.swift, Tests/FoundationModelsAgentsTests/Support/TemporaryLayer.swift, Tests/FoundationModelsAgentsTests/Support/FixtureLibrary.swift (+ FixtureLibraryTests uses FixtureLibrary.localAgentIDs). `swift test --filter "AgentRegistryTests|LoadingBoundaryTests|FixtureLibraryTests"`: 31 tests pass. swiftlint: 0 violations.
+    - notes: a frontmatter that does not decode gives an advisory (the Extras hook message), then the skip of AgentDefinition. A `// periphery:ignore:parameters watch` marker stands above the doc comment of `init(layers:variables:watch:)`; below the doc comment it breaks swiftlint `orphaned_doc_comment`.
+    - next: test
+  timestamp: 2026-09-23T15:23:34.771896+00:00
+- actor: claude-code
+  id: 01m37dy6c4pcm76853qxp1cn0k
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 97 tests in 13 suites pass, 0 failed, 0 skipped (the mlx-swift "missing creator" build-system note is not of this package); `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
+    - next: commit
+  timestamp: 2026-09-23T15:25:22.692455+00:00
 depends_on:
 - 01M376ER95A0C8N4KHFP9QS1JY
 - 01M376DS6RBPHB0AEP6604D8Z7
-position_column: todo
-position_ordinal: '8780'
+position_column: doing
+position_ordinal: '80'
 title: 'AgentRegistry: local layers, one-level read, AgentCatalog'
 ---
 ## What

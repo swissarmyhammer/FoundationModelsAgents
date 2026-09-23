@@ -12,6 +12,15 @@ enum FixtureLibrary {
     /// `project/.agents/`.
     static let dotfolderName = "agents"
 
+    /// The agent ids of the combined view of the three local layers.
+    static let localAgentIDs: Set = [
+        "code-reviewer",
+        "test-writer",
+        "lead",
+        "internal-helper",
+        "release-manager"
+    ]
+
     /// The root of the fixture library: `Examples/agent-library`.
     static var root: URL {
         PackageRoot.directory
