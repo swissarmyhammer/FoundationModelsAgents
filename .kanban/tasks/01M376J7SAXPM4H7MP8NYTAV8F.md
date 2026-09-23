@@ -19,12 +19,25 @@ comments:
     - notes: Stdlib `compactMap` has no typed throws; `map` has. The preload renders the skills in a task group and keeps the key order through the index.
     - next: test
   timestamp: 2026-09-23T20:58:12.697694+00:00
+- actor: claude-code
+  id: 01m3815xd9y2m5ysfg4rm66f6m
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` — 0 findings (7 files reviewed, 1 candidate refuted).
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed (AgentSkillsPreload, AgentSessionMaker, AgentRunner, AgentRunFailure.skillRenderFailed, SkillsPreloadTests, AgentRunHarness skills parameter)
+    - test: green — `swift test -Xswiftc -warnings-as-errors`: 240 tests in 32 suites passed; swiftlint 0
+    - commit: changed — 78d82e1
+    - review: clean — 0 findings
+  timestamp: 2026-09-23T21:01:38.601060+00:00
 depends_on:
 - 01M376GGK2RB6A3XA1PSVRGW9K
 - 01M376GQ5AB99BJYWHWW67DVCR
 - 01M376J35YTN5ZDS4GF89F9TAG
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '9580'
 title: 'skills: preload into the instructions of a run'
 ---
 ## What
@@ -35,14 +48,14 @@ Plan.md §5 (`skills:` preload), §8 step 3.
 - The `skills` tool is one entry of the `ToolCatalog` and follows the normal tool rules; the preload does not add the tool.
 
 ## Acceptance Criteria
-- [ ] An agent with `skills: [review]` has the rendered `review` body in its session instructions, after its own body.
-- [ ] Two skills appear in the order of the key.
-- [ ] An unknown skill name gives a warning in `runner.catalog()` and the run still starts.
-- [ ] A skill with `disable-model-invocation: true` is skipped with a warning.
+- [x] An agent with `skills: [review]` has the rendered `review` body in its session instructions, after its own body.
+- [x] Two skills appear in the order of the key.
+- [x] An unknown skill name gives a warning in `runner.catalog()` and the run still starts.
+- [x] A skill with `disable-model-invocation: true` is skipped with a warning.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/SkillsPreloadTests.swift` with a `SkillsRegistry` over `Examples/agent-library/defaults` and the scripted profile.
-- [ ] Run `swift test --filter SkillsPreloadTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/SkillsPreloadTests.swift` with a `SkillsRegistry` over `Examples/agent-library/defaults` and the scripted profile.
+- [x] Run `swift test --filter SkillsPreloadTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
