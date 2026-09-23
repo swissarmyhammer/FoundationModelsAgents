@@ -94,8 +94,9 @@ struct DocumentationTests {
 
     /// The words that give speed as the reason of a design. The reason that
     /// the registry reads its files in `load()` is that the I/O shows at the
-    /// call site, thus no page gives speed as a reason.
-    private static let speedWords = ["slow", "slower", "fast", "faster", "speed", "cheap", "expensive"]
+    /// call site, thus no page gives speed as a reason. `DocsTests` holds the
+    /// documents under `docs/` to the same list.
+    static let speedWords = ["slow", "slower", "fast", "faster", "speed", "cheap", "expensive"]
 
     /// Every claim that a page must make.
     private static let claims: [Claim] =

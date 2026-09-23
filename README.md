@@ -171,6 +171,9 @@ of `git@github.com:swissarmyhammer/FoundationModelsAgents.git`, and add the
   [`Sources/FoundationModelsAgents/FoundationModelsAgents.docc`](Sources/FoundationModelsAgents/FoundationModelsAgents.docc)
   has articles on the catalog, the runs, the `agents` tool, and the final
   message.
+- [`docs/skills-and-agents.md`](docs/skills-and-agents.md) tells what
+  transfers from skills to agents, how one plugin gives skills and agents,
+  and the partials rule.
 - [`Examples/agent-library`](Examples/agent-library) is a fixture library with
   local layers, a marketplace, and broken files. The tests and the demo use it.
 - [`Examples/agents-demo`](Examples/agents-demo) is the demo executable:
