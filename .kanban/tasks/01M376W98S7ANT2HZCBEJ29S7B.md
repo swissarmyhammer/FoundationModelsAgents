@@ -19,10 +19,19 @@ comments:
     - commit: changed — 0ea3c0c test: add the NoStandardOutWrite, NoDotfolderStackExtension and NoCodeModeConformance guards
     - review: findings — 1: `NoDotfolderStackExtensionTests.swift:72` `completeness/invariant-propagation` — the function does not filter comment lines.
   timestamp: 2026-09-23T14:27:01.583731+00:00
+- actor: claude-code
+  id: 01m37aqdmsqvemkd2ge0hbwyxr
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — NoDotfolderStackExtensionTests.swift skips comment lines with `SwiftSourceScan.isComment`; two comment-line cases added to the negative list, one to the in-memory list.
+    - test: green — `swift test -Xswiftc -warnings-as-errors` 45 tests in 8 suites passed; filter run 12 tests in 3 suites passed; swiftlint 0 violations
+    - commit: changed — 6171456 test: skip comment lines in the NoDotfolderStackExtension guard
+    - review: clean — `review sha HEAD~1..HEAD` 0 findings; the prior finding is checked. Task moved to done.
+  timestamp: 2026-09-23T14:29:15.033370+00:00
 depends_on:
 - 01M376DS6RBPHB0AEP6604D8Z7
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '8480'
 title: 'Guard tests: no standard output, no DotfolderStack extension, no code-mode conformance'
 ---
 ## What
