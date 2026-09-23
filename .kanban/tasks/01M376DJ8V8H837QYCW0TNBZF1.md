@@ -1,10 +1,38 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m378kdm2m4rh3e98w4s69pkt
+  text: |-
+    Research:
+    - `FoundationModelsRouterTestSupport` has no public scripted backend or container. `MLXFoundationModelsSessionBackend` is internal in Router. Thus this task writes its own `LanguageModelSessionBackend` over a real `LanguageModelSession(model:tools:instructions:)`. The real session then runs the tool loop, and the scripted `LanguageModel` executor only emits tool calls and text.
+    - `LoadedLLMContainer.makeSession(instructions:tools:)` has a default that DROPS the tools. The container must write all four factories.
+    - `Router.init(cacheDir:recordingsDir:probe:metadataSource:loader:pool:)` is public. Use a fresh `ModelPool()` for each profile. A shared pool gives a later router the container of the first router for the same ModelRef, thus the script of a different test.
+    - The stub machine and stub metadata copy the numbers of `EchoModel.swift` in FoundationModelsACPAgent (64 GiB RAM, a 10 MB safetensors file).
+    - `RoutedSession.transcript` is `get async`.
+  timestamp: 2026-09-23T13:52:06.786868+00:00
+- actor: claude-code
+  id: 01m3791enpvhmzp5pkannrb097
+  text: |-
+    ### implement — changed
+    - evidence: 5 files — Tests/FoundationModelsAgentsTests/ScriptedProfileTests.swift, Support/ScriptedProfile.swift, Support/ScriptedAgentModel.swift, Support/ScriptedSessionBackend.swift, Support/ScriptedGate.swift. `swift build --build-tests`: 0 warnings. `swift test`: 8 tests in 2 suites pass (5 in ScriptedProfileTests).
+    - API: `ScriptedProfile.make(script: ScriptedAgentScript, recordingsDir: URL? = nil) async throws -> (Router, LanguageModelProfile)`. `ScriptedAgentScript([ScriptedAgentPlay(key:steps:)])`; steps are `.toolCall(name:argumentsJSON:)`, `.finalText(_)`, `.wait(ScriptedGate)`. A play matches when the instructions or the first prompt CONTAIN its key; the first match wins. `script.prompts` gives each turn prompt one time. `ScriptedGate`: `wait()`, `open()`, `waitForArrival()`; a cancelled waiter throws `CancellationError`.
+    - Pitfall: `ResponseStream` is not `Sendable`. Make the stream inside the relay task.
+    - next: test
+  timestamp: 2026-09-23T13:59:46.614263+00:00
+- actor: claude-code
+  id: 01m3795c9w0bvj2s23md04gjmq
+  text: |-
+    ### test — green
+    - evidence: `swift build --build-tests -Xswiftc -warnings-as-errors` clean; `swift test` — 8 passed, 0 failed, 0 skipped; `swiftlint lint --quiet` — 0 violations. The first swiftlint run gave 7 warnings (line_length x2, trailing_comma x2, nesting x3). The fix: shorter lines, no trailing commas, and the executor moved to the top-level `ScriptedAgentExecutor`.
+    - note: the repo has no `.swiftformat` config. Default swiftformat also flags committed files, and its `trailingCommas` rule contradicts swiftlint `trailing_comma`. Thus it is not a gate here.
+    - next: commit
+  timestamp: 2026-09-23T14:01:55.260950+00:00
 depends_on:
 - 01M376D9AJZB96ZHWEEXGW96QC
-position_column: todo
-position_ordinal: '8180'
+position_column: doing
+position_ordinal: '80'
 title: 'Test support: a scripted LanguageModelProfile with no real model'
 ---
 ## What
@@ -17,14 +45,14 @@ title: 'Test support: a scripted LanguageModelProfile with no real model'
 - Look at `../FoundationModelsRouter/Tests/FoundationModelsRouterTests/Helpers/ScriptedToolCallingModel.swift` for the shape. Do not use `@testable import`.
 
 ## Acceptance Criteria
-- [ ] A test makes a profile, calls `profile.flash.makeSession(...)`, and a turn gives the scripted final text.
-- [ ] A scripted step calls a mounted tool, and the tool output is in the transcript.
-- [ ] A gated step blocks the turn until the test opens the gate.
-- [ ] The two slots have different `chosen.stringValue` values.
+- [x] A test makes a profile, calls `profile.flash.makeSession(...)`, and a turn gives the scripted final text.
+- [x] A scripted step calls a mounted tool, and the tool output is in the transcript.
+- [x] A gated step blocks the turn until the test opens the gate.
+- [x] The two slots have different `chosen.stringValue` values.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/ScriptedProfileTests.swift` covers each criterion above.
-- [ ] Run `swift test --filter ScriptedProfileTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/ScriptedProfileTests.swift` covers each criterion above.
+- [x] Run `swift test --filter ScriptedProfileTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
