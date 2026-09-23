@@ -27,10 +27,26 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 148 tests in 18 suites pass, 0 failed, 0 skipped. `swiftlint lint --quiet Sources Tests Examples` — 0 violations. The only build note is the mlx-swift "missing creator" note.
     - next: commit
   timestamp: 2026-09-23T16:40:42.909558+00:00
+- actor: claude-code
+  id: 01m37jda1v5phy2rf1v55xjsf3
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` on 8e1340c — 0 findings, 0 confirmed, 1 refuted, 7 attempted, 0 failed. No prior Review Findings section.
+    - next: done
+  timestamp: 2026-09-23T16:43:32.283788+00:00
+- actor: claude-code
+  id: 01m37jdc392j5mzasettsqspzv
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — AgentBodyRenderer.swift, AgentRunFailure.swift, AgentBodyRendererTests.swift
+    - test: green — swift test -Xswiftc -warnings-as-errors: 148 tests pass, 0 skipped; swiftlint 0 violations
+    - commit: changed — 8e1340c feat(run): render the agent body with $ARGUMENTS as a quarantined span, then Stencil at agents/<id>.md
+    - review: clean — 0 findings (1 refuted)
+  timestamp: 2026-09-23T16:43:34.377951+00:00
 depends_on:
 - 01M376FFWD8GJDT7HAJJ96F118
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: 8d80
 title: 'Body render: $ARGUMENTS as a quarantined span, then Stencil at agents/<id>.md'
 ---
 ## What
@@ -44,16 +60,16 @@ The two render passes of plan.md §4.3 step 3.
 - A render error becomes `AgentRunFailure.bodyRenderFailed(String)`. Create `Sources/FoundationModelsAgents/Run/AgentRunFailure.swift` with this case now; the run task adds the other cases.
 
 ## Acceptance Criteria
-- [ ] Each `$ARGUMENTS` in the body becomes the whole prompt.
-- [ ] A prompt with `{{ project }}` or `{% include "x" %}` lands as text (plan.md §16: a quarantined span is never scanned).
-- [ ] A body with no `$ARGUMENTS` renders unchanged except for its own template tags.
-- [ ] An include of `house-rules.md` from `agents/` resolves to `<layer root>/_partials/` (plan.md §16); a copy in `agents/_partials/` wins over it.
-- [ ] A local body that includes a partial that only a marketplace layer has fails with `bodyRenderFailed`.
-- [ ] Trust: a `defaults` body with a construct above an untrusted limit of `TemplateEngine` renders; the same body in the `user` layer fails with `bodyRenderFailed`.
+- [x] Each `$ARGUMENTS` in the body becomes the whole prompt.
+- [x] A prompt with `{{ project }}` or `{% include "x" %}` lands as text (plan.md §16: a quarantined span is never scanned).
+- [x] A body with no `$ARGUMENTS` renders unchanged except for its own template tags.
+- [x] An include of `house-rules.md` from `agents/` resolves to `<layer root>/_partials/` (plan.md §16); a copy in `agents/_partials/` wins over it.
+- [x] A local body that includes a partial that only a marketplace layer has fails with `bodyRenderFailed`.
+- [x] Trust: a `defaults` body with a construct above an untrusted limit of `TemplateEngine` renders; the same body in the `user` layer fails with `bodyRenderFailed`.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/AgentBodyRendererTests.swift` covers each criterion, with the fixture library and the fixture marketplace provider.
-- [ ] Run `swift test --filter AgentBodyRendererTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/AgentBodyRendererTests.swift` covers each criterion, with the fixture library and the fixture marketplace provider.
+- [x] Run `swift test --filter AgentBodyRendererTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
