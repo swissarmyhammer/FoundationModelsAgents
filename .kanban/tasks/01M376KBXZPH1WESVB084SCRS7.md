@@ -1,13 +1,40 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m387ce1y54bm2hw0rprc67gr
+  text: |-
+    Research and implementation notes:
+    - The library needed no change. Each case of the card passes on the current code.
+    - `FixtureMarketplaceProvider.make(select:)` and `makeUnstarted(select:)` now take a `SkillSelection` (default `.all`). `fixtureTree()` is internal, so a test can commit the fixture tree again with one more file.
+    - A new commit plus `market.fixture.store.update()` swaps the snapshot at the stable layer root and sends `layerUpdates`. Keep the `Unstarted` value alive to the end of the test, because it holds the `GitFixtureRepository`.
+    - A tree source (no `.claude-plugin/marketplace.json`) with `agents/x.md`, `_partials/p.md`, and `skills/s/SKILL.md` gives the layer `agents/x.md`, `_partials/p.md`, `s/SKILL.md`. An agent body of that layer includes the root partial. The §16 shape is confirmed for a catalog source and a tree source.
+    - `.plugins(["code-tools"])` gives security-reviewer only. `.skills(["review"])` gives one layer, the skill, and no agents.
+    - The reload test of the tool moved from `AgentsToolOperationsTests` to `ReloadDuringRunTests` (no duplicate). `AgentsToolSchemaTests.property(named:in:)` and `nameFieldName` are internal now, so the reload test reads the `name` enum of the old schema.
+    - A static stored dictionary of `GitFixtureRepository.Entry` does not compile under Swift 6 (not Sendable). Use a static func.
+  timestamp: 2026-09-23T22:50:03.710451+00:00
+- actor: claude-code
+  id: 01m387cgq1xmassx3bmnbkqtyd
+  text: |-
+    ### implement — changed
+    - evidence: 5 files — Tests/FoundationModelsAgentsTests/MarketplaceEndToEndTests.swift (new), Tests/FoundationModelsAgentsTests/ReloadDuringRunTests.swift (new), Tests/FoundationModelsAgentsTests/Support/FixtureMarketplaceProvider.swift, Tests/FoundationModelsAgentsTests/AgentsToolOperationsTests.swift, Tests/FoundationModelsAgentsTests/AgentsToolSchemaTests.swift. `swift test --filter "MarketplaceEndToEndTests|ReloadDuringRunTests|AgentsToolOperationsTests|AgentsToolSchemaTests|AgentRegistryMarketplaceTests"`: 40 tests in 5 suites pass. swiftlint: 0 violations.
+    - next: test
+  timestamp: 2026-09-23T22:50:06.433193+00:00
+- actor: claude-code
+  id: 01m387p522g780403z0yc29tfp
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 290 tests in 40 suites pass, 0 failed, 0 skipped, no warnings; `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
+    - next: commit
+  timestamp: 2026-09-23T22:55:22.178747+00:00
 depends_on:
 - 01M376XK8GJY5DVQ66492JW7TT
 - 01M376FT1NDWQF9SG4D3XDESSM
 - 01M376J7SAXPM4H7MP8NYTAV8F
 - 01M376H7W3JTVB6X8M5GBDQNNN
-position_column: todo
-position_ordinal: '9880'
+position_column: doing
+position_ordinal: '80'
 title: Marketplace agents end to end with a git source; reload during a run
 ---
 ## What

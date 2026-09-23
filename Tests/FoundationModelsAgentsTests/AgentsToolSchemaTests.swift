@@ -19,7 +19,7 @@ struct AgentsToolSchemaTests {
     private static let opStrings = ["list agents", "start agent", "check agent", "cancel agent"]
 
     /// The name of the field that holds an agent name.
-    private static let nameFieldName = "name"
+    static let nameFieldName = "name"
 
     /// The model-visible agents of the fixture library, in catalog order.
     private static let visibleNames = ["code-reviewer", "internal-helper", "lead", "test-writer"]
@@ -130,7 +130,7 @@ struct AgentsToolSchemaTests {
     ///   - schema: The fused schema of the tool.
     /// - Returns: The JSON object of the property.
     /// - Throws: A `#require` failure when the schema has no such property.
-    private static func property(named name: String, in schema: GenerationSchema) throws -> [String: Any] {
+    static func property(named name: String, in schema: GenerationSchema) throws -> [String: Any] {
         try #require(try properties(in: schema)[name] as? [String: Any])
     }
 }

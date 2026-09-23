@@ -35,11 +35,13 @@ struct FixtureMarketplaceProvider: MarketplaceLayerProviding {
 
     /// Commits the fixture marketplace, and installs it with a new store.
     ///
+    /// - Parameter select: The selection of the source. The default is
+    ///   `.all`.
     /// - Returns: The provider, with the snapshot installed.
     /// - Throws: The error of a file read, of the repository, or of the
     ///   cache folder.
-    static func make() async throws -> FixtureMarketplaceProvider {
-        let unstarted = try makeUnstarted()
+    static func make(select: SkillSelection = .all) async throws -> FixtureMarketplaceProvider {
+        let unstarted = try makeUnstarted(select: select)
         await unstarted.start()
         return unstarted.provider
     }
@@ -47,16 +49,18 @@ struct FixtureMarketplaceProvider: MarketplaceLayerProviding {
     /// Commits the fixture marketplace, and makes a new store over it that
     /// has not started. The store gives no layer until `start()`.
     ///
+    /// - Parameter select: The selection of the source. The default is
+    ///   `.all`.
     /// - Returns: The provider with no snapshot installed, and the fixtures
     ///   that the store reads when it starts.
     /// - Throws: The error of a file read, of the repository, or of the
     ///   cache folder.
-    static func makeUnstarted() throws -> Unstarted {
+    static func makeUnstarted(select: SkillSelection = .all) throws -> Unstarted {
         let repository = try GitFixtureRepository()
         let sha = try repository.commit(files: fixtureTree())
         let cache = try TemporaryLayer.makeEmpty()
         let fixture = try MarketplaceStoreFixture(
-            sources: [MarketplaceSource(repository.url)], cacheDirectory: cache.root)
+            sources: [MarketplaceSource(repository.url, select: select)], cacheDirectory: cache.root)
         let provider = FixtureMarketplaceProvider(sha: sha, cache: cache, store: fixture.store)
         return Unstarted(provider: provider, repository: repository, fixture: fixture)
     }
@@ -65,7 +69,9 @@ struct FixtureMarketplaceProvider: MarketplaceLayerProviding {
     /// store reads when it starts.
     ///
     /// The repository and the store fixture remove their folders when they
-    /// are released. This value keeps them until `start()` returns.
+    /// are released. This value keeps them until `start()` returns. A test
+    /// that makes a new commit and updates the store keeps this value until
+    /// its end.
     struct Unstarted {
         /// The provider. It gives no layer until `start()`.
         let provider: FixtureMarketplaceProvider
@@ -110,7 +116,7 @@ struct FixtureMarketplaceProvider: MarketplaceLayerProviding {
     /// - Returns: The tree of one commit, one entry for each path relative to
     ///   the marketplace folder.
     /// - Throws: The error of the file system when it cannot read a file.
-    private static func fixtureTree() throws -> [String: GitFixtureRepository.Entry] {
+    static func fixtureTree() throws -> [String: GitFixtureRepository.Entry] {
         let root = FixtureLibrary.marketplaceDirectory
         let files = try FileManager.default.subpathsOfDirectory(atPath: root.path).filter { path in
             isFile(root.appendingPathComponent(path))

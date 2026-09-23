@@ -56,18 +56,6 @@ struct AgentsToolOperationsTests {
     /// The text between the agent lines and the delegation sentence.
     private static let paragraphBreak = "\n\n"
 
-    /// The id of the agent that the reload tests write.
-    private static let writtenAgent = "written-agent"
-
-    /// The id of the agent that the reload test removes.
-    private static let removedAgent = "removed-agent"
-
-    /// The description of the written agent before the reload.
-    private static let firstDescription = "Checks the first version of the text."
-
-    /// The description of the written agent after the reload.
-    private static let secondDescription = "Checks the second version of the text."
-
     /// A script with one play for ``prompt``.
     ///
     /// - Parameter steps: The steps of the play.
@@ -92,31 +80,6 @@ struct AgentsToolOperationsTests {
     /// - Returns: The fields.
     private static func idFields(_ run: AgentRun) -> [String: String] {
         ["id": run.id.description]
-    }
-
-    /// The text of an agent file on the `flash` slot.
-    ///
-    /// - Parameters:
-    ///   - name: The id of the agent.
-    ///   - description: The description of the agent.
-    /// - Returns: The file text.
-    private static func agentFile(_ name: String, description: String) -> String {
-        """
-        ---
-        name: \(name)
-        description: \(description)
-        model: flash
-        ---
-        You check the text that the prompt names.
-        """
-    }
-
-    /// The path of the file of the agent `name` in a layer.
-    ///
-    /// - Parameter name: The id of the agent.
-    /// - Returns: The relative path.
-    private static func agentPath(_ name: String) -> String {
-        "agents/\(name).md"
     }
 
     /// Gives the text of a model failure.
@@ -346,31 +309,5 @@ struct AgentsToolOperationsTests {
         let answer = try await harness.call("check agent")
 
         #expect(answer == "You have no runs.")
-    }
-
-    @Test("after a reload, a changed agent runs with the new definition and a removed agent is a corrective")
-    func reloadChangesAndRemovesAgents() async throws {
-        let layer = try TemporaryLayer.makeEmpty()
-        defer { try? layer.delete() }
-        for agent in [Self.writtenAgent, Self.removedAgent] {
-            try layer.write(Self.agentFile(agent, description: Self.firstDescription), at: Self.agentPath(agent))
-        }
-        let harness = try await AgentsToolHarness.make(
-            script: Self.script([.finalText(Self.finalText)]), registry: AgentRegistry(layers: [layer.layer]))
-        defer { try? harness.delete() }
-
-        try layer.write(
-            Self.agentFile(Self.writtenAgent, description: Self.secondDescription),
-            at: Self.agentPath(Self.writtenAgent))
-        try layer.remove(Self.agentPath(Self.removedAgent))
-        try await harness.runHarness.registry.reload()
-        let removed = try await harness.call("start agent", Self.startFields(Self.removedAgent))
-        _ = try await harness.call("start agent", Self.startFields(Self.writtenAgent))
-        let run = try #require(await harness.runner.runs(caller: nil).first)
-
-        #expect(harness.tool.agentNames == [Self.removedAgent, Self.writtenAgent])
-        #expect(removed == "No agent has the name removed-agent. The agents that you can start are: written-agent.")
-        #expect(run.agent.description == Self.secondDescription)
-        #expect(try await run.result() == Self.finalText)
     }
 }
