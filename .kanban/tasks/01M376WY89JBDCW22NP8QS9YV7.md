@@ -1,10 +1,31 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m37cccs605kppr21ygfbjjrb
+  text: |-
+    Research: `AgentFrontmatterReader.entries(inCommaSeparated:)` splits at commas out of parentheses, trims, and removes empty entries. `ToolSpec.parse` uses it again for the names in `Agent(...)`, thus `Agent()` gives `[]` and `Agent( a ,b )` gives `["a", "b"]`.
+
+    Decisions: `ToolSpec` is internal (no public use yet). The parse trims the entry. `mcp__srv__tool` (one MCP tool) gives `name`. `mcp__`, `mcp__s*`, `Agentx`, and `Agent(a` give `name`.
+
+    TDD: the red build failed with "cannot find type 'ToolSpec'". Then `swift test --filter ToolSpecTests`: 2 tests (17 table cases) pass. swiftlint: 0 violations.
+
+    ### implement — changed
+    - evidence: 2 files — Sources/FoundationModelsAgents/Definition/ToolSpec.swift, Tests/FoundationModelsAgentsTests/ToolSpecTests.swift
+    - next: test
+  timestamp: 2026-09-23T14:58:10.854084+00:00
+- actor: claude-code
+  id: 01m37cdvcvkqrhrwrck2zzw55h
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 68 tests in 11 suites passed, 0 failed, 0 skipped, 0 warnings; `swiftlint lint --quiet Sources Tests Examples` — 0 violations
+    - next: commit
+  timestamp: 2026-09-23T14:58:58.587259+00:00
 depends_on:
 - 01M376D9AJZB96ZHWEEXGW96QC
-position_column: todo
-position_ordinal: 9d80
+position_column: doing
+position_ordinal: '80'
 title: 'ToolSpec: parse tools and disallowedTools entries'
 ---
 ## What
