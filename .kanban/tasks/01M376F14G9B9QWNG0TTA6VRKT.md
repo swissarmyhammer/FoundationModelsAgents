@@ -27,11 +27,31 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 97 tests in 13 suites pass, 0 failed, 0 skipped (the mlx-swift "missing creator" build-system note is not of this package); `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
     - next: commit
   timestamp: 2026-09-23T15:25:22.692455+00:00
+- actor: claude-code
+  id: 01m37dycxwgkh9xzje2n1ahkk2
+  text: |-
+    ### commit — changed
+    - evidence: a9090cd feat(registry): build AgentCatalog from local layers with one-level read and cached catalog()
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T15:25:29.404760+00:00
+- actor: claude-code
+  id: 01m37e6afszmkbq9jbjfe5wknc
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` — 0 findings, 0 confirmed, 0 refuted; 7 files reviewed, 0 failed.
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed (AgentCatalog, AgentCatalogBuilder, AgentRegistry, AgentRegistryTests, TemporaryLayer, FixtureLibrary.localAgentIDs)
+    - test: green (`swift test -Xswiftc -warnings-as-errors` — 97 tests in 13 suites pass; swiftlint 0 violations)
+    - commit: changed (a9090cd)
+    - review: clean (0 findings)
+  timestamp: 2026-09-23T15:29:49.049643+00:00
 depends_on:
 - 01M376ER95A0C8N4KHFP9QS1JY
 - 01M376DS6RBPHB0AEP6604D8Z7
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '8980'
 title: 'AgentRegistry: local layers, one-level read, AgentCatalog'
 ---
 ## What
@@ -46,15 +66,15 @@ Layer 2, local part (plan.md §4.1, §4.3 step 1, §12). No marketplace and no w
 - All file access goes through Extras; the guard tests must stay green.
 
 ## Acceptance Criteria
-- [ ] The fixture stack gives the expected ids; the file name is the id.
-- [ ] The user `code-reviewer.md` wins over the defaults copy, with one advisory.
-- [ ] A `.md` file in a subfolder of `agents/` is not read.
-- [ ] Each `broken/` file gives its diagnostic, and the good files next to it load.
-- [ ] `catalog()` gives the same value with no I/O after the build (a second call after the files are deleted gives the same catalog until `reload()`).
+- [x] The fixture stack gives the expected ids; the file name is the id.
+- [x] The user `code-reviewer.md` wins over the defaults copy, with one advisory.
+- [x] A `.md` file in a subfolder of `agents/` is not read.
+- [x] Each `broken/` file gives its diagnostic, and the good files next to it load.
+- [x] `catalog()` gives the same value with no I/O after the build (a second call after the files are deleted gives the same catalog until `reload()`).
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/AgentRegistryTests.swift` covers each criterion.
-- [ ] Run `swift test --filter AgentRegistryTests`, then the guard tests. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/AgentRegistryTests.swift` covers each criterion.
+- [x] Run `swift test --filter AgentRegistryTests`, then the guard tests. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
