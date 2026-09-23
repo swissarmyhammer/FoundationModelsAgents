@@ -22,10 +22,30 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 68 tests in 11 suites passed, 0 failed, 0 skipped, 0 warnings; `swiftlint lint --quiet Sources Tests Examples` — 0 violations
     - next: commit
   timestamp: 2026-09-23T14:58:58.587259+00:00
+- actor: claude-code
+  id: 01m37ce0e3z1mmh6ke2jvr30p5
+  text: |-
+    ### commit — changed
+    - evidence: a879428 feat(definition): parse tools and disallowedTools entries into ToolSpec
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T14:59:03.747199+00:00
+- actor: claude-code
+  id: 01m37cgxs0g3rss8pkf36rwx97
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` — 0 findings, 0 confirmed, 0 refuted (7 attempted, 0 failed); 2 .kanban files excluded by .reviewignore
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed — ToolSpec.swift, ToolSpecTests.swift
+    - test: green — 68 tests in 11 suites, 0 failed, 0 skipped, 0 warnings; swiftlint 0 violations
+    - commit: changed — a879428
+    - review: clean — 0 findings; task moved to done
+  timestamp: 2026-09-23T15:00:39.328050+00:00
 depends_on:
 - 01M376D9AJZB96ZHWEEXGW96QC
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '8780'
 title: 'ToolSpec: parse tools and disallowedTools entries'
 ---
 ## What
@@ -37,12 +57,12 @@ Plan.md §5. Parse one entry of `tools` or `disallowedTools` into a typed value.
   - Other text gives `name`.
 
 ## Acceptance Criteria
-- [ ] Each form above parses to the stated value.
-- [ ] `Agent()` and `Agent( a ,b )` give defined results (empty list; `["a", "b"]`).
+- [x] Each form above parses to the stated value.
+- [x] `Agent()` and `Agent( a ,b )` give defined results (empty list; `["a", "b"]`).
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/ToolSpecTests.swift`.
-- [ ] Run `swift test --filter ToolSpecTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/ToolSpecTests.swift`.
+- [x] Run `swift test --filter ToolSpecTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
