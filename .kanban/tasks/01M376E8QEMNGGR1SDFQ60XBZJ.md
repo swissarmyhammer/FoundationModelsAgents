@@ -26,11 +26,34 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 66 tests in 10 suites pass, 0 failed, 0 skipped; `swiftlint lint --quiet Sources Tests Examples` — 0 violations.
     - next: commit
   timestamp: 2026-09-23T14:51:34.771653+00:00
+- actor: claude-code
+  id: 01m37c0hfhsyk5hqnmw1vxf9nk
+  text: |-
+    ### commit — changed
+    - evidence: e935c92 feat(definition): decode agent frontmatter with the colon retry
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T14:51:42.449884+00:00
+- actor: claude-code
+  id: 01m37c5vp74xe796qepj7qwjmb
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` — findings 0, confirmed 0, refuted 0 (7 files attempted, 2 .kanban files ignored).
+    - next: done
+  timestamp: 2026-09-23T14:54:36.743255+00:00
+- actor: claude-code
+  id: 01m37c5xnxe6dwwt61ww6q7qeq
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 5 files under Sources/FoundationModelsAgents/Definition/ and Tests/FoundationModelsAgentsTests/AgentFrontmatterTests.swift
+    - test: green — `swift test -Xswiftc -warnings-as-errors`: 66 tests in 10 suites pass; swiftlint 0 violations
+    - commit: changed — e935c92
+    - review: clean — review sha HEAD~1..HEAD, 0 findings
+  timestamp: 2026-09-23T14:54:38.781167+00:00
 depends_on:
 - 01M376D9AJZB96ZHWEEXGW96QC
 - 01M376DZSHS7M9CD50Z24X1ZBZ
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '8680'
 title: AgentFrontmatter.decode with the colon retry
 ---
 ## What
@@ -44,15 +67,15 @@ Layer 1, part 1 (plan.md §4.2, §4.3 step 1). Decode the raw frontmatter of one
 - The frontmatter is never rendered: `{{ x }}` in a value stays text.
 
 ## Acceptance Criteria
-- [ ] The fixture `defaults/agents/code-reviewer.md` frontmatter decodes to the expected values.
-- [ ] `broken/agents/bad-colon-description.md` decodes after the retry and has one note.
-- [ ] Invalid YAML after the retry gives `nil`.
-- [ ] `tools: Read, Grep` and `tools: [Read, Grep]` give the same list; `Agent(a, b)` stays one entry.
-- [ ] Unknown keys and tier 3 keys are kept for diagnostics.
+- [x] The fixture `defaults/agents/code-reviewer.md` frontmatter decodes to the expected values.
+- [x] `broken/agents/bad-colon-description.md` decodes after the retry and has one note.
+- [x] Invalid YAML after the retry gives `nil`.
+- [x] `tools: Read, Grep` and `tools: [Read, Grep]` give the same list; `Agent(a, b)` stays one entry.
+- [x] Unknown keys and tier 3 keys are kept for diagnostics.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/AgentFrontmatterTests.swift` covers each criterion and `{{ x }}` staying text.
-- [ ] Run `swift test --filter AgentFrontmatterTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/AgentFrontmatterTests.swift` covers each criterion and `{{ x }}` staying text.
+- [x] Run `swift test --filter AgentFrontmatterTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
