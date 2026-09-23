@@ -22,10 +22,23 @@ comments:
     - evidence: swift test -Xswiftc -warnings-as-errors — 53 tests in 9 suites pass, 0 failed, 0 skipped (the one note is the mlx-swift "missing creator" build-system note, not ours); swiftlint lint --quiet Sources Tests Examples — 0 violations
     - next: commit
   timestamp: 2026-09-23T14:40:27.233546+00:00
+- actor: claude-code
+  id: 01m37bf3y1zgx76sbj4892abfv
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD — 0 findings, 0 confirmed, 0 refuted (2 Swift files reviewed; the 21 fixture files have no matching validator)
+    - next: done
+
+    ### finish iteration 1 — clean
+    - implement: changed — 21 fixtures, Support/FixtureLibrary.swift, FixtureLibraryTests.swift
+    - test: green — 53 tests in 9 suites pass; swiftlint 0 violations
+    - commit: changed — 438affb test: add the agent-library fixture layers and FixtureLibrary
+    - review: clean — 0 findings
+  timestamp: 2026-09-23T14:42:11.521862+00:00
 depends_on:
 - 01M376D9AJZB96ZHWEEXGW96QC
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '8580'
 title: Fixture library Examples/agent-library
 ---
 ## What
@@ -41,13 +54,13 @@ Make the checked-in fixture layers of plan.md §13. The tests and the demo use t
 - `Tests/FoundationModelsAgentsTests/Support/FixtureLibrary.swift`: URLs of each layer, and a helper that makes a `DotfolderStack` of `defaults < user < project`, as `../FoundationModelsSkills/Tests/FoundationModelsSkillsTests/FixtureLibrary.swift` does.
 
 ## Acceptance Criteria
-- [ ] All the files above exist and the helper finds each layer.
-- [ ] Each `broken/` file holds exactly the one defect that the list above states.
-- [ ] `security-reviewer.md` has `skills: [review]` and an include of `house-rules.md`; `doc-writer.md` has `model: sonnet`.
+- [x] All the files above exist and the helper finds each layer.
+- [x] Each `broken/` file holds exactly the one defect that the list above states.
+- [x] `security-reviewer.md` has `skills: [review]` and an include of `house-rules.md`; `doc-writer.md` has `model: sonnet`.
 
 ## Tests
-- [ ] `Tests/FoundationModelsAgentsTests/FixtureLibraryTests.swift`: each expected file exists; the helper stack has three layers in order; `marketplace.json` decodes as JSON.
-- [ ] Run `swift test --filter FixtureLibraryTests`. Expected: pass.
+- [x] `Tests/FoundationModelsAgentsTests/FixtureLibraryTests.swift`: each expected file exists; the helper stack has three layers in order; `marketplace.json` decodes as JSON.
+- [x] Run `swift test --filter FixtureLibraryTests`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
