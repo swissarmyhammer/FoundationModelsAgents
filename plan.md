@@ -572,22 +572,25 @@ not use that name.
 
 ```swift
 // The host makes the dependencies.
-let stack   = DotfolderStack(name: "myapp", workingDirectory: projectURL)
-let market  = MarketplaceStore(sources: [MarketplaceSource("https://github.com/acme/claude-plugins")],
+let agentStack = DotfolderStack(name: "agents", workingDirectory: projectURL)
+let skillStack = DotfolderStack(name: "skills", workingDirectory: projectURL)
+let market  = MarketplaceStore(sources: [MarketplaceSource("https://github.com/acme/claude-plugins.git")],
                                layout: SkillMarketplaceLayout.skills)
 let router  = Router(recordingsDir: recordingsURL)
 let profile = try await router.resolve(profile: coding, reporting: progress)
-let skills  = SkillsRegistry(marketplaces: market, stack: stack, watch: true)
 
-// The catalog. No Router here.
-let agents = AgentRegistry(marketplaces: market, stack: stack,
+// The catalog. No Router here. The init reads no file.
+let agents = AgentRegistry(marketplaces: market, stack: agentStack,
                            variables: ["project": "acme"], watch: true)
 await market.start()
 try await agents.load()                        // reads the files; after market.start()
 agents.catalog().listing                       // [AgentListing]
 agents.catalog().diagnostics                   // [AgentDiagnostic]
-for await catalog in agents.onReload { … }
+for await catalog in agents.onReload { … }     // take onReload before the change
 
+// Skills are separate from agents. The SkillsRegistry builds in its init,
+// thus the host makes it after market.start().
+let skills = SkillsRegistry(marketplaces: market, stack: skillStack, watch: true)
 let skillsTool = try await SkillsTool.make(registry: skills)
 var tools = ToolCatalog()
 tools.register("skills") { skillsTool }
@@ -597,22 +600,29 @@ let env = AgentEnvironment(profile: profile, skills: skills,
                            defaultSlot: .standard, maxConcurrentAgents: 4, maxDepth: 3)
 let runner = AgentRunner(registry: agents, environment: env)
 
-// Host-driven.
-let report = try await runner.start("code-reviewer", prompt: "Review:\n\(diff)").result()
-let commands = await runner.commands(workingDirectory: projectURL)   // [SlashCommand]
+// Host-driven. start is async throws(AgentRunnerError).
+let run = try await runner.start("code-reviewer", prompt: "Review:\n\(diff)")
+let report = try await run.result()
+let commands = runner.commands(workingDirectory: projectURL)   // nonisolated; [SlashCommand]
 
 // Model-driven, from a Router session.
 let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
 let root = profile.standard.makeSession(instructions: "…", workingDirectory: projectURL,
                                         tools: [agentsTool] + otherTools)
-for try await event in root.streamEvents(to: userPrompt) {
-  // .runSettled: an agent run has posted its final message
+let events = await root.streamSessionEvents()        // subscribe before the first turn
+for try await event in await root.streamEvents(to: userPrompt) { … }
+for await case .runSettled = events {                // an agent run has posted its final message
+  let followUp = try await root.dispatchNextPrompt() // reads staged posts; nil when none
 }
-let followUp = try await root.dispatchNextPrompt()   // reads staged posts; nil when none
 
 await runner.cancelRuns(caller: root.id)             // the Router does not know these runs
 await root.close()
 ```
+
+The README example is the compiled form of this sketch. `ReadmeExampleTests`
+checks that each Swift block of `README.md` is a copy of the text between the
+markers in `ReadmeExampleSource.swift`, and runs that copy with the scripted
+profile.
 
 `AgentRegistry` has the `SkillsRegistry` initializers: `init(stack:variables:watch:)`,
 `init(layers:variables:watch:)`, `init(marketplaces:stack:variables:watch:)`. Unlike
