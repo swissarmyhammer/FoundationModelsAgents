@@ -29,10 +29,33 @@ comments:
     - note: the repo has no `.swiftformat` config. Default swiftformat also flags committed files, and its `trailingCommas` rule contradicts swiftlint `trailing_comma`. Thus it is not a gate here.
     - next: commit
   timestamp: 2026-09-23T14:01:55.260950+00:00
+- actor: claude-code
+  id: 01m3795jndxy3z6ch5rhz8q18v
+  text: |-
+    ### commit — changed
+    - evidence: 658462e test: add a scripted LanguageModelProfile test support with no real model
+    - next: review HEAD~1..HEAD
+  timestamp: 2026-09-23T14:02:01.773391+00:00
+- actor: claude-code
+  id: 01m379a0ymwrwq0rjd10hpd4yx
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` — 0 findings (0 confirmed, 0 refuted); 5 files reviewed; 2 .kanban files excluded by .reviewignore.
+    - next: none; task moved to done.
+  timestamp: 2026-09-23T14:04:27.476067+00:00
+- actor: claude-code
+  id: 01m379a2v300c88kr8qnhxzvbr
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 5 files (ScriptedProfileTests.swift, Support/ScriptedProfile.swift, Support/ScriptedAgentModel.swift, Support/ScriptedSessionBackend.swift, Support/ScriptedGate.swift)
+    - test: green — 8 passed, 0 failed, 0 skipped; -warnings-as-errors build clean; swiftlint 0 violations
+    - commit: 658462e
+    - review: clean — 0 findings; task moved to done
+  timestamp: 2026-09-23T14:04:29.411300+00:00
 depends_on:
 - 01M376D9AJZB96ZHWEEXGW96QC
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: '8180'
 title: 'Test support: a scripted LanguageModelProfile with no real model'
 ---
 ## What
