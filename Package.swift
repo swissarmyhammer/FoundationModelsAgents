@@ -98,9 +98,12 @@ let package = Package(
             dependencies: [.byName(name: packageName)] + commonDependencies,
             path: "Examples/\(demoTargetName)"
         ),
+        // The test target depends on the example. Thus `swift test` builds the
+        // example binary first, and a test calls the functions of each mode
+        // with `@testable import agents_demo`, with no process.
         .testTarget(
             name: testTargetName,
-            dependencies: [.byName(name: packageName)] + commonDependencies
+            dependencies: [.byName(name: packageName), .byName(name: demoTargetName)] + commonDependencies
                 + testOnlyDependencies
         ),
     ]
