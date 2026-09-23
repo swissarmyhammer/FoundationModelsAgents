@@ -55,9 +55,28 @@ struct AgentRunHarness {
 
     /// The environment of each run.
     var environment: AgentEnvironment {
+        environment(maxRetainedRuns: AgentEnvironment.defaultMaxRetainedRuns)
+    }
+
+    /// Makes the environment of each run with a count of retained records.
+    ///
+    /// - Parameter maxRetainedRuns: The count of finished run records that
+    ///   a runner keeps.
+    /// - Returns: The environment.
+    func environment(maxRetainedRuns: Int) -> AgentEnvironment {
         AgentEnvironment(
             profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory,
-            budget: budget)
+            maxRetainedRuns: maxRetainedRuns, budget: budget)
+    }
+
+    /// Makes a runner over the registry and the environment of the harness.
+    ///
+    /// - Parameter maxRetainedRuns: The count of finished run records that
+    ///   the runner keeps. The default is
+    ///   `AgentEnvironment.defaultMaxRetainedRuns`.
+    /// - Returns: The runner.
+    func makeRunner(maxRetainedRuns: Int = AgentEnvironment.defaultMaxRetainedRuns) -> AgentRunner {
+        AgentRunner(registry: registry, environment: environment(maxRetainedRuns: maxRetainedRuns))
     }
 
     /// Makes a harness.

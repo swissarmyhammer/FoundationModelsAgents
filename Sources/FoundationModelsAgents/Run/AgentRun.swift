@@ -117,9 +117,7 @@ public final class AgentRun: Sendable {
     /// - Throws: The ``AgentRunFailure`` of a failed run, or
     ///   `CancellationError` for a cancelled run.
     public func result() async throws -> String {
-        let turn = storage.withLock { $0.turn }
-        let final = await turn?.value ?? state
-        switch final {
+        switch await finalState() {
         case .finished(let text):
             return text
         case .failed(let failure):
@@ -127,6 +125,16 @@ public final class AgentRun: Sendable {
         case .cancelled, .running:
             throw CancellationError()
         }
+    }
+
+    /// Waits for the run to end, and gives its final state. It does not throw
+    /// for a failed or a cancelled run.
+    ///
+    /// - Returns: The final state of the run. The session is closed when the
+    ///   call returns.
+    func finalState() async -> AgentRunState {
+        let turn = storage.withLock { $0.turn }
+        return await turn?.value ?? state
     }
 
     /// Cancels the turn of the run. The run then closes its session and goes
