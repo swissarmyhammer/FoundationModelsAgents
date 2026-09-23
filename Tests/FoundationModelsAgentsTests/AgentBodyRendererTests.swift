@@ -108,7 +108,9 @@ struct AgentBodyRendererTests {
     private static func renderFailureText(_ failure: AgentRunFailure?) -> String? {
         switch failure {
         case .bodyRenderFailed(let text): text
-        case .agentsMdUnreadable, .toolsFailed, .contextOverflow, .modelFailed, .hitMaxTurns, nil: nil
+        case .skillRenderFailed, .agentsMdUnreadable, .toolsFailed, .contextOverflow, .modelFailed, .hitMaxTurns,
+            nil:
+            nil
         }
     }
 

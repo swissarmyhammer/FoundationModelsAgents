@@ -6,7 +6,9 @@ import FoundationModelsRouter
 ///
 /// 2. Render the body with the prompt as `$ARGUMENTS`.
 /// 3. Put the instructions in order: the `AGENTS.md` files of the working
-///    directory, outermost first, then the rendered body.
+///    directory, outermost first, then the rendered body, then the rendered
+///    body of each skill of the `skills` key, in the order of the key
+///    (``AgentSkillsPreload``).
 /// 4. Resolve the tools.
 /// 5. Match the model, and make the session on the slot of the match.
 ///
@@ -40,14 +42,16 @@ struct AgentSessionMaker: Sendable {
     ///     `agents` tool of the run adds to it.
     /// - Returns: The new session and its slot.
     /// - Throws: ``AgentRunFailure/bodyRenderFailed(_:)``,
+    ///   ``AgentRunFailure/skillRenderFailed(skill:description:)``,
     ///   ``AgentRunFailure/agentsMdUnreadable(_:)``, or
     ///   ``AgentRunFailure/toolsFailed(_:)``.
     func makeSession(
         for request: AgentRunRequest, children: AgentRunChildren
     ) async throws(AgentRunFailure) -> Made {
         let definition = request.definition
-        let instructions = try instructions(
-            body: renderer.render(definition, prompt: request.prompt))
+        let body = try renderer.render(definition, prompt: request.prompt)
+        let skillBodies = try await AgentSkillsPreload(skills: environment.skills).bodies(of: definition)
+        let instructions = try instructions(parts: [body] + skillBodies)
         let slot = ModelMatch.match(
             definition.model, profile: environment.profile, inherited: request.inheritedSlot
         ).slot
@@ -65,20 +69,21 @@ struct AgentSessionMaker: Sendable {
     }
 
     /// Puts the instructions of a run in order: the text of each `AGENTS.md`
-    /// file of the working directory, outermost first, then `body`.
+    /// file of the working directory, outermost first, then `parts`.
     ///
-    /// - Parameter body: The rendered body of the agent.
+    /// - Parameter parts: The rendered body of the agent, then the rendered
+    ///   bodies of its skills.
     /// - Returns: The instructions of the session.
     /// - Throws: ``AgentRunFailure/agentsMdUnreadable(_:)`` when a file is not
     ///   readable text.
-    private func instructions(body: String) throws(AgentRunFailure) -> String {
+    private func instructions(parts: [String]) throws(AgentRunFailure) -> String {
         let documents: [AgentsMd.Document]
         do {
             documents = try AgentsMd.documents(from: environment.workingDirectory)
         } catch {
             throw .agentsMdUnreadable(String(describing: error))
         }
-        return (documents.map(\.text) + [body]).joined(separator: Self.instructionsSeparator)
+        return (documents.map(\.text) + parts).joined(separator: Self.instructionsSeparator)
     }
 
     /// Makes the new tools of the run of `request` (plan.md §5).

@@ -1,12 +1,30 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m380r9gb51tc7yyn78k5a2qa
+  text: |-
+    Research:
+    - `SkillsRegistry` builds its catalog in its init (no load step). `call(id:arguments:) async throws -> String` renders a body. It throws `UnknownSkillError` for an id that is not in the catalog. It does NOT check model visibility: it renders a `disable-model-invocation: true` skill too. Thus the preload must check visibility itself.
+    - `metadata()` gives each catalog entry with `isModelVisible`. The preload and `runner.catalog()` use it to find unknown and not-visible names.
+    - A skills layer root is the folder that holds the skill folders (`defaults/skills`), not the agents layer root.
+    - Plan: new `Run/AgentSkillsPreload.swift` (selection, diagnostics, bodies). `AgentSessionMaker` appends the bodies after the agent body. `AgentRunner.runWarnings` appends the skill warnings after the tool warnings. A render error of a preloaded skill fails the run with a new case `AgentRunFailure.skillRenderFailed`.
+  timestamp: 2026-09-23T20:54:12.235456+00:00
+- actor: claude-code
+  id: 01m380zmas6d0g0w7qkd1sr66x
+  text: |-
+    ### implement — changed
+    - evidence: 7 files — Sources/FoundationModelsAgents/Run/AgentSkillsPreload.swift (new), Run/AgentSessionMaker.swift, Run/AgentRunner.swift, Run/AgentRunFailure.swift (new case `skillRenderFailed(skill:description:)`), Tests/FoundationModelsAgentsTests/SkillsPreloadTests.swift (new, 6 tests), Tests/.../Support/AgentRunHarness.swift (`skills:` parameter), Tests/.../AgentBodyRendererTests.swift (switch lists the new case). `swift test --filter SkillsPreloadTests`: 6 passed. swiftlint: 0.
+    - notes: Stdlib `compactMap` has no typed throws; `map` has. The preload renders the skills in a task group and keeps the key order through the index.
+    - next: test
+  timestamp: 2026-09-23T20:58:12.697694+00:00
 depends_on:
 - 01M376GGK2RB6A3XA1PSVRGW9K
 - 01M376GQ5AB99BJYWHWW67DVCR
 - 01M376J35YTN5ZDS4GF89F9TAG
-position_column: todo
-position_ordinal: '9380'
+position_column: doing
+position_ordinal: '80'
 title: 'skills: preload into the instructions of a run'
 ---
 ## What

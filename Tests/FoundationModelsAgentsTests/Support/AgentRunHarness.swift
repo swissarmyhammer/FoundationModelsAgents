@@ -32,6 +32,9 @@ struct AgentRunHarness {
     /// The registry that gives the definitions. It is loaded.
     let registry: AgentRegistry
 
+    /// The skills registry of each run. The `skills:` preload reads it.
+    let skills: SkillsRegistry
+
     /// Makes the budget of each run.
     let budget: AgentEnvironment.BudgetFactory
 
@@ -76,7 +79,7 @@ struct AgentRunHarness {
         maxDepth: Int = AgentEnvironment.defaultMaxDepth
     ) -> AgentEnvironment {
         AgentEnvironment(
-            profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory,
+            profile: profile, skills: skills, workingDirectory: workingDirectory,
             maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth, maxRetainedRuns: maxRetainedRuns,
             budget: budget)
     }
@@ -110,6 +113,8 @@ struct AgentRunHarness {
     ///   - script: The script that each slot of the profile plays.
     ///   - registry: The registry to load. The default is the fixture
     ///     library.
+    ///   - skills: The skills registry of each run. The default has no
+    ///     layers.
     ///   - budget: Makes the budget of each run. The default is
     ///     `AgentEnvironment.defaultBudget`.
     /// - Returns: The harness.
@@ -118,6 +123,7 @@ struct AgentRunHarness {
     static func make(
         script: ScriptedAgentScript,
         registry: AgentRegistry = AgentRegistry(stack: FixtureLibrary.stack()),
+        skills: SkillsRegistry = SkillsRegistry(roots: []),
         budget: @escaping AgentEnvironment.BudgetFactory = AgentEnvironment.defaultBudget
     ) async throws -> AgentRunHarness {
         let scratch = try TemporaryLayer.makeEmpty()
@@ -127,7 +133,7 @@ struct AgentRunHarness {
             recordingsDir: scratch.container.appendingPathComponent(recordingsFolderName, isDirectory: true))
         try await registry.load()
         return AgentRunHarness(
-            router: router, profile: profile, script: script, registry: registry, budget: budget,
+            router: router, profile: profile, script: script, registry: registry, skills: skills, budget: budget,
             scratch: scratch)
     }
 

@@ -203,9 +203,11 @@ public actor AgentRunner {
     ///
     /// The catalog adds, for each agent in id order, the warning of a
     /// `model` value that matches no slot of the profile, then the warnings
-    /// of the `tools` and `disallowedTools` entries that match no tool. The
-    /// diagnostics of the registry come first. Each run of this runner gets
-    /// the `agents` tool, thus `Agent` entries match it.
+    /// of the `tools` and `disallowedTools` entries that match no tool, then
+    /// the warnings of the `skills` entries that name no skill or a skill
+    /// that is not model-visible (plan.md §5). The diagnostics of the
+    /// registry come first. Each run of this runner gets the `agents` tool,
+    /// thus `Agent` entries match it.
     ///
     /// - Returns: The catalog. It is empty before `registry.load()`.
     public nonisolated func catalog() -> AgentCatalog {
@@ -252,7 +254,8 @@ public actor AgentRunner {
     /// Gives the warnings of one agent that need the environment.
     ///
     /// - Parameter definition: The agent.
-    /// - Returns: The `model` warning, then the tool warnings.
+    /// - Returns: The `model` warning, then the tool warnings, then the skill
+    ///   warnings.
     private nonisolated func runWarnings(of definition: AgentDefinition) -> [AgentDiagnostic] {
         let model = ModelMatch.match(
             definition.model, profile: environment.profile, inherited: environment.defaultSlot)
@@ -262,6 +265,7 @@ public actor AgentRunner {
         } ?? []
         return modelWarnings
             + ToolResolver.diagnostics(of: definition, catalog: environment.tools, hasAgentsTool: true)
+            + AgentSkillsPreload(skills: environment.skills).diagnostics(of: definition)
     }
 
     /// Moves each ended run from the runs in operation to the records, in

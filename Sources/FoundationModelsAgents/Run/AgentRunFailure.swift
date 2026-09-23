@@ -2,7 +2,7 @@ import FoundationModels
 
 /// The reason that an agent run failed (plan.md §12).
 ///
-/// The first three cases occur before the run makes its session. A run that
+/// The first four cases occur before the run makes its session. A run that
 /// fails for one of them has no session and no recording directory. The last
 /// three cases occur in the turns of the run.
 public enum AgentRunFailure: Error, Sendable, Equatable {
@@ -11,6 +11,12 @@ public enum AgentRunFailure: Error, Sendable, Equatable {
     /// that Stencil cannot parse, a construct that the untrusted render
     /// refuses, or an include of a partial that no layer in scope holds.
     case bodyRenderFailed(String)
+
+    /// The render of a skill of the `skills` key failed at run start
+    /// (plan.md §5, `skills:` preload). `skill` is the name of the skill.
+    /// `description` is the description of the render error of the skills
+    /// registry.
+    case skillRenderFailed(skill: String, description: String)
 
     /// An `AGENTS.md` file of the working directory is not readable text
     /// (plan.md §8 step 3). The text is the description of the read error.
@@ -42,6 +48,8 @@ public enum AgentRunFailure: Error, Sendable, Equatable {
         switch self {
         case .bodyRenderFailed(let text):
             "the body of the agent did not render: \(text)"
+        case .skillRenderFailed(let skill, let text):
+            "the skill '\(skill)' of the skills key did not render: \(text)"
         case .agentsMdUnreadable(let text):
             "an AGENTS.md file is not readable: \(text)"
         case .toolsFailed(let text):
