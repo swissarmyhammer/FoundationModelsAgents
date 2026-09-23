@@ -222,11 +222,11 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     /// - Parameter transcript: The transcript of the generation call.
     /// - Returns: The count of played output steps.
     private static func outputCount(in transcript: Transcript) -> Int {
-        transcript.count { entry in
+        transcript.count(where: { entry in
             if case .toolCalls = entry { return true }
             if case .response = entry { return true }
             return false
-        }
+        })
     }
 
     /// Waits on each gate after the played output steps, and gives the next

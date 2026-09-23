@@ -155,7 +155,8 @@ public actor AgentRunner {
     func startWithinLimit(_ request: AgentRunRequest) async -> LimitedStart {
         retireEndedRuns()
         let callerID = request.context?.sessionID
-        let working = openRuns.values.count { $0.run.isWorking && $0.run.id != callerID } + limitedStartsInSetup
+        let working = openRuns.values.count(where: { $0.run.isWorking && $0.run.id != callerID })
+            + limitedStartsInSetup
         guard working < environment.maxConcurrentAgents else {
             return .atLimit(working: working)
         }

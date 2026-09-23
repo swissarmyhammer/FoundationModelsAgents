@@ -75,7 +75,7 @@ final class AgentRunChildren: Sendable {
 
     /// The count of children whose turn has not ended.
     var openCount: Int {
-        storage.withLock { storage in storage.runs.count { $0.state == .running } }
+        storage.withLock { storage in storage.runs.count(where: { $0.state == .running }) }
     }
 
     /// Adds a child that is about to start its turn.
