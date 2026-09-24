@@ -6,11 +6,22 @@ name: CI
 # - The unit job of the shared workflow runs `swift test` at the root. Each
 #   suite of the `FoundationModelsAgentsTests` target is a unit test: no suite
 #   needs a network, a GPU, or a real model.
+# - The integration tests are in the nested `IntegrationTests/` package, as in
+#   the peer packages (FoundationModelsRouter, FoundationModelsMultitool). The
+#   root `Package.swift` names no integration target, thus a root
+#   `swift test` cannot see them. The shared workflow runs
+#   `swift test --package-path IntegrationTests` in its integration job, after
+#   the unit job. Its unit job also builds the nested package on each run,
+#   thus a broken integration test shows between the runs that execute it.
+# - No input below sets an environment variable to select or skip a suite,
+#   and no input may start to do so. This file passes no
+#   `integration-gate-env` input (a LEGACY input of the shared workflow).
 # - This file has one job, and that job has no `steps:` of its own. The shared
 #   workflow does each test run.
 # - `CIWorkflowTests` pins this shape from the package side: the `uses:`
-#   target, the single job with no `steps:`, the triggers, and the concurrency
-#   group.
+#   target, the single job with no `steps:`, the triggers, the concurrency
+#   group, the integration inputs, and the absence of the gate input.
+#   `IntegrationPackageTests` pins the package split.
 
 on:
   push:
@@ -25,3 +36,27 @@ concurrency:
 jobs:
   ci:
     uses: swissarmyhammer/workflows/.github/workflows/swift-ci.yaml@main
+    with:
+      # The integration suites are a nested package. This input makes the
+      # unit job build it on each run and makes the integration job run it.
+      integration-package-path: IntegrationTests
+
+      # Each live suite uses the one resident live profile
+      # (`LiveProfile.shared`). Swift Testing starts the `.timeLimit` of a
+      # test when the test starts. Thus in a parallel run, a test that waits
+      # for a model uses its limit on the wait, and it fails as a hang does.
+      integration-no-parallel: true
+
+      # The Metal backend of mlx-swift reads `<binary-dir>/mlx.metallib`, and
+      # SwiftPM puts the compiled shader library in a different folder. The
+      # shared workflow copies the file that matches beside each `.xctest`
+      # bundle before the run. `LiveProfile` also reads
+      # `MetalLibraryTestBootstrap.ensureColocatedMetallib`, which does
+      # nothing when the file is already there. Thus the two do not conflict.
+      integration-metallib-glob: "*Cmlx*/default.metallib"
+
+      # Keep the transcripts of the run. `LiveProfile` writes each Router
+      # recordings folder under `IntegrationTests/.build/recordings`. The
+      # shared workflow uploads this path with `if: always()`, thus a run
+      # that fails, stops on a time limit, or is cancelled also keeps them.
+      integration-artifacts-path: IntegrationTests/.build/recordings

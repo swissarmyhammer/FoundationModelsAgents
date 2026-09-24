@@ -4,7 +4,7 @@ import Testing
 /// Pins `.github/workflows/ci.yml` to the shared CI shape of the organization.
 ///
 /// The shape is one job that delegates to the shared `swift-ci.yaml` workflow.
-/// This suite pins four properties of that shape:
+/// This suite pins six properties of that shape:
 ///
 /// - The `uses:` line names the shared workflow at `@main`.
 /// - Exactly one job exists, and it has no `steps:` key. Thus the shared
@@ -12,9 +12,14 @@ import Testing
 /// - The triggers are a push to `main`, a pull request, and a manual dispatch.
 /// - The concurrency group changes with the ref, and a new run of the same ref
 ///   cancels the run before it.
+/// - The job passes the integration inputs of the peer packages. Thus the
+///   shared workflow builds and runs the nested `IntegrationTests/` package.
+/// - The job passes no `integration-gate-env` input. No environment variable
+///   selects or skips an integration test.
 ///
 /// An edit that points `uses:` to a different workflow, adds a local job that
-/// runs steps, or removes a trigger makes this suite fail.
+/// runs steps, removes a trigger, removes an integration input, or adds the
+/// gate input makes this suite fail.
 @Suite("CI workflow")
 struct CIWorkflowTests {
     /// The full `uses:` line that `ci.yml` must hold. The ref is `@main`,
@@ -39,6 +44,25 @@ struct CIWorkflowTests {
         "  pull_request:",
         "  workflow_dispatch:"
     ]
+
+    /// The integration inputs that the job must pass to the shared workflow.
+    ///
+    /// They are the inputs of the peer packages (FoundationModelsMultitool):
+    /// the nested package, one test at a time, the metallib copy, and the
+    /// upload of the recordings.
+    private static let expectedIntegrationInputs = [
+        "integration-package-path: IntegrationTests",
+        "integration-no-parallel: true",
+        "integration-metallib-glob: \"*Cmlx*/default.metallib\"",
+        "integration-artifacts-path: IntegrationTests/.build/recordings"
+    ]
+
+    /// The key of the legacy input that selects the integration suite with an
+    /// environment variable. The job must not pass it.
+    private static let gateInputKey = "integration-gate-env:"
+
+    /// The text that opens a comment line of a workflow file.
+    private static let workflowCommentMarker = "#"
 
     @Test("ci.yml calls the shared swift-ci.yaml workflow at @main")
     func callsTheSharedWorkflow() throws {
@@ -104,6 +128,57 @@ struct CIWorkflowTests {
             trimmed.contains("cancel-in-progress: true"),
             "ci.yml must set \"cancel-in-progress: true\" in its \"concurrency\" block; found: \(concurrency)"
         )
+    }
+
+    @Test("ci.yml passes the integration inputs of the peer packages")
+    func passesTheIntegrationInputs() throws {
+        let jobs = Self.block(under: "jobs:", in: try Self.workflowLines())
+        let trimmed = jobs.map { $0.trimmingCharacters(in: .whitespaces) }
+        for expected in Self.expectedIntegrationInputs {
+            #expect(
+                trimmed.contains(expected),
+                "ci.yml must pass the input \"\(expected)\" in its \"jobs:\" block; found: \(jobs)"
+            )
+        }
+    }
+
+    @Test("ci.yml passes no integration-gate-env input")
+    func passesNoGateInput() throws {
+        let gateLines = Self.gateInputLines(in: try Self.workflowLines())
+        #expect(
+            gateLines.isEmpty,
+            """
+            ci.yml must not pass "\(Self.gateInputKey)". No environment variable selects or skips an \
+            integration test; found: \(gateLines)
+            """
+        )
+    }
+
+    @Test("the gate check finds an integration-gate-env input, and not a comment about it")
+    func gateCheckFindsAGateInput() {
+        let gateInput: Substring = "      integration-gate-env: AGENTS_INTEGRATION"
+        let lines: [Substring] = [
+            "    with:",
+            gateInput,
+            "      # This job passes no integration-gate-env: input.",
+            "      integration-package-path: IntegrationTests"
+        ]
+
+        #expect(Self.gateInputLines(in: lines) == [gateInput])
+    }
+
+    /// Finds each line of a workflow file that passes the legacy gate input.
+    ///
+    /// A comment line passes no input, thus the check passes over it.
+    ///
+    /// - Parameter lines: The lines of a workflow file.
+    /// - Returns: Each line that opens with ``gateInputKey`` after its
+    ///   leading spaces.
+    private static func gateInputLines(in lines: [Substring]) -> [Substring] {
+        lines.filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return !trimmed.hasPrefix(workflowCommentMarker) && trimmed.hasPrefix(gateInputKey)
+        }
     }
 
     /// Reads the workflow file from the package root.
