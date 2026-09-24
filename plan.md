@@ -664,7 +664,9 @@ Examples/
 ```
 
 `--chat` and `--fan-out` need a resolved profile; there is no default CLI
-mode, because the CLI needs a profile. The marketplace fixture is a git source.
+mode, because the CLI needs a profile. `--marketplace` reads the fixture
+through `file://` folder sources, one for each plugin. The tests use a git
+fixture. A production host can mix git and `file://` sources.
 
 ## 14. Milestones
 
@@ -742,8 +744,11 @@ Router test-support sessions; no real model:
   children start; the limit and `maxDepth` corrective answers; a caller
   cannot address another caller's run; `cancelRuns(caller:)`; `stop()`.
 
-**Integration suite** in a nested `IntegrationTests/` package (Swift Testing,
-`.serialized`, an environment variable, small `mlx-community` models):
+**Integration suite** in a nested `IntegrationTests/` package, as in the peer
+packages (Swift Testing, `.serialized`, small `mlx-community` models). No
+environment variable selects or skips a test: the nested package is the
+separation. A root `swift test` does not build it. CI runs it through the
+`integration-package-path: IntegrationTests` input of the shared workflow:
 
 - A local file, a git-marketplace plugin (M7), and a `file://` folder each
   become a live sub-agent.
