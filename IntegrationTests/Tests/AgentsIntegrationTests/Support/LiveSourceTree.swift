@@ -30,9 +30,6 @@ enum LiveSourceTree {
     /// The folder of the plugin, relative to the marketplace root.
     static let pluginPath = "plugins/\(pluginName)"
 
-    /// The name of the folder that holds the agent files of a layer.
-    private static let agentsFolderName = "agents"
-
     /// The catalog of the marketplace.
     private static let catalogText = """
         {
@@ -56,7 +53,7 @@ enum LiveSourceTree {
     /// The files of the local layer, one entry for each path relative to the
     /// layer root.
     static var localLayerFiles: [String: String] {
-        ["\(agentsFolderName)/\(localAgentID).md": agentText(id: localAgentID)]
+        [LiveAgentFile.path(of: localAgentID): agentText(id: localAgentID)]
     }
 
     /// The files of the marketplace, one entry for each path relative to the
@@ -64,7 +61,7 @@ enum LiveSourceTree {
     static var marketplaceFiles: [String: String] {
         [
             ".claude-plugin/marketplace.json": catalogText,
-            "\(pluginPath)/\(agentsFolderName)/\(pluginAgentID).md": agentText(id: pluginAgentID)
+            "\(pluginPath)/\(LiveAgentFile.path(of: pluginAgentID))": agentText(id: pluginAgentID)
         ]
     }
 
@@ -88,12 +85,25 @@ enum LiveSourceTree {
     static func writeTemporaryFolder(holding files: [String: String]) throws -> URL {
         let folder = try makeTemporaryFolder()
         for (path, text) in files {
-            let url = folder.appendingPathComponent(path)
-            try FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try text.write(to: url, atomically: true, encoding: .utf8)
+            try write(text, at: path, in: folder)
         }
         return folder
+    }
+
+    /// Writes one file, and makes its parent folders.
+    ///
+    /// The write is atomic, thus a file watcher sees the old text or the new
+    /// text, never a part.
+    ///
+    /// - Parameters:
+    ///   - text: The text of the file.
+    ///   - path: The path of the file, relative to `folder`.
+    ///   - folder: The root folder.
+    /// - Throws: The error of the file system.
+    static func write(_ text: String, at path: String, in folder: URL) throws {
+        let url = folder.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try text.write(to: url, atomically: true, encoding: .utf8)
     }
 
     /// The text of one agent file.
@@ -103,14 +113,10 @@ enum LiveSourceTree {
     /// - Returns: The frontmatter and the body. The body tells the model to
     ///   answer with ``answerWord``.
     private static func agentText(id: String) -> String {
-        """
-        ---
-        name: \(id)
-        description: Answers each prompt with one fixed word, for the live source tests.
-        ---
-
-        You are a test agent. Answer each prompt with the single word \(answerWord). \
-        Write no other text.
-        """
+        LiveAgentFile.text(
+            id: id,
+            description: "Answers each prompt with one fixed word, for the live source tests.",
+            fields: [LiveAgentFile.disallowedTools()],
+            body: LiveAgentFile.answerBody(word: answerWord))
     }
 }

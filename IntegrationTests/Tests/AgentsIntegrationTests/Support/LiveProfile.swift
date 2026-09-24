@@ -84,10 +84,11 @@ struct LiveProfile: Sendable {
     /// - Parameters:
     ///   - registry: The registry of the agents. The caller loads it.
     ///   - workingDirectory: The working directory of each run.
+    ///   - tools: The tools that an agent can name in its `tools` field.
     /// - Returns: The runner. The caller stops it at the end of the test.
-    func makeRunner(registry: AgentRegistry, workingDirectory: URL) -> AgentRunner {
+    func makeRunner(registry: AgentRegistry, workingDirectory: URL, tools: ToolCatalog = ToolCatalog()) -> AgentRunner {
         let environment = AgentEnvironment(
-            profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory)
+            profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory, tools: tools)
         return AgentRunner(registry: registry, environment: environment)
     }
 
