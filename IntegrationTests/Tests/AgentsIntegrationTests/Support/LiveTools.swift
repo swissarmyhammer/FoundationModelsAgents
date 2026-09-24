@@ -9,8 +9,11 @@ import Synchronization
 /// waits for ever. When the time limit ends, the tool gives its answer, and
 /// the test sees the failed condition in the record of the tool.
 enum LivePolling {
+    /// The number of milliseconds between two reads of the condition.
+    private static let intervalMilliseconds = 100
+
     /// The time between two reads of the condition.
-    private static let interval: Duration = .milliseconds(100)
+    private static let interval: Duration = .milliseconds(intervalMilliseconds)
 
     /// Waits until `condition` is true, or until `timeout` ends.
     ///
@@ -83,13 +86,19 @@ final class LiveHoldTool: Tool {
     /// The word that the tool gives when it lets a call end.
     static let word = "APPLE"
 
+    /// The number of seconds that a test waits for a run to call the tool.
+    private static let arrivalSeconds = 300
+
+    /// The number of seconds that one call waits for ``open()``.
+    private static let timeoutSeconds = 600
+
     /// The longest time that a test waits for a run to call the tool.
-    static let arrivalTimeout: Duration = .seconds(300)
+    static let arrivalTimeout: Duration = .seconds(arrivalSeconds)
 
     /// The longest time that one call waits for ``open()``. A test that
     /// fails before it opens the tool stops its runner, and the cancel ends
     /// the wait before this limit.
-    private static let timeout: Duration = .seconds(600)
+    private static let timeout: Duration = .seconds(timeoutSeconds)
 
     /// The name of the tool.
     let name = toolName
