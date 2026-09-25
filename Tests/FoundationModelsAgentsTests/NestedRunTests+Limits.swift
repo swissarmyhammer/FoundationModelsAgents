@@ -5,8 +5,9 @@ import Testing
 extension NestedRunTests {
     /// Pins the limits and the slots of nested runs (plan.md §7, §9.3): a
     /// run that waits for its children holds no place in the run limit, a
-    /// start above `maxDepth` gives a corrective, and `model: inherit` in a
-    /// child uses the slot of the calling run.
+    /// run at `maxDepth` has no `agents` tool, a direct start above
+    /// `maxDepth` gives a corrective, and `model: inherit` in a child uses
+    /// the slot of the calling run.
     @Suite("Nested run limits")
     struct Limits {
         /// The run limit of the sibling test.
@@ -64,10 +65,6 @@ extension NestedRunTests {
 
         /// The key of the play of the child planner in the depth test.
         private static let childPlannerKey = "nested-child-planner-key: plan a part"
-
-        /// The key of the play of the grandchild planner that the depth
-        /// limit refuses.
-        private static let grandchildPlannerKey = "nested-grandchild-planner-key: plan a smaller part"
 
         /// The final text of the child planner.
         private static let childPlannerText = "The part is planned."
@@ -142,21 +139,16 @@ extension NestedRunTests {
             #expect(results.contains { $0.contains(NestedRunTests.testWriterText) })
         }
 
-        @Test("with maxDepth 2, a grandchild start gives the corrective and starts no run",
+        @Test("with maxDepth 2, the child at the limit has no agents tool, and its parent has one",
             .timeLimit(.minutes(1)))
-        func grandchildAboveMaxDepthGivesCorrective() async throws {
+        func childAtMaxDepthHasNoAgentsTool() async throws {
             let layer = try Self.makeLayer()
             defer { try? layer.delete() }
             let harness = try await AgentRunHarness.make(
                 script: ScriptedAgentScript([
                     NestedRunTests.parentPlay(
                         NestedRunTests.leadKey, children: [(Self.planner, Self.childPlannerKey)]),
-                    ScriptedAgentPlay(
-                        key: Self.childPlannerKey,
-                        steps: [
-                            NestedRunTests.startStep(Self.planner, prompt: Self.grandchildPlannerKey),
-                            .finalText(Self.childPlannerText)
-                        ])
+                    ScriptedAgentPlay(key: Self.childPlannerKey, steps: [.finalText(Self.childPlannerText)])
                 ]),
                 registry: AgentRegistry(layers: [layer.layer]))
             defer { try? harness.delete() }
@@ -165,13 +157,31 @@ extension NestedRunTests {
             let parent = try await runner.start(Self.planner, prompt: NestedRunTests.leadKey)
             let result = try await parent.result()
             let child = try await NestedRunTests.onlyRun(of: runner, caller: parent.id)
-            let grandchildren = await runner.runs(caller: child.id)
 
             #expect(child.depth == Self.depthLimit)
+            #expect(harness.script.toolNames(ofPlay: NestedRunTests.leadKey) == [ToolVocabulary.agentsToolName])
+            #expect(harness.script.toolNames(ofPlay: Self.childPlannerKey) == [])
             #expect(child.state == .finished(Self.childPlannerText))
-            #expect(grandchildren.isEmpty)
-            #expect(harness.script.toolOutputs.contains(Self.depthLimitText))
             #expect(result.contains(Self.childPlannerText))
+        }
+
+        @Test("with maxDepth 2, a direct start agent call for a run at the limit gives the corrective")
+        func directStartAboveMaxDepthGivesCorrective() async throws {
+            let layer = try Self.makeLayer()
+            defer { try? layer.delete() }
+            let runHarness = try await AgentRunHarness.make(
+                script: ScriptedAgentScript([]), registry: AgentRegistry(layers: [layer.layer]))
+            defer { try? runHarness.delete() }
+            let runner = runHarness.makeRunner(maxDepth: Self.depthLimit)
+            let atLimit = ParentRun(depth: Self.depthLimit, slot: .standard, children: AgentRunChildren())
+            let tool = try await AgentsTool.make(
+                context: AgentsToolContext(runner: runner, allowedNames: nil, parent: atLimit))
+            let harness = AgentsToolHarness(runHarness: runHarness, runner: runner, tool: tool)
+
+            let answer = try await harness.call("start agent", ["name": Self.helper, "prompt": Self.helperKey])
+
+            #expect(answer == Self.depthLimitText)
+            #expect(await runner.runs.isEmpty)
         }
 
         @Test("a child with no model runs on the flash slot when its parent is on flash", .timeLimit(.minutes(1)))

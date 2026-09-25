@@ -101,9 +101,7 @@ struct AgentSessionMaker: Sendable {
         for request: AgentRunRequest, as parent: ParentRun
     ) async throws(AgentRunFailure) -> [any Tool] {
         let definition = request.definition
-        let agentsTool = request.agentsTool.map { maker -> ToolResolver.AgentsToolFactory in
-            { allowedNames in try await maker(parent, allowedNames) }
-        }
+        let agentsTool = agentsToolFactory(for: request, as: parent)
         do {
             return try await ToolResolver(agent: definition.id, provenance: definition.provenance)
                 .resolve(
@@ -115,5 +113,26 @@ struct AgentSessionMaker: Sendable {
         } catch {
             throw .toolsFailed(String(describing: error))
         }
+    }
+
+    /// Gives the maker of the `agents` tool of the run of `request`
+    /// (plan.md §9.3, depth).
+    ///
+    /// A run at ``AgentEnvironment/maxDepth`` gets no `agents` tool: each
+    /// run that it starts would be deeper than the limit. Thus its model
+    /// does not see a tool that can only give a corrective. An `Agent`
+    /// entry of its `tools` key then matches no tool, and the run skips it.
+    ///
+    /// - Parameters:
+    ///   - request: The run.
+    ///   - parent: The new run as the `agents` tool sees it.
+    /// - Returns: The maker, or `nil` when the run gets no `agents` tool.
+    private func agentsToolFactory(
+        for request: AgentRunRequest, as parent: ParentRun
+    ) -> ToolResolver.AgentsToolFactory? {
+        guard request.depth < environment.maxDepth, let maker = request.agentsTool else {
+            return nil
+        }
+        return { allowedNames in try await maker(parent, allowedNames) }
     }
 }

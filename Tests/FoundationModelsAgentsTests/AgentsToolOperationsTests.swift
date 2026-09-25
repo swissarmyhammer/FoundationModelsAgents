@@ -23,6 +23,9 @@ struct AgentsToolOperationsTests {
     /// The prompt of each run. It is also the key of the play of the run.
     private static let prompt = "operations-run-key: review the diff"
 
+    /// The prompt of a child run. It is also the key of its play.
+    private static let childPrompt = "operations-child-key: review the parser"
+
     /// The final text of the play of a run.
     private static let finalText = "The diff is correct."
 
@@ -346,5 +349,52 @@ struct AgentsToolOperationsTests {
         let answer = try await harness.call("check agent")
 
         #expect(answer == "You have no runs.")
+    }
+}
+
+extension AgentsToolOperationsTests {
+    /// A script for a lead run that starts a child, waits on `leadGate`,
+    /// then fails. The child holds on `childGate` also when it is
+    /// cancelled, thus the lead stays in the cancel of its child until the
+    /// test opens `childGate`.
+    ///
+    /// - Parameters:
+    ///   - leadGate: The gate of the lead after it started the child.
+    ///   - childGate: The gate of the child that a cancel does not open.
+    /// - Returns: The script.
+    private static func childCancelScript(leadGate: ScriptedGate, childGate: ScriptedGate) -> ScriptedAgentScript {
+        let startChild = NestedRunTests.startStep(reviewer, prompt: childPrompt)
+        return ScriptedAgentScript([
+            ScriptedAgentPlay(key: prompt, steps: [startChild, .wait(leadGate), .fail(ScriptedFailure.broken)]),
+            ScriptedAgentPlay(key: childPrompt, steps: [.holdThroughCancel(childGate), .finalText(finalText)])
+        ])
+    }
+
+    @Test("cancel agent after the final state is known, while the run cancels its child, tells that the run ended",
+        .timeLimit(.minutes(1)))
+    func cancelDuringChildCancelFindsRunEnded() async throws {
+        let leadGate = ScriptedGate()
+        let childGate = ScriptedGate()
+        let harness = try await AgentsToolHarness.make(
+            script: Self.childCancelScript(leadGate: leadGate, childGate: childGate))
+        defer { try? harness.delete() }
+
+        _ = try await harness.call("start agent", Self.startFields(NestedRunTests.lead))
+        await childGate.waitForArrival()
+        let run = try #require(await harness.runner.runs(caller: nil).first)
+        leadGate.open()
+        await childGate.waitForCancel()
+        let stateInCleanup = run.state
+        let answer = try await harness.call("cancel agent", Self.idFields(run))
+        childGate.open()
+        let failureText = try #require(Self.modelFailureText(await run.finalState()))
+
+        #expect(stateInCleanup == .running)
+        #expect(
+            answer == """
+                The run ended before the cancel.
+
+                Agent lead (\(run.id)) failed: the model failed: \(failureText).
+                """)
     }
 }

@@ -34,6 +34,12 @@ public final class AgentRun: Sendable {
         /// The live progress of the run: its phase, its passes, its last
         /// tool calls, and the tail of its text.
         var progress = AgentRunProgress()
+
+        /// The final state of the run from the time that its turns end, or
+        /// `nil` before that time. ``state`` stays
+        /// ``AgentRunState/running`` until the run cancels its children,
+        /// closes its session, and posts. A cancel reads this value.
+        var settled: AgentRunState?
     }
 
     /// The id of the run. It is the session id and the name of the
@@ -238,12 +244,20 @@ public final class AgentRun: Sendable {
     /// Cancels the run, and tells what the cancel did (plan.md §9.1,
     /// `cancel agent`).
     ///
+    /// The final state of a run is known when its turns end, before it
+    /// cancels its children, closes its session, and posts. A cancel from
+    /// that time on changes nothing, thus it tells the known final state.
+    ///
     /// - Returns: ``CancelOutcome/reported(_:)`` with `.cancelled` when the
-    ///   run was in operation: the cancel is sent, and the run stops when its
-    ///   turn unwinds. ``CancelOutcome/alreadySettled(_:)`` with the final
-    ///   message when the run had ended before the cancel.
+    ///   final state was not known: the cancel is sent, and the run stops
+    ///   when its turn unwinds. ``CancelOutcome/alreadySettled(_:)`` with
+    ///   the final message of the known final state when the run had ended
+    ///   before the cancel.
     func requestCancel() -> CancelOutcome {
-        guard let finalMessage = finalMessage(for: state) else {
+        let known = storage.withLock { storage in
+            storage.settled ?? (storage.state == .running ? nil : storage.state)
+        }
+        guard let known, let finalMessage = finalMessage(for: known) else {
             cancel()
             return .reported(.cancelled)
         }
@@ -261,7 +275,8 @@ public final class AgentRun: Sendable {
     /// (``followPasses(_:on:)``): it counts the passes of each turn and feeds
     /// the progress.
     ///
-    /// When the last turn ends, the task cancels the open children and waits
+    /// When the last turn ends, the task records the settled final state
+    /// (``settle(_:)``) at once. It then cancels the open children and waits
     /// for them (a cancel or a failure can leave children open), and closes
     /// the session. The close finishes the subscription, thus the child task
     /// ends. The task then posts the final message, records the final state,
@@ -276,7 +291,7 @@ public final class AgentRun: Sendable {
             let events = await session.streamSessionEvents()
             let final = await withTaskGroup(of: Void.self) { group in
                 group.addTask { await self.followPasses(events, on: session) }
-                let final = await self.drive(session, prompt: prompt)
+                let final = self.settle(await self.drive(session, prompt: prompt))
                 await self.children.cancelOpenRuns()
                 await session.close()
                 return final
@@ -311,6 +326,16 @@ public final class AgentRun: Sendable {
     /// - Parameter text: The text that the delivery turn gave.
     func recordDelivered(_ text: String) {
         storage.withLock { $0.progress.replaceText(with: text) }
+    }
+
+    /// Records the final state of the run when its turns end. From this time
+    /// on, ``requestCancel()`` tells this state.
+    ///
+    /// - Parameter final: The final state that the turns gave.
+    /// - Returns: `final`.
+    private func settle(_ final: AgentRunState) -> AgentRunState {
+        storage.withLock { $0.settled = final }
+        return final
     }
 
     /// Records the final state, and lets go of the session.

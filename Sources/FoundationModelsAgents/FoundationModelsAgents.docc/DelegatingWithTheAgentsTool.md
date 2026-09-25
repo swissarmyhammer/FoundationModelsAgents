@@ -66,11 +66,13 @@ wrong and what it can do now:
 
 ### Agents that start agents
 
-Each run gets its own `agents` tool when its `tools` key permits it. A run
-that starts agents finishes only after each of them ends. While it waits, it
-holds no place in the run limit. Each final message of a child starts a
-delivery turn of the parent, and the parent can start more agents in that
-turn. A cancel, or a failure of the parent, cancels its children first.
+Each run gets its own `agents` tool when its `tools` key permits it and its
+depth is less than ``AgentEnvironment/maxDepth``. A run at the depth limit
+gets no `agents` tool. A run that starts agents finishes only after each of
+them ends. While it waits, it holds no place in the run limit. Each final
+message of a child starts a delivery turn of the parent, and the parent can
+start more agents in that turn. A cancel, or a failure of the parent, cancels
+its children first.
 
 ### Skills through an agent
 

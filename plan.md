@@ -501,7 +501,9 @@ recorder, or a display model.
 - **`maxTurns`** counts the passes of the control loop in the task turn and
   in each child-delivery turn (§5).
 - **Depth.** A host-started run has depth 1; a child has its parent's depth
-  plus 1. `maxDepth` is the limit.
+  plus 1. `maxDepth` is the limit. A run at `maxDepth` gets no `agents`
+  tool, because each start from it would give only the depth corrective. A
+  direct `start agent` call above the limit still gives that corrective.
 - **The index.** `runs`, `run(id:)`, token → run, and for each run its
   caller (`ToolContext.sessionID` or `nil`), slot, and depth; plus the
   records of finished runs.

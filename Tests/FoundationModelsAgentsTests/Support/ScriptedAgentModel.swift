@@ -41,6 +41,12 @@ enum ScriptedAgentStep: Sendable {
     /// output, thus the next output step runs in the same generation call.
     case wait(ScriptedGate)
 
+    /// Holds the turn until the test opens the gate, also when the turn is
+    /// cancelled (``ScriptedGate/waitThroughCancel()``). Thus a run that
+    /// cancels this run waits for it until the test opens the gate. The step
+    /// gives no output.
+    case holdThroughCancel(ScriptedGate)
+
     /// Throws `error` from the generation call that reaches the step. The
     /// step gives no output, thus a later call at the same position throws
     /// again.
@@ -72,7 +78,8 @@ enum ScriptedAgentModelError: Error, Equatable {
 /// The script that each ``ScriptedAgentModel`` of one profile plays.
 ///
 /// The script also records each prompt and each tool output that the model
-/// gets, thus a test reads them back from the script it made.
+/// gets, and the tool names of each play, thus a test reads them back from
+/// the script it made.
 ///
 /// A class, because each slot model and the test share one script. The
 /// identity of the script is the cache key of the executor. A `Mutex`
@@ -86,6 +93,10 @@ final class ScriptedAgentScript: Sendable {
 
     /// The tool outputs that the model got, in arrival order.
     private let toolOutputLog = Mutex<[String]>([])
+
+    /// The names of the tools that the model could call, by the key of the
+    /// play of the session.
+    private let toolNameLog = Mutex<[String: [String]]>([:])
 
     /// Makes a script of `plays`.
     ///
@@ -119,6 +130,25 @@ final class ScriptedAgentScript: Sendable {
     ///   got.
     func record(toolOutput: String) {
         toolOutputLog.withLock { $0.append(toolOutput) }
+    }
+
+    /// The names of the tools that the session of the play `key` could
+    /// call, in the order of the session.
+    ///
+    /// - Parameter key: The key of a play.
+    /// - Returns: The names, or `nil` when no generation call played `key`.
+    func toolNames(ofPlay key: String) -> [String]? {
+        toolNameLog.withLock { $0[key] }
+    }
+
+    /// Records the names of the tools that the session of the play `key`
+    /// could call in a generation call.
+    ///
+    /// - Parameters:
+    ///   - toolNames: The names of the enabled tool definitions.
+    ///   - key: The key of the play of the session.
+    func record(toolNames: [String], ofPlay key: String) {
+        toolNameLog.withLock { $0[key] = toolNames }
     }
 
     /// The play whose key is in `instructions` or in `firstPrompt`.
@@ -202,8 +232,9 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     ///   requirement.
     init(configuration: Configuration) throws {}
 
-    /// Records a new prompt, finds the play, waits on each gate before the
-    /// next output step, and emits that step.
+    /// Records a new prompt, finds the play, records the tool names of the
+    /// play, waits on each gate before the next output step, and emits that
+    /// step.
     ///
     /// - Parameters:
     ///   - request: The generation request with the full transcript.
@@ -227,6 +258,7 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
         let play = try model.script.play(
             instructions: ScriptedTranscriptText.instructions(of: transcript),
             firstPrompt: ScriptedTranscriptText.firstPrompt(of: transcript))
+        model.script.record(toolNames: request.enabledToolDefinitions.map(\.name), ofPlay: play.key)
         let position = Self.outputCount(in: transcript)
         let step = try await Self.nextOutputStep(of: play, after: position, in: transcript)
         await Self.emit(step, position: position, into: channel)
@@ -283,7 +315,7 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     /// - Returns: The output, or `nil` for a gate or a failure step.
     private static func output(of step: ScriptedAgentStep, in transcript: Transcript) -> Output? {
         switch step {
-        case .wait, .fail:
+        case .wait, .holdThroughCancel, .fail:
             nil
         case .toolCall(let name, let argumentsJSON):
             .toolCalls(name: name, argumentsJSON: argumentsJSON, count: singleCall)
@@ -301,14 +333,18 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     }
 
     /// Runs a step that gives no output: it waits on the gate of a
-    /// ``ScriptedAgentStep/wait(_:)`` step, or throws the error of a
-    /// ``ScriptedAgentStep/fail(_:)`` step.
+    /// ``ScriptedAgentStep/wait(_:)`` or a
+    /// ``ScriptedAgentStep/holdThroughCancel(_:)`` step, or throws the error
+    /// of a ``ScriptedAgentStep/fail(_:)`` step.
     ///
     /// - Parameter step: A step with no output.
     /// - Throws: `CancellationError` from a gate, or the error of the step.
     private static func hold(at step: ScriptedAgentStep) async throws {
         if case .wait(let gate) = step {
             try await gate.wait()
+        }
+        if case .holdThroughCancel(let gate) = step {
+            await gate.waitThroughCancel()
         }
         if case .fail(let error) = step {
             throw error
