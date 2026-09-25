@@ -25,10 +25,26 @@ comments:
     - evidence: 10 files. Sources: Run/AgentRunner.swift, Run/AgentRunnerError.swift, Tool/AgentsToolText.swift, Tool/AgentsToolOperations.swift, CLI/AgentsCLIOperations.swift, Commands/AgentRunner+SlashCommands.swift (doc), FoundationModelsAgents.docc/RunningAnAgent.md. Plan: plan.md. Tests: AgentSchedulingTests+Setup.swift (new, 4 cases), AgentsCLITests.swift (1 case). `swift build -Xswiftc -warnings-as-errors`: pass. `swift test -Xswiftc -warnings-as-errors`: 345 tests in 47 suites pass. `cd IntegrationTests && swift build --build-tests`: pass. swiftlint: 0 violations.
     - next: /review
   timestamp: 2026-09-25T20:40:45.340169+00:00
+- actor: claude-code
+  id: 01m3d51v2df3agk952snd4c1jk
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (ebce4b8). 0 findings (0 confirmed, 0 refuted; 7 validator runs attempted, 0 failed). 8 files reviewed. No validator matched plan.md and RunningAnAgent.md. .reviewignore excluded 4 .kanban files.
+    - next: none. The task is in done.
+  timestamp: 2026-09-25T20:45:31.597881+00:00
+- actor: claude-code
+  id: 01m3d52195zb9a6bcwzwda1y4a
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 10 files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 345 passed; swiftlint 0; IntegrationTests build --build-tests passes
+    - commit: ebce4b8
+    - review: clean — 0 findings
+  timestamp: 2026-09-25T20:45:37.957119+00:00
 depends_on:
 - 01M3A6BZSVQR5RJ7TNBJ0Z9Y9Q
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: a680
 title: stop() and cancelRuns(caller:) also cancel runs that are in setup
 ---
 ## What
