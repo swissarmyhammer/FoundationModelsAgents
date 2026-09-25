@@ -174,6 +174,21 @@ struct AgentsCLITests {
         #expect(await harness.runner.runs(caller: nil).isEmpty)
     }
 
+    @Test("agent start before registry.load() gives the not-loaded text and a non-zero exit status")
+    func startBeforeLoadFails() async throws {
+        let runHarness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
+        defer { try? runHarness.delete() }
+        let runner = AgentRunner(
+            registry: AgentRegistry(stack: FixtureLibrary.stack()), environment: runHarness.environment)
+        let driver = try AgentsCLI.makeDriver(runner: runner)
+
+        let result = await driver.run(arguments: Self.startArguments(Self.reviewer))
+
+        #expect(result.exitCode != Self.successStatus)
+        #expect(result.output.contains(AgentsToolText.catalogNotLoaded))
+        #expect(await runner.runs(caller: nil).isEmpty)
+    }
+
     @Test("agent start of a run that fails gives the reason and a non-zero exit status")
     func startFailedRunFails() async throws {
         let (harness, driver) = try await Self.makeDriver(script: Self.script([.fail(ScriptedFailure.broken)]))

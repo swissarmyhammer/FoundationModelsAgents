@@ -186,4 +186,20 @@ struct AgentsToolDescriptionTests {
 
         #expect(harness.tool.description == Self.fixedSentences + Self.listSeparator + Self.noAgentsLine)
     }
+
+    @Test func makeBeforeTheFirstLoadThrowsCatalogNotLoaded() async throws {
+        let runHarness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
+        defer { try? runHarness.delete() }
+        let registry = AgentRegistry(stack: FixtureLibrary.stack())
+        let context = AgentsToolContext(
+            runner: AgentRunner(registry: registry, environment: runHarness.environment))
+
+        await #expect(throws: AgentRunnerError.catalogNotLoaded) {
+            try await AgentsTool.make(context: context)
+        }
+        try await registry.load()
+        let tool = try await AgentsTool.make(context: context)
+
+        #expect(tool.description.contains("- code-reviewer: "))
+    }
 }

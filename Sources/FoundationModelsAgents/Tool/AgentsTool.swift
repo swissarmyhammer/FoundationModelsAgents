@@ -92,11 +92,16 @@ public struct AgentsTool: Tool {
     ///     `AgentsToolDescription` for the forms that make a large catalog
     ///     fit.
     /// - Returns: The tool, ready to register on a session.
-    /// - Throws: The error of `OperationTool.init` or of the schema builder.
+    /// - Throws: ``AgentRunnerError/catalogNotLoaded`` before the first
+    ///   `AgentRegistry.load()` of the registry of `context.runner`, or the
+    ///   error of `OperationTool.init` or of the schema builder.
     public static func make(
         context: AgentsToolContext,
         catalogCharacterLimit: Int = SkillsTool.defaultCatalogCharacterLimit
     ) async throws -> AgentsTool {
+        guard context.runner.registry.isLoaded else {
+            throw AgentRunnerError.catalogNotLoaded
+        }
         let agents = context.startableAgents()
         let operationTool = try OperationTool(
             name: ToolVocabulary.agentsToolName,

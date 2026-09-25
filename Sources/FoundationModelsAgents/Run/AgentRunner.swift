@@ -11,8 +11,8 @@ import ULID
 /// The init stores its inputs and does no I/O. The runner reads
 /// `registry.catalog()` at each call, thus the host calls
 /// `AgentRegistry.load()` before the first ``start(_:prompt:)``. Before the
-/// load, the catalog is empty and each ``start(_:prompt:)`` throws
-/// ``AgentRunnerError/unknownAgent(name:available:)``. After a
+/// load, each ``start(_:prompt:)`` throws
+/// ``AgentRunnerError/catalogNotLoaded``. After a
 /// `registry.reload()`, a new run uses the new definition.
 ///
 /// ```swift
@@ -127,12 +127,17 @@ public actor AgentRunner {
     ///   - prompt: The prompt of the run. It is `$ARGUMENTS` of the body and
     ///     the first user prompt of the session.
     /// - Returns: The run. Its setup is done, thus it has its id.
-    /// - Throws: ``AgentRunnerError/stopped`` after ``stop()``, or
+    /// - Throws: ``AgentRunnerError/stopped`` after ``stop()``,
+    ///   ``AgentRunnerError/catalogNotLoaded`` before the first
+    ///   `AgentRegistry.load()`, or
     ///   ``AgentRunnerError/unknownAgent(name:available:)`` when the catalog
     ///   has no agent with the id `name`.
     public func start(_ name: String, prompt: String) async throws(AgentRunnerError) -> AgentRun {
         guard !isStopped else {
             throw .stopped
+        }
+        guard registry.isLoaded else {
+            throw .catalogNotLoaded
         }
         let catalog = registry.catalog()
         guard let definition = catalog.definition(named: name) else {

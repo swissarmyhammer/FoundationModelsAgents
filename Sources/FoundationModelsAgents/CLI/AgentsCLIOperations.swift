@@ -83,11 +83,15 @@ extension StartAgentCommand {
     /// - Returns: The final text of the run.
     /// - Throws: ``AgentsCLIFailure`` with the corrective of the `agents` tool
     ///   for a blank prompt or for a name that is not a model-visible agent,
+    ///   with the not-loaded text before the first `AgentRegistry.load()`,
     ///   with the stopped text after ``AgentRunner/stop()``, and with the
     ///   report of the run when the run fails or is cancelled.
     func execute(in context: AgentsToolContext) async throws -> String {
         guard AgentDefinitionRules.holdsText(prompt) else {
             throw AgentsCLIFailure(description: AgentsToolText.blankPrompt)
+        }
+        guard context.runner.registry.isLoaded else {
+            throw AgentsCLIFailure(description: AgentsToolText.catalogNotLoaded)
         }
         let startable = context.startableAgents().map(\.id)
         guard startable.contains(name) else {
@@ -106,8 +110,9 @@ extension StartAgentCommand {
     /// - Parameter runner: The runner of the commands.
     /// - Returns: The run.
     /// - Throws: ``AgentsCLIFailure`` with the unknown-agent corrective when
-    ///   a reload removed the agent after the check of `execute(in:)`, and
-    ///   with the stopped text after ``AgentRunner/stop()``.
+    ///   a reload removed the agent after the check of `execute(in:)`, with
+    ///   the stopped text after ``AgentRunner/stop()``, and with the
+    ///   not-loaded text before the first `AgentRegistry.load()`.
     private func start(on runner: AgentRunner) async throws(AgentsCLIFailure) -> AgentRun {
         do {
             return try await runner.start(name, prompt: prompt)
@@ -117,6 +122,8 @@ extension StartAgentCommand {
                 throw AgentsCLIFailure(description: AgentsToolText.unknownAgent(name, available: available))
             case .stopped:
                 throw AgentsCLIFailure(description: AgentsToolText.stopped)
+            case .catalogNotLoaded:
+                throw AgentsCLIFailure(description: AgentsToolText.catalogNotLoaded)
             }
         }
     }

@@ -531,6 +531,11 @@ recorder, or a display model.
   cancelled run posts its final message before `cancelRuns(caller:)` returns.
 - After `stop()`, the runner starts no run: `runner.start` throws
   `AgentRunnerError.stopped`, and `start agent` gives a corrective.
+- Before the first `registry.load()` or `registry.reload()`
+  (`AgentRegistry.isLoaded` is `false`), `runner.start` and `AgentsTool.make`
+  throw `AgentRunnerError.catalogNotLoaded`, and `agents agent start` gives
+  the not-loaded text. Thus a host that did not call `load()` sees that
+  mistake, and not an empty catalog.
 - One runner holds one profile.
 
 ### 9.4 Slash commands and the CLI

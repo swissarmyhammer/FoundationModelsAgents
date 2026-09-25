@@ -124,16 +124,34 @@ struct AgentRunnerTests {
         #expect(await runner.runs.isEmpty)
     }
 
-    @Test("before registry.load(), start throws unknownAgent with no available names")
-    func unloadedRegistryHasNoAvailableNames() async throws {
+    @Test("before registry.load(), start throws catalogNotLoaded and starts no run")
+    func unloadedRegistryThrowsCatalogNotLoaded() async throws {
         let harness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
         defer { try? harness.delete() }
         let runner = AgentRunner(
             registry: AgentRegistry(stack: FixtureLibrary.stack()), environment: harness.environment)
 
-        await #expect(throws: AgentRunnerError.unknownAgent(name: Self.reviewer, available: [])) {
+        await #expect(throws: AgentRunnerError.catalogNotLoaded) {
             try await runner.start(Self.reviewer, prompt: Self.firstPrompt)
         }
+        #expect(await runner.runs.isEmpty)
+    }
+
+    @Test("after registry.load(), start of the same runner works", .timeLimit(.minutes(1)))
+    func startWorksAfterTheFirstLoad() async throws {
+        let harness = try await AgentRunHarness.make(
+            script: Self.script(first: [.finalText(Self.firstText)], second: []))
+        defer { try? harness.delete() }
+        let registry = AgentRegistry(stack: FixtureLibrary.stack())
+        let runner = AgentRunner(registry: registry, environment: harness.environment)
+        await #expect(throws: AgentRunnerError.catalogNotLoaded) {
+            try await runner.start(Self.reviewer, prompt: Self.firstPrompt)
+        }
+
+        try await registry.load()
+        let text = try await runner.start(Self.reviewer, prompt: Self.firstPrompt).result()
+
+        #expect(text == Self.firstText)
     }
 
     @Test("run(id:) finds a running run, then the record of the finished run")

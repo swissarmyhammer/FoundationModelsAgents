@@ -38,6 +38,8 @@ let catalog = agents.catalog()   // no I/O
 Call `load()` one time, after `market.start()`. Before the first `load()`,
 ``AgentRegistry/catalog()`` gives an empty catalog, and
 ``AgentRegistry/marketplaceLayers`` and ``AgentRegistry/layers`` are empty.
+``AgentRegistry/isLoaded`` is `false` until the first `load()` or `reload()`
+that does not throw.
 `catalog()` does no I/O. It gives the catalog of the last build.
 
 ### Reload

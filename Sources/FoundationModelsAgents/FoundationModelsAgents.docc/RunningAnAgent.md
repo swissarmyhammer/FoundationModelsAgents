@@ -29,7 +29,10 @@ let runner = AgentRunner(registry: agents, environment: env)
 
 The init of ``AgentRunner`` stores its inputs and does no I/O. The runner reads
 the catalog of the registry at each start, thus call
-``AgentRegistry/load()`` before the first run.
+``AgentRegistry/load()`` before the first run. Before that call,
+``AgentRunner/start(_:prompt:)`` and
+``AgentsTool/make(context:catalogCharacterLimit:)`` throw
+``AgentRunnerError/catalogNotLoaded``.
 
 ### Start a run and wait for it
 

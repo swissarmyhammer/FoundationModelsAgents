@@ -156,6 +156,15 @@ public final class AgentRegistry: Sendable {
         self.current = Mutex(.empty)
     }
 
+    /// Whether a build swapped a catalog in: `true` after the first
+    /// `load()` or `reload()` that did not throw. This call does no I/O.
+    ///
+    /// Before the first build, the catalog is empty because the registry
+    /// read no file, not because the layers hold no agent.
+    public var isLoaded: Bool {
+        current.withLock { $0.number > Generation.empty.number }
+    }
+
     /// Gives the cached catalog. This call does no I/O.
     ///
     /// - Returns: The catalog of the last build, or an empty catalog before

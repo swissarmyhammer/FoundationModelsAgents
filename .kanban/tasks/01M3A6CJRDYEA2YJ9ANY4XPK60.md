@@ -31,12 +31,28 @@ comments:
     - evidence: 14 files. Sources/FoundationModelsAgents/Run/AgentRun+Children.swift, AgentRun+TurnLimit.swift, AgentRun.swift, AgentRunFailure.swift, AgentRunner.swift; docc RunningAnAgent.md, TheFinalMessage.md, DelegatingWithTheAgentsTool.md; plan.md; Tests NestedRunTests.swift, NestedRunTests+FinalAnswer.swift (new), MaxTurnsTests.swift, CheckAgentProgressTests.swift. `swift build -Xswiftc -warnings-as-errors`: ok. `swift test -Xswiftc -warnings-as-errors`: 351 tests in 48 suites passed. `cd IntegrationTests && swift build --build-tests`: ok. swiftlint: 0 violations in 122 files.
     - next: /review
   timestamp: 2026-09-25T22:24:33.369324+00:00
+- actor: claude-code
+  id: 01m3daz5x3h2kg908723gs0dy8
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (0fbdd16): 0 findings (7 validator runs attempted, 0 failed, 0 skipped). 9 files reviewed. The .kanban files are excluded by .reviewignore. No validator matches plan.md and the three DocC articles.
+    - next: none. The task moved to done.
+  timestamp: 2026-09-25T22:28:55.843381+00:00
+- actor: claude-code
+  id: 01m3dazd5phpyh4ykjrf0n8jjd
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 14 files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 351 passed; swiftlint 0; IntegrationTests build --build-tests passes
+    - commit: 0fbdd16
+    - review: clean — 0 findings
+  timestamp: 2026-09-25T22:29:03.286341+00:00
 depends_on:
 - 01M3A6CC94D147W0EXKNEBDKNA
 - 01M3A6C3W4FTNNC249NNVFWH3M
 - 01M3A6T9DJDWR2BXEA0AADPQR5
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: a980
 title: A final-answer prompt when the last child ends
 ---
 ## What

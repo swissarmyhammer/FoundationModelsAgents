@@ -161,6 +161,25 @@ struct AgentRegistryTests {
         #expect(registry.catalog().listing.isEmpty)
     }
 
+    @Test("isLoaded is false after init, and true after the first load()")
+    func isLoadedAfterTheFirstLoad() async throws {
+        let registry = AgentRegistry(stack: FixtureLibrary.stack())
+        #expect(!registry.isLoaded)
+
+        try await registry.load()
+
+        #expect(registry.isLoaded)
+    }
+
+    @Test("isLoaded is true after a reload() with no load() before it")
+    func isLoadedAfterTheFirstReload() async throws {
+        let registry = AgentRegistry(stack: FixtureLibrary.stack())
+
+        try await registry.reload()
+
+        #expect(registry.isLoaded)
+    }
+
     @Test("after load(), catalog() holds the agents of the files")
     func loadFillsTheCatalog() async throws {
         let registry = AgentRegistry(layers: [FixtureLibrary.stack().layers[Self.defaultsLayerIndex]])
@@ -217,6 +236,7 @@ struct AgentRegistryTests {
 
         await #expect(throws: CancellationError.self) { try await load.value }
         #expect(registry.catalog().definitions.isEmpty)
+        #expect(!registry.isLoaded)
     }
 
     @Test("modelVisible holds only the model-visible definitions")

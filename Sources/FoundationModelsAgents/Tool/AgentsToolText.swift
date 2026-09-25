@@ -20,6 +20,12 @@ enum AgentsToolText {
         The agent runner is stopped, and it starts no more agents. Do this part of the task yourself.
         """
 
+    /// The error text of `agents agent start` before the first
+    /// `AgentRegistry.load()`.
+    static let catalogNotLoaded = """
+        The agent catalog is not loaded. The host must call AgentRegistry.load() before it starts an agent.
+        """
+
     /// The answer of `check agent` with no id for a caller with no run, and
     /// the end of the unknown-id corrective for such a caller.
     static let noRuns = "You have no runs."
