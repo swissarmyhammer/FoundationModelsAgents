@@ -98,6 +98,31 @@ struct ScriptedProfileTests {
         #expect(finished.isSet)
     }
 
+    /// A ``ScriptedAgentStep/finalTextOfLastPrompt`` step answers with the
+    /// newest prompt of the session only. The third turn does not echo the
+    /// prompt of the second turn, as a real model that replies to each
+    /// delivery post by itself does not.
+    @Test("A last-prompt step answers with the newest prompt only")
+    func lastPromptStepAnswersWithNewestPromptOnly() async throws {
+        let secondPrompt = "the second prompt"
+        let thirdPrompt = "the third prompt"
+        let script = ScriptedAgentScript([
+            ScriptedAgentPlay(
+                key: Self.promptKey,
+                steps: [.finalText(Self.finalText), .finalTextOfLastPrompt, .finalTextOfLastPrompt])
+        ])
+        let (_, profile) = try await ScriptedProfile.make(script: script)
+        let session = profile.flash.makeSession()
+
+        let firstAnswer = try await session.respond(to: Self.promptKey)
+        let secondAnswer = try await session.respond(to: secondPrompt)
+        let thirdAnswer = try await session.respond(to: thirdPrompt)
+
+        #expect(firstAnswer == Self.finalText)
+        #expect(secondAnswer == secondPrompt)
+        #expect(thirdAnswer == thirdPrompt)
+    }
+
     /// The standard slot and the flash slot resolve to two different models.
     @Test("The two slots have different chosen models")
     func slotsHaveDifferentChosenModels() async throws {

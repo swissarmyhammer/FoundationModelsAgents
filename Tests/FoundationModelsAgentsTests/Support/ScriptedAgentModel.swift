@@ -29,6 +29,14 @@ enum ScriptedAgentStep: Sendable {
     /// message that the run read.
     case finalTextOfLaterPrompts
 
+    /// Answers with the text of the newest prompt of the session only. The
+    /// turn ends here.
+    ///
+    /// A real model replies to each delivery post by itself. Thus a run that
+    /// reads one final message in each delivery turn answers with that final
+    /// message only, and not with the final messages of earlier turns.
+    case finalTextOfLastPrompt
+
     /// Holds the turn until the test opens the gate. The step gives no
     /// output, thus the next output step runs in the same generation call.
     case wait(ScriptedGate)
@@ -244,8 +252,8 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     ///   - play: The play of the session.
     ///   - position: The count of played output steps.
     ///   - transcript: The transcript of the generation call. A
-    ///     ``ScriptedAgentStep/finalTextOfLaterPrompts`` step reads its
-    ///     prompts.
+    ///     ``ScriptedAgentStep/finalTextOfLaterPrompts`` step and a
+    ///     ``ScriptedAgentStep/finalTextOfLastPrompt`` step read its prompts.
     /// - Returns: The next output step.
     /// - Throws: ``ScriptedAgentModelError/playExhausted(key:)`` when the play
     ///   has no more output steps, `CancellationError` from a gate, or the
@@ -270,8 +278,8 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
     /// - Parameters:
     ///   - step: A step of the play.
     ///   - transcript: The transcript of the generation call. A
-    ///     ``ScriptedAgentStep/finalTextOfLaterPrompts`` step reads its
-    ///     prompts.
+    ///     ``ScriptedAgentStep/finalTextOfLaterPrompts`` step and a
+    ///     ``ScriptedAgentStep/finalTextOfLastPrompt`` step read its prompts.
     /// - Returns: The output, or `nil` for a gate or a failure step.
     private static func output(of step: ScriptedAgentStep, in transcript: Transcript) -> Output? {
         switch step {
@@ -287,6 +295,8 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
             .finalText(text)
         case .finalTextOfLaterPrompts:
             .finalText(ScriptedTranscriptText.laterPrompts(of: transcript))
+        case .finalTextOfLastPrompt:
+            .finalText(ScriptedTranscriptText.lastPrompt(of: transcript))
         }
     }
 
@@ -330,71 +340,5 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
         case .finalText(let text):
             await channel.send(.response(action: .appendText(text, tokenCount: emittedTokenCount)))
         }
-    }
-}
-
-/// Reads the text of the transcript parts that select a play.
-enum ScriptedTranscriptText {
-    /// The text of the leading `.instructions` entry of `transcript`.
-    ///
-    /// - Parameter transcript: The transcript to read.
-    /// - Returns: The text, or the empty string when there is no such entry.
-    static func instructions(of transcript: Transcript) -> String {
-        for entry in transcript {
-            if case .instructions(let instructions) = entry {
-                return text(of: instructions.segments)
-            }
-        }
-        return ""
-    }
-
-    /// The text of the first `.prompt` entry of `transcript`.
-    ///
-    /// - Parameter transcript: The transcript to read.
-    /// - Returns: The text, or the empty string when there is no such entry.
-    static func firstPrompt(of transcript: Transcript) -> String {
-        for entry in transcript {
-            if case .prompt(let prompt) = entry {
-                return text(of: prompt.segments)
-            }
-        }
-        return ""
-    }
-
-    /// The text of each `.prompt` entry of `transcript` after the first,
-    /// with a blank line between two prompts.
-    ///
-    /// - Parameter transcript: The transcript to read.
-    /// - Returns: The text, or the empty string when there is one prompt or
-    ///   none.
-    static func laterPrompts(of transcript: Transcript) -> String {
-        transcript.compactMap { entry -> String? in
-            if case .prompt(let prompt) = entry {
-                return text(of: prompt.segments)
-            }
-            return nil
-        }
-        .dropFirst()
-        .joined(separator: "\n\n")
-    }
-
-    /// The joined text of `segments`.
-    ///
-    /// - Parameter segments: The segments to read.
-    /// - Returns: The text of each segment, joined in order. A structured
-    ///   segment gives its JSON. An attachment gives its description.
-    static func text(of segments: [Transcript.Segment]) -> String {
-        segments.map { segment in
-            switch segment {
-            case .text(let text):
-                text.content
-            case .structure(let structure):
-                structure.content.jsonString
-            case .attachment:
-                String(describing: segment)
-            @unknown default:
-                String(describing: segment)
-            }
-        }.joined()
     }
 }
