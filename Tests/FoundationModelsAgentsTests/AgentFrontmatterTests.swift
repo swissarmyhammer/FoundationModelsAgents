@@ -136,8 +136,8 @@ struct AgentFrontmatterTests {
         #expect(frontmatter.notes.isEmpty)
     }
 
-    @Test("a value of the wrong type is left out with a note")
-    func wrongTypeGivesNote() throws {
+    @Test("a value of the wrong type is left out, and its key is recorded")
+    func wrongTypeRecordsTheKey() throws {
         let yaml = """
             name: [not, text]
             maxTurns: many
@@ -152,14 +152,35 @@ struct AgentFrontmatterTests {
         #expect(frontmatter.userInvocable == nil)
         #expect(frontmatter.tools == nil)
         #expect(frontmatter.skills == ["review"])
-        #expect(
-            frontmatter.notes == [
-                AgentFrontmatter.wrongTypeNote(key: "maxTurns", expected: .wholeNumber),
-                AgentFrontmatter.wrongTypeNote(key: "name", expected: .text),
-                AgentFrontmatter.wrongTypeNote(key: "skills", expected: .list),
-                AgentFrontmatter.wrongTypeNote(key: "tools", expected: .list),
-                AgentFrontmatter.wrongTypeNote(key: "user-invocable", expected: .flag)
-            ])
+        #expect(frontmatter.wrongTypeKeys == ["maxTurns", "name", "skills", "tools", "user-invocable"])
+        #expect(frontmatter.notes.isEmpty)
+    }
+
+    @Test(
+        "a tools, disallowedTools, or maxTurns value of the wrong type is left out, and its key is recorded",
+        arguments: [
+            ("tools: 3", "tools"),
+            ("disallowedTools: {Bash: true}", "disallowedTools"),
+            ("maxTurns: \"5\"", "maxTurns")
+        ])
+    func accessKeyOfWrongTypeIsRecorded(yaml: String, key: String) throws {
+        let frontmatter = try #require(AgentFrontmatter.decode(yaml))
+
+        #expect(frontmatter == AgentFrontmatter(wrongTypeKeys: [key]))
+    }
+
+    @Test("a list with an item that is not text keeps the text items, and its key is recorded")
+    func mixedListKeepsTheTextItems() throws {
+        let yaml = """
+            tools: [Read, 3]
+            disallowedTools: [Bash, 3]
+            """
+        let frontmatter = try #require(AgentFrontmatter.decode(yaml))
+
+        #expect(frontmatter.tools == ["Read"])
+        #expect(frontmatter.disallowedTools == ["Bash"])
+        #expect(frontmatter.wrongTypeKeys == ["disallowedTools", "tools"])
+        #expect(frontmatter.notes.isEmpty)
     }
 
     @Test("a null value is absent with no note")

@@ -65,6 +65,31 @@ struct AgentDefinitionTests {
         #expect(try #require(attempt.definition).id == Attempt.inlineID)
     }
 
+    @Test("an incorrect tools, disallowedTools, or maxTurns gives a warning and less access", arguments: Rows.access)
+    func incorrectAccessKeyGivesLessAccess(row: Rows.AccessRow) throws {
+        let attempt = Attempt.inline("\(Rows.cleanLines)\n\(row.yaml)")
+        let definition = try #require(attempt.definition)
+
+        #expect(attempt.severities == [.warning])
+        #expect(attempt.diagnostics.first?.message.contains("'\(row.key)'") == true)
+        #expect(definition.tools == row.tools)
+        #expect(definition.maxTurns == row.maxTurns)
+    }
+
+    @Test("the warning of an incorrect disallowedTools is the first finding")
+    func incorrectDisallowedToolsWarningIsFirst() throws {
+        let yaml = """
+            \(Attempt.validDescription)
+            tools: 3
+            maxTurns: 0
+            disallowedTools: {Bash: true}
+            """
+        let attempt = Attempt.inline(yaml)
+
+        #expect(attempt.severities == [.warning, .warning, .warning, .warning])
+        #expect(attempt.diagnostics.first?.message.contains("'disallowedTools'") == true)
+    }
+
     @Test("the name rule accepts only 1 to 64 of [a-z0-9-] with no bad hyphen", arguments: Rows.ids)
     func nameRuleChecksTheFileName(row: Rows.IDRow) {
         let attempt = Attempt.inline(Attempt.validDescription, id: row.id)

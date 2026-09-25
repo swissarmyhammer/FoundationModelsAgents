@@ -6,8 +6,9 @@ import FoundationModelsExtras
 ///
 /// The reader puts each tier 1 and tier 2 key into its field, each tier 3
 /// key into `unsupportedFields`, and each other key into `unknownFields`. A
-/// value of the wrong type is left out, and the reader adds a note. The
-/// reader reads the keys in sorted order, thus the notes have a stable order.
+/// value of the wrong type is left out, and the reader records its key in
+/// `wrongTypeKeys`. The reader reads the keys in sorted order, thus the
+/// recorded keys are in sorted order.
 struct AgentFrontmatterReader {
     /// The frontmatter that the reader fills in.
     private var frontmatter = AgentFrontmatter()
@@ -15,8 +16,8 @@ struct AgentFrontmatterReader {
     /// Reads `fields` into a new frontmatter.
     ///
     /// - Parameter fields: The top-level mapping of the frontmatter.
-    /// - Returns: The frontmatter, with a note for each value of the wrong
-    ///   type.
+    /// - Returns: The frontmatter, with the key of each value of the wrong
+    ///   type in `wrongTypeKeys`.
     static func read(_ fields: [String: YAMLValue]) -> AgentFrontmatter {
         var reader = AgentFrontmatterReader()
         for (key, value) in fields.sorted(by: { $0.key < $1.key }) {
@@ -81,7 +82,7 @@ struct AgentFrontmatterReader {
     /// - Parameters:
     ///   - value: The value of the key.
     ///   - field: The field of the key.
-    ///   - key: The key as the file writes it, for the note.
+    ///   - key: The key as the file writes it, for `wrongTypeKeys`.
     private mutating func read(_ value: YAMLValue, into field: AgentFrontmatterField, key: String) {
         switch field {
         case .text(let property): frontmatter[keyPath: property] = text(value, for: key)
@@ -95,13 +96,13 @@ struct AgentFrontmatterReader {
     ///
     /// - Parameters:
     ///   - value: The value of the key.
-    ///   - key: The key, for the note.
+    ///   - key: The key, for `wrongTypeKeys`.
     /// - Returns: The text, or `nil` for null or for the wrong type.
     private mutating func text(_ value: YAMLValue, for key: String) -> String? {
         switch value {
         case .null: return nil
         case .string(let text): return text
-        case .int, .double, .bool, .array, .dictionary: return wrongType(of: key, expected: .text)
+        case .int, .double, .bool, .array, .dictionary: return wrongType(of: key)
         }
     }
 
@@ -109,23 +110,23 @@ struct AgentFrontmatterReader {
     ///
     /// - Parameters:
     ///   - value: The value of the key.
-    ///   - key: The key, for the note.
+    ///   - key: The key, for `wrongTypeKeys`.
     /// - Returns: The entries, or `nil` for null or for the wrong type.
     private mutating func list(_ value: YAMLValue, for key: String) -> [String]? {
         switch value {
         case .null: return nil
         case .string(let text): return Self.entries(inCommaSeparated: text)
         case .array(let items): return listEntries(items, for: key)
-        case .int, .double, .bool, .dictionary: return wrongType(of: key, expected: .list)
+        case .int, .double, .bool, .dictionary: return wrongType(of: key)
         }
     }
 
-    /// Reads the items of a YAML list. An item that is not text is left out
-    /// with one note for the list.
+    /// Reads the items of a YAML list. An item that is not text is left out,
+    /// and the reader records the key of the list one time.
     ///
     /// - Parameters:
     ///   - items: The items of the list.
-    ///   - key: The key, for the note.
+    ///   - key: The key, for `wrongTypeKeys`.
     /// - Returns: The trimmed text items that are not empty.
     private mutating func listEntries(_ items: [YAMLValue], for key: String) -> [String] {
         let texts = items.compactMap { item -> String? in
@@ -133,7 +134,7 @@ struct AgentFrontmatterReader {
             return text
         }
         if texts.count != items.count {
-            addWrongTypeNote(for: key, expected: .list)
+            recordWrongType(of: key)
         }
         return texts.map(Self.trimmed).filter { !$0.isEmpty }
     }
@@ -142,13 +143,13 @@ struct AgentFrontmatterReader {
     ///
     /// - Parameters:
     ///   - value: The value of the key.
-    ///   - key: The key, for the note.
+    ///   - key: The key, for `wrongTypeKeys`.
     /// - Returns: The number, or `nil` for null or for the wrong type.
     private mutating func wholeNumber(_ value: YAMLValue, for key: String) -> Int? {
         switch value {
         case .null: return nil
         case .int(let number): return number
-        case .string, .double, .bool, .array, .dictionary: return wrongType(of: key, expected: .wholeNumber)
+        case .string, .double, .bool, .array, .dictionary: return wrongType(of: key)
         }
     }
 
@@ -156,33 +157,29 @@ struct AgentFrontmatterReader {
     ///
     /// - Parameters:
     ///   - value: The value of the key.
-    ///   - key: The key, for the note.
+    ///   - key: The key, for `wrongTypeKeys`.
     /// - Returns: The flag, or `nil` for null or for the wrong type.
     private mutating func flag(_ value: YAMLValue, for key: String) -> Bool? {
         switch value {
         case .null: return nil
         case .bool(let flag): return flag
-        case .string, .int, .double, .array, .dictionary: return wrongType(of: key, expected: .flag)
+        case .string, .int, .double, .array, .dictionary: return wrongType(of: key)
         }
     }
 
-    /// Adds the wrong-type note of `key`, and gives no value.
+    /// Records `key` as a key of the wrong type, and gives no value.
     ///
-    /// - Parameters:
-    ///   - key: The key whose value has the wrong type.
-    ///   - expected: The type that the key must have.
+    /// - Parameter key: The key whose value has the wrong type.
     /// - Returns: `nil`, because the value is ignored.
-    private mutating func wrongType<Value>(of key: String, expected: AgentFrontmatterValueKind) -> Value? {
-        addWrongTypeNote(for: key, expected: expected)
+    private mutating func wrongType<Value>(of key: String) -> Value? {
+        recordWrongType(of: key)
         return nil
     }
 
-    /// Adds the wrong-type note of `key`.
+    /// Records `key` in `wrongTypeKeys`.
     ///
-    /// - Parameters:
-    ///   - key: The key whose value has the wrong type.
-    ///   - expected: The type that the key must have.
-    private mutating func addWrongTypeNote(for key: String, expected: AgentFrontmatterValueKind) {
-        frontmatter.notes.append(AgentFrontmatter.wrongTypeNote(key: key, expected: expected))
+    /// - Parameter key: The key whose value has the wrong type.
+    private mutating func recordWrongType(of key: String) {
+        frontmatter.wrongTypeKeys.append(key)
     }
 }

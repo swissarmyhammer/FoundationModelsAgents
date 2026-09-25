@@ -315,6 +315,28 @@ struct ToolResolverTests {
         #expect(diagnostic.message.contains(Self.unknown))
     }
 
+    @Test(
+        "an incorrect tools or disallowedTools value resolves to less access",
+        arguments: [
+            ("tools: 3", [String]()),
+            ("tools: [Read, 3]", [read]),
+            ("disallowedTools: {Bash: true}", []),
+            ("disallowedTools: [Grep, 3]", [])
+        ])
+    func incorrectToolKeyResolvesToLessAccess(yaml: String, expected: [String]) async throws {
+        let definition = try #require(
+            AgentDefinitionAttempt.inline("\(AgentDefinitionAttempt.validDescription)\n\(yaml)").definition)
+        let calls = AgentsToolCalls()
+        let resolved = try await Self.resolver.resolve(
+            tools: definition.tools?.map(ToolSpec.parse),
+            disallowed: definition.disallowedTools.map(ToolSpec.parse),
+            catalog: Self.makeCatalog(),
+            agentsTool: Self.makeAgentsTool(recordingIn: calls))
+
+        #expect(resolved.tools.map(\.name) == expected)
+        #expect(await calls.allowedNames.isEmpty)
+    }
+
     @Test("the warnings of a definition put the disallowedTools warnings first")
     func definitionWarningsPutDisallowedFirst() throws {
         let yaml = """

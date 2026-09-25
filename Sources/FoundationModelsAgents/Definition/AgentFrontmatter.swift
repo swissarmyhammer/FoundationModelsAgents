@@ -5,7 +5,8 @@ import FoundationModelsExtras
 /// Each field holds the value as the file writes it. This type does not
 /// validate a value: `AgentDefinition` applies the rules of plan.md §4.3. A
 /// field is `nil` when the file does not write the key, when the value is
-/// null, or when the value has the wrong type. A wrong type also adds a note.
+/// null, or when the value has the wrong type. A wrong type also puts the key
+/// into `wrongTypeKeys`.
 ///
 /// The frontmatter is never rendered. A `{{ x }}` in a value stays text.
 public struct AgentFrontmatter: Sendable, Equatable {
@@ -53,7 +54,11 @@ public struct AgentFrontmatter: Sendable, Equatable {
     /// kept for the advisories and for `AgentListing`.
     public var unknownFields: [String: YAMLValue]
 
-    /// The decode notes: a value of the wrong type, or a colon retry.
+    /// The keys whose value has the wrong type, in sorted order. A YAML list
+    /// with an item that is not text also puts its key here.
+    public var wrongTypeKeys: [String]
+
+    /// The decode notes: a colon retry.
     public var notes: [String]
 
     /// Creates a frontmatter from its field values.
@@ -73,6 +78,7 @@ public struct AgentFrontmatter: Sendable, Equatable {
     ///   - background: The `background` key.
     ///   - unsupportedFields: The tier 3 keys with their values.
     ///   - unknownFields: The unknown keys with their values.
+    ///   - wrongTypeKeys: The keys whose value has the wrong type.
     ///   - notes: The decode notes.
     public init(
         name: String? = nil,
@@ -89,6 +95,7 @@ public struct AgentFrontmatter: Sendable, Equatable {
         background: Bool? = nil,
         unsupportedFields: [String: YAMLValue] = [:],
         unknownFields: [String: YAMLValue] = [:],
+        wrongTypeKeys: [String] = [],
         notes: [String] = []
     ) {
         self.name = name
@@ -105,6 +112,7 @@ public struct AgentFrontmatter: Sendable, Equatable {
         self.background = background
         self.unsupportedFields = unsupportedFields
         self.unknownFields = unknownFields
+        self.wrongTypeKeys = wrongTypeKeys
         self.notes = notes
     }
 }
@@ -120,12 +128,12 @@ extension AgentFrontmatter {
     static let colonRetryNote =
         "the frontmatter YAML did not decode until the unquoted 'description:' value was put in quotes"
 
-    /// The note for a value that does not have the type of its key.
+    /// The advisory text for a value that does not have the type of its key.
     ///
     /// - Parameters:
     ///   - key: The key as the file writes it.
     ///   - expected: The type that the key must have.
-    /// - Returns: The text of the note.
+    /// - Returns: The text of the advisory.
     static func wrongTypeNote(key: String, expected: AgentFrontmatterValueKind) -> String {
         "the value of '\(key)' is not \(expected.rawValue); the value is ignored"
     }

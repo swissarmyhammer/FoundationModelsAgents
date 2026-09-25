@@ -53,6 +53,30 @@ enum AgentDefinitionRows {
         }
     }
 
+    /// One `tools`, `disallowedTools`, or `maxTurns` value that the author
+    /// wrote incorrectly, and the values that give less access.
+    struct AccessRow: Sendable, CustomTestStringConvertible {
+        /// The name of the case that the row checks.
+        let rule: String
+
+        /// The frontmatter lines after the clean `name` and `description`.
+        let yaml: String
+
+        /// The key that the warning must name.
+        let key: String
+
+        /// The value that `tools` must have.
+        let tools: [String]?
+
+        /// The value that `maxTurns` must have.
+        let maxTurns: Int?
+
+        /// The name of the case, as the name of the test case.
+        var testDescription: String {
+            rule
+        }
+    }
+
     /// One pair of visibility keys and the visibility that they must give.
     struct VisibilityRow: Sendable, CustomTestStringConvertible {
         /// The frontmatter text between the fences.
@@ -111,8 +135,34 @@ enum AgentDefinitionRows {
         InlineRow(rule: "a tier 3 key", yaml: "\(cleanLines)\nmemory: project", severities: [.advisory]),
         InlineRow(rule: "background false", yaml: "\(cleanLines)\nbackground: false", severities: [.advisory]),
         InlineRow(rule: "background true", yaml: "\(cleanLines)\nbackground: true", severities: []),
-        InlineRow(rule: "a decode note", yaml: "\(cleanLines)\nmaxTurns: many", severities: [.advisory]),
+        InlineRow(rule: "a data key of the wrong type", yaml: "\(cleanLines)\ncolor: [blue]", severities: [.advisory]),
         InlineRow(rule: "an unknown key", yaml: "\(cleanLines)\nowner: docs-team", severities: [.advisory])
+    ]
+
+    /// The limit of passes that a `maxTurns` value that is not correct gives.
+    static let turnLimitOfBadValue = 1
+
+    /// The `tools`, `disallowedTools`, and `maxTurns` cases of the rule
+    /// table. Each gives one warning and less access.
+    static let access: [AccessRow] = [
+        AccessRow(rule: "tools of the wrong type", yaml: "tools: 3", key: "tools", tools: [], maxTurns: nil),
+        AccessRow(
+            rule: "a tools list with an item that is not text", yaml: "tools: [Read, 3]", key: "tools",
+            tools: ["Read"], maxTurns: nil),
+        AccessRow(
+            rule: "disallowedTools of the wrong type", yaml: "disallowedTools: {Bash: true}",
+            key: "disallowedTools", tools: [], maxTurns: nil),
+        AccessRow(
+            rule: "a disallowedTools list with an item that is not text", yaml: "disallowedTools: [Bash, 3]",
+            key: "disallowedTools", tools: [], maxTurns: nil),
+        AccessRow(
+            rule: "maxTurns of the wrong type", yaml: "maxTurns: \"5\"", key: "maxTurns", tools: nil,
+            maxTurns: turnLimitOfBadValue),
+        AccessRow(
+            rule: "maxTurns of 0", yaml: "maxTurns: 0", key: "maxTurns", tools: nil, maxTurns: turnLimitOfBadValue),
+        AccessRow(
+            rule: "maxTurns less than 0", yaml: "maxTurns: -3", key: "maxTurns", tools: nil,
+            maxTurns: turnLimitOfBadValue)
     ]
 
     /// The file names of the name rule.

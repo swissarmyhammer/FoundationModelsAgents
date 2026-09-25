@@ -28,11 +28,21 @@ enum AgentFrontmatterField: Sendable {
         "color": .text(\.color),
         "background": .flag(\.background)
     ]
+
+    /// The type that the value of this field must have.
+    var kind: AgentFrontmatterValueKind {
+        switch self {
+        case .text: .text
+        case .list: .list
+        case .wholeNumber: .wholeNumber
+        case .flag: .flag
+        }
+    }
 }
 
 /// The type that the value of a frontmatter key must have.
 ///
-/// The raw value is the name of the type in a decode note.
+/// The raw value is the name of the type in a wrong-type finding.
 enum AgentFrontmatterValueKind: String {
     /// A text scalar.
     case text

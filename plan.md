@@ -194,8 +194,11 @@ You are a code reviewer. Analyze the code and give specific feedback.
    | `description` longer than 1024 | warning |
    | Unknown tool or skill name (§5) | warning |
    | Unknown name in `disallowedTools` | warning, shown first (§5) |
+   | `disallowedTools` not a list of text, or a list with an item that is not text | warning, shown first; the deny cannot be read in full, thus the agent gets no tools |
+   | `tools` not a list of text, or a list with an item that is not text | warning; only the text entries give tools, thus a value that is not a list gives no tools |
+   | `maxTurns` not a whole number, or not greater than 0 | warning; the limit is 1 pass |
    | `model` with no match (§7, by the runner) | warning |
-   | Tier 3 field, `background: false`, a decode note, an unknown key | advisory |
+   | Tier 3 field, `background: false`, the colon retry note, a wrong type on another key, an unknown key | advisory |
    | A lower-layer file with the same name | advisory |
 
    A bad file does not stop a good file next to it.

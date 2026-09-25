@@ -38,13 +38,17 @@ enum AgentDefinitionRules {
     static let doubledHyphen = "\(hyphen)\(hyphen)"
 
     /// The frontmatter rules, in the order of their findings: the warnings
-    /// first, then the advisories.
+    /// first, then the advisories. The access key warnings come before each
+    /// other warning, thus an incorrect `disallowedTools` is the first
+    /// finding.
     static let frontmatterRules: [Rule] = [
+        accessKeyFindings,
         nameFindings,
         descriptionFindings,
         modelFindings,
         unsupportedKeyFindings,
         backgroundFindings,
+        wrongTypeFindings,
         noteFindings,
         unknownKeyFindings
     ]
@@ -163,6 +167,32 @@ enum AgentDefinitionRules {
         }
         return [AgentFinding(
             severity: .advisory, message: "'background: false' is ignored; each run is a background run")]
+    }
+
+    /// The access key rule: an incorrect `disallowedTools`, `tools`, or
+    /// `maxTurns` value is a warning (`AgentAccessKey`).
+    private static func accessKeyFindings(id: String, frontmatter: AgentFrontmatter) -> [AgentFinding] {
+        AgentAccessKey.incorrectKeys(in: frontmatter).map(\.finding)
+    }
+
+    /// The wrong type rule: a value of the wrong type is an advisory, when
+    /// its key is not an access key.
+    private static func wrongTypeFindings(id: String, frontmatter: AgentFrontmatter) -> [AgentFinding] {
+        Array(
+            frontmatter.wrongTypeKeys.lazy
+                .filter { key in AgentAccessKey(rawValue: key) == nil }
+                .compactMap(wrongTypeAdvisory))
+    }
+
+    /// The advisory for one key whose value has the wrong type.
+    ///
+    /// - Parameter key: The key as the file writes it.
+    /// - Returns: The advisory, or `nil` when the key is not a tier 1 or
+    ///   tier 2 field.
+    private static func wrongTypeAdvisory(key: String) -> AgentFinding? {
+        AgentFrontmatterField.byKey[key].map { field in
+            AgentFinding(severity: .advisory, message: AgentFrontmatter.wrongTypeNote(key: key, expected: field.kind))
+        }
     }
 
     /// The decode note rule: each decode note is an advisory.

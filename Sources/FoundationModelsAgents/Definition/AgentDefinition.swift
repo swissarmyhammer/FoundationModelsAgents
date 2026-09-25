@@ -34,10 +34,14 @@ public struct AgentDefinition: Sendable {
     public let compactionPrompt: CompactionPrompt?
 
     /// The maximum count of passes through the tool loop, or `nil` for no
-    /// limit of the agent.
+    /// limit of the agent. A `maxTurns` value that is not a whole number
+    /// greater than 0 gives a limit of 1 pass.
     public let maxTurns: Int?
 
-    /// The `tools` entries, or `nil` when the key is absent.
+    /// The `tools` entries, or `nil` when the key is absent. A `tools` value
+    /// that is not a list of text gives only its text entries. A
+    /// `disallowedTools` value that is not a list of text gives an empty
+    /// list, because the deny cannot be read in full.
     public let tools: [String]?
 
     /// The `disallowedTools` entries. Empty when the key is absent.
@@ -153,6 +157,7 @@ public struct AgentDefinition: Sendable {
         marketplaceLayer: MarketplaceLayer?
     ) {
         let hasValidDescription = AgentDefinitionRules.holdsText(frontmatter.description)
+        let incorrectKeys = AgentAccessKey.incorrectKeys(in: frontmatter)
         self.id = id
         self.description = frontmatter.description
         self.body = body
@@ -160,8 +165,9 @@ public struct AgentDefinition: Sendable {
         self.compactionPrompt = frontmatter.compactionPrompt.map { text in
             CompactionPrompt(name: "agent/\(id)", text: text)
         }
-        self.maxTurns = frontmatter.maxTurns
-        self.tools = frontmatter.tools
+        self.maxTurns =
+            incorrectKeys.contains(.maxTurns) ? AgentAccessKey.failClosedTurnLimit : frontmatter.maxTurns
+        self.tools = Self.tools(of: frontmatter, incorrectKeys: incorrectKeys)
         self.disallowedTools = frontmatter.disallowedTools ?? []
         self.skills = frontmatter.skills ?? []
         self.color = frontmatter.color
@@ -172,5 +178,21 @@ public struct AgentDefinition: Sendable {
         self.layer = layer
         self.provenance = provenance
         self.marketplaceLayer = marketplaceLayer
+    }
+
+    /// Gives the `tools` entries that the agent gets, with the access key
+    /// rule of plan.md §4.3: an incorrect value gives less access.
+    ///
+    /// - Parameters:
+    ///   - frontmatter: The decoded frontmatter.
+    ///   - incorrectKeys: The access keys whose value is not correct.
+    /// - Returns: No entries when the deny cannot be read in full. Only the
+    ///   text entries when the `tools` value is not a list of text. Else the
+    ///   `tools` value, or `nil` when the key is absent.
+    private static func tools(of frontmatter: AgentFrontmatter, incorrectKeys: [AgentAccessKey]) -> [String]? {
+        guard !incorrectKeys.contains(.disallowedTools) else {
+            return []
+        }
+        return incorrectKeys.contains(.tools) ? frontmatter.tools ?? [] : frontmatter.tools
     }
 }

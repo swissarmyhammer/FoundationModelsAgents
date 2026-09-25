@@ -29,8 +29,24 @@ comments:
     - not done here by the card: plan.md §9.1 row (^nvfwh3m).
     - next: /review
   timestamp: 2026-09-25T13:07:59.372401+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m3cjdprr1yj3h76sdskkjccg
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (2738ef7). 0 findings (confirmed 0, refuted 0, attempted 7, failed 0). The engine reviewed 10 files and did not review 2 files in .kanban/ because of .reviewignore. The tool rules did not read the two deleted files AgentRunActivity.swift and AgentRunActivityTests.swift, because those files are not there.
+    - next: none. The task moved to done.
+  timestamp: 2026-09-25T15:19:57.464610+00:00
+- actor: claude-code
+  id: 01m3cjdyhe58vm3hseyymk7kd9
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 10 files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 326 passed; swiftlint 0
+    - commit: 2738ef7 (8f6aa9f removes trailing commas in Package.swift)
+    - review: clean — 0 findings
+  timestamp: 2026-09-25T15:20:05.422343+00:00
+position_column: done
+position_ordinal: a180
 title: 'check agent: a non-blocking progress view from the run''s live transcript'
 ---
 ## What
