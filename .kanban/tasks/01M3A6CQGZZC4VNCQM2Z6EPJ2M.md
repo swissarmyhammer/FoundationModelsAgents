@@ -30,8 +30,31 @@ comments:
     - evidence: 10 files — Sources/FoundationModelsAgents/Definition/AgentAccessKey.swift (new), AgentDefinition.swift, AgentDefinitionRules.swift, AgentFrontmatter.swift, AgentFrontmatterField.swift, AgentFrontmatterReader.swift; Tests/FoundationModelsAgentsTests/AgentDefinitionRows.swift, AgentDefinitionTests.swift, AgentFrontmatterTests.swift, ToolResolverTests.swift; plan.md. `swift build -Xswiftc -warnings-as-errors` OK; `swift test -Xswiftc -warnings-as-errors`: 331 tests in 45 suites passed; swiftlint 0 violations in 118 files.
     - next: /review
   timestamp: 2026-09-25T16:00:15.873327+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m3cnxtwjmngfhbwp07m23sy0
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (f69cd4a). 0 findings (confirmed 0, refuted 0, attempted 7, failed 0). 10 files reviewed. Not reviewed: 4 files in .kanban/ (excluded by .reviewignore), plan.md (no validator matches this file).
+    - next: none. The task is in done.
+
+    ```
+    step: review
+    outcome: clean
+    evidence: 0 findings
+    task: ^z6epj2m
+    ```
+  timestamp: 2026-09-25T16:21:11.698423+00:00
+- actor: claude-code
+  id: 01m3cny14nz4fe27am369av86g
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 11 files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 331 passed; swiftlint 0
+    - commit: f69cd4a
+    - review: clean — 0 findings
+  timestamp: 2026-09-25T16:21:18.101802+00:00
+position_column: done
+position_ordinal: a280
 title: A frontmatter key of the wrong type fails closed, not open
 ---
 ## What
