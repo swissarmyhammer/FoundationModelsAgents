@@ -32,6 +32,43 @@ comments:
     - evidence: 7 files — Sources/FoundationModelsAgents/Run/AgentRun+TurnLimit.swift, Sources/FoundationModelsAgents/Run/AgentRun.swift, Sources/FoundationModelsAgents/Run/AgentRun+Children.swift, Sources/FoundationModelsAgents/Run/AgentRunProgress.swift, Tests/FoundationModelsAgentsTests/MaxTurnsTests.swift, Tests/FoundationModelsAgentsTests/MaxTurnsTests+Counter.swift (new, 6 tests), Tests/FoundationModelsAgentsTests/AgentRunProgressTests.swift; plus plan.md §5. `swift build -Xswiftc -warnings-as-errors` complete; `swift test -Xswiftc -warnings-as-errors` 338 tests in 46 suites pass (3 runs); `cd IntegrationTests && swift build --build-tests` complete; swiftlint 0 violations in 119 files; periphery shows no finding in the changed files.
     - next: /review
   timestamp: 2026-09-25T18:34:47.721335+00:00
+- actor: claude-code
+  id: 01m3cxtx5hj9b2pmz28byxfsdr
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (2c6579e); 2 findings (2 confirmed, 0 refuted) — Tests/FoundationModelsAgentsTests/MaxTurnsTests+Counter.swift:71, Tests/FoundationModelsAgentsTests/MaxTurnsTests+Counter.swift:124 (code-hygiene/idioms-swift preferForLoop).
+    - next: Convert each functional forEach call in MaxTurnsTests+Counter.swift to a for loop. Then run the review again.
+  timestamp: 2026-09-25T18:39:24.337203+00:00
+- actor: claude-code
+  id: 01m3cxv5p08bxe914p8gwh5vpg
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 7 files + plan.md
+    - test: green — swift test -Xswiftc -warnings-as-errors, 338 passed; swiftlint 0; IntegrationTests build --build-tests passes
+    - commit: 2c6579e
+    - review: findings — Tests/FoundationModelsAgentsTests/MaxTurnsTests+Counter.swift:71, Tests/FoundationModelsAgentsTests/MaxTurnsTests+Counter.swift:124
+  timestamp: 2026-09-25T18:39:33.056406+00:00
+- actor: claude-code
+  id: 01m3cxy9mwxe177pgg364bwzf2
+  text: |-
+    Review fix: `MaxTurnsTests+Counter.swift` had two functional `forEach` calls (in `counterAboveLimit()` and in `followerCancelsOnceAboveLimit()`). Each is now a `for event in ... { }` loop. No other file of commit 2c6579e has a `forEach` call (rg over the 7 Swift files). Nesting stays at 1, and there is no guard in the tests.
+
+    Checkboxes: all 6 Acceptance Criteria and both Tests items are checked. Evidence for each:
+    - No hang: `turns.deliver` sets the count from the transcript and does not wait for an event (`deliveryWithNoResponseReturns`).
+    - Retry: `retryCountsBothAnswers`.
+    - Exact at once: `countIsExactAfterDelivery`.
+    - One count per task-turn pass: `twoToolPassesAndAnswerCountThree` checks `progress.passes == turns.count == 3`; `drive` has no `turns.add`, and `runTaskTurn` reads only text events.
+    - End state: `failure(for:partial:)` maps the error to `hitMaxTurns` when the flag is set; `turnFailure(for:)` keeps an `AgentRunFailure`, thus `drive` gives `.failed(.hitMaxTurns)`. Tests: `deliveryCancelEndsAsHitMaxTurns`, `taskTurnCancelEndsAsHitMaxTurns`, and the run-level hitMaxTurns cases in `MaxTurnsTests.swift`.
+    - No task stays: the follower is a child of the task group in `startTurn`; `session.close()` finishes the subscription, and the group waits for the child before the final message. This is by construction; no dedicated test checks it.
+    - Tests location: the new cases are in `MaxTurnsTests+Counter.swift` as `extension MaxTurnsTests`. They are part of the `MaxTurnsTests` type. A separate file was necessary because of the swiftlint file_length (400) and type_body_length limits.
+  timestamp: 2026-09-25T18:41:15.420047+00:00
+- actor: claude-code
+  id: 01m3cxyc24wvns6d4rfhf9nj6y
+  text: |-
+    ### implement — changed
+    - evidence: 1 file — Tests/FoundationModelsAgentsTests/MaxTurnsTests+Counter.swift (2 forEach calls changed to for loops); task description: 2 findings, 6 acceptance criteria, and 2 test items checked. `swift build -Xswiftc -warnings-as-errors` complete; `swift test -Xswiftc -warnings-as-errors` 338 tests in 46 suites pass; `swiftlint lint Sources Tests Package.swift Examples` 0 violations in 119 files.
+    - next: /review
+  timestamp: 2026-09-25T18:41:17.892378+00:00
 depends_on:
 - 01M3A6BZSVQR5RJ7TNBJ0Z9Y9Q
 position_column: doing
@@ -49,16 +86,29 @@ Change it:
 - The background task ends when the session closes.
 
 ## Acceptance Criteria
-- [ ] A delivery turn that records no `.response` entry does not hang the run.
-- [ ] A delivery turn with two `.response` entries (a retry) counts both passes.
-- [ ] The count is exact at once after a delivery turn returns.
-- [ ] Each pass of the task turn is counted one time, not two.
-- [ ] A run above `maxTurns` in a task turn or a delivery turn ends as `.failed(.hitMaxTurns)` with the stated partial text, never as `.cancelled`.
-- [ ] No task or subscription stays after the run ends.
+- [x] A delivery turn that records no `.response` entry does not hang the run.
+- [x] A delivery turn with two `.response` entries (a retry) counts both passes.
+- [x] The count is exact at once after a delivery turn returns.
+- [x] Each pass of the task turn is counted one time, not two.
+- [x] A run above `maxTurns` in a task turn or a delivery turn ends as `.failed(.hitMaxTurns)` with the stated partial text, never as `.cancelled`.
+- [x] No task or subscription stays after the run ends.
 
 ## Tests
-- [ ] Cases in `Tests/FoundationModelsAgentsTests/MaxTurnsTests.swift`: no `.response` in a delivery turn; a retry; the exact count after a delivery turn; the end state in each kind of turn; the task-turn count.
-- [ ] Run `swift test -Xswiftc -warnings-as-errors`. Expected: pass.
+- [x] Cases in `Tests/FoundationModelsAgentsTests/MaxTurnsTests.swift`: no `.response` in a delivery turn; a retry; the exact count after a delivery turn; the end state in each kind of turn; the task-turn count.
+- [x] Run `swift test -Xswiftc -warnings-as-errors`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
+
+## Review Findings (2026-09-25 13:36)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 7 file(s) reviewed, 5 not reviewed.
+
+> 4 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 4 file(s)
+
+> 1 file(s) not reviewed — no validator matched:
+> - `plan.md` — no validator matches this file
+
+- [x] `Tests/FoundationModelsAgentsTests/MaxTurnsTests+Counter.swift:71` `code-hygiene/idioms-swift` — preferForLoop: Convert functional forEach calls to for loops.
+- [x] `Tests/FoundationModelsAgentsTests/MaxTurnsTests+Counter.swift:124` `code-hygiene/idioms-swift` — preferForLoop: Convert functional forEach calls to for loops.

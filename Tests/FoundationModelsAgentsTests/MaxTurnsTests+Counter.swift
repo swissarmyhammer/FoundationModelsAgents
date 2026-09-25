@@ -68,7 +68,9 @@ extension MaxTurnsTests {
         /// - Returns: The counter. Its limit flag is set.
         private static func counterAboveLimit() -> AgentRunTurns {
             let turns = AgentRunTurns(limit: turnLimit)
-            [entry(.toolCalls), entry(.toolCalls), entry(.response)].forEach { _ = turns.add($0) }
+            for event in [entry(.toolCalls), entry(.toolCalls), entry(.response)] {
+                _ = turns.add(event)
+            }
             return turns
         }
 
@@ -121,7 +123,9 @@ extension MaxTurnsTests {
             let entries = [
                 Self.entry(.toolCalls), Self.entry(.reasoning), Self.entry(.toolCalls), Self.entry(.response)
             ]
-            entries.forEach { continuation.yield($0) }
+            for event in entries {
+                continuation.yield(event)
+            }
             continuation.finish()
             let cancels = Mutex(0)
 
