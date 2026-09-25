@@ -63,15 +63,16 @@ extension LiveSuites {
                     .filter { $0.correlationID == spawn.parentToolCallId }
                 let read = try LiveRecording.operationEvents(of: .prompt, in: root.recordingDirectory)
                     .filter { $0.correlationID == spawn.parentToolCallId }
+                let detail = "Agent \(Self.finder) (\(finder.id)) finished.\n\n\(text)"
 
                 #expect(wordTool.callCount > 0)
                 #expect(text.localizedCaseInsensitiveContains(LiveWordTool.word), "The final text was: \(text)")
                 #expect(startContext.sessionID == root.id)
                 #expect(spawn.parentSessionId == root.id)
                 #expect(posted.map(\.kind) == [.completed])
-                #expect(posted.map(\.detail) == [text])
-                #expect(read.map(\.detail) == [text])
-                #expect(check.contains(finder.id.description) && check.hasSuffix(text), "The check gave: \(check)")
+                #expect(posted.map(\.detail) == [detail])
+                #expect(read.map(\.detail) == [detail])
+                #expect(check == detail, "The check gave: \(check)")
             }
         }
     }

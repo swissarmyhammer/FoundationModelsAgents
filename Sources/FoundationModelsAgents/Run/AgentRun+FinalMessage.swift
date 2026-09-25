@@ -68,10 +68,12 @@ extension AgentRun {
     /// Gives the final message of the run for `state`.
     ///
     /// The event is always `.completed`, because only a `.completed` event is
-    /// a terminal that makes the caller run a turn:
+    /// a terminal that makes the caller run a turn. The `detail` is the
+    /// ``report(of:)`` of `state`, thus it names the agent and the run, the
+    /// same as `check agent`:
     ///
-    /// - Finished: the `detail` is the full text of the last turn, and the
-    ///   `outcome` is `.succeeded`.
+    /// - Finished: "Agent `name` (`id`) finished.", then the full text of the
+    ///   last turn, and the `outcome` is `.succeeded`.
     /// - Failed: "Agent `name` (`id`) failed: reason.", and `.failed`.
     /// - Cancelled: "Agent `name` (`id`) was cancelled.", and `.cancelled`.
     ///
@@ -84,24 +86,24 @@ extension AgentRun {
     /// - Parameter state: A state of this run.
     /// - Returns: The event, or `nil` for ``AgentRunState/running``.
     func finalMessage(for state: AgentRunState) -> OperationEvent? {
-        let ending: (detail: String, outcome: OperationOutcome)
+        let outcome: OperationOutcome
         switch state {
         case .running:
             return nil
-        case .finished(let text):
-            ending = (text, .succeeded)
-        case .failed(let failure):
-            ending = (failedText(for: failure), .failed)
+        case .finished:
+            outcome = .succeeded
+        case .failed:
+            outcome = .failed
         case .cancelled:
-            ending = (cancelledText, .cancelled)
+            outcome = .cancelled
         }
         return OperationEvent(
             tool: context?.tool ?? ToolVocabulary.agentsToolName,
             op: context?.op ?? StartAgent.opString,
             correlationID: context?.completionToken ?? id.description,
             kind: .completed,
-            detail: ending.detail,
-            outcome: ending.outcome)
+            detail: report(of: state),
+            outcome: outcome)
     }
 
     /// Posts the final message for `final` one time through the context of

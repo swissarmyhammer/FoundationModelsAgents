@@ -64,7 +64,9 @@ extension AgentRunTests {
                         parentSessionId: parent.id, parentToolCallId: context.completionToken))
             #expect(started.run.caller == parent.id)
             #expect(journaled.map(\.tool) == [AgentStartProbe.toolName])
-            #expect(journaled.map(\.detail) == [AgentRunTests.finalText])
+            #expect(
+                journaled.map(\.detail)
+                    == ["Agent \(AgentRunTests.reviewer) (\(started.run.id)) finished.\n\n\(AgentRunTests.finalText)"])
         }
 
         @Test("a host-driven run records no agentSpawn")

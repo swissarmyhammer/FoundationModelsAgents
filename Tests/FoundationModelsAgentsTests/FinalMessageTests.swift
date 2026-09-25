@@ -121,6 +121,18 @@ struct FinalMessageTests {
         return nil
     }
 
+    /// Gives the detail of the final message of a code-reviewer run that
+    /// finished with `text`.
+    ///
+    /// - Parameters:
+    ///   - run: The run.
+    ///   - text: The full text of the last turn of the run.
+    /// - Returns: "Agent code-reviewer (`id`) finished.", a blank line, and
+    ///   `text`.
+    private static func finishedDetail(of run: AgentRun, text: String) -> String {
+        "Agent code-reviewer (\(run.id)) finished.\n\n\(text)"
+    }
+
     /// Gives the text of a model failure.
     ///
     /// - Parameter state: The state of a run.
@@ -154,7 +166,7 @@ struct FinalMessageTests {
         #expect(answer == Self.rootText)
         #expect(run.caller == root.id)
         #expect(postsWhileRunning.isEmpty)
-        #expect(postsAfterFinish.map(\.detail) == [Self.childText])
+        #expect(postsAfterFinish.map(\.detail) == [Self.finishedDetail(of: run, text: Self.childText)])
         #expect(postsAfterFinish.map(\.outcome) == [.succeeded])
         #expect(postsAfterFinish.map(\.tool) == [ToolVocabulary.agentsToolName])
     }
@@ -177,13 +189,14 @@ struct FinalMessageTests {
         let next = try await root.respond(to: Self.nextPrompt)
         let nextPrompt = try #require(harness.runHarness.script.prompts.last)
         await root.close()
+        let detail = Self.finishedDetail(of: run, text: longText)
 
         #expect(longText.count > ToolContext.terminalDetailTailLimit)
-        #expect(settled?.detail == longText)
+        #expect(settled?.detail == detail)
         #expect(settled?.kind == .completed)
-        #expect(posts.map(\.detail) == [longText])
+        #expect(posts.map(\.detail) == [detail])
         #expect(next == Self.nextText)
-        #expect(nextPrompt.contains(longText))
+        #expect(nextPrompt.contains(detail))
         #expect(nextPrompt.contains(Self.nextPrompt))
     }
 

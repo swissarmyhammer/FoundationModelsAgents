@@ -181,6 +181,7 @@ struct NestedRunTests {
         let result = try await lead.result()
         let children = await runner.runs(caller: lead.id)
         let prompts = harness.script.prompts
+        let details = children.map(Self.finishedDetail(of:))
 
         #expect(result.contains(Self.reviewerText))
         #expect(result.contains(Self.testWriterText))
@@ -188,6 +189,18 @@ struct NestedRunTests {
         #expect(children.allSatisfy { $0.depth == AgentRunner.hostDepth + 1 })
         #expect(prompts.filter { $0.contains(Self.reviewerText) }.count == 1)
         #expect(prompts.filter { $0.contains(Self.testWriterText) }.count == 1)
+        #expect(details.allSatisfy { detail in prompts.count(where: { $0.contains(detail) }) == 1 })
+    }
+
+    /// Gives the detail of the final message of a finished child of
+    /// ``leadJoinsBothResults()``.
+    ///
+    /// - Parameter child: A code-reviewer or a test-writer child run.
+    /// - Returns: "Agent `name` (`id`) finished.", a blank line, and the
+    ///   final text of the play of the child.
+    private static func finishedDetail(of child: AgentRun) -> String {
+        let text = child.agent.id == reviewer ? reviewerText : testWriterText
+        return "Agent \(child.agent.id) (\(child.id)) finished.\n\n\(text)"
     }
 
     @Test("the parent finishes only after its child, and check agent tells that it waits",

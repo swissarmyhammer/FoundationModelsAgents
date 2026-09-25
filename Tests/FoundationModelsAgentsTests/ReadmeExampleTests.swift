@@ -79,7 +79,7 @@ struct ReadmeExampleTests {
 
         #expect(Set(outcome.listing.map(\.id)).isSuperset(of: Self.usedAgents))
         #expect(outcome.review == Self.reviewText)
-        #expect(try #require(outcome.answer).contains(Self.childText))
+        #expect(try #require(outcome.answer).contains(try Self.finishedChildDetail()))
     }
 
     @Test("each Swift block of the README has a compiled copy in the example source")
@@ -107,6 +107,18 @@ struct ReadmeExampleTests {
         let block = try #require(try Self.readmeBlocks().first)
 
         #expect(!ReadmeExample.hasCopy(of: [Self.unknownImport] + block, in: try Self.exampleSource()))
+    }
+
+    /// Gives the pattern of the final message of the finished child run:
+    /// "Agent code-reviewer (`id`) finished.", a blank line, and its text.
+    /// The example does not give the id of the child, thus the pattern
+    /// accepts each id.
+    ///
+    /// - Returns: The pattern.
+    /// - Throws: The error of the pattern compile.
+    private static func finishedChildDetail() throws -> Regex<AnyRegexOutput> {
+        let text = NSRegularExpression.escapedPattern(for: childText)
+        return try Regex("Agent \(childAgent) \\(\\w+\\) finished\\.\n\n\(text)")
     }
 
     /// Reads the Swift blocks of `README.md`.

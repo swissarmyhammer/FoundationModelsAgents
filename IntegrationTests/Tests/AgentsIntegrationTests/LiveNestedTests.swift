@@ -67,7 +67,7 @@ extension LiveSuites {
                 #expect(leafSpawn.parentSessionId == lead.id)
                 #expect(leadCalls.map(\.tool) == [LiveHarness.agentsToolName])
                 #expect(leafCalls.map(\.tool) == [LiveHarness.agentsToolName])
-                #expect(leafCalls.map(\.detail) == [leafText])
+                #expect(leafCalls.map(\.detail) == ["Agent \(Self.leaf) (\(leaf.id)) finished.\n\n\(leafText)"])
                 #expect(!rootStartAnswers.isEmpty)
                 #expect(!leadStartAnswers.isEmpty)
             }

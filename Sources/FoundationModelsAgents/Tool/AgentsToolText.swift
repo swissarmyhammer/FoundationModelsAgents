@@ -125,6 +125,11 @@ enum AgentsToolText {
     /// Gives the answer of `cancel agent`: the `CancelOutcome` of the run as
     /// text.
     ///
+    /// For a run that ended before the cancel, the answer is "The run ended
+    /// before the cancel.", then the detail of the final message. That
+    /// detail is the report of the run, and it names the agent, thus the
+    /// first sentence does not.
+    ///
     /// - Parameters:
     ///   - outcome: What the cancel did.
     ///   - run: The run that the model cancelled.
@@ -134,7 +139,7 @@ enum AgentsToolText {
         case .reported(let reported):
             "The cancel of \(run.subject) was sent (\(reported.rawValue)). The run stops when its turn ends."
         case .alreadySettled(let final):
-            "\(run.subject) ended before the cancel.\n\n\(final.detail)"
+            "The run ended before the cancel.\n\n\(final.detail)"
         case .unknownToken:
             noRun(run.id.description)
         }

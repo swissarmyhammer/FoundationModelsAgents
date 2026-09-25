@@ -21,13 +21,20 @@ the calling session reads it, as a line of this form:
 ### The event
 
 The event is always `.completed`, because only a `.completed` event is a
-terminal that makes the caller run a turn:
+terminal that makes the caller run a turn. The `detail` is the text that
+`check agent` gives for the run, thus it names the agent and the run:
 
 | The run | `detail` | `outcome` |
 |---|---|---|
-| Finished | The full text of its last turn. | `.succeeded` |
+| Finished | "Agent `name` (`id`) finished.", a blank line, and the full text of its last turn. | `.succeeded` |
 | Failed | "Agent `name` (`id`) failed: reason." | `.failed` |
 | Cancelled | "Agent `name` (`id`) was cancelled." | `.cancelled` |
+
+The answer of `start agent` gives the run id, and not the token. The name and
+the id in the `detail` let the model join each post to the run that it
+started. When two runs finish, the caller can tell which result came from
+which. The full text stays in the `detail`, also when it is longer than 4 096
+characters.
 
 The run posts before the runner marks it finished, and it posts one time
 only. The Router drops a second terminal for the same token.

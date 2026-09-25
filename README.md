@@ -147,8 +147,11 @@ The registry reads the files in `load()`, not in its init. Call `load()` after
 
 A run that the host starts gives its final text to `result()`. A run that a
 model starts with `start agent` posts one final message into the calling
-session. The Router records the message and sends a `runSettled` event, and
-the next prompt of the session reads the message. Thus the host calls
+session. The message names the agent and the run, then holds the full text:
+"Agent `name` (`id`) finished.", a blank line, and the final text. Thus a
+model that started two agents can tell which result came from which. The
+Router records the message and sends a `runSettled` event, and the next
+prompt of the session reads the message. Thus the host calls
 `dispatchNextPrompt()` after the event. `AgentRunner` is also a
 `SlashCommandProviding`: each agent that the user can start is one slash
 command.

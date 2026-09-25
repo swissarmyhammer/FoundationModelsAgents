@@ -237,10 +237,32 @@ struct AgentsToolOperationsTests {
         #expect(checked == "Agent code-reviewer (\(run.id)) was cancelled.")
         #expect(
             second == """
-                Agent code-reviewer (\(run.id)) ended before the cancel.
+                The run ended before the cancel.
 
                 Agent code-reviewer (\(run.id)) was cancelled.
                 """)
+    }
+
+    @Test("cancel agent on a finished run names the agent one time, then gives the full final text",
+        .timeLimit(.minutes(1)))
+    func cancelFinishedRunNamesAgentOneTime() async throws {
+        let harness = try await AgentsToolHarness.make(script: Self.script([.finalText(Self.finalText)]))
+        defer { try? harness.delete() }
+
+        _ = try await harness.call("start agent", Self.startFields(Self.reviewer))
+        let run = try #require(await harness.runner.runs(caller: nil).first)
+        _ = try await run.result()
+        let answer = try await harness.call("cancel agent", Self.idFields(run))
+
+        #expect(
+            answer == """
+                The run ended before the cancel.
+
+                Agent code-reviewer (\(run.id)) finished.
+
+                \(Self.finalText)
+                """)
+        #expect(answer.ranges(of: "Agent \(Self.reviewer)").count == 1)
     }
 
     @Test("each verb alias reaches its operation: show, run, status, stop", .timeLimit(.minutes(1)))

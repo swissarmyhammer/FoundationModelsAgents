@@ -433,8 +433,8 @@ a thrown error, never a post.
 |---|---|---|---|
 | `list agents` | `filter?` | One `- name: description` line for each model-visible match, then the delegation sentence. "No agents are available." is a success. | none |
 | `start agent` | `name`, `prompt` | At once: "Agent `name` started with the id `id`. Its final message comes to you when it finishes." | Unknown or removed name, with the available names. A name outside `Agent(a, b)`. Depth above `maxDepth`. The run limit (§9.3). A blank prompt. |
-| `check agent` | `id?` | At once, never waits. Finished: "Agent `name` (`id`) finished." and the full text. Failed or cancelled: the state and the reason. Running: "is running: `lastEvent`" and, after its turn, "It waits for `N` agents that it started." No `id`: one block for each run of this caller. | Unknown id, or an id of a different caller, with this caller's ids. |
-| `cancel agent` | `id` | The `CancelOutcome`. | As `check agent`. |
+| `check agent` | `id?` | At once, never waits. Finished: "Agent `name` (`id`) finished.", a blank line, and the full text. Failed: "Agent `name` (`id`) failed: reason." Cancelled: "Agent `name` (`id`) was cancelled." Running: "Agent `name` (`id`) is running." and, after its task turn, "It waits for `N` agents that it started." Then four lines of progress from the live events of the run, never from its transcript: "Phase: " the task turn, the wait for the agents that it started, or a delivery turn; "Passes: " the count of passes of all turns; "Last tools: " the names of the last five tool calls, or none; "Text so far: " the last 240 characters of the text of the current turn, after "..." when the text is longer, or none. No `id`: one block for each run of this caller. | Unknown id, or an id of a different caller, with this caller's ids. |
+| `cancel agent` | `id` | The `CancelOutcome`. A run in operation: "The cancel of Agent `name` (`id`) was sent (`outcome`). The run stops when its turn ends." A run that ended: "The run ended before the cancel.", a blank line, and the `check agent` text of the run. | As `check agent`. |
 
 Verb aliases: `stop` → `cancel`, `run` → `start`, `status` → `check`,
 `show` → `list`.
@@ -448,7 +448,12 @@ Verb aliases: `stop` → `cancel`, `run` → `start`, `status` → `check`,
 - The run posts nothing while it works. All its work is in its own
   transcript.
 - On finish, the run calls `context.post(_:)` one time with a `.completed`
-  event whose `detail` is the full final text. The Router journals it into
+  event whose `detail` is the `check agent` text of the run: "Agent `name`
+  (`id`) finished.", a blank line, and the full final text, also when it is
+  longer than 4 096 characters. The answer of `start agent` gives the run id
+  and not the token, thus the name and the id in the `detail` let the model
+  join each post to the run that it started. When two runs finish, the
+  caller can tell which result came from which. The Router journals it into
   the calling transcript at once, stamped with the tool, the op, and the
   token, and stages it. The next prompt of the calling session reads it.
 - **Always `.completed`.** The event kinds are `.progress`, `.completed`,
@@ -733,8 +738,10 @@ Router test-support sessions; no real model:
 - Tool: the four description forms; the fixed sentences never cut;
   `disable-model-invocation` and `user-invocable`; each corrective answer;
   `start agent` posts nothing during its call; the final message is the only
-  post and holds the full text, also when long; a failed or cancelled run
-  posts `.completed`; `check agent` never waits.
+  post, names the agent and the run, and holds the full text, also when
+  long; a delivery prompt names each child that finished; a failed or
+  cancelled run posts `.completed`; `check agent` never waits; `cancel agent`
+  of a run that ended names the agent one time.
 - Commands: `/name text` gives `text` as the prompt, unchanged; a
   `user-invocable: false` agent has no command.
 - Reload: add, change, remove; a burst gives one final catalog; a run in
