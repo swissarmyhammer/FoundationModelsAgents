@@ -87,7 +87,8 @@ extension AgentRunner: SlashCommandProviding {
     ///   - prompt: The prompt of the run, unchanged.
     /// - Returns: The final text of the run.
     /// - Throws: ``AgentRunnerError/unknownAgent(name:available:)`` when the
-    ///   catalog has no such agent, the ``AgentRunFailure`` of a failed run,
+    ///   catalog has no such agent, ``AgentRunnerError/stopped`` after
+    ///   ``stop()``, the ``AgentRunFailure`` of a failed run,
     ///   or `CancellationError` for a cancelled run.
     private nonisolated func finalText(ofAgent name: String, prompt: String) async throws -> String {
         try await start(name, prompt: prompt).result()

@@ -16,10 +16,26 @@ comments:
     - Note: `swift test` output goes to a pipe only when the process exits. To see a hang, run `swiftpm-testing-helper` direct with `DYLD_FRAMEWORK_PATH` set to the platform Developer frameworks.
     - next: /review
   timestamp: 2026-09-25T19:48:54.105586+00:00
+- actor: claude-code
+  id: 01m3d2ss3c1qxhktz0bdbfn9q3
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (38b1ea5). 0 findings (0 confirmed, 0 refuted, 7 attempted, 0 failed). 5 files reviewed. 4 .kanban files not reviewed because of .reviewignore.
+    - next: none. The task is in done.
+  timestamp: 2026-09-25T20:06:10.284534+00:00
+- actor: claude-code
+  id: 01m3d2t0jq5ph3kc7t9vb50zt4
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 5 files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 340 passed; swiftlint 0; IntegrationTests build --build-tests passes
+    - commit: 38b1ea5
+    - review: clean — 0 findings
+  timestamp: 2026-09-25T20:06:17.943782+00:00
 depends_on:
 - 01M3A6BZSVQR5RJ7TNBJ0Z9Y9Q
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: a580
 title: result() cancels the run when the waiting task is cancelled
 ---
 ## What

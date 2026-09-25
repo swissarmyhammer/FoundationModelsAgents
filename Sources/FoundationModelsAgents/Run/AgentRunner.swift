@@ -37,6 +37,16 @@ public actor AgentRunner {
         let completionToken: String?
     }
 
+    /// One start whose setup is in operation. The run of such a start is not
+    /// in the index yet.
+    private struct Setup {
+        /// The session of the caller, or `nil` for a host-driven start.
+        let caller: ULID?
+
+        /// The cancel calls that wait for the end of the setup.
+        var waiters: [CheckedContinuation<Void, Never>] = []
+    }
+
     /// The outcome of a start that checks
     /// ``AgentEnvironment/maxConcurrentAgents``.
     enum LimitedStart {
@@ -46,6 +56,10 @@ public actor AgentRunner {
         /// The limit is full: `working` runs have a turn in operation, and
         /// the runner started no run.
         case atLimit(working: Int)
+
+        /// The host called ``AgentRunner/stop()``, and the runner started no
+        /// run.
+        case stopped
     }
 
     /// The depth of a host-started run (plan.md §9.3).
@@ -75,6 +89,13 @@ public actor AgentRunner {
     /// can run a second call while a setup waits, thus the limit counts
     /// these starts too.
     private var limitedStartsInSetup = 0
+
+    /// The starts whose setup is in operation, by a key of each start.
+    /// ``cancelRuns(caller:)`` and ``stop()`` wait for these setups.
+    private var setups: [ULID: Setup] = [:]
+
+    /// `true` after ``stop()``. The runner then starts no run.
+    private var isStopped = false
 
     /// Makes a runner. It stores its inputs and does no I/O.
     ///
@@ -106,9 +127,13 @@ public actor AgentRunner {
     ///   - prompt: The prompt of the run. It is `$ARGUMENTS` of the body and
     ///     the first user prompt of the session.
     /// - Returns: The run. Its setup is done, thus it has its id.
-    /// - Throws: ``AgentRunnerError/unknownAgent(name:available:)`` when the
-    ///   catalog has no agent with the id `name`.
+    /// - Throws: ``AgentRunnerError/stopped`` after ``stop()``, or
+    ///   ``AgentRunnerError/unknownAgent(name:available:)`` when the catalog
+    ///   has no agent with the id `name`.
     public func start(_ name: String, prompt: String) async throws(AgentRunnerError) -> AgentRun {
+        guard !isStopped else {
+            throw .stopped
+        }
         let catalog = registry.catalog()
         guard let definition = catalog.definition(named: name) else {
             throw .unknownAgent(name: name, available: catalog.definitions.map(\.id))
@@ -122,15 +147,25 @@ public actor AgentRunner {
 
     /// Starts the run of `request`, and puts it in the index.
     ///
+    /// While the setup is in operation, the start is in ``setups``. After
+    /// the setup, the run goes in the index, and then each cancel call that
+    /// waits for the setup continues. Thus that call finds the run in the
+    /// index.
+    ///
     /// - Parameter request: The inputs of the run.
     /// - Returns: The run. Its setup is done, thus it has its id.
     func start(_ request: AgentRunRequest) async -> AgentRun {
         retireEndedRuns()
+        let setupKey = ULID()
+        setups[setupKey] = Setup(caller: request.context?.sessionID)
         let run = await AgentRun.start(request, environment: environment, renderer: renderer)
         let entry = Entry(run: run, completionToken: request.context?.completionToken)
         openRuns[run.id] = entry
         if let token = entry.completionToken {
             runIDsByCompletionToken[token] = run.id
+        }
+        for waiter in setups.removeValue(forKey: setupKey)?.waiters ?? [] {
+            waiter.resume()
         }
         return run
     }
@@ -150,9 +185,13 @@ public actor AgentRunner {
     /// block their children.
     ///
     /// - Parameter request: The inputs of the run.
-    /// - Returns: ``LimitedStart/started(_:)`` with the run, or
-    ///   ``LimitedStart/atLimit(working:)`` with the count of working runs.
+    /// - Returns: ``LimitedStart/started(_:)`` with the run,
+    ///   ``LimitedStart/atLimit(working:)`` with the count of working runs,
+    ///   or ``LimitedStart/stopped`` after ``stop()``.
     func startWithinLimit(_ request: AgentRunRequest) async -> LimitedStart {
+        guard !isStopped else {
+            return .stopped
+        }
         retireEndedRuns()
         let callerID = request.context?.sessionID
         let working = openRuns.values.count(where: { $0.run.isWorking && $0.run.id != callerID })
@@ -216,32 +255,58 @@ public actor AgentRunner {
         return AgentCatalog(definitions: base.definitions, diagnostics: base.diagnostics + warnings)
     }
 
-    /// Cancels each run in operation, and waits for each to close its
-    /// session. Each such run goes to ``AgentRunState/cancelled``, unless its
-    /// turn ended first.
+    /// Stops the runner: it cancels each run, and waits for each to close its
+    /// session.
+    ///
+    /// Each run in operation, and each start whose setup is in operation,
+    /// goes to ``AgentRunState/cancelled``, unless its turn ended first. The
+    /// call waits until the setup of each such start ends, then cancels the
+    /// run. After this call, the runner starts no run:
+    /// ``start(_:prompt:)`` throws ``AgentRunnerError/stopped``, and
+    /// `start agent` gives a corrective.
     public func stop() async {
-        await cancel(openRuns.values.map(\.run))
+        isStopped = true
+        await cancelRuns { _ in true }
     }
 
-    /// Cancels each run in operation of one caller, and waits for each to
-    /// close its session (plan.md §9.2, a closed caller).
+    /// Cancels each run of one caller, and waits for each to close its
+    /// session (plan.md §9.2, a closed caller).
     ///
     /// `RoutedSession.close()` does not know the runs that the session
     /// started. Thus the host calls this before it closes a session that has
-    /// the `agents` tool. Each such run posts its final message, then goes
-    /// to ``AgentRunState/cancelled``, unless its turn ended first. The runs
-    /// of each other caller stay as they are.
+    /// the `agents` tool. The call cancels each run in operation of the
+    /// caller. It also waits until the setup of each start of the caller
+    /// that is in setup ends, then cancels that run. Each such run posts its
+    /// final message, then goes to ``AgentRunState/cancelled``, unless its
+    /// turn ended first. All of this occurs before the call returns, thus no
+    /// run posts into the session after the host closes it. The runs of each
+    /// other caller stay as they are.
     ///
     /// - Parameter caller: The id of the session of the caller.
     public func cancelRuns(caller: ULID) async {
-        await cancel(Array(openRuns.values.lazy.map(\.run).filter { $0.caller == caller }))
+        await cancelRuns { $0 == caller }
     }
 
-    /// Cancels each run of `runs`, waits for each to end, and then moves
-    /// each ended run to the records.
+    /// Cancels each run whose caller `isTarget` selects, and waits for each
+    /// to end. Then moves each ended run to the records.
     ///
-    /// - Parameter runs: The runs to cancel.
-    private func cancel(_ runs: [AgentRun]) async {
+    /// The call cancels the runs in operation first, thus they do not work
+    /// while the call waits for the setups. It then waits for the end of
+    /// each setup of a selected start. At last, it cancels each selected run
+    /// of the index and waits for its final state. That last step also
+    /// holds each run whose setup ended during the wait.
+    ///
+    /// - Parameter isTarget: Selects a caller: a session id, or `nil` for
+    ///   the host.
+    private func cancelRuns(where isTarget: (ULID?) -> Bool) async {
+        let setupKeys = setups.filter { isTarget($0.value.caller) }.map(\.key)
+        for run in openRuns.values.lazy.map(\.run) where isTarget(run.caller) {
+            run.cancel()
+        }
+        for setupKey in setupKeys {
+            await endOfSetup(setupKey)
+        }
+        let runs = openRuns.values.filter { isTarget($0.run.caller) }.map(\.run)
         for run in runs {
             run.cancel()
         }
@@ -249,6 +314,20 @@ public actor AgentRunner {
             _ = await run.finalState()
         }
         retireEndedRuns()
+    }
+
+    /// Waits until the setup of the start `setupKey` ends.
+    ///
+    /// - Parameter setupKey: The key of the start in ``setups``. The call
+    ///   returns at once when the setup ended already.
+    private func endOfSetup(_ setupKey: ULID) async {
+        await withCheckedContinuation { continuation in
+            guard setups[setupKey] != nil else {
+                continuation.resume()
+                return
+            }
+            setups[setupKey]?.waiters.append(continuation)
+        }
     }
 
     /// Gives the warnings of one agent that need the environment.

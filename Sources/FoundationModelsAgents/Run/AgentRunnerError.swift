@@ -8,4 +8,8 @@ public enum AgentRunnerError: Error, Sendable, Equatable {
     ///   - available: The id of each agent of the catalog, sorted. It is
     ///     empty when the host did not call `AgentRegistry.load()`.
     case unknownAgent(name: String, available: [String])
+
+    /// The host called ``AgentRunner/stop()``. After that call, the runner
+    /// starts no run.
+    case stopped
 }

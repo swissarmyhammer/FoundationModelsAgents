@@ -511,6 +511,13 @@ recorder, or a display model.
 - `run.cancel()` cancels the turn and the open children. `cancelRuns(caller:)`
   cancels each open run of one caller. `stop()` cancels all and closes all
   sessions.
+- A start whose setup is in operation (the render, the skills preload, the
+  tool makers) is not in the index yet. `cancelRuns(caller:)` and `stop()`
+  wait until the setup of each such start of the target ends, then cancel
+  the run and wait for its final state, all before they return. Thus a
+  cancelled run posts its final message before `cancelRuns(caller:)` returns.
+- After `stop()`, the runner starts no run: `runner.start` throws
+  `AgentRunnerError.stopped`, and `start agent` gives a corrective.
 - One runner holds one profile.
 
 ### 9.4 Slash commands and the CLI

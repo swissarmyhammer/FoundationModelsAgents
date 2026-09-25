@@ -14,6 +14,12 @@ enum AgentsToolText {
         The prompt is blank. An agent sees only its prompt, so put the full task in the prompt.
         """
 
+    /// The corrective of `start agent` after ``AgentRunner/stop()``, and the
+    /// error text of `agents agent start` after that call.
+    static let stopped = """
+        The agent runner is stopped, and it starts no more agents. Do this part of the task yourself.
+        """
+
     /// The answer of `check agent` with no id for a caller with no run, and
     /// the end of the unknown-id corrective for such a caller.
     static let noRuns = "You have no runs."

@@ -77,7 +77,8 @@ extension StartAgent {
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The id of the run, or a corrective for a blank prompt, for
     ///   a name that the tool cannot start, for a name that no agent has, for
-    ///   a depth above the limit, or for a full run limit.
+    ///   a depth above the limit, for a full run limit, or for a runner that
+    ///   ``AgentRunner/stop()`` stopped.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
         guard AgentDefinitionRules.holdsText(prompt) else {
             return .corrective(AgentsToolText.blankPrompt)
@@ -100,6 +101,8 @@ extension StartAgent {
         switch start {
         case .atLimit(let working):
             return .corrective(AgentsToolText.atLimit(working: working))
+        case .stopped:
+            return .corrective(AgentsToolText.stopped)
         case .started(let run):
             return .success(run.isSetupFailure
                 ? run.report : AgentsToolText.started(run, postsFinalMessage: callContext != nil))

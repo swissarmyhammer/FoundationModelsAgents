@@ -99,7 +99,10 @@ turn. Above the limit, the run cancels its turn and fails with
 ``AgentRun/cancel()`` cancels the turn of the run and the runs that it
 started. The run waits for its children, closes its session, and goes to
 ``AgentRunState/cancelled``. ``AgentRunner/cancelRuns(caller:)`` cancels each
-open run of one caller. ``AgentRunner/stop()`` cancels all the runs.
+open run of one caller. ``AgentRunner/stop()`` cancels all the runs. Both calls
+also wait for each start of the target whose setup is in operation, then
+cancel that run. After ``AgentRunner/stop()``, ``AgentRunner/start(_:prompt:)``
+throws ``AgentRunnerError/stopped``.
 
 ### The index
 

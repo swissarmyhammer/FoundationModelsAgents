@@ -83,7 +83,8 @@ extension StartAgentCommand {
     /// - Returns: The final text of the run.
     /// - Throws: ``AgentsCLIFailure`` with the corrective of the `agents` tool
     ///   for a blank prompt or for a name that is not a model-visible agent,
-    ///   and with the report of the run when the run fails or is cancelled.
+    ///   with the stopped text after ``AgentRunner/stop()``, and with the
+    ///   report of the run when the run fails or is cancelled.
     func execute(in context: AgentsToolContext) async throws -> String {
         guard AgentDefinitionRules.holdsText(prompt) else {
             throw AgentsCLIFailure(description: AgentsToolText.blankPrompt)
@@ -105,7 +106,8 @@ extension StartAgentCommand {
     /// - Parameter runner: The runner of the commands.
     /// - Returns: The run.
     /// - Throws: ``AgentsCLIFailure`` with the unknown-agent corrective when
-    ///   a reload removed the agent after the check of `execute(in:)`.
+    ///   a reload removed the agent after the check of `execute(in:)`, and
+    ///   with the stopped text after ``AgentRunner/stop()``.
     private func start(on runner: AgentRunner) async throws(AgentsCLIFailure) -> AgentRun {
         do {
             return try await runner.start(name, prompt: prompt)
@@ -113,6 +115,8 @@ extension StartAgentCommand {
             switch error {
             case .unknownAgent(let name, let available):
                 throw AgentsCLIFailure(description: AgentsToolText.unknownAgent(name, available: available))
+            case .stopped:
+                throw AgentsCLIFailure(description: AgentsToolText.stopped)
             }
         }
     }

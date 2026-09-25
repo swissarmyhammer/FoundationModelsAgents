@@ -161,6 +161,19 @@ struct AgentsCLITests {
         #expect(result.output.contains(AgentsToolText.blankPrompt))
     }
 
+    @Test("agent start after stop() gives the stopped text and a non-zero exit status, and starts no run")
+    func startAfterStopFails() async throws {
+        let (harness, driver) = try await Self.makeDriver(script: Self.script([.finalText(Self.finalText)]))
+        defer { try? harness.delete() }
+        await harness.runner.stop()
+
+        let result = await driver.run(arguments: Self.startArguments(Self.reviewer))
+
+        #expect(result.exitCode != Self.successStatus)
+        #expect(result.output.contains(AgentsToolText.stopped))
+        #expect(await harness.runner.runs(caller: nil).isEmpty)
+    }
+
     @Test("agent start of a run that fails gives the reason and a non-zero exit status")
     func startFailedRunFails() async throws {
         let (harness, driver) = try await Self.makeDriver(script: Self.script([.fail(ScriptedFailure.broken)]))
