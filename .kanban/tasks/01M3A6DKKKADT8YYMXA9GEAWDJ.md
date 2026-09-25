@@ -1,11 +1,32 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m3dc2g7405gdwjznrds5rdsz
+  text: |-
+    Research and implementation notes.
+
+    - `startWithinLimit` counts `openRuns` where `run.isWorking && run.id != callerID`. The caller id is `ToolContext.sessionID`, and a run session id is the run id. A root session is not in `openRuns`, thus the exclusion has an effect only when the caller is a run.
+    - The doc comment of `startWithinLimit` states the same rule already. I did not change it.
+    - plan.md §9.3 "The limit" and §16 (the list of unit tests) now state the rule. The DocC article `DelegatingWithTheAgentsTool.md` states it in the corrective list.
+    - New test: `Tests/FoundationModelsAgentsTests/AgentSchedulingTests+CallingRun.swift`, suite "Agent scheduling: the calling run", nested in `AgentSchedulingTests` (the same pattern as `AgentSchedulingTests+Setup.swift`). A host-started lead run calls `start agent` and then waits on a gate in the same turn, thus it is working. With `maxConcurrentAgents: 1` its child starts. A host `start agent` at that time gets "2 agents are working now, and that is the limit. ...".
+    - Why a separate file: when the case was in `AgentSchedulingTests.swift`, swiftlint reported `type_body_length` (262 of 250 lines), and the file was at the `file_length` limit of 400 lines. The case is in the `AgentSchedulingTests` suite, in its own extension file.
+    - RED: I changed the count temporarily so that it also counts the calling run. Only the new test failed, at `#require(runner.runs(caller: parent.id).first)`: the parent got the limit corrective and no child started. I then restored the code. `git diff` shows no change in `Sources/.../Run/`.
+    - A first mutation (`callerID != nil`) was wrong: it also changed the count of host calls and broke three other tests. Do not use it as a RED check.
+  timestamp: 2026-09-25T22:48:13.284452+00:00
+- actor: claude-code
+  id: 01m3dc2j6vf52gqd5zffved1md
+  text: |-
+    ### implement — changed
+    - evidence: 3 files — plan.md, Sources/FoundationModelsAgents/FoundationModelsAgents.docc/DelegatingWithTheAgentsTool.md, Tests/FoundationModelsAgentsTests/AgentSchedulingTests+CallingRun.swift (new). `swift build -Xswiftc -warnings-as-errors`: complete. `swift test -Xswiftc -warnings-as-errors`: 357 tests in 49 suites pass. `cd IntegrationTests && swift build --build-tests`: complete. `swiftlint lint Sources Tests Package.swift Examples`: 0 violations.
+    - next: /review
+  timestamp: 2026-09-25T22:48:15.323768+00:00
 depends_on:
 - 01M3A6D0PH2N6Z6BWHGJ8KGEGV
 - 01M3A6CQGZZC4VNCQM2Z6EPJ2M
-position_column: todo
-position_ordinal: '8980'
+position_column: doing
+position_ordinal: '80'
 title: 'Decision B: state in the plan that the run limit does not count the calling run'
 ---
 ## Decision (recommended; confirm or change before /finish)
@@ -16,12 +37,12 @@ title: 'Decision B: state in the plan that the run limit does not count the call
 - Check that the doc comment of `startWithinLimit` says the same; change it only if it differs.
 
 ## Acceptance Criteria
-- [ ] The plan, the DocC article, and the doc comment state the same rule.
-- [ ] A test with `maxConcurrentAgents: 1` shows that a parent can start one child, and that a second start by a different caller at the same time gets the limit corrective.
+- [x] The plan, the DocC article, and the doc comment state the same rule.
+- [x] A test with `maxConcurrentAgents: 1` shows that a parent can start one child, and that a second start by a different caller at the same time gets the limit corrective.
 
 ## Tests
-- [ ] A case in `Tests/FoundationModelsAgentsTests/AgentSchedulingTests.swift`.
-- [ ] Run `swift test -Xswiftc -warnings-as-errors`. Expected: pass.
+- [x] A case in `Tests/FoundationModelsAgentsTests/AgentSchedulingTests.swift`.
+- [x] Run `swift test -Xswiftc -warnings-as-errors`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.

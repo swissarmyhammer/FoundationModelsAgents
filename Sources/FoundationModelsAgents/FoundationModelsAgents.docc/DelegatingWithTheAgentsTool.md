@@ -56,8 +56,11 @@ wrong and what it can do now:
 - A name outside `Agent(a, b)`.
 - A blank prompt.
 - A start when ``AgentEnvironment/maxConcurrentAgents`` runs have a turn in
-  operation. The runner keeps no queue: the model does the work itself, or
-  starts the agent later.
+  operation. The count does not include the run that calls `start agent`:
+  after its turn, that run waits for the new child, and a run that waits holds
+  no place. Thus with a limit of one, a parent and one child can work at one
+  time. The runner keeps no queue: the model does the work itself, or starts
+  the agent later.
 - A start that makes a run deeper than ``AgentEnvironment/maxDepth``. A
   host-started run has depth one, and a child has the depth of its parent
   plus one.

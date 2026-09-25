@@ -497,8 +497,11 @@ Verb aliases: `stop` → `cancel`, `run` → `start`, `status` → `check`,
 An actor that owns each `AgentRun`. Not a session system, a tool loop, a
 recorder, or a display model.
 
-- **The limit.** `maxConcurrentAgents` counts runs with a turn in operation.
-  Only `start agent` checks it. At the limit it answers: "`N` agents are
+- **The limit.** `maxConcurrentAgents` counts runs with a turn in operation,
+  except the run that calls `start agent`. After its turn, the calling run
+  waits for the new child, and a run that waits holds no slot. Thus with
+  `maxConcurrentAgents` 1, a parent and one child can work at one time.
+  Only `start agent` checks the limit. At the limit it answers: "`N` agents are
   working now, and that is the limit. Do this part of the task yourself, or
   start the agent when one of them finishes." No queue. A run that waits for
   its children holds no slot; a child-delivery turn never checks the limit,
@@ -783,7 +786,9 @@ Router test-support sessions; no real model:
   post in a delivery turn, and gives its result in a final-answer turn; a
   run with no child gets no final-answer prompt; a failing parent cancels
   its children first; with `maxConcurrentAgents` 2, two waiting siblings
-  hold no slot and their children start; the limit and `maxDepth` corrective answers; a caller
+  hold no slot and their children start; with `maxConcurrentAgents` 1, a
+  working parent starts one child, and a start by a different caller at that
+  time gets the limit corrective; the limit and `maxDepth` corrective answers; a caller
   cannot address another caller's run; `cancelRuns(caller:)`; `stop()`.
 
 **Integration suite** in a nested `IntegrationTests/` package, as in the peer
