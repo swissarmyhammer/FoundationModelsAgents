@@ -79,7 +79,8 @@ extension AgentRunner: SlashCommandProviding {
     /// Starts a host-driven run of the agent `name`, waits for it, and gives
     /// its final text.
     ///
-    /// A cancel of the task that waits cancels the run.
+    /// A cancel of the task that waits cancels the run, through
+    /// ``AgentRun/result()``.
     ///
     /// - Parameters:
     ///   - name: The id of the agent.
@@ -89,12 +90,7 @@ extension AgentRunner: SlashCommandProviding {
     ///   catalog has no such agent, the ``AgentRunFailure`` of a failed run,
     ///   or `CancellationError` for a cancelled run.
     private nonisolated func finalText(ofAgent name: String, prompt: String) async throws -> String {
-        let run = try await start(name, prompt: prompt)
-        return try await withTaskCancellationHandler {
-            try await run.result()
-        } onCancel: {
-            run.cancel()
-        }
+        try await start(name, prompt: prompt).result()
     }
 
     /// Gives one command for each user-invocable agent of `catalog`.

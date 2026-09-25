@@ -69,10 +69,26 @@ comments:
     - evidence: 1 file — Tests/FoundationModelsAgentsTests/MaxTurnsTests+Counter.swift (2 forEach calls changed to for loops); task description: 2 findings, 6 acceptance criteria, and 2 test items checked. `swift build -Xswiftc -warnings-as-errors` complete; `swift test -Xswiftc -warnings-as-errors` 338 tests in 46 suites pass; `swiftlint lint Sources Tests Package.swift Examples` 0 violations in 119 files.
     - next: /review
   timestamp: 2026-09-25T18:41:17.892378+00:00
+- actor: claude-code
+  id: 01m3cy54ba7jb5g6qt4e6ezgs9
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (13faf21): 0 findings (7 validator runs, 0 failed). All prior findings of 2026-09-25 13:36 are checked.
+    - next: none. The task moved to done.
+  timestamp: 2026-09-25T18:44:59.370505+00:00
+- actor: claude-code
+  id: 01m3cy59xe4qqwwp9rca7jm0v5
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — MaxTurnsTests+Counter.swift (2 forEach → for loops); 8/8 boxes checked
+    - test: green — swift test -Xswiftc -warnings-as-errors, 338 passed; swiftlint 0
+    - commit: 13faf21
+    - review: clean — 0 findings
+  timestamp: 2026-09-25T18:45:05.070437+00:00
 depends_on:
 - 01M3A6BZSVQR5RJ7TNBJ0Z9Y9Q
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: a480
 title: 'One pass counter for all turns: exact after each delivery turn, with a limit that ends as hitMaxTurns'
 ---
 ## What

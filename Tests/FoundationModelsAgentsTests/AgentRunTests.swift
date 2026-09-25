@@ -308,4 +308,23 @@ struct AgentRunTests {
         #expect(run.heldSession == nil)
         #expect(await Self.ends(sessionEvents))
     }
+
+    @Test("a cancel of the task that waits in result() cancels the run", .timeLimit(.minutes(1)))
+    func cancelOfWaitingTaskCancelsRun() async throws {
+        let gate = ScriptedGate()
+        let harness = try await AgentRunHarness.make(
+            script: Self.script([.wait(gate), .finalText(Self.finalText)]))
+        defer { try? harness.delete() }
+        let run = try await harness.start(Self.reviewer, prompt: Self.prompt)
+        await gate.waitForArrival()
+        let waiter = Task { try await run.result() }
+
+        waiter.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            try await waiter.value
+        }
+        #expect(run.state == .cancelled)
+        #expect(run.heldSession == nil)
+    }
 }

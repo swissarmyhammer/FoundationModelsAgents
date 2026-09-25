@@ -222,6 +222,24 @@ struct AgentsCLITests {
         #expect(await run.finalState() == .cancelled)
     }
 
+    @Test("a cancel of the task of agent start cancels the run", .timeLimit(.minutes(1)))
+    func cancelOfStartCancelsRun() async throws {
+        let gate = ScriptedGate()
+        let (harness, driver) = try await Self.makeDriver(
+            script: Self.script([.wait(gate), .finalText(Self.finalText)]))
+        defer { try? harness.delete() }
+        let starter = Task { await driver.run(arguments: Self.startArguments(Self.reviewer)) }
+        await gate.waitForArrival()
+        let run = try #require(await harness.runner.runs(caller: nil).first)
+
+        starter.cancel()
+        let result = await starter.value
+
+        #expect(result.exitCode != Self.successStatus)
+        #expect(result.output.contains(run.report))
+        #expect(await run.finalState() == .cancelled)
+    }
+
     @Test("the noun of the command line is agent; agents is not a command")
     func nounIsAgent() async throws {
         let (harness, driver) = try await Self.makeDriver()

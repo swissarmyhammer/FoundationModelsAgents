@@ -194,11 +194,20 @@ public final class AgentRun: Sendable {
 
     /// Waits for the run to end, and gives its result.
     ///
+    /// A cancel of the task that waits cancels the run (``cancel()``). The
+    /// call then throws `CancellationError` when the run ends as cancelled.
+    /// A run that ended before the cancel gives its result as usual.
+    ///
     /// - Returns: The text of the last turn.
     /// - Throws: The ``AgentRunFailure`` of a failed run, or
     ///   `CancellationError` for a cancelled run.
     public func result() async throws -> String {
-        switch await finalState() {
+        let final = await withTaskCancellationHandler {
+            await finalState()
+        } onCancel: {
+            cancel()
+        }
+        switch final {
         case .finished(let text):
             return text
         case .failed(let failure):
