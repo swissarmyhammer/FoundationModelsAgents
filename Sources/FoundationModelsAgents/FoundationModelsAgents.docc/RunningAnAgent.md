@@ -73,8 +73,19 @@ setup fails has no session: it gets a new ULID, no recording directory, and
 the state ``AgentRunState/failed(_:)``.
 
 Then one turn runs in the background with the prompt as the first user
-prompt. Nothing goes to the caller during the turn. When the turn ends, the
-run closes its session. A finished run holds no session.
+prompt. Nothing goes to the caller during the turn. A run that started no
+agents finishes when this turn ends, and the text of this turn is its
+result.
+
+A run that started agents waits for them. Each final message of an agent
+starts a delivery turn. When no agent that the run started is open and no
+final message is unread, the run sends one more prompt: "All agents that you
+started have finished. Give your full final answer." The text of this
+final-answer turn is the result. A final-answer turn can start more agents.
+The run then waits for them, and sends the final-answer prompt again.
+
+When the last turn ends, the run closes its session. A finished run holds no
+session.
 
 ### The state of a run
 
@@ -90,9 +101,9 @@ run closes its session. A finished run holds no session.
 The `maxTurns` key counts the passes of the control loop. In each pass the
 model generates. Then it calls tools and the loop goes around again, or it
 answers and the loop ends. One pass that calls three tools counts as one. The
-run counts the passes over all its turns: the task turn and each delivery
-turn. Above the limit, the run cancels its turn and fails with
-``AgentRunFailure/hitMaxTurns(partial:)``, with the text so far.
+run counts the passes over all its turns: the task turn, each delivery turn,
+and each final-answer turn. Above the limit, the run cancels its turn and
+fails with ``AgentRunFailure/hitMaxTurns(partial:)``, with the text so far.
 
 ### Cancel and stop
 

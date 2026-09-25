@@ -174,9 +174,9 @@ public actor AgentRunner {
     /// ``AgentEnvironment/maxConcurrentAgents`` runs are working
     /// (plan.md §9.3, the limit).
     ///
-    /// Only `start agent` calls it. A host-driven ``start(_:prompt:)`` and a
-    /// child-delivery turn do not check the limit. There is no queue: at the
-    /// limit, the runner starts no run.
+    /// Only `start agent` calls it. A host-driven ``start(_:prompt:)``, a
+    /// child-delivery turn, and a final-answer turn do not check the limit.
+    /// There is no queue: at the limit, the runner starts no run.
     ///
     /// The count holds each run in operation that does not wait for its
     /// children (``AgentRun/isWorking``), and not the calling run: after its

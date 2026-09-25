@@ -241,15 +241,15 @@ You are a code reviewer. Analyze the code and give specific feedback.
   model generates, then it calls tools and the loop goes around again, or it
   answers and the loop ends. Each pass records one transcript entry, and the
   Router emits `entryRecorded` with kind `.toolCalls` or `.response` for it.
-  The run has one counter for all its turns: the task turn and each delivery
-  turn. One `streamSessionEvents()` subscription for the whole run counts
+  The run has one counter for all its turns: the task turn, each delivery
+  turn, and each final-answer turn (§8 step 8). One `streamSessionEvents()` subscription for the whole run counts
   these events, and feeds the progress of `check agent`. After each turn,
   the run sets the count from the `.toolCalls` and `.response` entries of the
   transcript, thus the count is exact before the run checks the limit. One
   pass that calls three tools is one. Above the limit, the run cancels its
   turn and fails with `hitMaxTurns`, never as cancelled. The partial text is
-  the text so far of the task turn, or, in a delivery turn, the text of the
-  last complete turn. Claude stops silently; this is tighter. No Router
+  the text so far of the task turn, or, in a delivery turn or a final-answer
+  turn, the text of the last complete turn. Claude stops silently; this is tighter. No Router
   change.
 
 ## 6. Marketplaces of agents
@@ -353,9 +353,20 @@ parameter.
    ("Background work you started has settled… Act on it, or say what you
    did with it."). The model can start more children. The passes of each such
    turn count toward `maxTurns` (§5). This touches only the session of the run.
-8. **Finish.** When no child is open and no post is unread, the text of the
-   last turn is the result. The run posts its final message (§9.2) and closes
-   its session.
+8. **Finish.** When no child is open, no post is unread, and a delivery turn
+   ran since the last final-answer turn, the run queues one more prompt with
+   `session.enqueue(prompt:)`: "All agents that you started have finished.
+   Give your full final answer." Then it calls `session.dispatchNextPrompt()`.
+   This is a final-answer turn. A real model replies to each post by itself,
+   thus without this turn the reply to an earlier post is not in the result,
+   and the model cannot know which turn is its last. The passes of each
+   final-answer turn count toward `maxTurns` (§5). The model still has the
+   `agents` tool, thus a final-answer turn can start more children. The run
+   then goes back to step 7, and when no child is open and no post is unread
+   again, it sends the final-answer prompt again. The text of the last
+   final-answer turn is the result. A run that started no child gets no
+   final-answer prompt: the text of its task turn is the result. The run
+   posts its final message (§9.2) and closes its session.
 
 The Router gives compaction, overflow recovery, `TokenBudget.toolOutputLimit`,
 correlated tool events, and the recording. The working directory defaults to
@@ -498,8 +509,8 @@ recorder, or a display model.
   they finish. A cancel, or a failure with open children (`hitMaxTurns`, a
   context error), cancels the children, waits for their tasks, then closes
   the session and posts.
-- **`maxTurns`** counts the passes of the control loop in the task turn and
-  in each child-delivery turn (§5).
+- **`maxTurns`** counts the passes of the control loop in the task turn, in
+  each child-delivery turn, and in each final-answer turn (§5, §8 step 8).
 - **Depth.** A host-started run has depth 1; a child has its parent's depth
   plus 1. `maxDepth` is the limit. A run at `maxDepth` gets no `agents`
   tool, because each start from it would give only the depth corrective. A
@@ -763,10 +774,11 @@ Router test-support sessions; no real model:
   operation is unchanged; the pre-reload tool behavior of §9.1;
   `commandUpdates` after an agent reload.
 - Runs: the model match table; a finished run holds no session;
-  `maxRetainedRuns`; a parent finishes after its child and reads the child
-  post in a delivery turn; a failing parent cancels its children first; with
-  `maxConcurrentAgents` 2, two waiting siblings hold no slot and their
-  children start; the limit and `maxDepth` corrective answers; a caller
+  `maxRetainedRuns`; a parent finishes after its child, reads the child
+  post in a delivery turn, and gives its result in a final-answer turn; a
+  run with no child gets no final-answer prompt; a failing parent cancels
+  its children first; with `maxConcurrentAgents` 2, two waiting siblings
+  hold no slot and their children start; the limit and `maxDepth` corrective answers; a caller
   cannot address another caller's run; `cancelRuns(caller:)`; `stop()`.
 
 **Integration suite** in a nested `IntegrationTests/` package, as in the peer

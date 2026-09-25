@@ -37,8 +37,8 @@ public enum AgentRunFailure: Error, Sendable, Equatable {
 
     /// The run went above the `maxTurns` limit of its agent (plan.md §5).
     /// The run counts one turn for each pass of the control loop, in the
-    /// task turn and in each delivery turn. `partial` is the text of the
-    /// turn when the count went above the limit.
+    /// task turn, in each delivery turn, and in each final-answer turn.
+    /// `partial` is the text of the turn when the count went above the limit.
     case hitMaxTurns(partial: String)
 
     /// The reason of the failure as a clause for a model or a person: for

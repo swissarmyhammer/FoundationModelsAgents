@@ -10,7 +10,7 @@ import Synchronization
 /// transcript entry of the kind `.toolCalls` or `.response`, and the Router
 /// emits ``SessionEvent/entryRecorded(id:kind:)`` for it. One pass that
 /// calls three tools records one entry. The count holds the passes of the
-/// task turn and of each delivery turn.
+/// task turn, of each delivery turn, and of each final-answer turn.
 ///
 /// Two sources feed the count:
 ///
@@ -128,8 +128,8 @@ final class AgentRunTurns: Sendable {
         }
     }
 
-    /// Runs one delivery turn, then sets the count from the transcript and
-    /// checks the limit.
+    /// Runs one delivery turn or one final-answer turn, then sets the count
+    /// from the transcript and checks the limit.
     ///
     /// The count comes from the transcript, thus it does not wait for an
     /// event of the turn. A turn that records no `.response` entry, and a
@@ -221,9 +221,9 @@ final class AgentRunTurns: Sendable {
 }
 
 extension AgentRun {
-    /// Runs one delivery turn with `session.dispatchNextPrompt()`, and sets
-    /// the count of ``turns`` from the transcript when the turn returns
-    /// (plan.md §5, §8 step 7).
+    /// Runs one delivery turn or one final-answer turn with
+    /// `session.dispatchNextPrompt()`, and sets the count of ``turns`` from
+    /// the transcript when the turn returns (plan.md §5, §8 steps 7 and 8).
     ///
     /// The follower of the run feeds the progress while the turn runs. When
     /// the turn returns, its text becomes the text tail of the progress.
@@ -231,10 +231,10 @@ extension AgentRun {
     /// - Parameters:
     ///   - session: The session of the run.
     ///   - lastText: The text of the last complete turn before this turn.
-    /// - Returns: The text of the delivery turn, or `nil` when the dispatch
-    ///   ran no turn.
+    /// - Returns: The text of the turn, or `nil` when the dispatch ran no
+    ///   turn.
     /// - Throws: ``AgentRunFailure/hitMaxTurns(partial:)`` when the count
-    ///   goes above the limit, or the error of the delivery turn.
+    ///   goes above the limit, or the error of the turn.
     func dispatchCountingPasses(on session: any RoutedSession, lastText: String) async throws -> String? {
         let delivered = try await turns.deliver(
             lastText: lastText,

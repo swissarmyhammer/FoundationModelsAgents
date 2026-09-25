@@ -71,8 +71,9 @@ depth is less than ``AgentEnvironment/maxDepth``. A run at the depth limit
 gets no `agents` tool. A run that starts agents finishes only after each of
 them ends. While it waits, it holds no place in the run limit. Each final
 message of a child starts a delivery turn of the parent, and the parent can
-start more agents in that turn. A cancel, or a failure of the parent, cancels
-its children first.
+start more agents in that turn. When all its children ended, the parent gets
+a final-answer prompt, and the text of that turn is its result. A cancel, or a
+failure of the parent, cancels its children first.
 
 ### Skills through an agent
 

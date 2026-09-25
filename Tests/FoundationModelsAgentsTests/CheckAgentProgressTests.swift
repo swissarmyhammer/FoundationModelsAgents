@@ -41,8 +41,9 @@ struct CheckAgentProgressTests {
     private static let deliveryPassesAtGate = 2
 
     /// The count of passes of the lead when it ends: the two passes of the
-    /// task turn, then the tool pass and the answer of the delivery turn.
-    private static let leadPassesAtEnd = 4
+    /// task turn, the tool pass and the answer of the delivery turn, then the
+    /// answer of the final-answer turn.
+    private static let leadPassesAtEnd = 5
 
     /// The count of tool calls of the task turn before its gate.
     private static let taskToolCallsAtGate = 1
@@ -108,7 +109,8 @@ struct CheckAgentProgressTests {
                         .finalText(NestedRunTests.startedText),
                         Self.listStep,
                         .wait(gate),
-                        .finalTextOfLaterPrompts
+                        .finalTextOfLaterPrompts,
+                        NestedRunTests.finalAnswerStep
                     ]),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)])
             ]))

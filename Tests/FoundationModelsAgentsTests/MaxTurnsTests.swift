@@ -4,9 +4,9 @@ import Testing
 
 /// Pins the `maxTurns` count (plan.md §5, §9.3): one turn is one pass of
 /// the control loop. Each pass records one `.toolCalls` or `.response`
-/// entry, and the count holds the passes of the task turn and of each
-/// delivery turn. Above the limit the run fails with `hitMaxTurns` and the
-/// text so far.
+/// entry, and the count holds the passes of the task turn, of each delivery
+/// turn, and of each final-answer turn. Above the limit the run fails with
+/// `hitMaxTurns` and the text so far.
 ///
 /// The runs and the root sessions are on the `standard` slot. A gated child
 /// is on the `flash` slot, thus its turn does not hold the generation gate
@@ -30,9 +30,18 @@ struct MaxTurnsTests {
     /// The count of passes of a task turn with one tool pass and one answer.
     private static let oneToolAndAnswer = 2
 
+    /// The `maxTurns` limit of ``finalLimitedLead``: the passes of the task
+    /// turn and of the delivery turn, and not the final-answer turn.
+    private static let deliveryTurnLimit = 3
+
     /// The count of passes of a lead that starts one child in its task turn,
     /// answers, and answers one delivery turn.
-    private static let leadPasses = 3
+    private static let leadPassesToDelivery = 3
+
+    /// The count of passes of a lead that starts one child in its task turn,
+    /// answers, answers one delivery turn, and answers the final-answer
+    /// turn.
+    private static let leadPasses = 4
 
     /// The count of answer passes of one turn.
     private static let answerPasses = 1
@@ -48,6 +57,9 @@ struct MaxTurnsTests {
 
     /// The agent with `maxTurns: 2` that can start ``flashHelper``.
     private static let limitedLead = "limited-lead"
+
+    /// The agent with `maxTurns: 3` that can start ``flashHelper``.
+    private static let finalLimitedLead = "final-limited-lead"
 
     /// The agent with no `maxTurns` that can start ``flashHelper``.
     private static let countingLead = "counting-lead"
@@ -83,6 +95,16 @@ struct MaxTurnsTests {
             ---
 
             You are a lead with a small count of turns.
+            """,
+        "agents/\(finalLimitedLead).md": """
+            ---
+            name: \(finalLimitedLead)
+            description: Gives a part of a task to the helper in a count of turns with no final answer.
+            maxTurns: \(deliveryTurnLimit)
+            tools: Agent(\(flashHelper))
+            ---
+
+            You are a lead with a count of turns that stops before the final answer.
             """,
         "agents/\(countingLead).md": """
             ---
@@ -178,10 +200,11 @@ struct MaxTurnsTests {
     }
 
     /// Starts a host-driven run of `lead`. The lead starts ``flashHelper``
-    /// in its task turn, answers, and then answers one delivery turn with
-    /// the prompt that it read.
+    /// in its task turn, answers, then answers one delivery turn and the
+    /// final-answer turn with the prompts that it read.
     ///
-    /// - Parameter lead: ``limitedLead`` or ``countingLead``.
+    /// - Parameter lead: ``limitedLead``, ``finalLimitedLead``, or
+    ///   ``countingLead``.
     /// - Returns: The run and its final state.
     /// - Throws: The error of ``finishedRun(of:prompt:plays:)``.
     private static func finishedLead(_ lead: String) async throws -> (run: AgentRun, final: AgentRunState) {
@@ -194,7 +217,8 @@ struct MaxTurnsTests {
                     steps: [
                         NestedRunTests.startStep(flashHelper, prompt: helperKey),
                         .finalText(leadText),
-                        .finalTextOfLaterPrompts
+                        .finalTextOfLaterPrompts,
+                        NestedRunTests.finalAnswerStep
                     ]),
                 ScriptedAgentPlay(key: helperKey, steps: [.finalText(helperText)])
             ])
@@ -264,6 +288,17 @@ struct MaxTurnsTests {
         let partial = Self.partialText(of: ended.final)
 
         #expect(partial?.contains(Self.helperText) == true)
+        #expect(ended.run.turns.count == Self.leadPassesToDelivery)
+    }
+
+    @Test("a lead with maxTurns 3 fails in its final-answer turn with the text of that turn",
+        .timeLimit(.minutes(1)))
+    func finalAnswerPassAboveLimitFails() async throws {
+        let ended = try await Self.finishedLead(Self.finalLimitedLead)
+        let partial = Self.partialText(of: ended.final)
+
+        #expect(partial?.contains(Self.helperText) == true)
+        #expect(partial?.contains(AgentRun.finalAnswerPrompt) == true)
         #expect(ended.run.turns.count == Self.leadPasses)
     }
 

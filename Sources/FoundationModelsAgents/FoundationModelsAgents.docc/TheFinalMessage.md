@@ -55,8 +55,10 @@ let followUp = try await root.dispatchNextPrompt()   // reads staged posts; nil 
 
 A run that started agents uses the same path. It does not finish while one of
 its children is open. Each time a child ends, the run calls
-`dispatchNextPrompt()` on its own session: this is a delivery turn. The passes
-of each delivery turn count toward `maxTurns`.
+`dispatchNextPrompt()` on its own session: this is a delivery turn. After the
+last delivery turn, the run sends a final-answer prompt, and the text of that
+turn is its result. The passes of each delivery turn and of each final-answer
+turn count toward `maxTurns`.
 
 ### A run with no calling session
 

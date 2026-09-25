@@ -319,11 +319,11 @@ public final class AgentRun: Sendable {
         storage.withLock { $0.progress.apply(event) }
     }
 
-    /// Sets the text tail of the progress to the text of a delivery turn.
-    /// The session events of a delivery turn carry no text, thus the tail
-    /// changes only when the turn returns.
+    /// Sets the text tail of the progress to the text of a delivery turn or
+    /// a final-answer turn. The session events of these turns carry no text,
+    /// thus the tail changes only when the turn returns.
     ///
-    /// - Parameter text: The text that the delivery turn gave.
+    /// - Parameter text: The text that the turn gave.
     func recordDelivered(_ text: String) {
         storage.withLock { $0.progress.replaceText(with: text) }
     }
@@ -349,7 +349,8 @@ public final class AgentRun: Sendable {
     }
 
     /// Drives the task turn with `prompt` (``runTaskTurn(on:prompt:)``).
-    /// Then delivers the final messages of the children in delivery turns
+    /// Then delivers the final messages of the children in delivery turns,
+    /// and runs a final-answer turn after them
     /// (``finishAfterChildren(on:taskTurnText:)``).
     ///
     /// When the count goes above the `maxTurns` limit, the run cancels its

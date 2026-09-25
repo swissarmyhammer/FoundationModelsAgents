@@ -14,8 +14,8 @@ enum AgentRunPhase: Sendable, Equatable {
     /// (plan.md §9.3).
     case waitingForChildren
 
-    /// The task turn ended, and the run is in a child-delivery turn, or
-    /// looks for a staged post to deliver.
+    /// The task turn ended, and the run is in a child-delivery turn or in a
+    /// final-answer turn, or looks for a staged post to deliver.
     case delivery
 }
 
@@ -116,6 +116,10 @@ final class AgentRunChildren: Sendable {
 }
 
 extension AgentRun {
+    /// The prompt of a final-answer turn (plan.md §8 step 8). The run sends
+    /// it when no child is open and no post is unread, after a delivery turn.
+    static let finalAnswerPrompt = "All agents that you started have finished. Give your full final answer."
+
     /// The sentence that `check agent` adds after the task turn while
     /// children are open: "It waits for `N` agents that it started."
     /// `nil` in the task turn, or when no child is open.
@@ -133,24 +137,33 @@ extension AgentRun {
     /// While a child is open, the run waits for a child to end. It then
     /// calls `session.dispatchNextPrompt()` through
     /// ``dispatchCountingPasses(on:lastText:)``: the Router runs one turn
-    /// with the staged posts, and the model can start more children. The
-    /// passes of each delivery turn add to the `maxTurns` count of the run.
-    /// The loop ends when no child was open before a dispatch and the
-    /// dispatch ran no turn. Thus no post stays unread.
+    /// with the staged posts, and the model can start more children.
     ///
-    /// A delivery turn does not check the run limit. The run holds no place
-    /// in the limit while it waits.
+    /// The loop is quiet when no child was open before a dispatch and the
+    /// dispatch ran no turn. Thus no post stays unread. When a delivery turn
+    /// ran since the last final-answer turn, the run then runs a
+    /// final-answer turn (``dispatchFinalAnswer(on:lastText:)``). That turn
+    /// can start more children, and the loop goes on. When the loop is quiet
+    /// and no delivery turn ran since the last final-answer turn, the loop
+    /// ends. Thus a run that started no child runs no final-answer turn, and
+    /// its result is the text of its task turn.
+    ///
+    /// The passes of each delivery turn and of each final-answer turn add to
+    /// the `maxTurns` count of the run. These turns do not check the run
+    /// limit. The run holds no place in the limit while it waits.
     ///
     /// - Parameters:
     ///   - session: The session of the run.
     ///   - taskTurnText: The text of the task turn.
-    /// - Returns: The text of the last turn.
+    /// - Returns: The text of the last turn: the last final-answer turn, or
+    ///   the task turn of a run that started no child.
     /// - Throws: `CancellationError` when the run is cancelled while it
     ///   waits, ``AgentRunFailure/hitMaxTurns(partial:)`` when the count
-    ///   goes above the `maxTurns` limit, or the error of a delivery turn.
+    ///   goes above the `maxTurns` limit, or the error of a turn.
     func finishAfterChildren(on session: any RoutedSession, taskTurnText: String) async throws -> String {
         var endings = children.endings.makeAsyncIterator()
         var text = taskTurnText
+        var isFinalAnswerDue = false
         while true {
             let hadOpenChildren = children.openCount > 0
             if hadOpenChildren {
@@ -163,11 +176,33 @@ extension AgentRun {
             try Task.checkCancellation()
             if let delivered = try await dispatchCountingPasses(on: session, lastText: text) {
                 text = delivered
+                isFinalAnswerDue = true
                 continue
             }
-            guard hadOpenChildren else {
+            guard !hadOpenChildren else {
+                continue
+            }
+            guard isFinalAnswerDue else {
                 return text
             }
+            text = try await dispatchFinalAnswer(on: session, lastText: text)
+            isFinalAnswerDue = false
         }
+    }
+
+    /// Runs one final-answer turn: it queues ``finalAnswerPrompt`` in the
+    /// session, and dispatches it through
+    /// ``dispatchCountingPasses(on:lastText:)`` (plan.md §8 step 8).
+    ///
+    /// - Parameters:
+    ///   - session: The session of the run.
+    ///   - lastText: The text of the last complete turn before this turn.
+    /// - Returns: The text of the final-answer turn, or `lastText` when the
+    ///   dispatch ran no turn.
+    /// - Throws: ``AgentRunFailure/hitMaxTurns(partial:)`` when the count
+    ///   goes above the `maxTurns` limit, or the error of the turn.
+    private func dispatchFinalAnswer(on session: any RoutedSession, lastText: String) async throws -> String {
+        await session.enqueue(prompt: Self.finalAnswerPrompt)
+        return try await dispatchCountingPasses(on: session, lastText: lastText) ?? lastText
     }
 }

@@ -80,9 +80,18 @@ struct NestedRunTests {
             argumentsJSON: #"{"op": "start agent", "name": "\#(name)", "prompt": "\#(prompt)"}"#)
     }
 
+    /// The answer of a final-answer turn: the text of each prompt that the
+    /// run read after its task prompt. Thus it holds each final message of
+    /// the children.
+    static let finalAnswerStep = ScriptedAgentStep.finalTextOfLaterPrompts
+
     /// The play of a parent run: it starts one run for each entry of
     /// `children` in its task turn, answers ``startedText``, then answers
-    /// each delivery turn with the prompts that it read.
+    /// each delivery turn and the final-answer turn with the prompts that it
+    /// read.
+    ///
+    /// The steps after ``startedText`` are all the same. Thus the play is
+    /// correct also when two children end in one delivery turn.
     ///
     /// - Parameters:
     ///   - key: The key of the play.
@@ -91,7 +100,19 @@ struct NestedRunTests {
     static func parentPlay(_ key: String, children: [(name: String, prompt: String)]) -> ScriptedAgentPlay {
         let starts = children.map { child in startStep(child.name, prompt: child.prompt) }
         let deliveries = [ScriptedAgentStep](repeating: .finalTextOfLaterPrompts, count: children.count)
-        return ScriptedAgentPlay(key: key, steps: starts + [.finalText(startedText)] + deliveries)
+        return ScriptedAgentPlay(key: key, steps: starts + [.finalText(startedText)] + deliveries + [finalAnswerStep])
+    }
+
+    /// Waits until the model got a prompt that contains `text`.
+    ///
+    /// - Parameters:
+    ///   - text: The text of the prompt.
+    ///   - script: The script that records the prompts.
+    /// - Throws: `CancellationError` when the test is cancelled.
+    static func arrival(ofPromptContaining text: String, in script: ScriptedAgentScript) async throws {
+        while !script.prompts.contains(where: { $0.contains(text) }) {
+            try await Task.sleep(for: pollInterval)
+        }
     }
 
     /// The play of the root session: it starts one run, then answers.
@@ -163,21 +184,32 @@ struct NestedRunTests {
         return run.report
     }
 
-    @Test("a lead starts two children, reads both posts in delivery turns, and its final text holds both results",
+    @Test(
+        "a lead whose two children end at different times gives a final answer that holds both results",
         .timeLimit(.minutes(1)))
     func leadJoinsBothResults() async throws {
+        let gate = ScriptedGate()
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([
-                Self.parentPlay(
-                    Self.leadKey,
-                    children: [(Self.reviewer, Self.reviewerKey), (Self.testWriter, Self.testWriterKey)]),
-                ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)]),
+                ScriptedAgentPlay(
+                    key: Self.leadKey,
+                    steps: [
+                        Self.startStep(Self.reviewer, prompt: Self.reviewerKey),
+                        Self.startStep(Self.testWriter, prompt: Self.testWriterKey),
+                        .finalText(Self.startedText),
+                        .finalTextOfLastPrompt,
+                        .finalTextOfLastPrompt,
+                        Self.finalAnswerStep
+                    ]),
+                ScriptedAgentPlay(key: Self.reviewerKey, steps: [.wait(gate), .finalText(Self.reviewerText)]),
                 ScriptedAgentPlay(key: Self.testWriterKey, steps: [.finalText(Self.testWriterText)])
             ]))
         defer { try? harness.delete() }
         let runner = harness.makeRunner()
 
         let lead = try await runner.start(Self.lead, prompt: Self.leadKey)
+        try await Self.arrival(ofPromptContaining: Self.testWriterText, in: harness.script)
+        gate.open()
         let result = try await lead.result()
         let children = await runner.runs(caller: lead.id)
         let prompts = harness.script.prompts
@@ -187,9 +219,11 @@ struct NestedRunTests {
         #expect(result.contains(Self.testWriterText))
         #expect(children.map(\.agent.id).sorted() == [Self.reviewer, Self.testWriter])
         #expect(children.allSatisfy { $0.depth == AgentRunner.hostDepth + 1 })
-        #expect(prompts.filter { $0.contains(Self.reviewerText) }.count == 1)
-        #expect(prompts.filter { $0.contains(Self.testWriterText) }.count == 1)
+        #expect(prompts.count(where: { $0.contains(Self.reviewerText) }) == 1)
+        #expect(prompts.count(where: { $0.contains(Self.testWriterText) }) == 1)
         #expect(details.allSatisfy { detail in prompts.count(where: { $0.contains(detail) }) == 1 })
+        #expect(prompts.count(where: { $0 == AgentRun.finalAnswerPrompt }) == 1)
+        #expect(prompts.last == AgentRun.finalAnswerPrompt)
     }
 
     /// Gives the detail of the final message of a finished child of
