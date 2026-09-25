@@ -22,10 +22,26 @@ comments:
     - evidence: 12 files — Sources/FoundationModelsAgents/Run/AgentRun+FinalMessage.swift, Sources/FoundationModelsAgents/Tool/AgentsToolText.swift, Sources/FoundationModelsAgents/FoundationModelsAgents.docc/TheFinalMessage.md, README.md, plan.md, Tests/FoundationModelsAgentsTests/{FinalMessageTests,NestedRunTests,ReadmeExampleTests,AgentsToolOperationsTests,AgentRunTests+Lineage}.swift, IntegrationTests/Tests/AgentsIntegrationTests/{FullCircleTests,LiveNestedTests}.swift. `swift build -Xswiftc -warnings-as-errors`: complete. `swift test -Xswiftc -warnings-as-errors`: 332 tests in 45 suites passed. `swiftlint lint Sources Tests Package.swift Examples IntegrationTests/Tests`: 0 violations in 129 files. `swift build --package-path IntegrationTests --build-tests`: complete.
     - next: /review
   timestamp: 2026-09-25T18:17:28.562942+00:00
+- actor: claude-code
+  id: 01m3cwtgc5g6qh8scftejpygqy
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (474cb7f): 0 findings (7 validator runs, 0 failed). 9 files reviewed. README.md, plan.md and TheFinalMessage.md have no validator. The .kanban files are ignored.
+    - next: none. The task is in done.
+  timestamp: 2026-09-25T18:21:42.661260+00:00
+- actor: claude-code
+  id: 01m3cwtpbbpb9jgsprmttayv1d
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 12 files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 332 passed; swiftlint 0; IntegrationTests build --build-tests passes
+    - commit: 474cb7f
+    - review: clean — 0 findings
+  timestamp: 2026-09-25T18:21:48.779873+00:00
 depends_on:
 - 01M3A6BZSVQR5RJ7TNBJ0Z9Y9Q
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: a380
 title: The final message names the agent and the run
 ---
 ## What

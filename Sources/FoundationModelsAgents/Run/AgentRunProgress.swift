@@ -4,10 +4,14 @@ import FoundationModelsRouter
 /// (plan.md §9.1).
 ///
 /// The run feeds the record from the event streams that it already reads:
-/// the stream of its task turn, and a session-event subscription during each
-/// delivery turn. A session-event subscription carries no text deltas, thus
+/// the text events of its task turn, and the one session-event subscription
+/// of the run. A session-event subscription carries no text deltas, thus
 /// the text tail of a delivery turn comes from the text that
 /// `dispatchNextPrompt()` gives when the turn ends.
+///
+/// The pass count is not an event count of the record: the run sets
+/// ``passes`` from its one counter, ``AgentRunTurns``, when it gives the
+/// record.
 ///
 /// The record never reads the transcript. Thus a read of the record never
 /// waits for the turn.
@@ -28,7 +32,8 @@ struct AgentRunProgress: Sendable, Equatable {
     var phase = AgentRunPhase.taskTurn
 
     /// The count of passes of the control loop over all the turns so far.
-    private(set) var passes = 0
+    /// The run sets it from ``AgentRunTurns/count``.
+    var passes = 0
 
     /// The names of the newest tool calls, oldest first, at most
     /// ``toolNameLimit``.
@@ -72,10 +77,10 @@ struct AgentRunProgress: Sendable, Equatable {
     /// The open live record of a tool call adds the name of the tool. The
     /// Router sends that record when the call starts, while the turn runs.
     /// The `toolCall` event of the same call comes from the transcript diff
-    /// when the turn ends, thus it adds no name a second time. A pass entry
-    /// adds one pass; the Router also records it when the turn ends. A text
-    /// delta adds to the tail, and a text reset clears it. `SessionEvent`
-    /// has no library evolution, thus each other event changes nothing.
+    /// when the turn ends, thus it adds no name a second time. A text delta
+    /// adds to the tail, and a text reset clears it. `SessionEvent` has no
+    /// library evolution, thus each other event changes nothing. A pass
+    /// entry also changes nothing: ``AgentRunTurns`` counts the passes.
     ///
     /// - Parameter event: The event.
     mutating func apply(_ event: SessionEvent) {
@@ -87,9 +92,6 @@ struct AgentRunProgress: Sendable, Equatable {
         }
         if case .textReset = event {
             replaceText(with: "")
-        }
-        if AgentRunTurns.isPass(event) {
-            passes += 1
         }
     }
 

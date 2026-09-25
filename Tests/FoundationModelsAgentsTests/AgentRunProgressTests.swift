@@ -102,11 +102,13 @@ struct AgentRunProgressTests {
         #expect(delivery.text.hasPrefix("Phase: a delivery turn.\n"))
     }
 
-    @Test("a tool-calls entry and a response entry each count one pass, and a reasoning entry counts none")
-    func entriesCountPasses() {
-        let progress = Self.record(applying: [Self.entry(.reasoning), Self.entry(.toolCalls), Self.entry(.response)])
+    @Test("an entry event adds no pass: the text tells the count that the run sets from its one counter")
+    func textTellsPassesOfRunCounter() {
+        var progress = Self.record(applying: [Self.entry(.toolCalls), Self.entry(.response)])
+        let fromEvents = progress.passes
+        progress.passes = Self.toolCallsAndResponsePasses
 
-        #expect(progress.passes == Self.toolCallsAndResponsePasses)
+        #expect(fromEvents == 0)
         #expect(progress.text.contains("\nPasses: \(Self.toolCallsAndResponsePasses).\n"))
     }
 

@@ -212,13 +212,14 @@ struct MaxTurnsTests {
         return nil
     }
 
-    @Test("a task turn with two tool passes and one answer counts 3", .timeLimit(.minutes(1)))
+    @Test("a task turn with two tool passes and one answer counts 3, one time each", .timeLimit(.minutes(1)))
     func twoToolPassesAndAnswerCountThree() async throws {
         let ended = try await Self.finishedRun(
             of: Self.unlimited, playing: [Self.listStep, Self.listStep, .finalText(Self.answerText)])
 
         #expect(ended.final == .finished(Self.answerText))
         #expect(ended.run.turns.count == Self.twoToolsAndAnswer)
+        #expect(ended.run.progress.passes == Self.twoToolsAndAnswer)
     }
 
     @Test("one pass that calls three tools counts 1", .timeLimit(.minutes(1)))

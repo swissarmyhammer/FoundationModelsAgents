@@ -95,10 +95,13 @@ public final class AgentRun: Sendable {
         storage.withLock { $0.session }
     }
 
-    /// The live progress of the run. A read takes only the lock of the run,
-    /// thus it never waits for the turn.
+    /// The live progress of the run, with the pass count of ``turns``. A
+    /// read takes only the locks of the run, thus it never waits for the
+    /// turn.
     var progress: AgentRunProgress {
-        storage.withLock { $0.progress }
+        var progress = storage.withLock { $0.progress }
+        progress.passes = turns.count
+        return progress
     }
 
     /// The part of the life of the run after its setup.
@@ -244,20 +247,31 @@ public final class AgentRun: Sendable {
     /// tool call that started the run. The tools of the session bind their
     /// own contexts.
     ///
+    /// Before the task turn, the task subscribes to the session events. A
+    /// child task reads that one subscription for the whole run
+    /// (``followPasses(_:on:)``): it counts the passes of each turn and feeds
+    /// the progress.
+    ///
     /// When the last turn ends, the task cancels the open children and waits
-    /// for them (a cancel or a failure can leave children open), closes the
-    /// session, posts the final message, records the final state, and then
-    /// tells the parent run. Thus a caller that sees the final state knows
-    /// that the post is done.
+    /// for them (a cancel or a failure can leave children open), and closes
+    /// the session. The close finishes the subscription, thus the child task
+    /// ends. The task then posts the final message, records the final state,
+    /// and tells the parent run. Thus a caller that sees the final state
+    /// knows that the post is done, and that no task of the run stays.
     ///
     /// - Parameters:
     ///   - session: The session of the run.
     ///   - prompt: The prompt of the task turn.
     private func startTurn(on session: any RoutedSession, prompt: String) {
         let turn = Task.detached {
-            let final = await self.drive(session, prompt: prompt)
-            await self.children.cancelOpenRuns()
-            await session.close()
+            let events = await session.streamSessionEvents()
+            let final = await withTaskGroup(of: Void.self) { group in
+                group.addTask { await self.followPasses(events, on: session) }
+                let final = await self.drive(session, prompt: prompt)
+                await self.children.cancelOpenRuns()
+                await session.close()
+                return final
+            }
             await self.postFinalMessage(for: final)
             self.end(in: final)
             self.parent?.children.childDidEnd()
@@ -275,7 +289,8 @@ public final class AgentRun: Sendable {
 
     /// Adds one event of a turn to the progress of the run.
     ///
-    /// - Parameter event: An event of the task turn or of a delivery turn.
+    /// - Parameter event: An event of the session-event subscription of the
+    ///   run, or a text event of the task turn.
     func record(_ event: SessionEvent) {
         storage.withLock { $0.progress.apply(event) }
     }
@@ -299,14 +314,13 @@ public final class AgentRun: Sendable {
         }
     }
 
-    /// Drives the task turn with `prompt`, collects the text of the answer,
-    /// feeds the progress of the run, and adds the passes of the turn to
-    /// ``turns``. Then delivers the final messages of the children in
-    /// delivery turns (``finishAfterChildren(on:taskTurnText:)``).
+    /// Drives the task turn with `prompt` (``runTaskTurn(on:prompt:)``).
+    /// Then delivers the final messages of the children in delivery turns
+    /// (``finishAfterChildren(on:taskTurnText:)``).
     ///
-    /// When the count goes above the `maxTurns` limit, the run stops its
-    /// read of the turn stream, and that cancels the turn. The run then
-    /// fails with ``AgentRunFailure/hitMaxTurns(partial:)``.
+    /// When the count goes above the `maxTurns` limit, the run cancels its
+    /// turn, and fails with ``AgentRunFailure/hitMaxTurns(partial:)``, not
+    /// as cancelled.
     ///
     /// - Parameters:
     ///   - session: The session of the run.
@@ -316,38 +330,13 @@ public final class AgentRun: Sendable {
     ///   run, or ``AgentRunState/failed(_:)`` for an error of a turn or for
     ///   a count above the `maxTurns` limit.
     private func drive(_ session: any RoutedSession, prompt: String) async -> AgentRunState {
-        var text = TurnText()
         do {
-            for try await event in await session.streamEvents(to: prompt) {
-                text.apply(event)
-                record(event)
-                try turns.add(event, partial: text.value)
-            }
-            let result = try await finishAfterChildren(on: session, taskTurnText: text.value)
+            let taskTurnText = try await runTaskTurn(on: session, prompt: prompt)
+            let result = try await finishAfterChildren(on: session, taskTurnText: taskTurnText)
             return Task.isCancelled ? .cancelled : .finished(result)
         } catch {
             return Task.isCancelled || error is CancellationError
                 ? .cancelled : .failed(AgentRunFailure.turnFailure(for: error))
-        }
-    }
-}
-
-/// The text of the answer of one turn, collected from its events.
-///
-/// A ``SessionEvent/textReset`` clears the text that came before it.
-private struct TurnText {
-    /// The text so far.
-    private(set) var value = ""
-
-    /// Applies one event of the turn.
-    ///
-    /// - Parameter event: The event.
-    mutating func apply(_ event: SessionEvent) {
-        if case .textDelta(let fragment) = event {
-            value += fragment
-        }
-        if case .textReset = event {
-            value = ""
         }
     }
 }

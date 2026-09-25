@@ -132,11 +132,11 @@ extension AgentRun {
     ///
     /// While a child is open, the run waits for a child to end. It then
     /// calls `session.dispatchNextPrompt()` through
-    /// ``dispatchCountingPasses(on:)``: the Router runs one turn with the
-    /// staged posts, and the model can start more children. The passes of
-    /// each delivery turn add to the `maxTurns` count of the run. The loop
-    /// ends when no child was open before a dispatch and the dispatch ran
-    /// no turn. Thus no post stays unread.
+    /// ``dispatchCountingPasses(on:lastText:)``: the Router runs one turn
+    /// with the staged posts, and the model can start more children. The
+    /// passes of each delivery turn add to the `maxTurns` count of the run.
+    /// The loop ends when no child was open before a dispatch and the
+    /// dispatch ran no turn. Thus no post stays unread.
     ///
     /// A delivery turn does not check the run limit. The run holds no place
     /// in the limit while it waits.
@@ -161,7 +161,7 @@ extension AgentRun {
             }
             enter(.delivery)
             try Task.checkCancellation()
-            if let delivered = try await dispatchCountingPasses(on: session) {
+            if let delivered = try await dispatchCountingPasses(on: session, lastText: text) {
                 text = delivered
                 continue
             }

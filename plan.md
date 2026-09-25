@@ -241,10 +241,16 @@ You are a code reviewer. Analyze the code and give specific feedback.
   model generates, then it calls tools and the loop goes around again, or it
   answers and the loop ends. Each pass records one transcript entry, and the
   Router emits `entryRecorded` with kind `.toolCalls` or `.response` for it.
-  The run counts these events over all its turns: the task turn and each
-  delivery turn. One pass that calls three tools is one. Above the limit, the
-  run cancels its turn and fails with `hitMaxTurns`, with the partial text.
-  Claude stops silently; this is tighter. No Router change.
+  The run has one counter for all its turns: the task turn and each delivery
+  turn. One `streamSessionEvents()` subscription for the whole run counts
+  these events, and feeds the progress of `check agent`. After each turn,
+  the run sets the count from the `.toolCalls` and `.response` entries of the
+  transcript, thus the count is exact before the run checks the limit. One
+  pass that calls three tools is one. Above the limit, the run cancels its
+  turn and fails with `hitMaxTurns`, never as cancelled. The partial text is
+  the text so far of the task turn, or, in a delivery turn, the text of the
+  last complete turn. Claude stops silently; this is tighter. No Router
+  change.
 
 ## 6. Marketplaces of agents
 
