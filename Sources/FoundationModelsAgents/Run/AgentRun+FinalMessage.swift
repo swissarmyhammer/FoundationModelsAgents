@@ -15,9 +15,12 @@ extension AgentRun {
 
     /// The text that tells the state of the run, as `check agent` gives it.
     ///
-    /// - A run in operation: "Agent `name` (`id`) is running: `lastEvent`."
-    ///   After its task turn, while runs that it started are open, then
-    ///   "It waits for `N` agents that it started."
+    /// - A run in operation: "Agent `name` (`id`) is running." After its
+    ///   task turn, while runs that it started are open, then "It waits for
+    ///   `N` agents that it started." Then the lines of its progress
+    ///   (``AgentRunProgress/text``): the phase, the passes, the last tool
+    ///   names, and the text so far. The text reads only the lock of the run,
+    ///   thus it never waits for the turn.
     /// - A finished run: "Agent `name` (`id`) finished.", then the full text
     ///   of its last turn.
     /// - A failed or a cancelled run: the detail of its final message.
@@ -32,7 +35,7 @@ extension AgentRun {
     func report(of state: AgentRunState) -> String {
         switch state {
         case .running:
-            ["\(subject) is running: \(lastEvent).", waitingSentence].compactMap(\.self).joined(separator: " ")
+            runningText
         case .finished(let text):
             "\(subject) finished.\n\n\(text)"
         case .failed(let failure):
@@ -40,6 +43,13 @@ extension AgentRun {
         case .cancelled:
             cancelledText
         }
+    }
+
+    /// The text of a run in operation: the heading line, then the lines of
+    /// its progress.
+    private var runningText: String {
+        let heading = ["\(subject) is running.", waitingSentence].compactMap(\.self).joined(separator: " ")
+        return "\(heading)\n\(progress.text)"
     }
 
     /// The text of a cancelled run: "Agent `name` (`id`) was cancelled."

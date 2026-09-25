@@ -150,14 +150,14 @@ struct NestedRunTests {
         return false
     }
 
-    /// Reads the report of `run` until it ends with the waiting sentence
-    /// for one child.
+    /// Reads the report of `run` until it holds the waiting sentence for one
+    /// child.
     ///
     /// - Parameter run: A run that waits for one child after its task turn.
     /// - Returns: The report.
     /// - Throws: `CancellationError` when the test is cancelled.
     private static func waitingReport(of run: AgentRun) async throws -> String {
-        while !run.report.hasSuffix(waitingForOneText) {
+        while !run.report.contains(waitingForOneText) {
             try await Task.sleep(for: pollInterval)
         }
         return run.report
@@ -210,7 +210,7 @@ struct NestedRunTests {
         gate.open()
         let result = try await lead.result()
 
-        #expect(report.hasPrefix("\(lead.subject) is running: "))
+        #expect(report.hasPrefix("\(lead.subject) is running. \(Self.waitingForOneText)\n"))
         #expect(stateWhileWaiting == .running)
         #expect(child.state == .finished(Self.reviewerText))
         #expect(result.contains(Self.reviewerText))

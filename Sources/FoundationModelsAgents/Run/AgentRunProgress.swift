@@ -1,0 +1,113 @@
+import FoundationModelsRouter
+
+/// The live progress of a run in operation, as `check agent` tells it
+/// (plan.md §9.1).
+///
+/// The run feeds the record from the event streams that it already reads:
+/// the stream of its task turn, and a session-event subscription during each
+/// delivery turn. A session-event subscription carries no text deltas, thus
+/// the text tail of a delivery turn comes from the text that
+/// `dispatchNextPrompt()` gives when the turn ends.
+///
+/// The record never reads the transcript. Thus a read of the record never
+/// waits for the turn.
+struct AgentRunProgress: Sendable, Equatable {
+    /// The most tool names that the record keeps.
+    static let toolNameLimit = 5
+
+    /// The most characters of the text tail that the record keeps.
+    static let textTailLimit = 240
+
+    /// The mark before a text tail that the record cut.
+    static let cutMark = "..."
+
+    /// The word that the text gives for an empty list or an empty tail.
+    static let none = "none"
+
+    /// The part of the life of the run after its setup.
+    var phase = AgentRunPhase.taskTurn
+
+    /// The count of passes of the control loop over all the turns so far.
+    private(set) var passes = 0
+
+    /// The names of the newest tool calls, oldest first, at most
+    /// ``toolNameLimit``.
+    private(set) var toolNames: [String] = []
+
+    /// The last characters of the text of the current turn, at most
+    /// ``textTailLimit``.
+    private(set) var textTail = ""
+
+    /// `true` when the text of the current turn has more characters than
+    /// ``textTail``.
+    private var isCut = false
+
+    /// The lines that tell the record: the phase, the pass count, the last
+    /// tool names, and the text so far.
+    var text: String {
+        let tools = toolNames.isEmpty ? Self.none : toolNames.joined(separator: ", ")
+        let tail = textTail.isEmpty ? "\(Self.none)." : (isCut ? Self.cutMark : "") + textTail
+        return """
+            Phase: \(phaseName).
+            Passes: \(passes).
+            Last tools: \(tools).
+            Text so far: \(tail)
+            """
+    }
+
+    /// The name of ``phase`` in the text.
+    private var phaseName: String {
+        switch phase {
+        case .taskTurn:
+            "the task turn"
+        case .waitingForChildren:
+            "the wait for the agents that it started"
+        case .delivery:
+            "a delivery turn"
+        }
+    }
+
+    /// Applies one event of a turn.
+    ///
+    /// The open live record of a tool call adds the name of the tool. The
+    /// Router sends that record when the call starts, while the turn runs.
+    /// The `toolCall` event of the same call comes from the transcript diff
+    /// when the turn ends, thus it adds no name a second time. A pass entry
+    /// adds one pass; the Router also records it when the turn ends. A text
+    /// delta adds to the tail, and a text reset clears it. `SessionEvent`
+    /// has no library evolution, thus each other event changes nothing.
+    ///
+    /// - Parameter event: The event.
+    mutating func apply(_ event: SessionEvent) {
+        if case .toolInvocation(let record) = event, record.closedAt == nil {
+            toolNames = Array((toolNames + [record.tool]).suffix(Self.toolNameLimit))
+        }
+        if case .textDelta(let fragment) = event {
+            replaceText(with: textTail + fragment, cut: isCut)
+        }
+        if case .textReset = event {
+            replaceText(with: "")
+        }
+        if AgentRunTurns.isPass(event) {
+            passes += 1
+        }
+    }
+
+    /// Replaces the text so far with `text`, for example with the text that
+    /// a delivery turn gave.
+    ///
+    /// - Parameter text: The full text of the turn.
+    mutating func replaceText(with text: String) {
+        replaceText(with: text, cut: false)
+    }
+
+    /// Keeps the last ``textTailLimit`` characters of `text` as the tail.
+    ///
+    /// - Parameters:
+    ///   - text: The text to keep the tail of.
+    ///   - cut: `true` when the record already cut the text before `text`.
+    private mutating func replaceText(with text: String, cut: Bool) {
+        textTail = String(text.suffix(Self.textTailLimit))
+        isCut = cut || text.count > Self.textTailLimit
+    }
+}

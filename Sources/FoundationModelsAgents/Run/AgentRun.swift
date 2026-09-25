@@ -31,12 +31,9 @@ public final class AgentRun: Sendable {
         /// failed. It gives the final state of the run.
         var turn: Task<AgentRunState, Never>?
 
-        /// The phrase of the last event of the turn that tells a kind of
-        /// work (``AgentRunActivity``).
-        var lastEvent = AgentRunActivity.started
-
-        /// The part of the life of the run after its setup.
-        var phase = AgentRunPhase.taskTurn
+        /// The live progress of the run: its phase, its passes, its last
+        /// tool calls, and the tail of its text.
+        var progress = AgentRunProgress()
     }
 
     /// The id of the run. It is the session id and the name of the
@@ -98,22 +95,23 @@ public final class AgentRun: Sendable {
         storage.withLock { $0.session }
     }
 
-    /// The phrase of the last event of the turn that tells a kind of work,
-    /// for example "it called the tool Read". It is
-    /// ``AgentRunActivity/started`` until the turn gives such an event.
-    var lastEvent: String {
-        storage.withLock { $0.lastEvent }
+    /// The live progress of the run. A read takes only the lock of the run,
+    /// thus it never waits for the turn.
+    var progress: AgentRunProgress {
+        storage.withLock { $0.progress }
     }
 
     /// The part of the life of the run after its setup.
     var phase: AgentRunPhase {
-        storage.withLock { $0.phase }
+        storage.withLock { $0.progress.phase }
     }
 
     /// `true` when the run holds a place in the run limit: it is in
     /// operation and does not wait for its children (plan.md §9.3).
     var isWorking: Bool {
-        storage.withLock { storage in storage.state == .running && storage.phase != .waitingForChildren }
+        storage.withLock { storage in
+            storage.state == .running && storage.progress.phase != .waitingForChildren
+        }
     }
 
     /// Makes a run.
@@ -272,7 +270,23 @@ public final class AgentRun: Sendable {
     ///
     /// - Parameter phase: The new phase.
     func enter(_ phase: AgentRunPhase) {
-        storage.withLock { $0.phase = phase }
+        storage.withLock { $0.progress.phase = phase }
+    }
+
+    /// Adds one event of a turn to the progress of the run.
+    ///
+    /// - Parameter event: An event of the task turn or of a delivery turn.
+    func record(_ event: SessionEvent) {
+        storage.withLock { $0.progress.apply(event) }
+    }
+
+    /// Sets the text tail of the progress to the text of a delivery turn.
+    /// The session events of a delivery turn carry no text, thus the tail
+    /// changes only when the turn returns.
+    ///
+    /// - Parameter text: The text that the delivery turn gave.
+    func recordDelivered(_ text: String) {
+        storage.withLock { $0.progress.replaceText(with: text) }
     }
 
     /// Records the final state, and lets go of the session.
@@ -285,19 +299,8 @@ public final class AgentRun: Sendable {
         }
     }
 
-    /// Records the phrase of `event` as ``lastEvent``, when the event tells
-    /// a kind of work.
-    ///
-    /// - Parameter event: An event of the turn.
-    private func record(_ event: SessionEvent) {
-        guard let phrase = AgentRunActivity.phrase(for: event) else {
-            return
-        }
-        storage.withLock { $0.lastEvent = phrase }
-    }
-
     /// Drives the task turn with `prompt`, collects the text of the answer,
-    /// records the last event of work, and adds the passes of the turn to
+    /// feeds the progress of the run, and adds the passes of the turn to
     /// ``turns``. Then delivers the final messages of the children in
     /// delivery turns (``finishAfterChildren(on:taskTurnText:)``).
     ///

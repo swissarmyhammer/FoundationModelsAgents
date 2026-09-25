@@ -94,6 +94,10 @@ extension AgentRun {
     /// text, the subscription holds each event of the turn. The run reads
     /// them up to the entry of the answer, which is the last pass.
     ///
+    /// While the turn runs, ``dispatchFollowingProgress(on:)`` feeds the
+    /// progress of the run. When the turn returns, its text becomes the
+    /// text tail of the progress.
+    ///
     /// - Parameter session: The session of the run.
     /// - Returns: The text of the delivery turn, or `nil` when the dispatch
     ///   ran no turn.
@@ -102,9 +106,10 @@ extension AgentRun {
     ///   while it reads, or the error of the delivery turn.
     func dispatchCountingPasses(on session: any RoutedSession) async throws -> String? {
         let events = await session.streamSessionEvents()
-        guard let delivered = try await session.dispatchNextPrompt() else {
+        guard let delivered = try await dispatchFollowingProgress(on: session) else {
             return nil
         }
+        recordDelivered(delivered)
         for await event in events {
             try turns.add(event, partial: delivered)
             if AgentRunTurns.isAnswer(event) {
@@ -112,5 +117,45 @@ extension AgentRun {
             }
         }
         throw CancellationError()
+    }
+
+    /// Runs `session.dispatchNextPrompt()`, and feeds the progress of the run
+    /// from the events of that turn while it runs.
+    ///
+    /// A child task reads a second `streamSessionEvents()` subscription, so
+    /// `check agent` sees the passes and the tool calls of the delivery turn
+    /// before the turn returns. The subscription carries no text deltas. The
+    /// child stops at the entry of the answer. When the dispatch runs no
+    /// turn or throws, the group cancels the child.
+    ///
+    /// - Parameter session: The session of the run.
+    /// - Returns: The text of the delivery turn, or `nil` when the dispatch
+    ///   ran no turn.
+    /// - Throws: The error of the delivery turn.
+    private func dispatchFollowingProgress(on session: any RoutedSession) async throws -> String? {
+        let live = await session.streamSessionEvents()
+        return try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { await self.followProgress(live) }
+            let delivered = try await session.dispatchNextPrompt()
+            if delivered == nil {
+                group.cancelAll()
+            }
+            return delivered
+        }
+    }
+
+    /// Adds each event of one delivery turn to the progress of the run, up
+    /// to the entry of the answer.
+    ///
+    /// - Parameter events: A session-event subscription made before the
+    ///   dispatch. The read ends at the answer or when the task is
+    ///   cancelled.
+    private func followProgress(_ events: AsyncStream<SessionEvent>) async {
+        for await event in events {
+            record(event)
+            if AgentRunTurns.isAnswer(event) {
+                return
+            }
+        }
     }
 }

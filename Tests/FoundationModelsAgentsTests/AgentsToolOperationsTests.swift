@@ -94,6 +94,21 @@ struct AgentsToolOperationsTests {
         return nil
     }
 
+    /// Gives the `check agent` text of a run whose first generation call is
+    /// in its gate: the task turn, with no pass, no tool call, and no text.
+    ///
+    /// - Parameter run: The gated run.
+    /// - Returns: The text.
+    private static func gatedReport(of run: AgentRun) -> String {
+        """
+        Agent code-reviewer (\(run.id)) is running.
+        Phase: the task turn.
+        Passes: 0.
+        Last tools: none.
+        Text so far: none.
+        """
+    }
+
     /// Starts one gated run of the reviewer through the tool.
     ///
     /// - Parameters:
@@ -182,7 +197,7 @@ struct AgentsToolOperationsTests {
                 Agent code-reviewer started with the id \(run.id). \
                 Ask about it with {"op": "check agent", "id": "\(run.id)"}.
                 """)
-        #expect(running == "Agent code-reviewer (\(run.id)) is running: the turn started.")
+        #expect(running == Self.gatedReport(of: run))
         #expect(finished == "Agent code-reviewer (\(run.id)) finished.\n\n\(Self.finalText)")
         #expect(run.context == nil)
     }
@@ -241,7 +256,7 @@ struct AgentsToolOperationsTests {
 
         #expect(shown == (try await harness.call("list agents")))
         #expect(started.hasPrefix("Agent code-reviewer started with the id \(run.id)."))
-        #expect(status == "Agent code-reviewer (\(run.id)) is running: the turn started.")
+        #expect(status == Self.gatedReport(of: run))
         #expect(stopped.hasPrefix("The cancel of Agent code-reviewer (\(run.id)) was sent"))
         #expect(await run.finalState() == .cancelled)
     }
