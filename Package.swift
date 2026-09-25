@@ -47,7 +47,7 @@ let commonDependencies: [Target.Dependency] = [
     // `AgentFrontmatter.decode` reads YAML with Yams.
     .product(name: "Yams", package: "Yams"),
     // Run ids.
-    .product(name: "ULID", package: "ULID.swift"),
+    .product(name: "ULID", package: "ULID.swift")
 ]
 
 /// The products that only the example links: the live model loader of
@@ -73,7 +73,7 @@ let testOnlyDependencies: [Target.Dependency] = [
     .product(name: "FoundationModelsRouterTestSupport", package: "FoundationModelsRouter"),
     // `MarketplaceStoreFixture`, `GitFixtureRepository`, `ManualClock`, and
     // the other marketplace fixtures.
-    .product(name: "MarketplaceFixtures", package: "FoundationModelsExtras"),
+    .product(name: "MarketplaceFixtures", package: "FoundationModelsExtras")
 ]
 
 /// The `FoundationModelsAgents` SwiftPM package.
@@ -87,10 +87,10 @@ let package = Package(
     // package declares the same floor. The string form states macOS 27 under
     // tools 6.2.
     platforms: [
-        .macOS("27.0"),
+        .macOS("27.0")
     ],
     products: [
-        .library(name: packageName, targets: [packageName]),
+        .library(name: packageName, targets: [packageName])
     ],
     dependencies: [
         .package(url: "\(swissArmyHammerOrg)FoundationModelsRouter.git", branch: "main"),
@@ -125,6 +125,6 @@ let package = Package(
             name: testTargetName,
             dependencies: [.byName(name: packageName), .byName(name: demoTargetName)] + commonDependencies
                 + testOnlyDependencies
-        ),
+        )
     ]
 )
