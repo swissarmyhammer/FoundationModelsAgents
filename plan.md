@@ -20,7 +20,8 @@ catalog, the delegation rules, and the tool.
   gives back one final text. The caller keeps its own context.
 - **An agent is a tool.** One `OperationTool` named `agents` with four
   operations: `list agents`, `start agent`, `check agent`, `cancel agent`.
-  An agent can have this tool, so agents can start agents. `maxDepth` is 3.
+  An agent whose `tools` key lists `Agent` has this tool, so agents can start
+  agents (§5). `maxDepth` is 3.
 - **Agents learn from Skills (§2).** The same file kind, the same stack, the
   same catalog-in-a-description. Not copied: what Skills does because a
   skill adds text to the current context.
@@ -225,15 +226,18 @@ You are a code reviewer. Analyze the code and give specific feedback.
 
 - **`ToolCatalog`**: `name → factory of any Tool`. Each run gets new
   instances. The `skills` tool is one entry.
-- **Resolution (Claude semantics).** No `tools` key gives the full catalog.
-  `disallowedTools` applies first, then `tools`. The MCP patterns
-  `mcp__<server>`, `mcp__<server>__*`, `mcp__*` are prefix matches. An
-  unknown name is a warning and is skipped. An unknown name in
-  `disallowedTools` is shown first, because a dropped deny gives more access
-  than the author wanted.
-- **The `agents` tool** is in the catalog under the name `agents`, so the
-  same rules apply. `Agent(a, b)` gives the tool with its names limited to
-  `a` and `b`. Each run gets its own instance from `AgentsTool.make`.
+- **Resolution (Claude semantics).** No `tools` key gives each tool of the
+  catalog, but not the `agents` tool. `disallowedTools` applies first, then
+  `tools`. The MCP patterns `mcp__<server>`, `mcp__<server>__*`, `mcp__*`
+  are prefix matches. An unknown name is a warning and is skipped. An unknown
+  name in `disallowedTools` is shown first, because a dropped deny gives more
+  access than the author wanted.
+- **The `agents` tool.** Only an explicit `tools` entry gives the `agents`
+  tool: `Agent`, `Agent(a, b)`, or `agents`. An agent with no `tools` key gets
+  no `agents` tool, thus an agent can start agents only when its author lists
+  the tool. `Agent(a, b)` gives the tool with its names limited to `a` and
+  `b`. `disallowedTools: Agent` removes the tool. Each run with one of these
+  entries gets its own instance from `AgentsTool.make`.
 - **`skills:` preload.** At run start, `SkillsRegistry.call(id:)` gives each
   rendered body, and the run appends it to the instructions of the new
   session. An unknown or not-visible skill is a warning and is skipped.

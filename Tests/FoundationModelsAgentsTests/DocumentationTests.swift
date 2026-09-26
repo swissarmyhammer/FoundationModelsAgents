@@ -98,6 +98,13 @@ struct DocumentationTests {
     /// documents under `docs/` to the same list.
     static let speedWords = ["slow", "slower", "fast", "faster", "speed", "cheap", "expensive"]
 
+    /// The rule that gives the `agents` tool to a run (plan.md §5). A page
+    /// wraps its lines, thus each rule text fits on one line of the page.
+    private static let agentsToolRule = "Only an explicit `tools` entry gives the `agents` tool."
+
+    /// The rule for an agent with no `tools` key (plan.md §5).
+    private static let noToolsKeyRule = "An agent with no `tools` key gets no `agents` tool."
+
     /// Every claim that a page must make.
     private static let claims: [Claim] =
         articles.map { Claim(page: landingPage, text: "<doc:\($0)>") }
@@ -112,6 +119,10 @@ struct DocumentationTests {
             Claim(page: runArticle, text: "The run id is the session id"),
             Claim(page: runArticle, text: "The `maxTurns` key counts the passes of the control loop."),
             Claim(page: runArticle, text: "``AgentRunFailure/hitMaxTurns(partial:)``"),
+            Claim(page: runArticle, text: noToolsKeyRule),
+            Claim(page: runArticle, text: agentsToolRule),
+            Claim(page: toolArticle, text: agentsToolRule),
+            Claim(page: toolArticle, text: noToolsKeyRule),
             Claim(page: toolArticle, text: "`list agents`"),
             Claim(page: toolArticle, text: "`start agent`"),
             Claim(page: toolArticle, text: "`check agent`"),

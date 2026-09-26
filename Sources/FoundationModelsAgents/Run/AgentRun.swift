@@ -159,10 +159,12 @@ public final class AgentRun: Sendable {
     /// Gives the maker of the `agents` tool of each run that `runner`
     /// starts (plan.md §8 step 4, §9.3).
     ///
-    /// The tool of a run is new for each run. `Agent(a, b)` limits it to
-    /// the names `a` and `b`. The tool knows the run as its ``ParentRun``,
-    /// thus each run that it starts has this run as its caller, the depth of
-    /// this run plus one, and the slot of this run for `model: inherit`.
+    /// A run uses the maker only when its `tools` key has an `Agent`,
+    /// `Agent(a, b)`, or `agents` entry. The tool of a run is new for each
+    /// run. `Agent(a, b)` limits it to the names `a` and `b`. The tool
+    /// knows the run as its ``ParentRun``, thus each run that it starts has
+    /// this run as its caller, the depth of this run plus one, and the slot
+    /// of this run for `model: inherit`.
     ///
     /// - Parameter runner: The runner that owns each run that the tool
     ///   starts.

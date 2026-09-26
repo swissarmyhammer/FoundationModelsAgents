@@ -61,9 +61,13 @@ An unknown name throws ``AgentRunnerError/unknownAgent(name:available:)``.
 2. It puts the instructions in order: the `AGENTS.md` files of the working
    directory, outermost first; the body; the body of each skill of the
    `skills:` key.
-3. It resolves the tools. With no `tools` key, the run gets each tool of the
-   ``ToolCatalog``. `disallowedTools` applies first, then `tools`. The run
-   also gets its own `agents` tool when its keys permit it.
+3. It resolves the tools. `disallowedTools` applies first, then `tools`. With
+   no `tools` key, the run gets each tool of the ``ToolCatalog``.
+   An agent with no `tools` key gets no `agents` tool.
+   Only an explicit `tools` entry gives the `agents` tool.
+   The entries are `Agent`, `Agent(a, b)`, and `agents`. A run with one of
+   these entries gets its own instance of the tool. `disallowedTools: Agent`
+   removes the tool.
 4. It matches the `model` key to a slot of the profile. An absent key or
    `inherit` gives the slot of the caller. For a host-started run, that is
    ``AgentEnvironment/defaultSlot``. `standard` and `flash` give that slot. A

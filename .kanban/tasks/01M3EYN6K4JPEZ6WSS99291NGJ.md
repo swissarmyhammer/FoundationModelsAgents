@@ -55,8 +55,31 @@ comments:
     - evidence: 1 file — Tests/FoundationModelsAgentsTests/AgentRegistryReloadTests.swift. No change in Sources or in FoundationModelsExtras. RED: with the temporary stale-catalog change, `--filter burstOfWritesEndsWithTheLastState` failed in both cases with 6 issues (change reverted). GREEN: `--filter AgentRegistryReloadTests` 10 tests in 1 suite pass. `swift build -Xswiftc -warnings-as-errors`: Build complete. swiftlint: 0 violations in 123 files. `swift test -Xswiftc -warnings-as-errors` 10 full runs in a row under 18 `yes` processes (load average 21 to 58): runs 1-10 each exit 0, 359 tests in 49 suites passed (1.276 s, 0.781 s, 0.891 s, 0.727 s, 0.772 s, 0.783 s, 0.778 s, 0.809 s, 0.907 s, 0.853 s); the burst test passed in 10/10 runs (2 cases each). The only warning line in each log is the SwiftPM build-system line `missing creator for mutated node` for the mlx-swift_Cmlx bundle. It was there before this change, and it is not a compiler warning.
     - next: /review
   timestamp: 2026-09-26T18:38:47.934410+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m3fgff53znw2kgz84pqsj4fe
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (bf0016d). 0 findings (7 validator runs attempted, 0 failed). 1 file reviewed. 4 .kanban files not reviewed because of .reviewignore.
+    - next: none. The task moved to done.
+
+    ```
+    step: review
+    outcome: clean
+    evidence: 0 findings
+    task: ^9291ngj
+    ```
+  timestamp: 2026-09-26T18:43:41.347903+00:00
+- actor: claude-code
+  id: 01m3fgfmyyge5bmprtyztpvqxy
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — AgentRegistryReloadTests.swift; 10 loaded runs 359/359 each
+    - test: green — swift test -Xswiftc -warnings-as-errors, 359 passed; swiftlint 0; IntegrationTests build passes
+    - commit: bf0016d
+    - review: clean — 0 findings
+  timestamp: 2026-09-26T18:43:47.294320+00:00
+position_column: done
+position_ordinal: b080
 title: The reload burst test fails under CPU load
 ---
 ## What

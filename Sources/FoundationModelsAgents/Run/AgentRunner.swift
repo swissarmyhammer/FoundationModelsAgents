@@ -105,7 +105,8 @@ public actor AgentRunner {
     ///
     /// The run has no caller and depth one. An agent with no `model`, or
     /// with `model: inherit`, runs on ``AgentEnvironment/defaultSlot``. The
-    /// run gets its own `agents` tool when its `tools` permit it. The run is
+    /// run gets its own `agents` tool only when its `tools` key has an
+    /// explicit `Agent`, `Agent(a, b)`, or `agents` entry. The run is
     /// in the index when the call returns.
     ///
     /// - Parameters:
@@ -227,8 +228,9 @@ public actor AgentRunner {
     /// of the `tools` and `disallowedTools` entries that match no tool, then
     /// the warnings of the `skills` entries that name no skill or a skill
     /// that is not model-visible (plan.md §5). The diagnostics of the
-    /// registry come first. Each run of this runner gets the `agents` tool,
-    /// thus `Agent` entries match it.
+    /// registry come first. This runner can make the `agents` tool for each
+    /// run whose `tools` key lists it, thus an `Agent` entry matches a tool
+    /// and gives no warning.
     ///
     /// - Returns: The catalog. It is empty before `registry.load()`.
     public nonisolated func catalog() -> AgentCatalog {

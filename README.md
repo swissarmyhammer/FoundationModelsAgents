@@ -14,8 +14,8 @@ An agent run is a new Router session in the same process. The run gets a task,
 works in the background with its own context and its own tools, and gives back
 one final text. The caller keeps its own context. A model starts agents through
 one tool, `agents`, with four operations: `list agents`, `start agent`,
-`check agent`, and `cancel agent`. An agent can have this tool too, thus agents
-can start agents.
+`check agent`, and `cancel agent`. An agent whose `tools` key lists `Agent` has
+this tool too, thus agents can start agents.
 
 ## The agent file
 
@@ -39,8 +39,11 @@ You are a code reviewer. Read the code and give specific feedback.
 - `name` and `description` are necessary. An agent with no valid description
   is not visible to the model.
 - `tools` is the list of tools of the run. With no `tools` key, the run gets
-  each tool of the `ToolCatalog`. `Agent(a, b)` lets the run start only the
-  agents `a` and `b`. `disallowedTools` removes tools from the list.
+  each tool of the `ToolCatalog`, but not the `agents` tool. Only an explicit
+  `Agent`, `Agent(a, b)`, or `agents` entry gives the `agents` tool.
+  `Agent(a, b)` lets the run start only the agents `a` and `b`.
+  `disallowedTools` removes tools from the list, and `disallowedTools: Agent`
+  removes the `agents` tool.
 - `model` is a Router slot (`standard` or `flash`) or a model reference of the
   profile. With no `model` key, a run that an agent starts uses the slot of
   that agent, and a run that the host starts uses the default slot of the

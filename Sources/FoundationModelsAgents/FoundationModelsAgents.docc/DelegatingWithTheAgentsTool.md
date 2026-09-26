@@ -69,14 +69,20 @@ wrong and what it can do now:
 
 ### Agents that start agents
 
-Each run gets its own `agents` tool when its `tools` key permits it and its
-depth is less than ``AgentEnvironment/maxDepth``. A run at the depth limit
-gets no `agents` tool. A run that starts agents finishes only after each of
-them ends. While it waits, it holds no place in the run limit. Each final
-message of a child starts a delivery turn of the parent, and the parent can
-start more agents in that turn. When all its children ended, the parent gets
-a final-answer prompt, and the text of that turn is its result. A cancel, or a
-failure of the parent, cancels its children first.
+Only an explicit `tools` entry gives the `agents` tool.
+The entries are `Agent`, `Agent(a, b)`, and `agents`.
+An agent with no `tools` key gets no `agents` tool.
+It gets the other tools of the ``ToolCatalog``, thus it cannot start agents.
+`disallowedTools: Agent` removes the tool. A run with one of these entries gets
+its own `agents` tool when its depth is less than ``AgentEnvironment/maxDepth``.
+A run at the depth limit gets no `agents` tool.
+
+A run that starts agents finishes only after each of them ends. While it
+waits, it holds no place in the run limit. Each final message of a child
+starts a delivery turn of the parent, and the parent can start more agents in
+that turn. When all its children ended, the parent gets a final-answer prompt,
+and the text of that turn is its result. A cancel, or a failure of the parent,
+cancels its children first.
 
 ### Skills through an agent
 

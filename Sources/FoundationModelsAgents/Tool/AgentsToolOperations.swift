@@ -71,7 +71,8 @@ extension StartAgent {
     /// of the calling run for `model: inherit`. A session that is not a run
     /// gives depth one and ``AgentEnvironment/defaultSlot``. Above
     /// ``AgentEnvironment/maxDepth`` the call starts no run. The new run gets
-    /// an `agents` tool of its own.
+    /// an `agents` tool of its own only when its `tools` key has an explicit
+    /// `Agent`, `Agent(a, b)`, or `agents` entry.
     ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The id of the run, or a corrective for a blank prompt, for

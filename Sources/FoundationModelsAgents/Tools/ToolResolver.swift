@@ -25,7 +25,8 @@ struct ToolResolver: Sendable {
     /// - Parameters:
     ///   - definition: The agent.
     ///   - catalog: The tool catalog of the runner.
-    ///   - hasAgentsTool: `true` when the runner gives the `agents` tool.
+    ///   - hasAgentsTool: `true` when the runner can make the `agents` tool
+    ///     for a run whose `tools` key lists it.
     /// - Returns: The warnings, in order.
     static func diagnostics(
         of definition: AgentDefinition, catalog: ToolCatalog, hasAgentsTool: Bool
