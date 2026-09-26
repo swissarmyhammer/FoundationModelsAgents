@@ -7,24 +7,21 @@ enum LiveAgentFile {
     /// The name of the folder that holds the agent files of a layer.
     static let agentsFolderName = "agents"
 
-    /// The `disallowedTools` entry that removes the `agents` tool.
-    private static let agentsToolEntry = "Agent"
-
     /// The line that opens and closes a frontmatter.
     private static let frontmatterFence = "---"
 
-    /// Gives the frontmatter line that removes the `agents` tool and the
-    /// catalog tools `toolNames`.
+    /// Gives the frontmatter line that removes the catalog tools
+    /// `toolNames`.
     ///
-    /// An agent with no `tools` field gets each tool of the catalog and the
-    /// `agents` tool. A small model then can call a tool that the test did
-    /// not ask for, for example start an agent, or wait in a tool that holds
-    /// its call.
+    /// An agent with no `tools` field gets each tool of the catalog, but not
+    /// the `agents` tool. A small model then can call a catalog tool that
+    /// the test did not ask for, for example wait in a tool that holds its
+    /// call.
     ///
     /// - Parameter toolNames: The names of the catalog tools to remove.
     /// - Returns: The `disallowedTools` line.
-    static func disallowedTools(_ toolNames: [String] = []) -> String {
-        "disallowedTools: " + ([agentsToolEntry] + toolNames).joined(separator: ", ")
+    static func disallowedTools(_ toolNames: [String]) -> String {
+        "disallowedTools: " + toolNames.joined(separator: ", ")
     }
 
     /// Gives the body that tells the model to answer with one word.

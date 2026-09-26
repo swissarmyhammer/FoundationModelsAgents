@@ -270,22 +270,35 @@ struct ToolResolverTests {
         #expect(await calls.allowedNames == [nil])
     }
 
-    @Test("no tools key with an agents tool factory gives the agents tool too")
-    func noToolsKeyGivesAgentsTool() async throws {
+    @Test("no tools key with an agents tool factory gives each catalog tool, but not the agents tool")
+    func noToolsKeyGivesNoAgentsTool() async throws {
         let calls = AgentsToolCalls()
         let resolved = try await Self.resolve(nil, agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
-        #expect(resolved.tools.map(\.name) == Self.catalogNames + [Self.agentsName])
-        #expect(await calls.allowedNames == [nil])
+        #expect(resolved.tools.map(\.name) == Self.catalogNames)
+        #expect(await calls.allowedNames.isEmpty)
+        #expect(resolved.diagnostics.isEmpty)
+    }
+
+    @Test("no tools key does not give a catalog tool with the name agents when an agents tool factory is present")
+    func noToolsKeyGivesNoCatalogAgentsTool() async throws {
+        var catalog = Self.makeCatalog()
+        catalog.register(Self.agentsName) { ProbeTool(name: Self.agentsName) }
+        let calls = AgentsToolCalls()
+        let resolved = try await Self.resolver.resolve(
+            tools: nil, disallowed: [], catalog: catalog, agentsTool: Self.makeAgentsTool(recordingIn: calls))
+
+        #expect(resolved.tools.map(\.name) == Self.catalogNames)
+        #expect(await calls.allowedNames.isEmpty)
     }
 
     @Test("Agent in disallowedTools removes the agents tool", arguments: ["Agent", agentsName, "Agent(\(firstAgent))"])
     func disallowedAgentRemovesAgentsTool(entry: String) async throws {
         let calls = AgentsToolCalls()
         let resolved = try await Self.resolve(
-            nil, disallowed: [entry], agentsTool: Self.makeAgentsTool(recordingIn: calls))
+            [Self.read, "Agent"], disallowed: [entry], agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
-        #expect(resolved.tools.map(\.name) == Self.catalogNames)
+        #expect(resolved.tools.map(\.name) == [Self.read])
         #expect(await calls.allowedNames.isEmpty)
         #expect(resolved.diagnostics.isEmpty)
     }

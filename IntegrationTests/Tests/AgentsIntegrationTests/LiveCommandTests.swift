@@ -42,7 +42,7 @@ extension LiveSuites {
                 LiveAgentFile.path(of: Self.echoAgent): LiveAgentFile.text(
                     id: Self.echoAgent,
                     description: "Answers with one fixed word.",
-                    fields: ["model: flash", LiveAgentFile.disallowedTools()],
+                    fields: ["model: flash"],
                     body: LiveAgentFile.answerBody(word: Self.echoWord))
             ]
 
@@ -69,7 +69,6 @@ extension LiveSuites {
                 LiveAgentFile.path(of: Self.storyAgent): LiveAgentFile.text(
                     id: Self.storyAgent,
                     description: "Writes a long story.",
-                    fields: [LiveAgentFile.disallowedTools()],
                     body: "Write a story of three thousand words about the sea. Write each word of it.")
             ]
 

@@ -39,10 +39,11 @@ struct ToolResolver: Sendable {
 
     /// Resolves the entries to new tool instances.
     ///
-    /// No `tools` key gives the full catalog. `disallowed` applies first,
-    /// then `tools`. The MCP patterns match by prefix. An entry that matches
-    /// no tool is a warning and is skipped, and the warnings of `disallowed`
-    /// come first. `Agent` and `Agent(a, b)` give the `agents` tool through
+    /// No `tools` key gives the full catalog, but not the `agents` tool.
+    /// `disallowed` applies first, then `tools`. The MCP patterns match by
+    /// prefix. An entry that matches no tool is a warning and is skipped,
+    /// and the warnings of `disallowed` come first. Only the `tools` entries
+    /// `Agent`, `Agent(a, b)`, and `agents` give the `agents` tool through
     /// `agentsTool`; with no `agentsTool`, they are unknown names.
     ///
     /// - Parameters:

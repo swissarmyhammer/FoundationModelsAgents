@@ -43,7 +43,7 @@ extension LiveSuites {
                 LiveAgentFile.path(of: Self.referenceAgent): LiveAgentFile.text(
                     id: Self.referenceAgent,
                     description: "Answers with one fixed word on the flash model.",
-                    fields: ["model: \(reference)", LiveAgentFile.disallowedTools()],
+                    fields: ["model: \(reference)"],
                     body: LiveAgentFile.answerBody(word: Self.referenceWord))
             ]
 

@@ -5,7 +5,8 @@ import Testing
 extension NestedRunTests {
     /// Pins the limits and the slots of nested runs (plan.md §7, §9.3): a
     /// run that waits for its children holds no place in the run limit, a
-    /// run at `maxDepth` has no `agents` tool, a direct start above
+    /// run at `maxDepth` has no `agents` tool, a run of an agent with no
+    /// `tools` key has no `agents` tool, a direct start above
     /// `maxDepth` gives a corrective, and `model: inherit` in a child uses
     /// the slot of the calling run.
     @Suite("Nested run limits")
@@ -163,6 +164,28 @@ extension NestedRunTests {
             #expect(harness.script.toolNames(ofPlay: Self.childPlannerKey) == [])
             #expect(child.state == .finished(Self.childPlannerText))
             #expect(result.contains(Self.childPlannerText))
+        }
+
+        @Test("an agent with no tools key gets no agents tool, and an agent with tools: Agent gets one",
+            .timeLimit(.minutes(1)))
+        func noToolsKeyGivesNoAgentsTool() async throws {
+            let layer = try Self.makeLayer()
+            defer { try? layer.delete() }
+            let harness = try await AgentRunHarness.make(
+                script: ScriptedAgentScript([
+                    NestedRunTests.parentPlay(NestedRunTests.leadKey, children: [(Self.helper, Self.helperKey)]),
+                    ScriptedAgentPlay(key: Self.helperKey, steps: [.finalText(Self.helperText)])
+                ]),
+                registry: AgentRegistry(layers: [layer.layer]))
+            defer { try? harness.delete() }
+            let runner = harness.makeRunner()
+
+            let parent = try await runner.start(Self.planner, prompt: NestedRunTests.leadKey)
+            let result = try await parent.result()
+
+            #expect(harness.script.toolNames(ofPlay: NestedRunTests.leadKey) == [ToolVocabulary.agentsToolName])
+            #expect(harness.script.toolNames(ofPlay: Self.helperKey) == [])
+            #expect(result.contains(Self.helperText))
         }
 
         @Test("with maxDepth 2, a direct start agent call for a run at the limit gives the corrective")

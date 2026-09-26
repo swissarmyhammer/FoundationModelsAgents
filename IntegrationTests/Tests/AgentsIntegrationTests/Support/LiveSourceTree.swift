@@ -116,7 +116,6 @@ enum LiveSourceTree {
         LiveAgentFile.text(
             id: id,
             description: "Answers each prompt with one fixed word, for the live source tests.",
-            fields: [LiveAgentFile.disallowedTools()],
             body: LiveAgentFile.answerBody(word: answerWord))
     }
 }

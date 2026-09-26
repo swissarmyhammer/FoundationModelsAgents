@@ -49,10 +49,12 @@ struct MaxTurnsTests {
     /// The word of the `hitMaxTurns` reason that names the limit.
     private static let limitKey = "maxTurns"
 
-    /// The agent with `maxTurns: 2` and no `tools` key.
+    /// The agent with `maxTurns: 2` and `tools: Agent`. It calls
+    /// `list agents` to make a tool pass.
     private static let limited = "limited"
 
-    /// The agent with no `maxTurns` and no `tools` key.
+    /// The agent with no `maxTurns` and `tools: Agent`. It calls
+    /// `list agents` to make a tool pass.
     private static let unlimited = "unlimited"
 
     /// The agent with `maxTurns: 2` that can start ``flashHelper``.
@@ -74,6 +76,7 @@ struct MaxTurnsTests {
             name: \(limited)
             description: Does a task in a small count of turns.
             maxTurns: \(turnLimit)
+            tools: Agent
             ---
 
             You work in a small count of turns.
@@ -82,6 +85,7 @@ struct MaxTurnsTests {
             ---
             name: \(unlimited)
             description: Does a task in any count of turns.
+            tools: Agent
             ---
 
             You work in any count of turns.

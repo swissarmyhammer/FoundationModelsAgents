@@ -73,10 +73,11 @@ struct ToolVocabulary: Sendable {
     /// `true` when the resolution has an `agents` tool factory.
     let hasAgentsTool: Bool
 
-    /// The match of no `tools` key: each catalog name, and the `agents` tool
-    /// with all agents when its factory is present.
+    /// The match of no `tools` key: each catalog name, but not the `agents`
+    /// tool. Only an explicit `tools` entry (`Agent`, `Agent(a, b)`, or
+    /// `agents`) gives the `agents` tool.
     var everything: ToolMatch {
-        ToolMatch(names: catalogNames, agentsGrant: hasAgentsTool ? .all : nil)
+        ToolMatch(names: catalogNames, agentsGrant: nil)
     }
 
     /// Makes the vocabulary of one resolution.
@@ -153,10 +154,11 @@ enum ToolListKey: String, Sendable {
 /// made.
 ///
 /// `disallowedTools` applies first, then `tools`. No `tools` key selects
-/// each known tool. A denied name that `tools` also names is removed with no
-/// warning. An entry that matches no tool is a warning, and the warnings of
-/// `disallowedTools` come first, because a dropped deny gives more access
-/// than the author wanted.
+/// each catalog tool, but not the `agents` tool: only an explicit `tools`
+/// entry gives the `agents` tool. A denied name that `tools` also names is
+/// removed with no warning. An entry that matches no tool is a warning, and
+/// the warnings of `disallowedTools` come first, because a dropped deny
+/// gives more access than the author wanted.
 struct ToolSelection: Sendable {
     /// The selected catalog names, in sorted order.
     let names: [String]

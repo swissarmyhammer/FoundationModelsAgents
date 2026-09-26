@@ -94,7 +94,7 @@ extension LiveSuites {
                 LiveAgentFile.path(of: leaf): LiveAgentFile.text(
                     id: leaf,
                     description: "Answers with one fixed word.",
-                    fields: ["model: flash", LiveAgentFile.disallowedTools()],
+                    fields: ["model: flash"],
                     body: LiveAgentFile.answerBody(word: leafWord))
             ]
         }
