@@ -74,11 +74,27 @@ comments:
     - new task: ^p3ww0ar (the model first calls the op name "start agent" as a tool in the no-JSON case).
     - next: /review
   timestamp: 2026-09-26T19:30:47.116178+00:00
+- actor: claude-code
+  id: 01m3fkdrqjxsk84jzazwy004rz
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (65d498d). 0 findings (4 files reviewed, 7 attempts, 0 failed; 6 .kanban files not reviewed because of .reviewignore).
+    - next: none. The task is in done.
+  timestamp: 2026-09-26T19:35:11.346516+00:00
+- actor: claude-code
+  id: 01m3fkdytwbkdt1z8fd37k1y62
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 4 IntegrationTests files; 3 live runs 12/12 each
+    - test: green — swift test -Xswiftc -warnings-as-errors, 359 passed; swiftlint 0; IntegrationTests build passes
+    - commit: 65d498d
+    - review: clean — 0 findings
+  timestamp: 2026-09-26T19:35:17.596644+00:00
 depends_on:
 - 01M3A6CJRDYEA2YJ9ANY4XPK60
 - 01M3A6DF0468875FVSZAYPVKYX
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: b280
 title: Live tests check the parent's final answer, and the tool description
 ---
 ## What

@@ -36,8 +36,9 @@ skills: [review]
 You are a code reviewer. Read the code and give specific feedback.
 ```
 
-- `name` and `description` are necessary. An agent with no valid description
-  is not visible to the model.
+- A `name` that is absent or not equal to the file name gives a warning.
+  The file loads, because the file name is the id.
+- An agent with no valid `description` is not visible to the model.
 - `tools` is the list of tools of the run. With no `tools` key, the run gets
   each tool of the `ToolCatalog`, but not the `agents` tool. Only an explicit
   `Agent`, `Agent(a, b)`, or `agents` entry gives the `agents` tool.

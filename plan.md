@@ -390,9 +390,11 @@ RoutedSession  (Router)            made and closed with the run
 ```
 
 - Runs of one agent are independent. `AgentRun.id` is its session id and its
-  recording directory name. `start` renders the body and makes the session
-  before it returns (both are synchronous), so the id exists at once. A run
-  whose render fails has no session; it gets a new ULID and no recording.
+  recording directory name. The setup of a run is `async`: `start` renders
+  the body, awaits the `skills:` preload and the tool makers, and makes the
+  session (§8 steps 2 to 5). `start` returns after the session exists, thus
+  the id exists when `start` returns. A run whose setup fails has no session;
+  it gets a new ULID and no recording.
 - A run holds its session and does not give it to other code. The session
   lives as long as the task. A finished run holds no session.
 - The record of a finished run (id, name, state, final text) stays for
