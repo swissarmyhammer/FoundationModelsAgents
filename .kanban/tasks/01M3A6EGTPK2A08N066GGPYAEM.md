@@ -61,25 +61,40 @@ depends_on:
 - 01M3A6DZBWW4SMKGJCA3H1KBYF
 position_column: doing
 position_ordinal: '80'
-title: 'After the Router generation queue ships: remove the different-slot workaround and update the Router revision'
+title: 'Runs on the Router pump: start agent is a background run, and a run ends when its session is idle'
 ---
-## What
-BLOCKED outside this board: start only after the FoundationModelsRouter session reports that its task `^44y6ba4` (the agents case of the generation queue) is done and pushed. The Router work has the tag `generation-queue` on the Router board. Remove the tag `waits-on-router` from this task when that happens.
+## Why
+The Router at `c208add` (resolved in both packages; see the comments) queues one whole SDK call, tool bodies included, and delivers mail with its own per-session pump. `dispatchNextPrompt()`, `enqueue(prompt:)`, `PromptID` and `cancelCurrentTurn()` are removed. The user decided on 2026-09-26: an agent is a long-running background tool. The Router design says the same (`generation-queue.md` §5.10: "the agent tool must start a child as a background run and return at once").
 
-- `Package.resolved` is ignored by git. Both packages depend on the Router with `branch: "main"`, and on `mlx-swift-lm` directly with `branch: "stable"`. Run `swift package update` at the root and in `IntegrationTests/`, and check that both resolve the same Router revision, one that holds `^44y6ba4`. (Now the root resolves `d19f64a` and `IntegrationTests/` resolves `bbad3ce`.)
-- Remove the different-slot workaround in the tests: gated runs no longer need to be on different slots. Where two runs must share a queue, give their slots the same model reference and the same context (the queue key is the pool entry: the reference plus the role, and the role holds the context size).
-- Add a scripted test for the agents case: a parent and a child on the same model; the parent waits in a tool; the child completes.
-- Remove from the tests and the docs any text that says a turn holds the model for its whole length.
+## What
+1. **The `agents` tool is a Router `BackgroundTool`** (`Tool/AgentsTool.swift`, `Tool/AgentsToolOperations.swift`). A mount applies to the whole tool, so:
+   - `var mount: ToolMount? { ToolMount(mode: .background) }`.
+   - `start agent`: the background body starts the child run and waits for `run.result()` (a background body has a closed `ModelCallMark`, so this wait is legal). It returns the final message text as the run detail. The Router then posts `.completed`, and the pump delivers it to the parent as mail.
+   - `list agents`, `check agent`, `cancel agent`: they end at once and settle inside `inlineSettleGrace` (a small named constant), so their answer comes back in their own envelope and is no mail. Example of this shape: `BackgroundChildAnswerTool` in the Router tests `GenerationQueueSubmissionTests.swift:81-108`.
+   - `canceler(forCompletionToken:)` cancels the child run.
+   - Remove `postFinalMessage` and the `ToolContext.post` of the final message (`Run/AgentRun+FinalMessage.swift`). `finalMessage(for:)` stays as the detail text.
+2. **The run drives its session with the pump** (`Run/AgentRun.swift`, `Run/AgentRun+Children.swift`, `Run/AgentRun+TurnLimit.swift`):
+   - The task prompt goes in with `send(_:)`. The run follows `streamSessionEvents()` for the whole run.
+   - The run is idle, and thus ends, when: it has no open child run; each child's settled result was delivered (`runSettled` then a `submissionStarted` with cause `.mail`); the last `answered` has no `submissionStarted` after it; and no caller message waits. The final message is the text of that last answer. `mailDeliveryPaused` ends the run as a failure with a clear reason.
+   - Remove the delivery-turn loop (`finishAfterChildren`, `dispatchFinalAnswer`) and the final-answer prompt. The pump starts the answer to the last child's mail, and that answer is the final answer.
+   - `maxTurns` stays in this package: count passes from the live events (`generationCall`, `toolInvocation`) and correct the count from `entryRecorded` at each `submissionEnded`. Above the limit: `cancel()` the session, cancel the children, and end as `.failed(.hitMaxTurns)`.
+   - `requestCancel` uses `cancel()` and cancels the child runs.
+   - `AgentRunProgress` keeps working from the same stream.
+3. Fix every other compile error that the removed symbols cause in `Sources`, `Examples/agents-demo`, `Tests` and `IntegrationTests`, with the smallest change that keeps the behavior. Task ^0mhzx3a does the host design, and task ^7f7z6qa does the documents.
 
 ## Acceptance Criteria
-- [ ] The root and `IntegrationTests/` resolve the same Router revision, and it holds `^44y6ba4`.
-- [ ] No test puts a run on a different slot only to avoid the lock.
-- [ ] A parent and a child on the same model both make progress while the parent waits in a tool.
-- [ ] The root and the integration suites pass.
+- [ ] `swift build -Xswiftc -warnings-as-errors` passes with Router `c208add` or later, in the root and in `IntegrationTests/`.
+- [ ] `start agent` returns at once with the Router pending envelope; the parent session gets the child's final message as mail with no driver call.
+- [ ] A parent and a child on the SAME model: the parent's submission ends after `start agent`, the child completes, and the parent answers from the mail (scripted test).
+- [ ] A run ends only when its session is idle as defined above; a run with two children ends after both results were delivered and answered.
+- [ ] `maxTurns`, `cancel agent`, `stop()` and `cancelRuns(caller:)` work as their tests say.
+- [ ] No use of `dispatchNextPrompt`, `enqueue(prompt:)`, `PromptID` or `cancelCurrentTurn` stays in code.
 
 ## Tests
-- [ ] A new case in `NestedRunTests.swift` for the same-model parent and child.
-- [ ] Run `swift test -Xswiftc -warnings-as-errors` and `cd IntegrationTests && swift test`. Expected: pass.
+- [ ] Update `NestedRunTests*.swift`, `MaxTurnsTests*.swift`, `AgentsToolOperationsTests.swift`, `CheckAgentProgressTests.swift`, `AgentRunTests*.swift` to the new flow; add the same-model parent/child case.
+- [ ] Remove the different-slot workaround from the tests: runs on one model share its queue.
+- [ ] Run `swift test -Xswiftc -warnings-as-errors`. Expected: pass.
+- [ ] Run `cd IntegrationTests && swift test` 3 times. Expected: pass each time. Report the real results.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.

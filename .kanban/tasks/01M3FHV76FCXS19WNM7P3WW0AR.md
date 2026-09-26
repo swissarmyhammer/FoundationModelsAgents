@@ -1,6 +1,9 @@
 ---
 assignees:
 - claude-code
+depends_on:
+- 01M3A6EGTPK2A08N066GGPYAEM
+- 01M3FMWXRW3637CJ74T7F7Z6QA
 position_column: todo
 position_ordinal: '8e80'
 title: 'The agents tool description: a model calls the op name "start agent" as a tool'

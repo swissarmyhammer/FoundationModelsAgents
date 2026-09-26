@@ -1,6 +1,8 @@
 ---
 assignees:
 - claude-code
+depends_on:
+- 01M3FMWXRW3637CJ74T7F7Z6QA
 position_column: todo
 position_ordinal: 8f80
 title: 'plan.md: the §4.2 name tier and the §9.3 example'
