@@ -33,8 +33,25 @@ comments:
     task: ^hymhxcy
     ```
   timestamp: 2026-09-26T18:23:56.471225+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m3ffk29vbvbdnja6hvv5vszd
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (8d2de94). 0 findings (confirmed 0, refuted 0, attempted 7, failed 0). The .reviewignore rule excluded 4 .kanban/ files.
+    - next: none. The task moved to done.
+  timestamp: 2026-09-26T18:28:10.683255+00:00
+- actor: claude-code
+  id: 01m3ffk9wywsbe4tm1wd6gjnk1
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 4 IntegrationTests files; 5 live runs 11/11 each
+    - test: red for one unrelated test — root swift test 358/359; the failed test is the reload burst test (^9291ngj), 10/10 alone; swiftlint 0; IntegrationTests build passes
+    - commit: 8d2de94
+    - review: clean — 0 findings
+    - Router need (not on this board): the Router recorder drops all transcript events with only a log line when the owner.lock claim fails (a stale lock with a reused process id). A Router session must decide on this.
+  timestamp: 2026-09-26T18:28:18.462116+00:00
+position_column: done
+position_ordinal: af80
 title: 'Live tests: remove the transcript.jsonl read race'
 ---
 ## What

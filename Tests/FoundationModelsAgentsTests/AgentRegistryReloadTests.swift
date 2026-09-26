@@ -15,7 +15,7 @@ struct AgentRegistryReloadTests {
     private static let agentID = "live-agent"
 
     /// The path of the file of `agentID`, relative to a layer root.
-    private static let agentPath = "agents/\(agentID).md"
+    private static let agentPath = filePath(of: agentID)
 
     /// The description of the first version of the agent file.
     private static let firstDescription = "The first version."
@@ -28,6 +28,9 @@ struct AgentRegistryReloadTests {
 
     /// The ids of the agents that a burst adds, one for each write.
     private static let burstAgentIDs = (Int.zero..<burstWriteCount).map { "burst-agent-\($0)" }
+
+    /// The id of the agent that marks the end of the read after a burst.
+    private static let markerID = "marker-agent"
 
     /// The count of the writes of a split burst before its pause.
     private static let firstHalfWriteCount = 2
@@ -168,27 +171,32 @@ struct AgentRegistryReloadTests {
     }
 
     @Test(
-        "a burst of writes gives one final catalog with the last state, also when the burst spans two quiet periods",
+        """
+        a burst of writes ends with the last state, and no catalog with an older state comes after it, \
+        also when the burst spans two quiet periods
+        """,
         .timeLimit(.minutes(1)),
         arguments: [Duration.zero, splitPause])
-    func burstOfWritesGivesOneFinalCatalog(pauseBetweenHalves pause: Duration) async throws {
+    func burstOfWritesEndsWithTheLastState(pauseBetweenHalves pause: Duration) async throws {
         let layer = try Self.layerWithAgent()
         defer { try? layer.delete() }
         let registry = AgentRegistry(layers: [layer.layer], watch: true)
         try await registry.load()
         let reloads = registry.onReload
         let lastID = try #require(Self.burstAgentIDs.last)
+        let fullIDs = ([Self.agentID] + Self.burstAgentIDs).sorted()
 
         try Self.writeBurst(of: Self.burstAgentIDs.prefix(Self.firstHalfWriteCount), in: layer)
         try await Task.sleep(for: pause)
         try Self.writeBurst(of: Self.burstAgentIDs.dropFirst(Self.firstHalfWriteCount), in: layer)
 
         let published = try #require(await reloads.first { $0.definition(named: lastID) != nil })
-        let later = await Self.catalog(on: reloads, within: Self.quietPeriod)
-        #expect(published.definitions.map(\.id) == ([Self.agentID] + Self.burstAgentIDs).sorted())
+        let later = try await Self.catalogsBeforeMarker(on: reloads, of: registry, in: layer)
+        #expect(published.definitions.map(\.id) == fullIDs)
         #expect(Self.description(in: published) == lastID)
+        #expect(later.map { $0.definitions.map(\.id) } == Array(repeating: fullIDs, count: later.count))
+        #expect(later.map { Self.description(in: $0) } == Array(repeating: Optional(lastID), count: later.count))
         #expect(Self.description(in: registry.catalog()) == lastID)
-        #expect(later?.definitions.map(\.id) == nil)
     }
 
     @Test("the release of the registry finishes onReload", .timeLimit(.minutes(1)))
@@ -226,29 +234,41 @@ struct AgentRegistryReloadTests {
     private static func writeBurst(of ids: some Sequence<String>, in layer: TemporaryLayer) throws {
         for id in ids {
             try layer.write(agentText(description: id), at: agentPath)
-            try layer.write(agentText(named: id, description: id), at: "agents/\(id).md")
+            try layer.write(agentText(named: id, description: id), at: filePath(of: id))
         }
     }
 
-    /// Gives the next catalog on `reloads` when it comes within `period`.
+    /// Adds the agent `markerID`, reloads the registry, and gives each
+    /// catalog that `reloads` gets before the first catalog with the marker.
+    ///
+    /// The marker gives the read a known end, thus the read has no time
+    /// limit. `reload()` publishes a catalog with the marker before it
+    /// returns. When a watcher build starts after the write and publishes
+    /// first, its catalog also holds the marker.
     ///
     /// - Parameters:
-    ///   - reloads: An `onReload` stream.
-    ///   - period: The time to wait for a catalog.
-    /// - Returns: The catalog, or `nil` when no catalog came within `period`.
-    private static func catalog(
-        on reloads: AsyncStream<AgentCatalog>, within period: Duration
-    ) async -> AgentCatalog? {
-        await withTaskGroup(of: AgentCatalog?.self) { group in
-            group.addTask { await reloads.first { _ in true } }
-            group.addTask {
-                try? await Task.sleep(for: period)
-                return nil
-            }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first
-        }
+    ///   - reloads: An `onReload` stream of `registry`.
+    ///   - registry: The registry to reload.
+    ///   - layer: The layer of the registry.
+    /// - Returns: The catalogs before the first catalog with the marker, in
+    ///   the order of `reloads`.
+    /// - Throws: The error of the file system, or the error of `reload()`.
+    private static func catalogsBeforeMarker(
+        on reloads: AsyncStream<AgentCatalog>, of registry: AgentRegistry, in layer: TemporaryLayer
+    ) async throws -> [AgentCatalog] {
+        try layer.write(agentText(named: markerID, description: markerID), at: filePath(of: markerID))
+        try await registry.reload()
+        return await reloads
+            .prefix { $0.definition(named: markerID) == nil }
+            .reduce(into: []) { catalogs, catalog in catalogs.append(catalog) }
+    }
+
+    /// The path of the file of the agent `id`, relative to a layer root.
+    ///
+    /// - Parameter id: The name of the agent.
+    /// - Returns: The path.
+    private static func filePath(of id: String) -> String {
+        "agents/\(id).md"
     }
 
     /// Gives `interval` as a `Duration`.
