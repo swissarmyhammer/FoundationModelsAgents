@@ -41,6 +41,21 @@ struct LiveHarness {
         its answer. Keep each answer to one short sentence.
         """
 
+    /// The word that a parent writes at the end of the turn that starts an
+    /// agent.
+    static let waitWord = "WAITING"
+
+    /// The sentences that tell a parent how to end the turn that starts an
+    /// agent, and how to answer when the final message of the agent comes.
+    ///
+    /// Without a fixed word, the model of the parent can guess an answer at
+    /// the end of that turn, and then keep the guess when the final message
+    /// comes. A test that checks the answer of the parent then fails.
+    static let waitInstruction = """
+        After the call, write only the word \(waitWord). When the final message of the agent comes, \
+        answer with the single word that the agent gives.
+        """
+
     /// The resolved live profile.
     let live: LiveProfile
 

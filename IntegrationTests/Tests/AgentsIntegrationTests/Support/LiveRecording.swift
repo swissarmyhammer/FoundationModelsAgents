@@ -94,6 +94,34 @@ enum LiveRecording {
         try events(in: directory).filter { $0.kind == kind }.flatMap(\.operationEvents)
     }
 
+    /// Tells if the session read the post with `correlationID` before its
+    /// final answer.
+    ///
+    /// The `.prompt` entry of a delivery turn carries each post that the
+    /// turn reads. The final answer is the last `.response` entry that
+    /// mirrors a transcript entry. The recorder gives each event a sequence
+    /// number in the order of the log.
+    ///
+    /// - Parameters:
+    ///   - correlationID: The correlation id of the post: the id of the tool
+    ///     call that started the run that posted it.
+    ///   - directory: The recording directory of the session.
+    /// - Returns: `true` when a `.prompt` entry that carries the post comes
+    ///   before the last `.response` entry. `false` when one of the two
+    ///   entries is not in the transcript.
+    /// - Throws: The error of ``events(in:)``.
+    static func readsPost(_ correlationID: String, beforeFinalAnswerIn directory: URL) throws -> Bool {
+        let events = try events(in: directory)
+        let read = events.first { event in
+            event.kind == .prompt && event.operationEvents.contains { $0.correlationID == correlationID }
+        }
+        let answer = events.last { $0.kind == .response && $0.mirrorsTranscriptEntry }
+        if let read, let answer {
+            return read.seq < answer.seq
+        }
+        return false
+    }
+
     /// Gives the text of each tool answer that the session recorded. A post
     /// is not a tool answer, thus an entry that carries operation events is
     /// not in the result.

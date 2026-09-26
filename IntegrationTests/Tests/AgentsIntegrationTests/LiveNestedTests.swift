@@ -13,6 +13,11 @@ extension LiveSuites {
     /// the final message that the run posts into the transcript of the parent:
     /// the id of the `start agent` call.
     ///
+    /// Only `leaf` knows the word ``leafWord``. The final answer of `lead`
+    /// holds that word, and the transcript of `lead` shows the delivery turn
+    /// that read the post of `leaf` before that final answer. Thus the test
+    /// proves that `lead` waited for `leaf` and read its result.
+    ///
     /// The test reads the transcripts only after `result()` of each run and
     /// `close()` of the root session, thus each transcript is complete
     /// (``LiveRecording``).
@@ -33,10 +38,7 @@ extension LiveSuites {
         /// The word that ``leaf`` answers with.
         private static let leafWord = "PAPAYA"
 
-        /// The word that ``lead`` answers with after its call.
-        private static let leadWord = "STARTED"
-
-        @Test("agentSpawn links three sessions, and parentToolCallId joins to the start agent call")
+        @Test("agentSpawn links three sessions, parentToolCallId joins to the start agent call, lead reads leaf")
         func agentSpawnLinksThreeSessions() async throws {
             let agents = try Self.agentFiles()
 
@@ -47,7 +49,7 @@ extension LiveSuites {
                         "op": LiveHarness.startOperation, "name": Self.lead, "prompt": Self.leadTask
                     ]))
                 let lead = try LiveHarness.run(of: Self.lead, in: await harness.runner.runs(caller: root.id))
-                _ = try await lead.result()
+                let leadText = try await lead.result()
                 let leaf = try LiveHarness.run(of: Self.leaf, in: await harness.runner.runs(caller: lead.id))
                 let leafText = try await leaf.result()
                 await root.close()
@@ -74,14 +76,22 @@ extension LiveSuites {
                 #expect(leafCalls.map(\.detail) == ["Agent \(Self.leaf) (\(leaf.id)) finished.\n\n\(leafText)"])
                 #expect(!rootStartAnswers.isEmpty)
                 #expect(!leadStartAnswers.isEmpty)
+                #expect(
+                    leadText.localizedCaseInsensitiveContains(Self.leafWord),
+                    "The final answer of lead was: \(leadText)")
+                #expect(try LiveRecording.readsPost(leafSpawn.parentToolCallId, beforeFinalAnswerIn: leadDirectory))
             }
         }
 
         /// Gives the files of ``lead`` and ``leaf``.
         ///
         /// `lead` inherits the `standard` slot of the root and may start only
-        /// `leaf`. `leaf` runs on the `flash` slot, thus it does not wait for
-        /// the generation gate that the turn of `lead` holds.
+        /// `leaf`. The body of `lead` does not hold ``leafWord``, thus `lead`
+        /// can give that word only from the post of `leaf`. After its call,
+        /// `lead` writes a fixed word (``LiveHarness/waitInstruction``), thus
+        /// it does not guess an answer before the post comes. `leaf` runs on the
+        /// `flash` slot, thus it does not wait for the generation gate that
+        /// the turn of `lead` holds.
         ///
         /// - Returns: The text of each file, by its path.
         /// - Throws: The error of ``LiveHarness/agentsCallText(_:)``.
@@ -94,7 +104,7 @@ extension LiveSuites {
                     id: lead,
                     description: "Starts the leaf agent.",
                     fields: ["tools: Agent(\(leaf))"],
-                    body: "\(leadCall) After the tool answers, write the single word \(leadWord)."),
+                    body: "\(leadCall) \(LiveHarness.waitInstruction)"),
                 LiveAgentFile.path(of: leaf): LiveAgentFile.text(
                     id: leaf,
                     description: "Answers with one fixed word.",

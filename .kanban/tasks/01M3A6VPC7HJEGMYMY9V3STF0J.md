@@ -37,11 +37,27 @@ comments:
     task: ^v3stf0j
     ```
   timestamp: 2026-09-26T18:50:06.545693+00:00
+- actor: claude-code
+  id: 01m3fh47tvptpdjf8dwbcamp4y
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (72e7fe5). 0 findings (findings 0, confirmed 0, refuted 0, attempted 7, failed 0). No validator matches README.md, plan.md, and the two DocC articles. The .reviewignore rule excludes the four .kanban files.
+    - next: The task is in done.
+  timestamp: 2026-09-26T18:55:01.979958+00:00
+- actor: claude-code
+  id: 01m3fh4fs2kztyas8hj475fpqc
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 9 files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 359 passed; swiftlint 0; IntegrationTests build passes
+    - commit: 72e7fe5
+    - review: clean — 0 findings (no validator reads the .md files)
+  timestamp: 2026-09-26T18:55:10.114054+00:00
 depends_on:
 - 01M3A6DF0468875FVSZAYPVKYX
 - 01M3A6C3W4FTNNC249NNVFWH3M
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: b180
 title: 'Decision A (docs): the plan and the documents state the explicit Agent rule'
 ---
 ## What
