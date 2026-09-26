@@ -26,6 +26,14 @@ import Tokenizers
 /// The router records each session under ``recordingsDirectory``, in the
 /// `.build/` folder of this package. The CI input
 /// `integration-artifacts-path` uploads that folder.
+///
+/// Each test process records under a new folder of its own. The Router
+/// recorder claims its root folder with an `owner.lock` file, and the live
+/// router stays until the process ends, thus each process leaves its lock.
+/// When a lock of an earlier process names a process identifier that is in
+/// use again, the claim fails, and the recorder drops each transcript event
+/// of the process. A new folder has no lock, thus the claim of this process
+/// cannot fail.
 struct LiveProfile: Sendable {
     /// The number of path components from the root of this package to this
     /// file: `Tests`, `AgentsIntegrationTests`, `Support`, and
@@ -35,6 +43,10 @@ struct LiveProfile: Sendable {
     /// The path of the recordings folder, relative to the root of this
     /// package.
     private static let recordingsRelativePath = ".build/recordings"
+
+    /// The name of the recordings folder of this process: a new ULID, thus
+    /// no earlier process used the folder.
+    private static let processFolderName = ULID.generate().description
 
     /// The number of minutes that one live test can use. The first live test
     /// also waits for the models to load.
@@ -71,9 +83,11 @@ struct LiveProfile: Sendable {
         }
     }
 
-    /// The recordings root of the router: `IntegrationTests/.build/recordings`.
+    /// The recordings root of the router: the folder of this process in
+    /// `IntegrationTests/.build/recordings`.
     static var recordingsDirectory: URL {
         packageDirectory.appendingPathComponent(recordingsRelativePath, isDirectory: true)
+            .appendingPathComponent(processFolderName, isDirectory: true)
     }
 
     /// Makes a runner over the live profile.

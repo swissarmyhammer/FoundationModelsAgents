@@ -21,6 +21,8 @@ extension LiveSuites {
     ///
     /// The test asserts on recorded facts: the calls of the tool, the
     /// `agentSpawn` of the sub-agent, and the posts in the root transcript.
+    /// The test reads the root transcript only after `close()` of the root
+    /// session, thus the transcript is complete (``LiveRecording``).
     @Suite("Full circle", .serialized, .timeLimit(LiveProfile.timeLimit))
     struct FullCircleTests {
         /// The sub-agent.

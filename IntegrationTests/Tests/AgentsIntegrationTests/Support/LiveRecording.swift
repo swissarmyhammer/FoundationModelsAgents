@@ -33,6 +33,12 @@ struct LiveSessionRecord: Decodable {
 /// The router of ``LiveProfile`` records each session under
 /// ``LiveProfile/recordingsDirectory``. A test reads the recording after the
 /// turns that it examines have ended.
+///
+/// The Router writes each transcript event to the file before the call that
+/// records it returns. Thus a transcript is complete when the session is
+/// closed: after `close()` of a root session, and after `result()` of a run.
+/// `result()` returns only after the run closed its session and posted its
+/// final message.
 enum LiveRecording {
     /// The name of the sidecar file in a session directory.
     private static let sessionFileName = "session.json"

@@ -66,11 +66,27 @@ comments:
     - evidence: 3 files — Sources/FoundationModelsAgents/Run/AgentRun.swift, Sources/FoundationModelsAgents/Run/AgentRunner.swift, Tests/FoundationModelsAgentsTests/AgentRunTests.swift; swift build -Xswiftc -warnings-as-errors pass; swift test -Xswiftc -warnings-as-errors 359 tests in 49 suites pass; swiftlint 0 violations in 123 files; IntegrationTests swift build --build-tests pass
     - next: /review
   timestamp: 2026-09-26T17:58:21.507927+00:00
+- actor: claude-code
+  id: 01m3fe3ph32g7esp76wg147n55
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (223b4ff); 0 findings (0 confirmed, 0 refuted; 7 attempted, 0 failed); 3 files reviewed, 4 .kanban files excluded by .reviewignore. The one prior finding (2026-09-26 08:32, AgentRunner.swift:184) is checked.
+    - next: none. The task is in done.
+  timestamp: 2026-09-26T18:02:18.531706+00:00
+- actor: claude-code
+  id: 01m3fe3x3fas1dx9yr1qfhg8j4
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — 3 files (AgentRun.sessionID; the run limit compares session ids; option 2 from the user)
+    - test: green — swift test -Xswiftc -warnings-as-errors, 359 passed; swiftlint 0
+    - commit: 223b4ff
+    - review: clean — 0 findings
+  timestamp: 2026-09-26T18:02:25.263890+00:00
 depends_on:
 - 01M3A6D0PH2N6Z6BWHGJ8KGEGV
 - 01M3A6DKKKADT8YYMXA9GEAWDJ
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: ae80
 title: Remove the completion-token index that only tests use
 ---
 ## What

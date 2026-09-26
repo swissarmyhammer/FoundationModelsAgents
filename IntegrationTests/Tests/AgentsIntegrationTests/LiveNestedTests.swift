@@ -12,6 +12,10 @@ extension LiveSuites {
     /// parent session, and its `parentToolCallId` is the correlation id of
     /// the final message that the run posts into the transcript of the parent:
     /// the id of the `start agent` call.
+    ///
+    /// The test reads the transcripts only after `result()` of each run and
+    /// `close()` of the root session, thus each transcript is complete
+    /// (``LiveRecording``).
     @Suite("Live nested runs", .serialized, .timeLimit(LiveProfile.timeLimit))
     struct LiveNestedTests {
         /// The agent that the root starts. It starts ``leaf``.
