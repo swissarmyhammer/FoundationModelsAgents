@@ -27,4 +27,4 @@ BLOCKED outside this board: start only after the FoundationModelsRouter session 
 - [ ] Run `swift test -Xswiftc -warnings-as-errors` and `cd IntegrationTests && swift test`. Expected: pass.
 
 ## Workflow
-- Use `/tdd` — write failing tests first, then implement to make them pass. #waits-on-router
+- Use `/tdd` — write failing tests first, then implement to make them pass.

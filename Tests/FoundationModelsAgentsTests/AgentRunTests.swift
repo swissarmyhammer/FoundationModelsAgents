@@ -153,6 +153,7 @@ struct AgentRunTests {
         let session = try #require(run.heldSession)
 
         #expect(run.id == session.id)
+        #expect(run.sessionID == session.id)
         #expect(run.recordingDirectory == session.recordingDirectory)
         #expect(
             run.recordingDirectory
@@ -197,6 +198,7 @@ struct AgentRunTests {
 
         #expect(Self.isBodyRenderFailure(run.state))
         #expect(run.id != other.id)
+        #expect(run.sessionID == nil)
         #expect(run.heldSession == nil)
         #expect(run.recordingDirectory == nil)
         #expect(run.slot == nil)

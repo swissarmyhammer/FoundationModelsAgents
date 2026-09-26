@@ -49,10 +49,27 @@ comments:
     - This commit did not change the rule. It changed only `$0.run.id` to `$0.id`, because the `Entry` wrapper was removed.
     Options: (1) drop the finding, because its premise is false; (2) keep the comparison and make the meaning explicit, for example a named property `sessionID` on `AgentRun` that the comparison uses; (3) change Decision B.
   timestamp: 2026-09-26T13:37:01.224264+00:00
+- actor: claude-code
+  id: 01m3fdwdbkd8nmhb7wtzyd9jr1
+  text: |-
+    The user chose option 2. Changes:
+    - `AgentRun.swift`: new internal property `sessionID: ULID?`. It is equal to `id`, or `nil` for a run whose setup failed (that run has no session, and its `id` is a new ULID, not a session id). Thus the property is optional, not `ULID`.
+    - `AgentRunner.startWithinLimit`: the count now uses `$0.sessionID != callerID`, with a comment that states Decision B (the limit does not count the calling run) and why `caller` is wrong there.
+    - Search of the whole file and of the Run and Tool files: no other place compares a run `id` with a session id. `openRuns[run.id]`, `run(id:)`, and the sorts compare run ids with run ids. `runs(caller:)` and `cancelRuns` compare `caller` with a caller session id. These stay.
+    - TDD: `AgentRunTests` now expects `run.sessionID == session.id` for a run with a session, and `run.sessionID == nil` for a body-render failure. RED: the build failed with "value of type 'AgentRun' has no member 'sessionID'". GREEN after the property.
+    - Note: the `dump validators` file for one Swift path was 730 KB (11,729 lines). I could not read it in one pass.
+  timestamp: 2026-09-26T17:58:19.763153+00:00
+- actor: claude-code
+  id: 01m3fdwf23b33xpyfv7b74wcxf
+  text: |-
+    ### implement — changed
+    - evidence: 3 files — Sources/FoundationModelsAgents/Run/AgentRun.swift, Sources/FoundationModelsAgents/Run/AgentRunner.swift, Tests/FoundationModelsAgentsTests/AgentRunTests.swift; swift build -Xswiftc -warnings-as-errors pass; swift test -Xswiftc -warnings-as-errors 359 tests in 49 suites pass; swiftlint 0 violations in 123 files; IntegrationTests swift build --build-tests pass
+    - next: /review
+  timestamp: 2026-09-26T17:58:21.507927+00:00
 depends_on:
 - 01M3A6D0PH2N6Z6BWHGJ8KGEGV
 - 01M3A6DKKKADT8YYMXA9GEAWDJ
-position_column: review
+position_column: doing
 position_ordinal: '80'
 title: Remove the completion-token index that only tests use
 ---
@@ -84,4 +101,5 @@ title: Remove the completion-token index that only tests use
 > - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/TheFinalMessage.md` — no validator matches this file
 > - `plan.md` — no validator matches this file
 
-- [ ] `Sources/FoundationModelsAgents/Run/AgentRunner.swift:184` `completeness/invariant-propagation` — The change replaces the completion-token index with direct access to run properties, using `$0.caller` to identify runs by their session (lines 281, 287). However, line 184 compares `$0.id != callerID` where `$0.id` is a run ID and `callerID` is a session ID from `request.context?.sessionID` — these are incommensurable types. The pattern should use `$0.caller != callerID` to exclude runs from the same session, consistent with how the caller property is used elsewhere. Change line 184 to `let working = openRuns.values.count(where: { $0.isWorking && $0.caller != callerID })`.
+- [x] `Sources/FoundationModelsAgents/Run/AgentRunner.swift:184` `completeness/invariant-propagation` — The change replaces the completion-token index with direct access to run properties, using `$0.caller` to identify runs by their session (lines 281, 287). However, line 184 compares `$0.id != callerID` where `$0.id` is a run ID and `callerID` is a session ID from `request.context?.sessionID` — these are incommensurable types. The pattern should use `$0.caller != callerID` to exclude runs from the same session, consistent with how the caller property is used elsewhere. Change line 184 to `let working = openRuns.values.count(where: { $0.isWorking && $0.caller != callerID })`.
+  - Fix: the new property `AgentRun.sessionID` (the id of the session of the run, or `nil` when the setup failed) makes the session id explicit, and `startWithinLimit` now compares `$0.sessionID != callerID`, thus Decision B stays: the limit does not count the calling run. `$0.caller != callerID` is wrong, because it removes the children of the calling session from the count and counts the calling run, and that breaks Decision B and `AgentSchedulingTests+CallingRun.swift`.

@@ -89,6 +89,14 @@ public final class AgentRun: Sendable {
         slot == nil
     }
 
+    /// The id of the session of the run. It is equal to ``id``, or `nil` for a
+    /// run whose setup failed, because that run has no session. Use it, not
+    /// ``id``, when you compare the run with a session id, for example the
+    /// `sessionID` of a `ToolContext`.
+    var sessionID: ULID? {
+        isSetupFailure ? nil : id
+    }
+
     /// The state of the run.
     public var state: AgentRunState {
         storage.withLock { $0.state }

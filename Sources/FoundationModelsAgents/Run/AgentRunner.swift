@@ -181,7 +181,11 @@ public actor AgentRunner {
         }
         retireEndedRuns()
         let callerID = request.context?.sessionID
-        let working = openRuns.values.count(where: { $0.isWorking && $0.id != callerID })
+        // The limit does not count the calling run (plan.md §9.3, Decision B):
+        // the calling run is the run whose session is the caller session. Do
+        // not compare with `caller`, because that removes the children of the
+        // caller and counts the calling run.
+        let working = openRuns.values.count(where: { $0.isWorking && $0.sessionID != callerID })
             + limitedStartsInSetup
         guard working < environment.maxConcurrentAgents else {
             return .atLimit(working: working)
