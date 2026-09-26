@@ -23,12 +23,36 @@ comments:
     - evidence: 10 files — Sources/FoundationModelsAgents/Tools/ToolSelection.swift, Sources/FoundationModelsAgents/Tools/ToolResolver.swift, Tests/FoundationModelsAgentsTests/ToolResolverTests.swift, Tests/FoundationModelsAgentsTests/NestedRunTests+Limits.swift, Tests/FoundationModelsAgentsTests/MaxTurnsTests.swift, IntegrationTests/Tests/AgentsIntegrationTests/{LiveCommandTests,LiveNestedTests,LiveSlotTests}.swift, IntegrationTests/Tests/AgentsIntegrationTests/Support/{LiveAgentFile,LiveSourceTree}.swift. `swift test -Xswiftc -warnings-as-errors`: 359 tests in 49 suites pass. `swift build -Xswiftc -warnings-as-errors`: pass. `cd IntegrationTests && swift build --build-tests`: pass. swiftlint (Sources Tests Package.swift Examples, and IntegrationTests/Tests): 0 violations. Live integration tests not run (they need real models).
     - next: /review. Task stays in doing.
   timestamp: 2026-09-26T12:29:35.741963+00:00
+- actor: claude-code
+  id: 01m3ewk3ccvxgwvtpwv537fp3d
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` (c8911f0). 0 findings (confirmed 0, refuted 0, attempted 7, failed 0). The engine reviewed 10 files. The ignore rule (.reviewignore) excluded 4 `.kanban/` files.
+    - test box: I checked the box for `swift test -Xswiftc -warnings-as-errors` and `cd IntegrationTests && swift test`. The test step ran the live suite three times. Run 1 had 2 failures because of a read race on transcript.jsonl. Runs 2 and 3 passed 11 of 11 tests. Task ^hymhxcy ("Live tests: remove the transcript.jsonl read race") tracks the race.
+    - next: the task moved to done. ^hymhxcy stays in todo.
+
+    ```
+    step: review
+    outcome: clean
+    evidence: 0 findings
+    task: ^aypvkyx
+    ```
+  timestamp: 2026-09-26T12:56:08.844275+00:00
+- actor: claude-code
+  id: 01m3ewka9zcrvnma57jqesdq2v
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 10 files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 359 passed; swiftlint 0; IntegrationTests swift test: run 1 had 2 failures (transcript.jsonl read race, task ^hymhxcy), runs 2 and 3 passed 11/11
+    - commit: c8911f0
+    - review: clean — 0 findings
+  timestamp: 2026-09-26T12:56:15.935807+00:00
 depends_on:
 - 01M3A6D0PH2N6Z6BWHGJ8KGEGV
 - 01M3A6CQGZZC4VNCQM2Z6EPJ2M
 - 01M3A6D97E9AZZKR1K4WWVNSC6
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: ac80
 title: 'Decision A (code): an agent gets the agents tool only when its tools key lists Agent'
 ---
 ## Decision (recommended; confirm or change before /finish)
@@ -47,7 +71,7 @@ In Claude Code, sub-agents do not start sub-agents by default. Now `ToolVocabula
 
 ## Tests
 - [x] Cases in `Tests/FoundationModelsAgentsTests/ToolResolverTests.swift` and `NestedRunTests.swift`.
-- [ ] Run `swift test -Xswiftc -warnings-as-errors`, then `cd IntegrationTests && swift test`. Expected: pass.
+- [x] Run `swift test -Xswiftc -warnings-as-errors`, then `cd IntegrationTests && swift test`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.

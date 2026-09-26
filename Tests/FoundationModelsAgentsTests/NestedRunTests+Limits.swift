@@ -64,6 +64,18 @@ extension NestedRunTests {
         /// The key of the play of the second sibling lead.
         private static let secondSiblingKey = "nested-second-sibling-key: divide the task"
 
+        /// The key of the play of the child of the first sibling.
+        private static let firstHelperKey = "nested-first-helper-key: do the first part"
+
+        /// The final text of the child of the first sibling.
+        private static let firstHelperText = "The first part is done."
+
+        /// The key of the play of the child of the second sibling.
+        private static let secondHelperKey = "nested-second-helper-key: do the second part"
+
+        /// The final text of the child of the second sibling.
+        private static let secondHelperText = "The second part is done."
+
         /// The key of the play of the child planner in the depth test.
         private static let childPlannerKey = "nested-child-planner-key: plan a part"
 
@@ -97,47 +109,94 @@ extension NestedRunTests {
             return layer
         }
 
+        /// The script of the sibling test.
+        ///
+        /// The root session starts ``planner`` (the second sibling, on the
+        /// `standard` slot) and then ``flashLead`` (the first sibling, on the
+        /// `flash` slot). Each sibling starts one ``helper``, which runs on
+        /// the slot of its sibling. The task turn of the second sibling waits
+        /// on a gate before its `start agent` call, and each helper waits on
+        /// a gate. A gated turn holds the generation gate of its slot, thus
+        /// each gated turn at one time is on its own slot.
+        ///
+        /// - Parameters:
+        ///   - secondSibling: Holds the task turn of the second sibling
+        ///     before its `start agent` call.
+        ///   - firstChild: Holds the turn of the child of the first sibling.
+        ///   - secondChild: Holds the turn of the child of the second
+        ///     sibling.
+        /// - Returns: The script.
+        private static func siblingScript(
+            secondSibling: ScriptedGate, firstChild: ScriptedGate, secondChild: ScriptedGate
+        ) -> ScriptedAgentScript {
+            let secondSiblingPlay = NestedRunTests.parentPlay(
+                secondSiblingKey, children: [(helper, secondHelperKey)])
+            return ScriptedAgentScript([
+                ScriptedAgentPlay(
+                    key: NestedRunTests.rootKey,
+                    steps: [
+                        NestedRunTests.startStep(planner, prompt: secondSiblingKey),
+                        NestedRunTests.startStep(flashLead, prompt: firstSiblingKey),
+                        .finalText(NestedRunTests.rootText)
+                    ]),
+                NestedRunTests.parentPlay(firstSiblingKey, children: [(helper, firstHelperKey)]),
+                ScriptedAgentPlay(key: secondSiblingKey, steps: [.wait(secondSibling)] + secondSiblingPlay.steps),
+                ScriptedAgentPlay(key: firstHelperKey, steps: [.wait(firstChild), .finalText(firstHelperText)]),
+                ScriptedAgentPlay(key: secondHelperKey, steps: [.wait(secondChild), .finalText(secondHelperText)])
+            ])
+        }
+
+        /// Waits until `run` waits for its children, or until it ended.
+        ///
+        /// - Parameter run: A sibling run.
+        /// - Throws: `CancellationError` when the test is cancelled.
+        private static func waitingPhase(of run: AgentRun) async throws {
+            while run.state == .running && run.phase != .waitingForChildren {
+                try await Task.sleep(for: NestedRunTests.pollInterval)
+            }
+        }
+
         @Test("with maxConcurrentAgents 2, two waiting siblings hold no place, and their children start",
             .timeLimit(.minutes(1)))
         func waitingSiblingsLetChildrenStart() async throws {
+            let secondSiblingGate = ScriptedGate()
+            let firstChildGate = ScriptedGate()
+            let secondChildGate = ScriptedGate()
+            let layer = try Self.makeLayer()
+            defer { try? layer.delete() }
             let harness = try await AgentsToolHarness.make(
-                script: ScriptedAgentScript([
-                    ScriptedAgentPlay(
-                        key: NestedRunTests.rootKey,
-                        steps: [
-                            NestedRunTests.startStep(NestedRunTests.lead, prompt: Self.firstSiblingKey),
-                            NestedRunTests.startStep(NestedRunTests.lead, prompt: Self.secondSiblingKey),
-                            .finalText(NestedRunTests.rootText)
-                        ]),
-                    NestedRunTests.parentPlay(
-                        Self.firstSiblingKey,
-                        children: [(NestedRunTests.reviewer, NestedRunTests.reviewerKey)]),
-                    NestedRunTests.parentPlay(
-                        Self.secondSiblingKey,
-                        children: [(NestedRunTests.testWriter, NestedRunTests.testWriterKey)]),
-                    ScriptedAgentPlay(
-                        key: NestedRunTests.reviewerKey, steps: [.finalText(NestedRunTests.reviewerText)]),
-                    ScriptedAgentPlay(
-                        key: NestedRunTests.testWriterKey, steps: [.finalText(NestedRunTests.testWriterText)])
-                ]),
+                script: Self.siblingScript(
+                    secondSibling: secondSiblingGate, firstChild: firstChildGate, secondChild: secondChildGate),
+                registry: AgentRegistry(layers: [layer.layer]),
                 maxConcurrentAgents: Self.siblingLimit)
             defer { try? harness.delete() }
             let root = NestedRunTests.rootSession(of: harness)
 
             #expect(try await root.respond(to: NestedRunTests.rootPrompt) == NestedRunTests.rootText)
             let siblings = await harness.runner.runs(caller: root.id)
-            let first = try #require(siblings.first)
-            let second = try #require(siblings.last)
-            let results = [try await first.result(), try await second.result()]
+            let first = try #require(siblings.first { $0.agent.id == Self.flashLead })
+            let second = try #require(siblings.first { $0.agent.id == Self.planner })
+            await firstChildGate.waitForArrival()
+            try await Self.waitingPhase(of: first)
+            let firstPhase = first.phase
+            secondSiblingGate.open()
+            try await Self.waitingPhase(of: second)
+            let secondPhase = second.phase
+            firstChildGate.open()
+            secondChildGate.open()
+            let firstResult = try await first.result()
+            let secondResult = try await second.result()
             let children = await harness.runner.runs(caller: first.id) + harness.runner.runs(caller: second.id)
             let refusals = harness.runHarness.script.toolOutputs.filter { $0.contains(Self.atLimitPrefix) }
             await root.close()
 
             #expect(siblings.count == Self.siblingLimit)
-            #expect(children.map(\.agent.id).sorted() == [NestedRunTests.reviewer, NestedRunTests.testWriter])
+            #expect(firstPhase == .waitingForChildren)
+            #expect(secondPhase == .waitingForChildren)
+            #expect(children.map(\.agent.id) == [Self.helper, Self.helper])
             #expect(refusals.isEmpty)
-            #expect(results.contains { $0.contains(NestedRunTests.reviewerText) })
-            #expect(results.contains { $0.contains(NestedRunTests.testWriterText) })
+            #expect(firstResult.contains(Self.firstHelperText))
+            #expect(secondResult.contains(Self.secondHelperText))
         }
 
         @Test("with maxDepth 2, the child at the limit has no agents tool, and its parent has one",

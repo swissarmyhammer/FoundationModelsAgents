@@ -65,8 +65,9 @@ struct NestedRunTests {
     /// child.
     private static let waitingForOneText = "It waits for 1 agents that it started."
 
-    /// The time between two reads of the report of a run.
-    private static let pollInterval = Duration.milliseconds(10)
+    /// The time between two reads of a value that a test waits for: the
+    /// prompts of a script, or the report or the phase of a run.
+    static let pollInterval = Duration.milliseconds(10)
 
     /// A scripted call of `start agent`.
     ///

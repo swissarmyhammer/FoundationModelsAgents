@@ -29,6 +29,20 @@ struct AgentRegistryReloadTests {
     /// The ids of the agents that a burst adds, one for each write.
     private static let burstAgentIDs = (Int.zero..<burstWriteCount).map { "burst-agent-\($0)" }
 
+    /// The count of the writes of a split burst before its pause.
+    private static let firstHalfWriteCount = 2
+
+    /// The quiet period of the watcher of a registry: the watcher gives one
+    /// change after the tree stays quiet this long.
+    private static let quietPeriod = duration(of: DotfolderWatcher.defaultDebounceInterval)
+
+    /// The count of the quiet periods in ``splitPause``.
+    private static let quietPeriodsInSplitPause = 2
+
+    /// The pause between the two halves of a split burst. It is longer than
+    /// one quiet period, thus the watcher gives one change for each half.
+    private static let splitPause = quietPeriod * quietPeriodsInSplitPause
+
     /// The count of the `layerUpdates` streams that one registry takes.
     private static let subscriptionsOfOneRegistry = 1
 
@@ -153,24 +167,28 @@ struct AgentRegistryReloadTests {
         #expect(registry.catalog().definitions.isEmpty)
     }
 
-    @Test("a burst of writes gives one final catalog with the last state", .timeLimit(.minutes(1)))
-    func burstOfWritesGivesOneFinalCatalog() async throws {
+    @Test(
+        "a burst of writes gives one final catalog with the last state, also when the burst spans two quiet periods",
+        .timeLimit(.minutes(1)),
+        arguments: [Duration.zero, splitPause])
+    func burstOfWritesGivesOneFinalCatalog(pauseBetweenHalves pause: Duration) async throws {
         let layer = try Self.layerWithAgent()
         defer { try? layer.delete() }
         let registry = AgentRegistry(layers: [layer.layer], watch: true)
         try await registry.load()
         let reloads = registry.onReload
-
-        for id in Self.burstAgentIDs {
-            try layer.write(Self.agentText(description: id), at: Self.agentPath)
-            try layer.write(Self.agentText(named: id, description: id), at: "agents/\(id).md")
-        }
-
-        let published = try #require(await reloads.first { _ in true })
         let lastID = try #require(Self.burstAgentIDs.last)
+
+        try Self.writeBurst(of: Self.burstAgentIDs.prefix(Self.firstHalfWriteCount), in: layer)
+        try await Task.sleep(for: pause)
+        try Self.writeBurst(of: Self.burstAgentIDs.dropFirst(Self.firstHalfWriteCount), in: layer)
+
+        let published = try #require(await reloads.first { $0.definition(named: lastID) != nil })
+        let later = await Self.catalog(on: reloads, within: Self.quietPeriod)
         #expect(published.definitions.map(\.id) == ([Self.agentID] + Self.burstAgentIDs).sorted())
         #expect(Self.description(in: published) == lastID)
         #expect(Self.description(in: registry.catalog()) == lastID)
+        #expect(later?.definitions.map(\.id) == nil)
     }
 
     @Test("the release of the registry finishes onReload", .timeLimit(.minutes(1)))
@@ -196,6 +214,50 @@ struct AgentRegistryReloadTests {
         let registry = AgentRegistry(layers: [layer.layer], watch: true)
         try await registry.load()
         return registry.onReload
+    }
+
+    /// Writes one part of a burst. For each id, it writes a new description
+    /// of the agent `agentID`, and then a new agent file named by the id.
+    ///
+    /// - Parameters:
+    ///   - ids: The ids of the new agents, in the order of the writes.
+    ///   - layer: The layer to write in.
+    /// - Throws: The error of the file system.
+    private static func writeBurst(of ids: some Sequence<String>, in layer: TemporaryLayer) throws {
+        for id in ids {
+            try layer.write(agentText(description: id), at: agentPath)
+            try layer.write(agentText(named: id, description: id), at: "agents/\(id).md")
+        }
+    }
+
+    /// Gives the next catalog on `reloads` when it comes within `period`.
+    ///
+    /// - Parameters:
+    ///   - reloads: An `onReload` stream.
+    ///   - period: The time to wait for a catalog.
+    /// - Returns: The catalog, or `nil` when no catalog came within `period`.
+    private static func catalog(
+        on reloads: AsyncStream<AgentCatalog>, within period: Duration
+    ) async -> AgentCatalog? {
+        await withTaskGroup(of: AgentCatalog?.self) { group in
+            group.addTask { await reloads.first { _ in true } }
+            group.addTask {
+                try? await Task.sleep(for: period)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+    }
+
+    /// Gives `interval` as a `Duration`.
+    ///
+    /// - Parameter interval: A finite interval.
+    /// - Returns: The same length of time.
+    private static func duration(of interval: DispatchTimeInterval) -> Duration {
+        let start = DispatchTime.now()
+        return .nanoseconds((start + interval).uptimeNanoseconds - start.uptimeNanoseconds)
     }
 
     /// Makes a layer that holds the first version of the agent file.
