@@ -26,17 +26,6 @@ import ULID
 /// call on the runner. ``AgentEnvironment/maxRetainedRuns`` limits the
 /// records, and the runner removes the oldest record first.
 public actor AgentRunner {
-    /// One run of the index, and the completion token of the tool call that
-    /// started it.
-    private struct Entry {
-        /// The run. It holds its caller, its slot, and its depth.
-        let run: AgentRun
-
-        /// The `ToolContext.completionToken` of the tool call that started
-        /// the run, or `nil` for a host-driven run.
-        let completionToken: String?
-    }
-
     /// One start whose setup is in operation. The run of such a start is not
     /// in the index yet.
     private struct Setup {
@@ -74,16 +63,13 @@ public actor AgentRunner {
     /// Renders the body of each agent.
     private let renderer: AgentBodyRenderer
 
-    /// The runs whose turn can be in operation, by id.
-    private var openRuns: [ULID: Entry] = [:]
+    /// The runs whose turn can be in operation, by id. Each run holds its
+    /// caller, its slot, and its depth.
+    private var openRuns: [ULID: AgentRun] = [:]
 
     /// The finished runs, oldest first. Each run holds its id, its agent,
     /// and its final state with the final text.
-    private var records: [Entry] = []
-
-    /// The id of each run in the index, by the completion token of the tool
-    /// call that started it.
-    private var runIDsByCompletionToken: [String: ULID] = [:]
+    private var records: [AgentRun] = []
 
     /// The count of limited starts whose setup is in operation. The actor
     /// can run a second call while a setup waits, thus the limit counts
@@ -112,7 +98,7 @@ public actor AgentRunner {
     /// The runs whose turn is in operation, sorted by id.
     public var runs: [AgentRun] {
         retireEndedRuns()
-        return openRuns.values.lazy.map(\.run).sorted { $0.id < $1.id }
+        return openRuns.values.sorted { $0.id < $1.id }
     }
 
     /// Starts a host-driven run of the agent `name` (plan.md §9.3).
@@ -164,11 +150,7 @@ public actor AgentRunner {
         let setupKey = ULID()
         setups[setupKey] = Setup(caller: request.context?.sessionID)
         let run = await AgentRun.start(request, environment: environment, renderer: renderer)
-        let entry = Entry(run: run, completionToken: request.context?.completionToken)
-        openRuns[run.id] = entry
-        if let token = entry.completionToken {
-            runIDsByCompletionToken[token] = run.id
-        }
+        openRuns[run.id] = run
         for waiter in setups.removeValue(forKey: setupKey)?.waiters ?? [] {
             waiter.resume()
         }
@@ -199,7 +181,7 @@ public actor AgentRunner {
         }
         retireEndedRuns()
         let callerID = request.context?.sessionID
-        let working = openRuns.values.count(where: { $0.run.isWorking && $0.run.id != callerID })
+        let working = openRuns.values.count(where: { $0.isWorking && $0.id != callerID })
             + limitedStartsInSetup
         guard working < environment.maxConcurrentAgents else {
             return .atLimit(working: working)
@@ -216,7 +198,7 @@ public actor AgentRunner {
     ///   removed its record.
     public func run(id: ULID) -> AgentRun? {
         retireEndedRuns()
-        return openRuns[id]?.run ?? records.first { $0.run.id == id }?.run
+        return openRuns[id] ?? records.first { $0.id == id }
     }
 
     /// Gives each run of one caller: the runs in operation and the records of
@@ -228,18 +210,9 @@ public actor AgentRunner {
     ///   id.
     public func runs(caller: ULID?) -> [AgentRun] {
         retireEndedRuns()
-        return (Array(openRuns.values) + records).lazy.map(\.run)
+        return (Array(openRuns.values) + records)
             .filter { $0.caller == caller }
             .sorted { $0.id < $1.id }
-    }
-
-    /// Finds the run that a tool call started.
-    ///
-    /// - Parameter completionToken: The `ToolContext.completionToken` of the
-    ///   tool call.
-    /// - Returns: The run, or `nil` when no run of the index has the token.
-    func run(completionToken: String) -> AgentRun? {
-        runIDsByCompletionToken[completionToken].flatMap { id in run(id: id) }
     }
 
     /// Gives the catalog of the registry with the warnings that need the
@@ -305,13 +278,13 @@ public actor AgentRunner {
     ///   the host.
     private func cancelRuns(where isTarget: (ULID?) -> Bool) async {
         let setupKeys = setups.filter { isTarget($0.value.caller) }.map(\.key)
-        for run in openRuns.values.lazy.map(\.run) where isTarget(run.caller) {
+        for run in openRuns.values where isTarget(run.caller) {
             run.cancel()
         }
         for setupKey in setupKeys {
             await endOfSetup(setupKey)
         }
-        let runs = openRuns.values.filter { isTarget($0.run.caller) }.map(\.run)
+        let runs = openRuns.values.filter { isTarget($0.caller) }
         for run in runs {
             run.cancel()
         }
@@ -356,16 +329,13 @@ public actor AgentRunner {
     /// id order, then removes the oldest records above
     /// ``AgentEnvironment/maxRetainedRuns``.
     private func retireEndedRuns() {
-        let ended = openRuns.values.filter { $0.run.state != .running }.sorted { $0.run.id < $1.run.id }
-        for entry in ended {
-            openRuns[entry.run.id] = nil
+        let ended = openRuns.values.filter { $0.state != .running }.sorted { $0.id < $1.id }
+        for run in ended {
+            openRuns[run.id] = nil
         }
         records += ended
         let excess = records.count - environment.maxRetainedRuns
         guard excess > 0 else { return }
-        for token in records.prefix(excess).compactMap(\.completionToken) {
-            runIDsByCompletionToken[token] = nil
-        }
         records.removeFirst(excess)
     }
 }

@@ -46,11 +46,29 @@ comments:
     - evidence: 3 files — Tests/FoundationModelsAgentsTests/AgentRegistryReloadTests.swift, Tests/FoundationModelsAgentsTests/NestedRunTests+Limits.swift, Tests/FoundationModelsAgentsTests/NestedRunTests.swift. No change in Sources (the temporary `isWorking` change is reverted). `swift build -Xswiftc -warnings-as-errors` clean; each changed test 5 times alone: 5/5 pass (burst: 2 cases each run); `swift test -Xswiftc -warnings-as-errors`: 359 tests in 49 suites pass; `cd IntegrationTests && swift build --build-tests`: complete; swiftlint: 0 violations in 123 files.
     - next: /review
   timestamp: 2026-09-26T13:07:45.380638+00:00
+- actor: claude-code
+  id: 01m3exfeeqgrwh765xktmgec39
+  text: |-
+    ### review — clean
+    - step: review
+    - outcome: clean
+    - evidence: 0 findings (review sha HEAD~1..HEAD at 0e930cc; 3 files reviewed, 4 .kanban files excluded by .reviewignore; confirmed 0, refuted 0, failed 0)
+    - next: none. The task moved to done.
+  timestamp: 2026-09-26T13:11:37.687134+00:00
+- actor: claude-code
+  id: 01m3exfmqbxk0dj29yv1zbbmj1
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 3 test files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 359 passed; swiftlint 0; IntegrationTests build --build-tests passes
+    - commit: 0e930cc
+    - review: clean — 0 findings
+  timestamp: 2026-09-26T13:11:44.107991+00:00
 depends_on:
 - 01M3A6CJRDYEA2YJ9ANY4XPK60
 - 01M3A6D97E9AZZKR1K4WWVNSC6
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: ad80
 title: 'Make two unit tests prove their claims: the reload burst and the waiting siblings'
 ---
 ## What

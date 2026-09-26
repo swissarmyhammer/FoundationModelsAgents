@@ -5,9 +5,8 @@ Read the result of a run that a model started with `start agent`.
 ## Overview
 
 `start agent` returns at once, and it posts nothing. The call reads
-`ToolContext.current` and gives it to the run. The runner maps the
-`completionToken` of the call to the run. The run posts nothing while it
-works. All its work is in its own transcript.
+`ToolContext.current` and gives it to the run. The run posts nothing while
+it works. All its work is in its own transcript.
 
 When the run ends, it posts one final message through that `ToolContext`: a
 `.completed` `OperationEvent`. The Router journals the post into the

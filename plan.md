@@ -460,8 +460,7 @@ Verb aliases: `stop` → `cancel`, `run` → `start`, `status` → `check`,
 
 - `start agent` reads `ToolContext.current`, gives it to the run, starts the
   run as a runner task, and returns. It posts nothing. The answer gives the
-  run id (§8.1). The runner index maps the `completionToken` of the call to
-  the run.
+  run id (§8.1).
 - The run posts nothing while it works. All its work is in its own
   transcript.
 - On finish, the run calls `context.post(_:)` one time with a `.completed`
@@ -518,7 +517,7 @@ recorder, or a display model.
   plus 1. `maxDepth` is the limit. A run at `maxDepth` gets no `agents`
   tool, because each start from it would give only the depth corrective. A
   direct `start agent` call above the limit still gives that corrective.
-- **The index.** `runs`, `run(id:)`, token → run, and for each run its
+- **The index.** `runs`, `run(id:)`, `runs(caller:)`, and for each run its
   caller (`ToolContext.sessionID` or `nil`), slot, and depth; plus the
   records of finished runs.
 - `runner.catalog()`: the registry catalog with the model match.

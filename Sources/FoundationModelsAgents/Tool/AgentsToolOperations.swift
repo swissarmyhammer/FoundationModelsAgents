@@ -56,8 +56,7 @@ struct StartAgent {
 extension StartAgent {
     /// Starts the agent `name` with `prompt`, and returns at once.
     ///
-    /// The run gets `ToolContext.current`, the context of this call. The
-    /// runner maps the `completionToken` of the call to the run. The call
+    /// The run gets `ToolContext.current`, the context of this call. The call
     /// posts nothing: the run posts its final message through the context
     /// when it finishes (plan.md §9.2). Outside a Router session there is no
     /// context, the run posts nothing, and the model uses `check agent`.

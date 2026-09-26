@@ -48,13 +48,13 @@ struct AgentRunnerTests {
     /// The tool name of ``unknownToolAgent`` that matches no tool.
     private static let unknownToolName = "NoSuchTool"
 
-    /// The key of the play of the parent session of the token test.
+    /// The key of the play of the parent session of the tool-start test.
     private static let parentKey = "runner-parent-play-key"
 
-    /// The prompt of the parent session of the token test.
+    /// The prompt of the parent session of the tool-start test.
     private static let parentPrompt = "Start the reviewer through the runner."
 
-    /// The final text of the parent session of the token test.
+    /// The final text of the parent session of the tool-start test.
     private static let parentText = "The parent started a reviewer."
 
     /// The arguments of the scripted call of the probe tool.
@@ -250,8 +250,8 @@ struct AgentRunnerTests {
         #expect(await runner.run(id: first.id) === first)
     }
 
-    @Test("the index maps the completion token of the starting tool call to the run")
-    func completionTokenFindsRun() async throws {
+    @Test("the index finds a run that a tool call started by its id and by its caller")
+    func toolStartedRunIsInIndex() async throws {
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([
                 ScriptedAgentPlay(
@@ -275,10 +275,11 @@ struct AgentRunnerTests {
 
         #expect(try await parent.respond(to: Self.parentPrompt) == Self.parentText)
         let started = try #require(probe.started)
-        let context = try #require(started.context)
-        #expect(await runner.run(completionToken: context.completionToken) === started.run)
+        #expect(await runner.run(id: started.run.id) === started.run)
+        #expect(await runner.runs(caller: parent.id).map(\.id) == [started.run.id])
         #expect(try await started.run.result() == Self.firstText)
-        #expect(await runner.run(completionToken: context.completionToken) === started.run)
+        #expect(await runner.run(id: started.run.id) === started.run)
+        #expect(await runner.runs(caller: parent.id).map(\.id) == [started.run.id])
         #expect(started.run.caller == parent.id)
         await parent.close()
     }
