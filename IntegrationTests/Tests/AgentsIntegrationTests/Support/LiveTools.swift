@@ -1,3 +1,4 @@
+import Foundation
 import FoundationModels
 import FoundationModelsAgents
 import FoundationModelsRouter
@@ -210,6 +211,36 @@ final class LiveAgentsToolProbe: Tool {
             contexts.withLock { $0.append(context) }
         }
         return try await wrapped.call(arguments: arguments)
+    }
+}
+
+/// The probe runs in the background as the real tool does: each part gives
+/// the part of the real tool.
+extension LiveAgentsToolProbe: BackgroundTool {
+    /// The mount of the real tool.
+    var mount: ToolMount? {
+        wrapped.mount
+    }
+
+    /// The wait of the real tool before the Router answers.
+    var inlineSettleGrace: TimeInterval? {
+        wrapped.inlineSettleGrace
+    }
+
+    /// The `next` sentence of the real tool.
+    ///
+    /// - Parameter completionToken: The completion token of the call.
+    /// - Returns: The sentence.
+    func collectInstruction(forCompletionToken completionToken: String) -> String {
+        wrapped.collectInstruction(forCompletionToken: completionToken)
+    }
+
+    /// The canceler of the real tool.
+    ///
+    /// - Parameter completionToken: The completion token of the call.
+    /// - Returns: The canceler.
+    func canceler(forCompletionToken completionToken: String) -> (@Sendable () async -> OperationOutcome)? {
+        wrapped.canceler(forCompletionToken: completionToken)
     }
 }
 

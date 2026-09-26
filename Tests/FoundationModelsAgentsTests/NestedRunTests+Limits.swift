@@ -114,10 +114,11 @@ extension NestedRunTests {
         /// The root session starts ``planner`` (the second sibling, on the
         /// `standard` slot) and then ``flashLead`` (the first sibling, on the
         /// `flash` slot). Each sibling starts one ``helper``, which runs on
-        /// the slot of its sibling. The task turn of the second sibling waits
-        /// on a gate before its `start agent` call, and each helper waits on
-        /// a gate. A gated turn holds the generation gate of its slot, thus
-        /// each gated turn at one time is on its own slot.
+        /// the slot of its sibling. The task answer of the second sibling
+        /// waits on a gate before its `start agent` call, and each helper
+        /// waits on a gate. A gated submission holds the generation queue of
+        /// its model, thus each gated submission at one time is on its own
+        /// model. The root answers the mail of each sibling.
         ///
         /// - Parameters:
         ///   - secondSibling: Holds the task turn of the second sibling
@@ -137,7 +138,9 @@ extension NestedRunTests {
                     steps: [
                         NestedRunTests.startStep(planner, prompt: secondSiblingKey),
                         NestedRunTests.startStep(flashLead, prompt: firstSiblingKey),
-                        .finalText(NestedRunTests.rootText)
+                        .finalText(NestedRunTests.rootText),
+                        .finalTextOfLastPrompt,
+                        .finalTextOfLastPrompt
                     ]),
                 NestedRunTests.parentPlay(firstSiblingKey, children: [(helper, firstHelperKey)]),
                 ScriptedAgentPlay(key: secondSiblingKey, steps: [.wait(secondSibling)] + secondSiblingPlay.steps),
@@ -255,7 +258,7 @@ extension NestedRunTests {
                 script: ScriptedAgentScript([]), registry: AgentRegistry(layers: [layer.layer]))
             defer { try? runHarness.delete() }
             let runner = runHarness.makeRunner(maxDepth: Self.depthLimit)
-            let atLimit = ParentRun(depth: Self.depthLimit, slot: .standard, children: AgentRunChildren())
+            let atLimit = ParentRun(depth: Self.depthLimit, slot: .standard, family: ParentRun.Family())
             let tool = try await AgentsTool.make(
                 context: AgentsToolContext(runner: runner, allowedNames: nil, parent: atLimit))
             let harness = AgentsToolHarness(runHarness: runHarness, runner: runner, tool: tool)

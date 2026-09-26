@@ -4,8 +4,8 @@ import Testing
 
 /// Pins the scheduling rules of the runner and the `agents` tool
 /// (plan.md §9.2, §9.3, §16): the run limit of `start agent`, the isolation
-/// of the callers, `check agent` with no id, `cancelRuns(caller:)`, and a
-/// run that finishes after its caller session closed.
+/// of the callers, `check agent` with no id, `cancelRuns(caller:)`, and the
+/// cancel of an open run when its caller session closes.
 ///
 /// A caller is a root session that calls the tool. Each root session runs on
 /// the `standard` slot, and its turn ends before the test holds a child. A
@@ -151,14 +151,6 @@ struct AgentSchedulingTests {
         return try #require(runs.first)
     }
 
-    /// The `check agent` block of a run that finished with ``childText``.
-    ///
-    /// - Parameter run: The run.
-    /// - Returns: The block.
-    private static func finishedBlock(of run: AgentRun) -> String {
-        "Agent code-reviewer (\(run.id)) finished.\n\n\(childText)"
-    }
-
     @Test(
         "at a limit of two with two gated runs, a third start agent is the corrective; after one ends, a start works",
         .timeLimit(.minutes(1)))
@@ -246,7 +238,8 @@ struct AgentSchedulingTests {
         checkArguments.set(Self.idArguments("check agent", of: run))
         cancelArguments.set(Self.idArguments("cancel agent", of: run))
         _ = try await rootB.respond(to: Self.rootPrompt)
-        let answersOfB = Array(harness.runHarness.script.toolOutputs.suffix(Self.lastAnswerCount))
+        let answersOfB = harness.runHarness.script.toolOutputs.suffix(Self.lastAnswerCount)
+            .map(ToolOutputEnvelope.answer(of:))
         let stateAfterB = run.state
         gate.open()
         let result = try await run.result()
@@ -262,6 +255,7 @@ struct AgentSchedulingTests {
     @Test("check agent with no id gives one block for each run of the caller, and only those runs",
         .timeLimit(.minutes(1)))
     func checkWithNoIDListsOnlyRunsOfCaller() async throws {
+        let gate = ScriptedGate()
         let checkAll = Self.toolStep(#"{"op": "check agent"}"#)
         let startChild = Self.toolStep(Self.startArguments(Self.reviewer, prompt: Self.childAKey))
         let script = ScriptedAgentScript([
@@ -271,7 +265,7 @@ struct AgentSchedulingTests {
             ScriptedAgentPlay(
                 key: Self.rootBKey,
                 steps: [startChild, .finalText(Self.rootText), checkAll, .finalText(Self.rootText)]),
-            ScriptedAgentPlay(key: Self.childAKey, steps: [.finalText(Self.childText)])
+            ScriptedAgentPlay(key: Self.childAKey, steps: [.wait(gate), .finalText(Self.childText)])
         ])
         let harness = try await AgentsToolHarness.make(script: script)
         defer { try? harness.delete() }
@@ -280,24 +274,23 @@ struct AgentSchedulingTests {
 
         _ = try await rootA.respond(to: Self.rootPrompt)
         _ = try await rootB.respond(to: Self.rootPrompt)
+        await gate.waitForArrival()
         let runsOfA = await harness.runner.runs(caller: rootA.id).sorted { $0.id < $1.id }
         let runOfB = try await Self.onlyRun(in: harness, of: rootB)
-        for run in runsOfA + [runOfB] {
-            _ = try await run.result()
-        }
         _ = try await rootA.respond(to: Self.nextPrompt)
         _ = try await rootB.respond(to: Self.nextPrompt)
-        let answers = Array(harness.runHarness.script.toolOutputs.suffix(Self.lastAnswerCount))
+        let answers = harness.runHarness.script.toolOutputs.suffix(Self.lastAnswerCount)
+            .map(ToolOutputEnvelope.answer(of:))
+        let reportsOfA = runsOfA.map(\.report).joined(separator: Self.blockSeparator)
+        let reportOfB = runOfB.report
         let hostAnswer = try await harness.call("check agent")
+        let statesAtCheck = (runsOfA + [runOfB]).map(\.state)
         await rootA.close()
         await rootB.close()
 
         #expect(runsOfA.count == Self.runCountOfA)
-        #expect(
-            answers == [
-                runsOfA.map(Self.finishedBlock).joined(separator: Self.blockSeparator),
-                Self.finishedBlock(of: runOfB)
-            ])
+        #expect(answers == [reportsOfA, reportOfB])
+        #expect(statesAtCheck.allSatisfy { $0 == .running })
         #expect(hostAnswer == Self.noRunsText)
     }
 
@@ -335,9 +328,9 @@ struct AgentSchedulingTests {
         #expect(resultOfB == Self.childText)
     }
 
-    @Test("a run that finishes after its caller session closed does not crash, and the runner keeps its record",
+    @Test("the close of the caller session cancels its open run, and the runner keeps the record of that run",
         .timeLimit(.minutes(1)))
-    func runFinishesAfterCallerClosed() async throws {
+    func closeOfCallerCancelsOpenRun() async throws {
         let gate = ScriptedGate()
         let script = ScriptedAgentScript([
             Self.startingPlay(Self.rootAKey, agent: Self.reviewer, prompt: Self.childAKey),
@@ -351,13 +344,12 @@ struct AgentSchedulingTests {
         await gate.waitForArrival()
         let run = try await Self.onlyRun(in: harness, of: rootA)
         await rootA.close()
-        gate.open()
-        let result = try await run.result()
+        let final = await run.finalState()
         let record = await harness.runner.run(id: run.id)
 
-        #expect(result == Self.childText)
+        #expect(final == .cancelled)
         #expect(record?.id == run.id)
-        #expect(record?.state == .finished(Self.childText))
+        #expect(record?.state == .cancelled)
         #expect(await harness.runner.runs.isEmpty)
     }
 

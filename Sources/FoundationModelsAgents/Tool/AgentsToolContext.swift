@@ -20,6 +20,10 @@ public struct AgentsToolContext: Sendable {
     /// not a run, for example the root session of a host.
     let parent: ParentRun?
 
+    /// The runs that the `start agent` calls of the tool started, by the
+    /// completion token of each call.
+    let startedRuns = StartedRuns()
+
     /// Makes a context for a session that is not a run, for example the
     /// root session of a host.
     ///
@@ -102,13 +106,45 @@ public struct AgentsToolContext: Sendable {
         }
     }
 
+    /// Waits for `run`, and gives its final message text (plan.md §9.2).
+    ///
+    /// This is the background body of a `start agent` call in a Router
+    /// session. The call adds the run to ``startedRuns`` under the completion
+    /// token of `call`, thus the canceler of the call, `check agent`, and
+    /// `cancel agent` find the run by that token. A cancel of the task of
+    /// the body cancels the run.
+    ///
+    /// When a run calls the tool, the body then waits until the submission
+    /// that made the call ended (``ParentSessionWatch``). Thus the final
+    /// message never settles inside the grace of the call: the call answers
+    /// with the pending envelope, and the final message comes as mail.
+    ///
+    /// - Parameters:
+    ///   - run: The run that the call started.
+    ///   - call: The context of the call.
+    /// - Returns: The final message text of the run: the ``AgentRun/report``
+    ///   of its final state.
+    func finalMessage(of run: AgentRun, startedBy call: ToolContext) async -> String {
+        startedRuns.add(run, forCall: call.completionToken)
+        let final = await withTaskCancellationHandler {
+            await run.finalState()
+        } onCancel: {
+            run.cancel()
+        }
+        await parent?.sessionWatch.waitForEndOfSubmission(ofCall: call.completionToken)
+        return run.report(of: final)
+    }
+
     /// Finds the run `id` of the caller, and gives the answer of `body` for
     /// it.
     ///
-    /// The caller is the session of `ToolContext.current`, or `nil` outside
-    /// a Router session. A run of a different caller gives the same
-    /// corrective as an id that no run has (plan.md §9.1), thus one caller
-    /// cannot check or cancel the runs of another.
+    /// The id is the id of a run, or the completion token of the
+    /// `start agent` call that started the run: the pending envelope of that
+    /// call holds the token. The caller is the session of
+    /// `ToolContext.current`, or `nil` outside a Router session. A run of a
+    /// different caller gives the same corrective as an id that no run has
+    /// (plan.md §9.1), thus one caller cannot check or cancel the runs of
+    /// another.
     ///
     /// - Parameters:
     ///   - id: The id that the model gave. The case of the letters does not
@@ -120,10 +156,7 @@ public struct AgentsToolContext: Sendable {
         forRun id: String, _ body: (AgentRun) -> AgentsToolAnswer
     ) async -> AgentsToolAnswer {
         let caller = ToolContext.current?.sessionID
-        guard let runID = ULID(ulidString: id.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()),
-            let run = await runner.run(id: runID),
-            run.caller == caller
-        else {
+        guard let run = await run(named: id), run.caller == caller else {
             let callerRuns = await runner.runs(caller: caller)
             return .corrective(AgentsToolText.unknownRun(id, ids: callerRuns.map(\.id.description)))
         }
@@ -137,5 +170,18 @@ public struct AgentsToolContext: Sendable {
     ///   have no runs." Both are a success.
     func reportsOfCallerRuns() async -> AgentsToolAnswer {
         .success(AgentsToolText.reports(of: await runner.runs(caller: ToolContext.current?.sessionID)))
+    }
+
+    /// Finds the run that `id` names: the run with that id, or the run that
+    /// the `start agent` call with that completion token started.
+    ///
+    /// - Parameter id: The id that the model gave.
+    /// - Returns: The run, or `nil` when `id` names no run.
+    private func run(named id: String) async -> AgentRun? {
+        let key = id.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if let runID = ULID(ulidString: key), let run = await runner.run(id: runID) {
+            return run
+        }
+        return startedRuns.run(forCall: key)
     }
 }

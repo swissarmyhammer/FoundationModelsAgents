@@ -74,20 +74,34 @@ enum AgentsToolText {
         return runs.lazy.map(\.report).joined(separator: blockSeparator)
     }
 
-    /// Gives the answer of `start agent` for a run in operation.
+    /// Gives the answer of `start agent` outside a Router session, for a run
+    /// in operation. No final message comes back to such a caller.
     ///
-    /// - Parameters:
-    ///   - run: The run that the call started.
-    ///   - postsFinalMessage: `true` when the call has a `ToolContext`, thus
-    ///     the final message of the run comes back to the caller.
-    /// - Returns: "Agent `name` started with the id `id`." and how the
-    ///   result comes back.
-    static func started(_ run: AgentRun, postsFinalMessage: Bool) -> String {
-        let start = "Agent \(run.agent.id) started with the id \(run.id)."
-        guard postsFinalMessage else {
-            return start + " Ask about it with {\"op\": \"check agent\", \"id\": \"\(run.id)\"}."
-        }
-        return start + " Its final message comes to you when it finishes."
+    /// - Parameter run: The run that the call started.
+    /// - Returns: "Agent `name` started with the id `id`." and how to ask
+    ///   about the run.
+    static func started(_ run: AgentRun) -> String {
+        "Agent \(run.agent.id) started with the id \(run.id). "
+            + "Ask about it with {\"op\": \"check agent\", \"id\": \"\(run.id)\"}."
+    }
+
+    /// Gives the `next` sentence of the pending envelope of a call in a
+    /// Router session.
+    ///
+    /// For `start agent` the run goes on in the background, and its final
+    /// message comes to the caller as a new message. The sentence tells the
+    /// model not to wait and not to guess the result, and how to ask about
+    /// the run with the completion token of the call.
+    ///
+    /// - Parameter completionToken: The completion token of the call.
+    /// - Returns: The sentence.
+    static func collectInstruction(forCompletionToken completionToken: String) -> String {
+        """
+        This work goes on in the background. When it is an agent, its final message comes to you \
+        as a new message when the agent finishes. Do not wait for it, and never guess its result: \
+        end your answer now, or do other work. \
+        To see its state, call {"op": "check agent", "id": "\(completionToken)"}.
+        """
     }
 
     /// Gives the corrective of `start agent` with a name that the catalog

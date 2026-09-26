@@ -36,11 +36,11 @@ extension AgentRunTests {
             ])
         }
 
-        /// The `ToolContext.completionToken` of the call joins to the call:
-        /// the Router journals the final message that the run posts through
-        /// that context into the parent transcript with the token and the
-        /// tool name.
-        @Test("a run started in a tool call records agentSpawn that joins to the call in the Router transcript")
+        /// The `ToolContext.completionToken` of the call joins the run to the
+        /// call. The run posts nothing through that context: the `agents`
+        /// tool gives the final message as the detail of its own background
+        /// call, and this probe is no such tool.
+        @Test("a run started in a tool call records agentSpawn with the call, and posts nothing through the call")
         func toolCallRunRecordsAgentSpawn() async throws {
             let harness = try await AgentRunHarness.make(script: Self.makeScript())
             defer { try? harness.delete() }
@@ -63,10 +63,7 @@ extension AgentRunTests {
                     == SessionSidecar.AgentSpawn(
                         parentSessionId: parent.id, parentToolCallId: context.completionToken))
             #expect(started.run.caller == parent.id)
-            #expect(journaled.map(\.tool) == [AgentStartProbe.toolName])
-            #expect(
-                journaled.map(\.detail)
-                    == ["Agent \(AgentRunTests.reviewer) (\(started.run.id)) finished.\n\n\(AgentRunTests.finalText)"])
+            #expect(journaled.isEmpty)
         }
 
         @Test("a host-driven run records no agentSpawn")

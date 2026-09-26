@@ -64,7 +64,11 @@ struct ReadmeExampleTests {
         defer { try? cache.delete() }
         let repository = try GitFixtureRepository()
         _ = try repository.commit(files: FixtureMarketplaceProvider.fixtureTree())
-        let (router, profile) = try await ScriptedProfile.make(script: script, recordingsDir: recordings.root)
+        // One model for both slots: the child then generates after the answer
+        // of the root, as on a machine with one model, and its final message
+        // comes as mail.
+        let (router, profile) = try await ScriptedProfile.make(
+            script: script, recordingsDir: recordings.root, flash: ScriptedProfile.standardModel)
 
         let outcome = try await ReadmeExampleSource.run(
             profile: profile,

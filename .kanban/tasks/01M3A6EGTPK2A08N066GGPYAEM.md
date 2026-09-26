@@ -56,6 +56,36 @@ comments:
     - A person must choose: (A) keep the in-band `agents` tool, and the run sends its own delivery messages with `send(_:)`; or (B) make `start agent` a background tool, so the pump delivers each final message as mail (Router §5.10).
     - Resolved (gitignored Package.resolved, root and IntegrationTests): Router c208add, mlx-swift-lm a1f77ad, FoundationModelsExtras 0dc42cf, FoundationModelsSkills ed142ec. With these, the package does not build, so every other task is blocked until this task is done or the resolved files go back.
   timestamp: 2026-09-26T19:48:12.087637+00:00
+- actor: claude-code
+  id: 01m3fnh48y6n3wpj6a9krf3gqx
+  text: |-
+    ### Research for the background design (picked up again after the rewrite)
+
+    Router facts that the design uses (read at c208add):
+    - `BackgroundToolRunner.launch` posts one progress event (the envelope), tracks the run, starts the body, then waits `inlineSettleGrace`. A body that settles inside the grace answers in the same envelope (`pending` false), and its staged events are withdrawn. The grace wait is inside the submission of the caller, so that submission cannot end before the envelope goes back.
+    - The body runs with `ToolContext.current` bound; its `completionToken` is the run token and the `correlationID` of the terminal.
+    - A supplied `canceler(forCompletionToken:)` of a `.swiftTask` run replaces the cooperative one; the Router then does not cancel the body task. `SessionMailbox.sweep()` calls the canceler and does not wait for the body.
+    - `SessionOutbox.post` stages the terminal BEFORE the journal write that emits `runSettled`. A submission that takes mail for another reason (another settled run, a caller message, a continuation) can thus take a terminal before its `runSettled` is emitted. So "runSettled, then submissionStarted" alone can wait for ever for a second child. The run therefore checks delivery in the settled transcript: the child's final message text is in a `.prompt` entry.
+    - `answerFailed.reason` is only a string. To keep `contextOverflow` for the task answer, the task prompt goes in as one message with `streamEvents(to:)` (a send plus a wait for its own answer), which throws the typed error. Mail answers fail with `answerFailed` and an empty `messageIds`.
+    - `generationCall` comes one time for each pass when the backend reports usage (the first tool open of a pass, and the submission close). `entryRecorded` comes at the end of each submission.
+    - `GenerationQueue` is public with a public init, and `LanguageModelSessionBackend.generationQueue` can name one. The scripted container can own one queue for each model, so runs on one model share its queue in the unit tests.
+
+    Design decisions:
+    - A child that settles inside the grace would give its result inline, and no mail. To keep "start agent returns at once with the pending envelope", the start body of a run parent waits, after the child ends, for the end of the parent's submission that made the call. The parent's event follower opens this gate at the first `submissionEnded` after the open `toolInvocation` record of the call. A host root session has no follower, so a fast child there can still settle inline.
+    - `check agent` and `cancel agent` also accept the completion token of the start call, because the pending envelope carries the token and not the run id.
+  timestamp: 2026-09-26T20:11:58.622779+00:00
+- actor: claude-code
+  id: 01m3frvkkvsha86e9w6b3zrvjy
+  text: 'Progress: The unit suite passes (367 tests, 50 suites, 2 runs in a row). swiftlint has 0 violations. swift build -Xswiftc -warnings-as-errors passes, and agents-demo builds. periphery shows no new item (I removed the unused AgentRun.parent). The IntegrationTests package compiles: LiveAgentsToolProbe now conforms to BackgroundTool and gives each part to the real tool. FullCircleTests and LiveNestedTests wait for the mail answer of the root. They read only the `.completed` posts, and they find the start answer by the completion token. Live run 1: 12 tests in 6 suites passed.'
+  timestamp: 2026-09-26T21:10:07.739456+00:00
+- actor: claude-code
+  id: 01m3frybhn974b4rk1jbaxh9r4
+  text: |-
+    step: implement
+    outcome: changed
+    evidence: swift build -Xswiftc -warnings-as-errors passes in the root and in IntegrationTests. swift test -Xswiftc -warnings-as-errors: 367 tests in 50 suites passed, 3 runs in a row. agents-demo builds. swiftlint: 0 violations (Sources, Tests, Package.swift, Examples, and the 4 changed IntegrationTests files). periphery: no new item. cd IntegrationTests && swift test, 3 runs: 12 tests in 6 suites passed each time (122.5 s, 170.4 s, 129.9 s). The criterion "start agent returns at once with the pending envelope" is not checked. For a run parent it is true: the start body waits until the submission of the parent ends. For a host root session, a child on another model that ends inside the 1 s inlineSettleGrace settles in the start envelope, not as mail. The tool cannot see when a host root submission ends. Task ^0mhzx3a (hosts) must decide this. Each start answer gives outcome `.succeeded`, and the detail tells the state (finished, failed or cancelled). For ^7f7z6qa: TheFinalMessage.md and plan.md still name dispatchNextPrompt(), and a DocumentationTests claim checks that text. The README usage block and the dispatchNextPrompt paragraph got the smallest change, and ReadmeExampleSource.swift matches the README. AgentSchedulingTests still puts two gated runs on two models, because two held runs at one time need two generation queues. Not committed, not pushed.
+    task: ^ggpyaem
+  timestamp: 2026-09-26T21:11:37.781672+00:00
 depends_on:
 - 01M3A6DQW7S7GYSPTDY3QHG0XH
 - 01M3A6DZBWW4SMKGJCA3H1KBYF
@@ -83,18 +113,18 @@ The Router at `c208add` (resolved in both packages; see the comments) queues one
 3. Fix every other compile error that the removed symbols cause in `Sources`, `Examples/agents-demo`, `Tests` and `IntegrationTests`, with the smallest change that keeps the behavior. Task ^0mhzx3a does the host design, and task ^7f7z6qa does the documents.
 
 ## Acceptance Criteria
-- [ ] `swift build -Xswiftc -warnings-as-errors` passes with Router `c208add` or later, in the root and in `IntegrationTests/`.
+- [x] `swift build -Xswiftc -warnings-as-errors` passes with Router `c208add` or later, in the root and in `IntegrationTests/`.
 - [ ] `start agent` returns at once with the Router pending envelope; the parent session gets the child's final message as mail with no driver call.
-- [ ] A parent and a child on the SAME model: the parent's submission ends after `start agent`, the child completes, and the parent answers from the mail (scripted test).
-- [ ] A run ends only when its session is idle as defined above; a run with two children ends after both results were delivered and answered.
-- [ ] `maxTurns`, `cancel agent`, `stop()` and `cancelRuns(caller:)` work as their tests say.
-- [ ] No use of `dispatchNextPrompt`, `enqueue(prompt:)`, `PromptID` or `cancelCurrentTurn` stays in code.
+- [x] A parent and a child on the SAME model: the parent's submission ends after `start agent`, the child completes, and the parent answers from the mail (scripted test).
+- [x] A run ends only when its session is idle as defined above; a run with two children ends after both results were delivered and answered.
+- [x] `maxTurns`, `cancel agent`, `stop()` and `cancelRuns(caller:)` work as their tests say.
+- [x] No use of `dispatchNextPrompt`, `enqueue(prompt:)`, `PromptID` or `cancelCurrentTurn` stays in code.
 
 ## Tests
-- [ ] Update `NestedRunTests*.swift`, `MaxTurnsTests*.swift`, `AgentsToolOperationsTests.swift`, `CheckAgentProgressTests.swift`, `AgentRunTests*.swift` to the new flow; add the same-model parent/child case.
-- [ ] Remove the different-slot workaround from the tests: runs on one model share its queue.
-- [ ] Run `swift test -Xswiftc -warnings-as-errors`. Expected: pass.
-- [ ] Run `cd IntegrationTests && swift test` 3 times. Expected: pass each time. Report the real results.
+- [x] Update `NestedRunTests*.swift`, `MaxTurnsTests*.swift`, `AgentsToolOperationsTests.swift`, `CheckAgentProgressTests.swift`, `AgentRunTests*.swift` to the new flow; add the same-model parent/child case.
+- [x] Remove the different-slot workaround from the tests: runs on one model share its queue.
+- [x] Run `swift test -Xswiftc -warnings-as-errors`. Expected: pass.
+- [x] Run `cd IntegrationTests && swift test` 3 times. Expected: pass each time. Report the real results.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.

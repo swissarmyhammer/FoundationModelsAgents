@@ -37,8 +37,9 @@ struct LiveSessionRecord: Decodable {
 /// The Router writes each transcript event to the file before the call that
 /// records it returns. Thus a transcript is complete when the session is
 /// closed: after `close()` of a root session, and after `result()` of a run.
-/// `result()` returns only after the run closed its session and posted its
-/// final message.
+/// `result()` returns only after the run closed its session. The final
+/// message of a run is in the transcript of its parent after the parent
+/// answered that message as mail.
 enum LiveRecording {
     /// The name of the sidecar file in a session directory.
     private static let sessionFileName = "session.json"
@@ -97,8 +98,8 @@ enum LiveRecording {
     /// Tells if the session read the post with `correlationID` before its
     /// final answer.
     ///
-    /// The `.prompt` entry of a delivery turn carries each post that the
-    /// turn reads. The final answer is the last `.response` entry that
+    /// The `.prompt` entry of a mail answer carries each final message that
+    /// it gives: a `.completed` post. The final answer is the last `.response` entry that
     /// mirrors a transcript entry. The recorder gives each event a sequence
     /// number in the order of the log.
     ///
@@ -113,7 +114,8 @@ enum LiveRecording {
     static func readsPost(_ correlationID: String, beforeFinalAnswerIn directory: URL) throws -> Bool {
         let events = try events(in: directory)
         let read = events.first { event in
-            event.kind == .prompt && event.operationEvents.contains { $0.correlationID == correlationID }
+            event.kind == .prompt
+                && event.operationEvents.contains { $0.kind == .completed && $0.correlationID == correlationID }
         }
         let answer = events.last { $0.kind == .response && $0.mirrorsTranscriptEntry }
         if let read, let answer {

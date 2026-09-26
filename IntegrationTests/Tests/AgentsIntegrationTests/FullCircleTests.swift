@@ -7,13 +7,13 @@ extension LiveSuites {
     /// The full circle of one delegation on real models (plan.md §9, §15).
     ///
     /// A root session on the `standard` slot has the `agents` tool. Its model
-    /// calls `start agent`. The sub-agent runs on the `standard` slot after
-    /// the turn of the root ends. It calls ``LiveWordTool``, and answers with
-    /// the secret word. The larger model follows the tool instruction better
-    /// than the `flash` model. Its final message is in the root transcript,
-    /// and the next turn of the root reads it. The reply of that turn holds
-    /// the secret word. Only the tool knows the word, thus the root can give
-    /// it only from the final message.
+    /// calls `start agent`, and the call answers at once. The sub-agent runs
+    /// on the `standard` slot after the turn of the root ends. It calls
+    /// ``LiveWordTool``, and answers with the secret word. The larger model
+    /// follows the tool instruction better than the `flash` model. Its final
+    /// message comes to the root as mail, and the root answers that mail. The
+    /// reply of that answer holds the secret word. Only the tool knows the
+    /// word, thus the root can give it only from the final message.
     /// Then `check agent`, called as the root session, gives the same text.
     ///
     /// One case gives the root the exact JSON of the call. The other case
@@ -74,10 +74,14 @@ extension LiveSuites {
                 let agentsTool = try await harness.makeAgentsTool()
                 let probe = LiveAgentsToolProbe(wrapping: agentsTool)
                 let root = harness.makeRootSession(tools: [probe])
+                let rootEvents = await root.streamSessionEvents()
+                let mailReplies = rootEvents.compactMap { event -> String? in
+                    if case .answered(let answer) = event, answer.messageIds.isEmpty { answer.reply } else { nil }
+                }
                 _ = try await root.respond(to: rootPrompt)
                 let finderRun = try LiveHarness.run(of: finder, in: await harness.runner.runs(caller: root.id))
                 let text = try await finderRun.result()
-                let reply = try await root.dispatchNextPrompt()
+                let reply = await mailReplies.first { _ in true }
                 await root.close()
                 let spawn = try #require(try LiveRecording.session(of: finderRun).agentSpawn)
                 let startContext = try #require(
@@ -87,16 +91,15 @@ extension LiveSuites {
                 }
 
                 let posted = try LiveRecording.operationEvents(of: .toolOutput, in: root.recordingDirectory)
-                    .filter { $0.correlationID == spawn.parentToolCallId }
+                    .filter { $0.kind == .completed && $0.correlationID == spawn.parentToolCallId }
                 let read = try LiveRecording.operationEvents(of: .prompt, in: root.recordingDirectory)
-                    .filter { $0.correlationID == spawn.parentToolCallId }
+                    .filter { $0.kind == .completed && $0.correlationID == spawn.parentToolCallId }
                 let detail = "Agent \(finder) (\(finderRun.id)) finished.\n\n\(text)"
 
                 #expect(wordTool.callCount > 0)
                 #expect(text.localizedCaseInsensitiveContains(LiveWordTool.word), "The final text was: \(text)")
                 #expect(startContext.sessionID == root.id)
                 #expect(spawn.parentSessionId == root.id)
-                #expect(posted.map(\.kind) == [.completed])
                 #expect(posted.map(\.detail) == [detail])
                 #expect(read.map(\.detail) == [detail])
                 #expect(check == detail, "The check gave: \(check)")

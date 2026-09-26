@@ -123,6 +123,66 @@ struct ScriptedProfileTests {
         #expect(thirdAnswer == thirdPrompt)
     }
 
+    /// Two sessions on one scripted model share the generation queue of that
+    /// model: the submission of the second session waits while a gated
+    /// submission of the first session holds the model.
+    @Test("Two sessions on one model share its generation queue", .timeLimit(.minutes(1)))
+    func sessionsOnOneModelShareItsQueue() async throws {
+        let gate = ScriptedGate()
+        let secondKey = "scripted-second-session"
+        let script = ScriptedAgentScript([
+            ScriptedAgentPlay(key: Self.promptKey, steps: [.wait(gate), .finalText(Self.finalText)]),
+            ScriptedAgentPlay(key: secondKey, steps: [.finalText(Self.finalText)])
+        ])
+        let (_, profile) = try await ScriptedProfile.make(script: script)
+        let first = profile.flash.makeSession()
+        let second = profile.flash.makeSession()
+
+        let firstAnswer = Task { try await first.respond(to: Self.promptKey) }
+        await gate.waitForArrival()
+        var secondEvents = await second.streamEvents(to: secondKey).makeAsyncIterator()
+        let firstSecondEvent = try await secondEvents.next()
+        gate.open()
+        _ = try await firstAnswer.value
+
+        #expect(Self.isSubmissionQueued(firstSecondEvent))
+    }
+
+    /// Each pass of a scripted submission reports its own generation call,
+    /// because the scripted model meters one token for each fragment.
+    @Test("A scripted pass reports a generation call", .timeLimit(.minutes(1)))
+    func scriptedPassReportsGenerationCall() async throws {
+        let script = ScriptedAgentScript([
+            ScriptedAgentPlay(key: Self.promptKey, steps: [.finalText(Self.finalText)])
+        ])
+        let (_, profile) = try await ScriptedProfile.make(script: script)
+        let session = profile.flash.makeSession()
+
+        let calls = try await (await session.streamEvents(to: Self.promptKey))
+            .filter(Self.isGenerationCall)
+            .reduce(0) { count, _ in count + 1 }
+
+        #expect(calls == 1)
+    }
+
+    /// Tells if `event` is a queued submission.
+    ///
+    /// - Parameter event: An event, or `nil`.
+    /// - Returns: `true` for ``SessionEvent/submissionQueued(_:)``.
+    private static func isSubmissionQueued(_ event: SessionEvent?) -> Bool {
+        if case .submissionQueued = event { return true }
+        return false
+    }
+
+    /// Tells if `event` reports one generation call.
+    ///
+    /// - Parameter event: An event.
+    /// - Returns: `true` for ``SessionEvent/generationCall(_:)``.
+    private static func isGenerationCall(_ event: SessionEvent) -> Bool {
+        if case .generationCall = event { return true }
+        return false
+    }
+
     /// The standard slot and the flash slot resolve to two different models.
     @Test("The two slots have different chosen models")
     func slotsHaveDifferentChosenModels() async throws {

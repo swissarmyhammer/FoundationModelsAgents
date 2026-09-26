@@ -5,13 +5,14 @@ import Testing
 import ULID
 
 /// Pins the nested runs (plan.md §8 steps 7 and 8, §8.2, §9.3, §16): a run
-/// with the `agents` tool starts children, reads their final messages in
-/// delivery turns, and finishes only after them. A cancel or a failure of the
-/// parent cancels its open children, waits for them, and then posts.
+/// with the `agents` tool starts children, the final message of each child
+/// comes to it as mail, and it finishes only after it answered them. A cancel
+/// or a failure of the parent cancels its open children and waits for them.
 ///
-/// The root sessions and the `lead` runs are on the `standard` slot. A gated
-/// child is code-reviewer on the `flash` slot, thus the gated turn does not
-/// hold the generation gate of the parent.
+/// The root sessions and the parent runs are on the `standard` slot. The
+/// tests put the `flash` slot on the same model, thus each run of a test
+/// shares one generation queue: a parent waits in no tool, so its child can
+/// run on the same model.
 @Suite("Nested runs")
 struct NestedRunTests {
     /// A failure that a scripted step throws.
@@ -36,10 +37,10 @@ struct NestedRunTests {
     /// The first prompt of each root session.
     static let rootPrompt = "Give the work to an agent."
 
-    /// The answer of the turn of a root session.
+    /// The answer of the first answer of a root session.
     static let rootText = "I started an agent."
 
-    /// The answer of the task turn of each parent run.
+    /// The answer of the task answer of each parent run.
     static let startedText = "I started the agents."
 
     /// The key of the play of the lead run.
@@ -56,10 +57,6 @@ struct NestedRunTests {
 
     /// The final text of the test-writer child.
     static let testWriterText = "The tests of the parser pass."
-
-    /// The answer of the second turn of the root session in the dispatch
-    /// test.
-    private static let deliveredText = "The reviewer finished."
 
     /// The sentence that `check agent` adds for a run that waits for one
     /// child.
@@ -81,18 +78,13 @@ struct NestedRunTests {
             argumentsJSON: #"{"op": "start agent", "name": "\#(name)", "prompt": "\#(prompt)"}"#)
     }
 
-    /// The answer of a final-answer turn: the text of each prompt that the
-    /// run read after its task prompt. Thus it holds each final message of
-    /// the children.
-    static let finalAnswerStep = ScriptedAgentStep.finalTextOfLaterPrompts
-
     /// The play of a parent run: it starts one run for each entry of
-    /// `children` in its task turn, answers ``startedText``, then answers
-    /// each delivery turn and the final-answer turn with the prompts that it
-    /// read.
+    /// `children` in its task answer, answers ``startedText``, then answers
+    /// each mail with the text of each prompt that it read after its task
+    /// prompt.
     ///
     /// The steps after ``startedText`` are all the same. Thus the play is
-    /// correct also when two children end in one delivery turn.
+    /// correct also when one mail holds the final messages of two children.
     ///
     /// - Parameters:
     ///   - key: The key of the play.
@@ -101,7 +93,7 @@ struct NestedRunTests {
     static func parentPlay(_ key: String, children: [(name: String, prompt: String)]) -> ScriptedAgentPlay {
         let starts = children.map { child in startStep(child.name, prompt: child.prompt) }
         let deliveries = [ScriptedAgentStep](repeating: .finalTextOfLaterPrompts, count: children.count)
-        return ScriptedAgentPlay(key: key, steps: starts + [.finalText(startedText)] + deliveries + [finalAnswerStep])
+        return ScriptedAgentPlay(key: key, steps: starts + [.finalText(startedText)] + deliveries)
     }
 
     /// Waits until the model got a prompt that contains `text`.
@@ -116,14 +108,16 @@ struct NestedRunTests {
         }
     }
 
-    /// The play of the root session: it starts one run, then answers.
+    /// The play of the root session: it starts one run, answers, then
+    /// answers the mail of the run with the mail.
     ///
     /// - Parameters:
     ///   - name: The name of the agent to start.
     ///   - prompt: The prompt of the run.
     /// - Returns: The play.
     static func rootPlay(starting name: String, prompt: String) -> ScriptedAgentPlay {
-        ScriptedAgentPlay(key: rootKey, steps: [startStep(name, prompt: prompt), .finalText(rootText)])
+        ScriptedAgentPlay(
+            key: rootKey, steps: [startStep(name, prompt: prompt), .finalText(rootText), .finalTextOfLastPrompt])
     }
 
     /// Makes a root session over the `standard` slot, with the `agents` tool
@@ -148,19 +142,40 @@ struct NestedRunTests {
         return try #require(runs.first)
     }
 
-    /// Gives the `.completed` events that the transcript in `directory`
-    /// journaled for the tool call that started `run`.
+    /// Gives the `.completed` events that the run journal of the transcript
+    /// in `directory` recorded for the tool call that started `run`.
     ///
     /// - Parameters:
-    ///   - run: The run that posted.
+    ///   - run: The run whose final message the Router recorded.
     ///   - directory: The recording directory of the session of the caller.
     /// - Returns: The events, in file order.
     /// - Throws: The error of `#require` when the run has no context, or the
     ///   error of the read.
     static func posts(of run: AgentRun, in directory: URL?) throws -> [OperationEvent] {
         let token = try #require(run.context?.completionToken)
-        return try RecordedTranscript.operationEvents(in: try #require(directory))
+        return try RecordedTranscript.journaledEvents(in: try #require(directory))
             .filter { $0.kind == .completed && $0.correlationID == token }
+    }
+
+    /// Waits for the `runSettled` event of the call that started `run`.
+    ///
+    /// A root session gives the final message of a run to its model as
+    /// mail, after the run ends. The test reads the recording of the root
+    /// only after this event.
+    ///
+    /// - Parameters:
+    ///   - run: A run that a root session started.
+    ///   - events: The session events of that root session, from before its
+    ///     first message.
+    /// - Returns: The terminal of the call.
+    /// - Throws: The error of `#require` when the run has no context, or when
+    ///   the events end before the event.
+    static func settlement(of run: AgentRun, in events: AsyncStream<SessionEvent>) async throws -> OperationEvent {
+        let token = try #require(run.context?.completionToken)
+        let terminals = events.compactMap { event -> OperationEvent? in
+            if case .runSettled(let terminal) = event, terminal.correlationID == token { terminal } else { nil }
+        }
+        return try #require(await terminals.first { _ in true })
     }
 
     /// `true` when `state` failed with ``AgentRunFailure/modelFailed(_:)``.
@@ -175,7 +190,7 @@ struct NestedRunTests {
     /// Reads the report of `run` until it holds the waiting sentence for one
     /// child.
     ///
-    /// - Parameter run: A run that waits for one child after its task turn.
+    /// - Parameter run: A run that waits for one child after its task answer.
     /// - Returns: The report.
     /// - Throws: `CancellationError` when the test is cancelled.
     private static func waitingReport(of run: AgentRun) async throws -> String {
@@ -186,56 +201,30 @@ struct NestedRunTests {
     }
 
     @Test(
-        "a lead whose two children end at different times gives a final answer that holds both results",
+        "a run with two children ends after both final messages were delivered and answered",
         .timeLimit(.minutes(1)))
     func leadJoinsBothResults() async throws {
-        let gate = ScriptedGate()
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([
-                ScriptedAgentPlay(
-                    key: Self.leadKey,
-                    steps: [
-                        Self.startStep(Self.reviewer, prompt: Self.reviewerKey),
-                        Self.startStep(Self.testWriter, prompt: Self.testWriterKey),
-                        .finalText(Self.startedText),
-                        .finalTextOfLastPrompt,
-                        .finalTextOfLastPrompt,
-                        Self.finalAnswerStep
-                    ]),
-                ScriptedAgentPlay(key: Self.reviewerKey, steps: [.wait(gate), .finalText(Self.reviewerText)]),
+                Self.parentPlay(
+                    Self.leadKey, children: [(Self.reviewer, Self.reviewerKey), (Self.testWriter, Self.testWriterKey)]),
+                ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)]),
                 ScriptedAgentPlay(key: Self.testWriterKey, steps: [.finalText(Self.testWriterText)])
-            ]))
+            ]),
+            flash: ScriptedProfile.standardModel)
         defer { try? harness.delete() }
         let runner = harness.makeRunner()
 
         let lead = try await runner.start(Self.lead, prompt: Self.leadKey)
-        try await Self.arrival(ofPromptContaining: Self.testWriterText, in: harness.script)
-        gate.open()
         let result = try await lead.result()
         let children = await runner.runs(caller: lead.id)
         let prompts = harness.script.prompts
-        let details = children.map(Self.finishedDetail(of:))
 
-        #expect(result.contains(Self.reviewerText))
-        #expect(result.contains(Self.testWriterText))
         #expect(children.map(\.agent.id).sorted() == [Self.reviewer, Self.testWriter])
         #expect(children.allSatisfy { $0.depth == AgentRunner.hostDepth + 1 })
-        #expect(prompts.count(where: { $0.contains(Self.reviewerText) }) == 1)
-        #expect(prompts.count(where: { $0.contains(Self.testWriterText) }) == 1)
-        #expect(details.allSatisfy { detail in prompts.count(where: { $0.contains(detail) }) == 1 })
-        #expect(prompts.count(where: { $0 == AgentRun.finalAnswerPrompt }) == 1)
-        #expect(prompts.last == AgentRun.finalAnswerPrompt)
-    }
-
-    /// Gives the detail of the final message of a finished child of
-    /// ``leadJoinsBothResults()``.
-    ///
-    /// - Parameter child: A code-reviewer or a test-writer child run.
-    /// - Returns: "Agent `name` (`id`) finished.", a blank line, and the
-    ///   final text of the play of the child.
-    private static func finishedDetail(of child: AgentRun) -> String {
-        let text = child.agent.id == reviewer ? reviewerText : testWriterText
-        return "Agent \(child.agent.id) (\(child.id)) finished.\n\n\(text)"
+        #expect(children.allSatisfy { child in result.contains(child.report) })
+        #expect(children.allSatisfy { child in prompts.count(where: { $0.contains(child.report) }) == 1 })
+        #expect(prompts.last.map(result.contains) == true)
     }
 
     @Test("the parent finishes only after its child, and check agent tells that it waits",
@@ -246,7 +235,8 @@ struct NestedRunTests {
             script: ScriptedAgentScript([
                 Self.parentPlay(Self.leadKey, children: [(Self.reviewer, Self.reviewerKey)]),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.wait(gate), .finalText(Self.reviewerText)])
-            ]))
+            ]),
+            flash: ScriptedProfile.standardModel)
         defer { try? harness.delete() }
         let runner = harness.makeRunner()
 
@@ -264,7 +254,8 @@ struct NestedRunTests {
         #expect(result.contains(Self.reviewerText))
     }
 
-    @Test("a failing parent cancels its open child first, then posts", .timeLimit(.minutes(1)))
+    @Test("a failing parent cancels its open child first, and the Router records both final messages",
+        .timeLimit(.minutes(1)))
     func failingParentCancelsChildThenPosts() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(
@@ -274,26 +265,29 @@ struct NestedRunTests {
                     key: Self.leadKey,
                     steps: [Self.startStep(Self.reviewer, prompt: Self.reviewerKey), .fail(ScriptedFailure.broken)]),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.wait(gate), .finalText(Self.reviewerText)])
-            ]))
+            ]),
+            flash: ScriptedProfile.standardModel)
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
+        let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
         let lead = try await Self.onlyRun(of: harness.runner, caller: root.id)
         let leadFinal = await lead.finalState()
         let child = try await Self.onlyRun(of: harness.runner, caller: lead.id)
         let childStateAtParentEnd = child.state
+        _ = try await Self.settlement(of: lead, in: rootEvents)
         let leadPosts = try Self.posts(of: lead, in: root.recordingDirectory)
         let childPosts = try Self.posts(of: child, in: lead.recordingDirectory)
         await root.close()
 
         #expect(Self.isModelFailure(leadFinal))
         #expect(childStateAtParentEnd == .cancelled)
-        #expect(childPosts.map(\.outcome) == [.cancelled])
-        #expect(leadPosts.map(\.outcome) == [.failed])
+        #expect(childPosts.map(\.detail) == ["\(child.subject) was cancelled."])
+        #expect(leadPosts.map(\.detail) == [lead.report])
     }
 
-    @Test("cancel() on a parent with an open child cancels the child and waits for it before it posts",
+    @Test("cancel() on a parent with an open child cancels the child and waits for it",
         .timeLimit(.minutes(1)))
     func cancelledParentCancelsChildThenPosts() async throws {
         let gate = ScriptedGate()
@@ -302,9 +296,11 @@ struct NestedRunTests {
                 Self.rootPlay(starting: Self.lead, prompt: Self.leadKey),
                 Self.parentPlay(Self.leadKey, children: [(Self.reviewer, Self.reviewerKey)]),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.wait(gate), .finalText(Self.reviewerText)])
-            ]))
+            ]),
+            flash: ScriptedProfile.standardModel)
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
+        let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
         await gate.waitForArrival()
@@ -313,44 +309,41 @@ struct NestedRunTests {
         lead.cancel()
         let leadFinal = await lead.finalState()
         let childStateAtParentEnd = child.state
+        _ = try await Self.settlement(of: lead, in: rootEvents)
         let leadPosts = try Self.posts(of: lead, in: root.recordingDirectory)
         let childPosts = try Self.posts(of: child, in: lead.recordingDirectory)
         await root.close()
 
         #expect(leadFinal == .cancelled)
         #expect(childStateAtParentEnd == .cancelled)
-        #expect(childPosts.map(\.outcome) == [.cancelled])
+        #expect(childPosts.map(\.detail) == ["\(child.subject) was cancelled."])
         #expect(leadPosts.map(\.detail) == ["\(lead.subject) was cancelled."])
     }
 
-    @Test("dispatchNextPrompt() with a staged .completed runs one turn; with nothing staged it gives nil",
+    @Test("a root session answers the mail of a finished run with no call of the host",
         .timeLimit(.minutes(1)))
-    func dispatchRunsOneTurnThenGivesNil() async throws {
+    func rootAnswersMailOfFinishedRun() async throws {
         let harness = try await AgentsToolHarness.make(
             script: ScriptedAgentScript([
-                ScriptedAgentPlay(
-                    key: Self.rootKey,
-                    steps: [
-                        Self.startStep(Self.reviewer, prompt: Self.reviewerKey),
-                        .finalText(Self.rootText),
-                        .finalText(Self.deliveredText)
-                    ]),
+                Self.rootPlay(starting: Self.reviewer, prompt: Self.reviewerKey),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)])
-            ]))
+            ]),
+            flash: ScriptedProfile.standardModel)
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
+        let rootEvents = await root.streamSessionEvents()
+        let mailAnswers = rootEvents.compactMap { event -> SessionAnswer? in
+            if case .answered(let answer) = event, answer.messageIds.isEmpty { answer } else { nil }
+        }
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
         let child = try await Self.onlyRun(of: harness.runner, caller: root.id)
-        _ = try await child.result()
-        let delivered = try await root.dispatchNextPrompt()
-        let deliveryPrompt = harness.runHarness.script.prompts.last
-        let nothing = try await root.dispatchNextPrompt()
+        let mailAnswer = try #require(await mailAnswers.first { _ in true })
         await root.close()
 
-        #expect(delivered == Self.deliveredText)
-        #expect(deliveryPrompt?.contains(Self.reviewerText) == true)
-        #expect(nothing == nil)
+        #expect(child.state == .finished(Self.reviewerText))
+        #expect(mailAnswer.reply.contains(child.report))
+        #expect(harness.runHarness.script.prompts.last == mailAnswer.reply)
     }
 
     @Test("agentSpawn links three sessions, and parentToolCallId is the completion token of start agent",
@@ -361,9 +354,11 @@ struct NestedRunTests {
                 Self.rootPlay(starting: Self.lead, prompt: Self.leadKey),
                 Self.parentPlay(Self.leadKey, children: [(Self.reviewer, Self.reviewerKey)]),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)])
-            ]))
+            ]),
+            flash: ScriptedProfile.standardModel)
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
+        let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
         let lead = try await Self.onlyRun(of: harness.runner, caller: root.id)
@@ -371,6 +366,7 @@ struct NestedRunTests {
         let child = try await Self.onlyRun(of: harness.runner, caller: lead.id)
         let leadToken = try #require(lead.context?.completionToken)
         let childToken = try #require(child.context?.completionToken)
+        _ = try await Self.settlement(of: lead, in: rootEvents)
         let rootSpawn = try RecordedSidecar.read(in: root.recordingDirectory).agentSpawn
         let leadSpawn = try AgentRunTests.sidecar(of: lead).agentSpawn
         let childSpawn = try AgentRunTests.sidecar(of: child).agentSpawn

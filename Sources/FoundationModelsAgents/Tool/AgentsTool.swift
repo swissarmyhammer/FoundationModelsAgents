@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModels
+import FoundationModelsRouter
 import FoundationModelsSkills
 import Operations
 
@@ -23,6 +24,13 @@ import Operations
 /// runtime. It resolves the payload, dispatches the operation, and keeps the
 /// retry cap.
 ///
+/// In a Router session the tool is a background tool (``mount``). Each call
+/// runs in the background, and the model gets the pending envelope of the
+/// Router. `list agents`, `check agent`, and `cancel agent` end at once,
+/// inside ``inlineSettleGrace``, thus their answer is in their own envelope.
+/// `start agent` waits for the run that it started, and the final message
+/// of that run comes to the caller as mail when the run ends.
+///
 /// This tool is not a code-mode surface (plan.md §9.5). A host registers it
 /// directly on its session.
 public struct AgentsTool: Tool {
@@ -31,6 +39,11 @@ public struct AgentsTool: Tool {
 
     /// The answer of the operation, or a corrective message.
     public typealias Output = String
+
+    /// How long the Router waits for a call before it answers with the
+    /// pending envelope, in seconds. The calls that end at once settle in
+    /// this time.
+    static let settleGrace: TimeInterval = 1
 
     /// The tool that resolves and dispatches each call.
     public let operationTool: OperationTool<AgentsToolContext>
@@ -45,16 +58,21 @@ public struct AgentsTool: Tool {
     /// The fused schema, with the `name` field made an enum of `agentNames`.
     public let parameters: GenerationSchema
 
+    /// The shared context of the operations.
+    let context: AgentsToolContext
+
     /// Wraps `operationTool` and builds the schema over `agentNames`.
     ///
     /// - Parameters:
     ///   - operationTool: The tool that resolves and dispatches each call.
     ///     Its description is the description of this tool.
+    ///   - context: The shared context of the operations.
     ///   - agentNames: The names of the agents that the tool can start, in
     ///     catalog order.
     /// - Throws: The error of `AgentsToolSchema.make(name:operations:agentNames:)`.
-    init(operationTool: OperationTool<AgentsToolContext>, agentNames: [String]) throws {
+    init(operationTool: OperationTool<AgentsToolContext>, context: AgentsToolContext, agentNames: [String]) throws {
         self.operationTool = operationTool
+        self.context = context
         self.agentNames = agentNames
         parameters = try AgentsToolSchema.make(
             name: operationTool.name, operations: operationTool.operations, agentNames: agentNames)
@@ -117,7 +135,7 @@ public struct AgentsTool: Tool {
             ],
             resolver: OperationResolver(verbAliases: verbAliases)
         )
-        return try AgentsTool(operationTool: operationTool, agentNames: agents.map(\.id))
+        return try AgentsTool(operationTool: operationTool, context: context, agentNames: agents.map(\.id))
     }
 
     /// The verb aliases of plan.md §9.1: `stop` → `cancel`, `run` → `start`,
@@ -145,5 +163,45 @@ public struct AgentsTool: Tool {
     public func call(arguments: GeneratedContent) async throws -> String {
         let answer = try await operationTool.call(arguments: arguments)
         return (try? JSONDecoder().decode(String.self, from: Data(answer.utf8))) ?? answer
+    }
+}
+
+extension AgentsTool: BackgroundTool {
+    /// The background mount: each call answers at once with the pending
+    /// envelope of the Router, and the work goes on behind it. The mount
+    /// has no timeout, because a run can take any time.
+    public var mount: ToolMount? {
+        ToolMount(mode: .background)
+    }
+
+    /// How long the Router waits for a call before it answers. `list agents`,
+    /// `check agent`, and `cancel agent` end in this time, thus their answer
+    /// is in their own envelope and is no mail.
+    public var inlineSettleGrace: TimeInterval? {
+        Self.settleGrace
+    }
+
+    /// Gives the `next` sentence of the pending envelope of a call: the run
+    /// goes on in the background, and its final message comes as a message.
+    ///
+    /// - Parameter completionToken: The completion token of the call.
+    /// - Returns: The sentence. It names `completionToken`.
+    public func collectInstruction(forCompletionToken completionToken: String) -> String {
+        AgentsToolText.collectInstruction(forCompletionToken: completionToken)
+    }
+
+    /// Gives the canceler of the call `completionToken`: it cancels the run
+    /// that the call started, or the run that the call starts later.
+    ///
+    /// - Parameter completionToken: The completion token of the call.
+    /// - Returns: The canceler. It reports ``OperationOutcome/cancelled``.
+    public func canceler(
+        forCompletionToken completionToken: String
+    ) -> (@Sendable () async -> OperationOutcome)? {
+        let startedRuns = context.startedRuns
+        return {
+            startedRuns.cancelRun(ofCall: completionToken)
+            return .cancelled
+        }
     }
 }

@@ -4,7 +4,7 @@ import FoundationModels
 ///
 /// The first four cases occur before the run makes its session. A run that
 /// fails for one of them has no session and no recording directory. The last
-/// three cases occur in the turns of the run.
+/// four cases occur in the answers of the run.
 public enum AgentRunFailure: Error, Sendable, Equatable {
     /// The render of the body at run start failed (plan.md §4.3 step 3). The
     /// text is the description of the render error: for example a template
@@ -37,9 +37,16 @@ public enum AgentRunFailure: Error, Sendable, Equatable {
 
     /// The run went above the `maxTurns` limit of its agent (plan.md §5).
     /// The run counts one turn for each pass of the control loop, in the
-    /// task turn, in each delivery turn, and in each final-answer turn.
-    /// `partial` is the text of the turn when the count went above the limit.
+    /// answer of its task prompt and in each answer to the final message of
+    /// a run that it started. `partial` is the text of the answer when the
+    /// count went above the limit.
     case hitMaxTurns(partial: String)
+
+    /// The Router held the final messages of the runs that this run started,
+    /// and started no answer for them (`SessionEvent.mailDeliveryPaused`).
+    /// The run cannot finish without these answers. The text is the
+    /// description of the hold.
+    case mailDeliveryPaused(String)
 
     /// The reason of the failure as a clause for a model or a person: for
     /// example "the model failed: <description>". It has no period at the
@@ -60,6 +67,8 @@ public enum AgentRunFailure: Error, Sendable, Equatable {
             "the model failed: \(text)"
         case .hitMaxTurns(let partial):
             "the agent used more turns than its maxTurns limit; its text so far: \(partial)"
+        case .mailDeliveryPaused(let text):
+            "the session did not deliver the final messages of the agents that it started: \(text)"
         }
     }
 

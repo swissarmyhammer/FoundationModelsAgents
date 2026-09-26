@@ -110,15 +110,16 @@ enum ReadmeExampleSource {
             instructions: "You give work to agents with the agents tool.",
             workingDirectory: projectDirectory,
             tools: [agentsTool])
-        let events = await root.streamSessionEvents()   // subscribe before the first turn
-        for try await _ in await root.streamEvents(to: "Ask code-reviewer to review Sources/Parser.swift.") {}
+        let events = await root.streamSessionEvents()   // subscribe before the first message
+        _ = try await root.respond(to: "Ask code-reviewer to review Sources/Parser.swift.")
 
-        // `start agent` returns at once. When the run ends, its final message
-        // is staged in the root session, and the next turn reads it.
-        _ = await events.first { event in
-            if case .runSettled = event { true } else { false }
+        // `start agent` returns at once. When the run ends, the Router gives its
+        // final message to the root session as mail, and the root answers it.
+        let mailAnswers = events.compactMap { event -> String? in
+            guard case .answered(let answer) = event, answer.messageIds.isEmpty else { return nil }
+            return answer.reply
         }
-        let answer = try await root.dispatchNextPrompt()
+        let answer = await mailAnswers.first { _ in true }
 
         // The Router does not know the runs of a session: cancel them before close().
         await runner.cancelRuns(caller: root.id)

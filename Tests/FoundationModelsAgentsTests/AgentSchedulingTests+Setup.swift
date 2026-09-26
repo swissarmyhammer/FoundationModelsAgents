@@ -132,7 +132,7 @@ extension AgentSchedulingTests {
         }
 
         @Test(
-            "cancelRuns(caller:) waits for a start of that caller in setup, cancels it, and its post comes first",
+            "cancelRuns(caller:) waits for a start of that caller in setup, and cancels it",
             .timeLimit(.minutes(1)))
         func cancelRunsCancelsStartInSetup() async throws {
             let gates = SetupGates()
@@ -155,14 +155,12 @@ extension AgentSchedulingTests {
             await cancelling
             let leadRun = try await Self.run(of: Self.lead, caller: root.id, in: harness)
             let leadState = leadRun.state
-            let leadPosts = try NestedRunTests.posts(of: leadRun, in: root.recordingDirectory)
             await harness.runner.stop()
             _ = try await rootAnswer
             await root.close()
 
             #expect(reviewerState == .cancelled)
             #expect(leadState == .cancelled)
-            #expect(leadPosts.map(\.outcome) == [.cancelled])
         }
 
         @Test(

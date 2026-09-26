@@ -38,15 +38,16 @@ struct AgentSessionMaker: Sendable {
     ///
     /// - Parameters:
     ///   - request: The run to make the session for.
-    ///   - children: The list of the runs that the new run starts. The
-    ///     `agents` tool of the run adds to it.
+    ///   - family: The children and the session watch of the new run. The
+    ///     `agents` tool of the run adds to the children, and waits on the
+    ///     watch.
     /// - Returns: The new session and its slot.
     /// - Throws: ``AgentRunFailure/bodyRenderFailed(_:)``,
     ///   ``AgentRunFailure/skillRenderFailed(skill:description:)``,
     ///   ``AgentRunFailure/agentsMdUnreadable(_:)``, or
     ///   ``AgentRunFailure/toolsFailed(_:)``.
     func makeSession(
-        for request: AgentRunRequest, children: AgentRunChildren
+        for request: AgentRunRequest, family: ParentRun.Family
     ) async throws(AgentRunFailure) -> Made {
         let definition = request.definition
         let body = try renderer.render(definition, prompt: request.prompt)
@@ -56,7 +57,7 @@ struct AgentSessionMaker: Sendable {
             definition.model, profile: environment.profile, inherited: request.inheritedSlot
         ).slot
         let tools = try await tools(
-            for: request, as: ParentRun(depth: request.depth, slot: slot, children: children))
+            for: request, as: ParentRun(depth: request.depth, slot: slot, family: family))
         let model = ModelMatch.model(of: slot, in: environment.profile)
         let session = model.makeSession(
             instructions: instructions,

@@ -1,57 +1,55 @@
-import FoundationModels
+import Foundation
 @testable import FoundationModelsAgents
 import FoundationModelsRouter
-import Synchronization
 import Testing
+import ULID
 
 extension MaxTurnsTests {
-    /// Pins the one pass counter of a run (plan.md §5): the background count
-    /// of the session events, the exact count from the transcript after each
-    /// turn, and the end state when the count goes above the limit.
+    /// Pins the one pass counter of a run (plan.md §5): the live count from
+    /// the generation calls and the tool opens of the submission in
+    /// operation, the correction from the recorded entries at the end of each
+    /// submission, and the one limit signal.
     ///
-    /// The tests give the counter synthetic events, transcripts, and
-    /// dispatch results, thus they need no session.
+    /// The tests give the counter synthetic events, thus they need no
+    /// session. The Router makes the submission ids, thus the tests start
+    /// and end a submission with the counter's own calls.
     @Suite("maxTurns counter")
     struct Counter {
         /// The `maxTurns` limit of the counters with a limit.
         private static let turnLimit = 2
 
-        /// The count of `.toolCalls` entries in the tests of one tool pass.
-        private static let oneToolPass = 1
+        /// The count of passes of a submission with one tool pass and one
+        /// answer.
+        private static let toolPassAndAnswer = 2
 
-        /// The count of `.response` entries of a turn that retried after an
-        /// overflow.
+        /// The count of pass entries of a submission that retried after an
+        /// overflow: two answers.
         private static let retryAnswers = 2
 
-        /// The count of pass events above the limit in the follower test.
-        private static let passesAboveLimit = 1
+        /// The count of tool calls in one pass.
+        private static let callsInOnePass = 3
 
-        /// The text of the last complete turn before a delivery turn.
-        private static let lastText = "I started the helper."
+        /// The count of submissions of the test of several submissions.
+        private static let submissionCount = 3
 
-        /// The text that a delivery turn gives.
-        private static let deliveredText = "The part is done."
-
-        /// The arguments of the tool call of each `.toolCalls` entry.
-        private static let callArguments = #"{"op": "list agents"}"#
-
-        /// Gives a transcript with `toolPasses` tool-calls entries, then
-        /// `answers` response entries.
+        /// Gives a generation call event.
         ///
-        /// - Parameters:
-        ///   - toolPasses: The count of `.toolCalls` entries.
-        ///   - answers: The count of `.response` entries.
-        /// - Returns: The transcript.
-        /// - Throws: The error of the arguments JSON.
-        private static func transcript(toolPasses: Int, answers: Int) throws -> Transcript {
-            let call = Transcript.ToolCall(
-                id: "call", toolName: ToolVocabulary.agentsToolName,
-                arguments: try GeneratedContent(json: callArguments))
-            let calls = Transcript.Entry.toolCalls(Transcript.ToolCalls(id: "calls", [call]))
-            let answer = Transcript.Entry.response(
-                Transcript.Response(segments: [.text(Transcript.TextSegment(content: deliveredText))]))
-            return Transcript(
-                entries: Array(repeating: calls, count: toolPasses) + Array(repeating: answer, count: answers))
+        /// - Parameter kind: What the call left in the transcript.
+        /// - Returns: The event.
+        private static func generationCall(_ kind: GenerationCallEntryKind) -> SessionEvent {
+            .generationCall(
+                GenerationCallUsage(
+                    tokensIn: 1, tokensOut: 1, finishReason: .completed, entryKind: kind, contextFill: 0))
+        }
+
+        /// Gives the open record of one tool call.
+        ///
+        /// - Returns: The event.
+        private static func toolOpen() -> SessionEvent {
+            .toolInvocation(
+                ToolInvocationRecord(
+                    tool: ToolVocabulary.agentsToolName, op: "list agents", correlationID: ULID().ulidString,
+                    sessionID: ULID(), openedAt: Date()))
         }
 
         /// Gives the event of a recorded entry.
@@ -62,100 +60,118 @@ extension MaxTurnsTests {
             .entryRecorded(id: "entry", kind: kind)
         }
 
-        /// Gives a counter with the limit that has seen one pass more than
-        /// the limit.
+        /// Gives each event to `turns`.
         ///
-        /// - Returns: The counter. Its limit flag is set.
-        private static func counterAboveLimit() -> AgentRunTurns {
-            let turns = AgentRunTurns(limit: turnLimit)
-            for event in [entry(.toolCalls), entry(.toolCalls), entry(.response)] {
-                _ = turns.add(event)
-            }
-            return turns
+        /// - Parameters:
+        ///   - events: The events, in order.
+        ///   - turns: The counter.
+        /// - Returns: The results of ``AgentRunTurns/apply(_:)``, in order.
+        private static func apply(_ events: [SessionEvent], to turns: AgentRunTurns) -> [Bool] {
+            events.map(turns.apply)
         }
 
-        @Test("a delivery turn with no response entry returns, and the transcript gives its count",
-            .timeLimit(.minutes(1)))
-        func deliveryWithNoResponseReturns() async throws {
+        @Test("each generation call counts one live pass before the submission ends")
+        func generationCallsCountLive() {
             let turns = AgentRunTurns(limit: nil)
-            let transcript = try Self.transcript(toolPasses: Self.oneToolPass, answers: 0)
+            turns.startSubmission()
 
-            let delivered = try await turns.deliver(
-                lastText: Self.lastText, dispatch: { Self.deliveredText }, transcript: { transcript })
+            _ = Self.apply([Self.generationCall(.toolCall), Self.toolOpen(), Self.generationCall(.text)], to: turns)
 
-            #expect(delivered == Self.deliveredText)
-            #expect(turns.count == Self.oneToolPass)
+            #expect(turns.count == Self.toolPassAndAnswer)
         }
 
-        @Test("a delivery turn that retried with two response entries counts both", .timeLimit(.minutes(1)))
-        func retryCountsBothAnswers() async throws {
+        @Test("one pass that opens three tools counts one")
+        func threeToolOpensInOnePassCountOne() {
             let turns = AgentRunTurns(limit: nil)
-            let transcript = try Self.transcript(toolPasses: 0, answers: Self.retryAnswers)
+            turns.startSubmission()
+            let opens = [SessionEvent](repeating: Self.toolOpen(), count: Self.callsInOnePass)
 
-            _ = try await turns.deliver(
-                lastText: Self.lastText, dispatch: { Self.deliveredText }, transcript: { transcript })
+            _ = Self.apply([Self.generationCall(.toolCall)] + opens, to: turns)
+
+            #expect(turns.count == 1)
+        }
+
+        @Test("tool opens that come before the generation call of their pass count no second pass")
+        func toolOpensBeforeGenerationCallCountOnePass() {
+            let turns = AgentRunTurns(limit: nil)
+            turns.startSubmission()
+
+            _ = Self.apply(
+                [Self.toolOpen(), Self.toolOpen(), Self.generationCall(.toolCall), Self.toolOpen(),
+                 Self.generationCall(.text)],
+                to: turns)
+
+            #expect(turns.count == Self.toolPassAndAnswer)
+        }
+
+        @Test("with no generation call, the first tool open of a submission counts one pass")
+        func toolOpenCountsWithNoGenerationCall() {
+            let turns = AgentRunTurns(limit: nil)
+            turns.startSubmission()
+
+            _ = Self.apply([Self.toolOpen(), Self.toolOpen()], to: turns)
+
+            #expect(turns.count == 1)
+        }
+
+        @Test("at the end of a submission, its recorded pass entries replace its live count")
+        func recordedEntriesCorrectTheCount() {
+            let turns = AgentRunTurns(limit: nil)
+            turns.startSubmission()
+            _ = Self.apply([Self.generationCall(.text), Self.entry(.response), Self.entry(.response)], to: turns)
+
+            _ = turns.endSubmission()
 
             #expect(turns.count == Self.retryAnswers)
         }
 
-        @Test("the count is exact when a delivery turn returns, and a late event of that turn does not count again",
-            .timeLimit(.minutes(1)))
-        func countIsExactAfterDelivery() async throws {
+        @Test("a reasoning entry is not a pass")
+        func reasoningEntryIsNotAPass() {
             let turns = AgentRunTurns(limit: nil)
-            let transcript = try Self.transcript(toolPasses: Self.oneToolPass, answers: Self.retryAnswers)
-            _ = turns.add(Self.entry(.toolCalls))
+            turns.startSubmission()
+            _ = Self.apply([Self.entry(.reasoning), Self.entry(.response)], to: turns)
 
-            _ = try await turns.deliver(
-                lastText: Self.lastText, dispatch: { Self.deliveredText }, transcript: { transcript })
-            let exact = turns.count
-            _ = turns.add(Self.entry(.response))
-            _ = turns.add(Self.entry(.response))
+            _ = turns.endSubmission()
 
-            #expect(exact == Self.oneToolPass + Self.retryAnswers)
-            #expect(turns.count == exact)
+            #expect(turns.count == 1)
         }
 
-        @Test("the follower counts the pass entries and cancels the turn one time above the limit",
-            .timeLimit(.minutes(1)))
-        func followerCancelsOnceAboveLimit() async {
+        @Test("the passes of each submission add to one count")
+        func submissionsAddToOneCount() {
+            let turns = AgentRunTurns(limit: nil)
+
+            for _ in 0..<Self.submissionCount {
+                turns.startSubmission()
+                _ = Self.apply([Self.generationCall(.text), Self.entry(.response)], to: turns)
+                _ = turns.endSubmission()
+            }
+
+            #expect(turns.count == Self.submissionCount)
+        }
+
+        @Test("the count goes above the limit one time, and the flag stays")
+        func limitSignalsOneTime() {
             let turns = AgentRunTurns(limit: Self.turnLimit)
-            let (events, continuation) = AsyncStream<SessionEvent>.makeStream()
-            let entries = [
-                Self.entry(.toolCalls), Self.entry(.reasoning), Self.entry(.toolCalls), Self.entry(.response)
-            ]
-            for event in entries {
-                continuation.yield(event)
-            }
-            continuation.finish()
-            let cancels = Mutex(0)
+            turns.startSubmission()
+            let calls = [SessionEvent](repeating: Self.generationCall(.toolCall), count: Self.turnLimit + 1)
 
-            await turns.follow(events, onEvent: { _ in }, onLimitHit: { cancels.withLock { $0 += 1 } })
+            let signals = Self.apply(calls + [Self.generationCall(.text)], to: turns)
 
-            #expect(cancels.withLock { $0 } == 1)
+            #expect(signals.count(where: \.self) == 1)
+            #expect(signals.last == false)
             #expect(turns.isLimitHit)
-            #expect(turns.count == Self.turnLimit + Self.passesAboveLimit)
         }
 
-        @Test("after the limit cancel, a cancelled delivery turn ends as hitMaxTurns with the last complete text",
-            .timeLimit(.minutes(1)))
-        func deliveryCancelEndsAsHitMaxTurns() async {
-            let turns = Self.counterAboveLimit()
+        @Test("recorded entries above the live count can go above the limit")
+        func recordedEntriesCanGoAboveLimit() {
+            let turns = AgentRunTurns(limit: Self.turnLimit)
+            turns.startSubmission()
+            let entries = [SessionEvent](repeating: Self.entry(.toolCalls), count: Self.turnLimit)
 
-            await #expect(throws: AgentRunFailure.hitMaxTurns(partial: Self.lastText)) {
-                try await turns.deliver(
-                    lastText: Self.lastText, dispatch: { throw CancellationError() }, transcript: { Transcript() })
-            }
-        }
+            let signals = Self.apply([Self.generationCall(.text)] + entries + [Self.entry(.response)], to: turns)
 
-        @Test("after the limit cancel, a cancelled task turn ends as hitMaxTurns with the text so far")
-        func taskTurnCancelEndsAsHitMaxTurns() {
-            let below = AgentRunTurns(limit: Self.turnLimit)
-            let above = Self.counterAboveLimit()
-
-            #expect(below.failure(for: CancellationError(), partial: Self.lastText) is CancellationError)
-            #expect(
-                above.failure(for: CancellationError(), partial: Self.lastText) as? AgentRunFailure
-                    == .hitMaxTurns(partial: Self.lastText))
+            #expect(signals == [false, false, false, true])
+            #expect(turns.count == Self.turnLimit + 1)
         }
     }
 }

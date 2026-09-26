@@ -54,12 +54,16 @@ struct StartAgent {
 }
 
 extension StartAgent {
-    /// Starts the agent `name` with `prompt`, and returns at once.
+    /// Starts the agent `name` with `prompt`.
     ///
-    /// The run gets `ToolContext.current`, the context of this call. The call
-    /// posts nothing: the run posts its final message through the context
-    /// when it finishes (plan.md §9.2). Outside a Router session there is no
-    /// context, the run posts nothing, and the model uses `check agent`.
+    /// The run gets `ToolContext.current`, the context of this call. In a
+    /// Router session this call is the background body of the call: it waits
+    /// for the run, and gives the final message text of the run as its
+    /// answer (``AgentsToolContext/finalMessage(of:startedBy:)``). The Router
+    /// answers the model at once with the pending envelope, and delivers the
+    /// final message later as mail (plan.md §9.2). Outside a Router session
+    /// there is no context: the call returns at once with the id of the run,
+    /// and the model uses `check agent`.
     ///
     /// The call reads the catalog again, thus after a reload a changed agent
     /// runs with its new definition, and a removed agent gives a corrective.
@@ -75,9 +79,11 @@ extension StartAgent {
     /// `Agent`, `Agent(a, b)`, or `agents` entry.
     ///
     /// - Parameter context: The shared context of the tool.
-    /// - Returns: The id of the run, or a corrective for a blank prompt, for
-    ///   a name that the tool cannot start, for a name that no agent has, for
-    ///   a depth above the limit, for a full run limit, or for a runner that
+    /// - Returns: The final message text of the run in a Router session, or
+    ///   the id of the run outside one. The report of a run whose setup
+    ///   failed. A corrective for a blank prompt, for a name that the tool
+    ///   cannot start, for a name that no agent has, for a depth above the
+    ///   limit, for a full run limit, or for a runner that
     ///   ``AgentRunner/stop()`` stopped.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
         guard AgentDefinitionRules.holdsText(prompt) else {
@@ -104,8 +110,13 @@ extension StartAgent {
         case .stopped:
             return .corrective(AgentsToolText.stopped)
         case .started(let run):
-            return .success(run.isSetupFailure
-                ? run.report : AgentsToolText.started(run, postsFinalMessage: callContext != nil))
+            guard !run.isSetupFailure else {
+                return .success(run.report)
+            }
+            guard let callContext else {
+                return .success(AgentsToolText.started(run))
+            }
+            return .success(await context.finalMessage(of: run, startedBy: callContext))
         }
     }
 

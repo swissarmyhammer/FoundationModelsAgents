@@ -109,7 +109,7 @@ struct AgentBodyRendererTests {
         switch failure {
         case .bodyRenderFailed(let text): text
         case .skillRenderFailed, .agentsMdUnreadable, .toolsFailed, .contextOverflow, .modelFailed, .hitMaxTurns,
-            nil:
+            .mailDeliveryPaused, nil:
             nil
         }
     }

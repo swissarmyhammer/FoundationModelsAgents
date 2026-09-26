@@ -11,12 +11,13 @@ extension LiveSuites {
     /// the agent ``leaf``. The `agentSpawn` record of each run names its
     /// parent session, and its `parentToolCallId` is the correlation id of
     /// the final message that the run posts into the transcript of the parent:
-    /// the id of the `start agent` call.
+    /// the completion token of the `start agent` call. The answer of each
+    /// `start agent` call is the pending envelope that holds that token.
     ///
     /// Only `leaf` knows the word ``leafWord``. The final answer of `lead`
-    /// holds that word, and the transcript of `lead` shows the delivery turn
-    /// that read the post of `leaf` before that final answer. Thus the test
-    /// proves that `lead` waited for `leaf` and read its result.
+    /// holds that word, and the transcript of `lead` shows the mail prompt
+    /// that gave the final message of `leaf` before that final answer. Thus
+    /// the test proves that `lead` waited for `leaf` and read its result.
     ///
     /// The test reads the transcripts only after `result()` of each run and
     /// `close()` of the root session, thus each transcript is complete
@@ -44,6 +45,10 @@ extension LiveSuites {
 
             try await LiveHarness.withHarness(agents: agents) { harness in
                 let root = harness.makeRootSession(tools: [try await harness.makeAgentsTool()])
+                let rootEvents = await root.streamSessionEvents()
+                let mailAnswers = rootEvents.filter { event in
+                    if case .answered(let answer) = event { answer.messageIds.isEmpty } else { false }
+                }
                 _ = try await root.respond(
                     to: try LiveHarness.agentsCallText([
                         "op": LiveHarness.startOperation, "name": Self.lead, "prompt": Self.leadTask
@@ -52,21 +57,22 @@ extension LiveSuites {
                 let leadText = try await lead.result()
                 let leaf = try LiveHarness.run(of: Self.leaf, in: await harness.runner.runs(caller: lead.id))
                 let leafText = try await leaf.result()
+                _ = await mailAnswers.first { _ in true }
                 await root.close()
 
                 let rootSpawn = try LiveRecording.session(in: root.recordingDirectory).agentSpawn
                 let leadSpawn = try #require(try LiveRecording.session(of: lead).agentSpawn)
                 let leafSpawn = try #require(try LiveRecording.session(of: leaf).agentSpawn)
                 let leadCalls = try LiveRecording.operationEvents(of: .toolOutput, in: root.recordingDirectory)
-                    .filter { $0.correlationID == leadSpawn.parentToolCallId }
+                    .filter { $0.kind == .completed && $0.correlationID == leadSpawn.parentToolCallId }
                 let leadDirectory = try #require(lead.recordingDirectory)
                 let leafCalls = try LiveRecording.operationEvents(of: .toolOutput, in: leadDirectory)
-                    .filter { $0.correlationID == leafSpawn.parentToolCallId }
+                    .filter { $0.kind == .completed && $0.correlationID == leafSpawn.parentToolCallId }
 
                 let rootStartAnswers = try LiveRecording.toolAnswers(in: root.recordingDirectory)
-                    .filter { $0.contains(lead.id.description) }
+                    .filter { $0.contains(leadSpawn.parentToolCallId) }
                 let leadStartAnswers = try LiveRecording.toolAnswers(in: leadDirectory)
-                    .filter { $0.contains(leaf.id.description) }
+                    .filter { $0.contains(leafSpawn.parentToolCallId) }
 
                 #expect(rootSpawn == nil)
                 #expect(leadSpawn.parentSessionId == root.id)

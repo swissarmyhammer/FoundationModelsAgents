@@ -53,10 +53,33 @@ enum RecordedTranscript {
     /// - Returns: The events, in file order.
     /// - Throws: The error of the read or of the decode of a line.
     static func operationEvents(in directory: URL) throws -> [OperationEvent] {
+        try events(in: directory).flatMap(\.operationEvents)
+    }
+
+    /// The operation events that the run journal of the session recorded:
+    /// one `.toolOutput` entry for each event at the moment it was posted.
+    ///
+    /// The Router writes a delivered event a second time on the `.prompt`
+    /// entry of the submission that delivered it. This read leaves out that
+    /// copy, thus each post counts one time.
+    ///
+    /// - Parameter directory: The recording directory of the session.
+    /// - Returns: The events, in file order.
+    /// - Throws: The error of the read or of the decode of a line.
+    static func journaledEvents(in directory: URL) throws -> [OperationEvent] {
+        try events(in: directory).filter { $0.kind == .toolOutput }.flatMap(\.operationEvents)
+    }
+
+    /// The events of the transcript of the session.
+    ///
+    /// - Parameter directory: The recording directory of the session.
+    /// - Returns: The events, in file order.
+    /// - Throws: The error of the read or of the decode of a line.
+    private static func events(in directory: URL) throws -> [TranscriptEvent] {
         let text = try String(contentsOf: directory.appendingPathComponent(fileName), encoding: .utf8)
         let decoder = JSONDecoder()
-        return try text.split(separator: "\n").flatMap { line in
-            try decoder.decode(TranscriptEvent.self, from: Data(line.utf8)).operationEvents
+        return try text.split(separator: "\n").map { line in
+            try decoder.decode(TranscriptEvent.self, from: Data(line.utf8))
         }
     }
 }

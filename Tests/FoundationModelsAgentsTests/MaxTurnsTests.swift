@@ -4,13 +4,9 @@ import Testing
 
 /// Pins the `maxTurns` count (plan.md §5, §9.3): one turn is one pass of
 /// the control loop. Each pass records one `.toolCalls` or `.response`
-/// entry, and the count holds the passes of the task turn, of each delivery
-/// turn, and of each final-answer turn. Above the limit the run fails with
-/// `hitMaxTurns` and the text so far.
-///
-/// The runs and the root sessions are on the `standard` slot. A gated child
-/// is on the `flash` slot, thus its turn does not hold the generation gate
-/// of its parent.
+/// entry, and the count holds the passes of the answer of the task prompt
+/// and of each answer to the final message of a child. Above the limit the
+/// run fails with `hitMaxTurns` and the text so far.
 @Suite("maxTurns")
 struct MaxTurnsTests {
     /// The `maxTurns` limit of ``limited`` and ``limitedLead``.
@@ -23,27 +19,19 @@ struct MaxTurnsTests {
     /// The count of tool calls in the one pass of the parallel-call test.
     private static let callsInOnePass = 3
 
-    /// The count of passes of a task turn with two tool passes and one
+    /// The count of passes of a task answer with two tool passes and one
     /// answer.
     private static let twoToolsAndAnswer = 3
 
-    /// The count of passes of a task turn with one tool pass and one answer.
+    /// The count of passes of a task answer with one tool pass and one
+    /// answer.
     private static let oneToolAndAnswer = 2
 
-    /// The `maxTurns` limit of ``finalLimitedLead``: the passes of the task
-    /// turn and of the delivery turn, and not the final-answer turn.
-    private static let deliveryTurnLimit = 3
+    /// The count of passes of a lead that starts one child in its task
+    /// answer, answers, and answers the mail of the child.
+    private static let leadPasses = 3
 
-    /// The count of passes of a lead that starts one child in its task turn,
-    /// answers, and answers one delivery turn.
-    private static let leadPassesToDelivery = 3
-
-    /// The count of passes of a lead that starts one child in its task turn,
-    /// answers, answers one delivery turn, and answers the final-answer
-    /// turn.
-    private static let leadPasses = 4
-
-    /// The count of answer passes of one turn.
+    /// The count of answer passes of one answer.
     private static let answerPasses = 1
 
     /// The word of the `hitMaxTurns` reason that names the limit.
@@ -59,9 +47,6 @@ struct MaxTurnsTests {
 
     /// The agent with `maxTurns: 2` that can start ``flashHelper``.
     private static let limitedLead = "limited-lead"
-
-    /// The agent with `maxTurns: 3` that can start ``flashHelper``.
-    private static let finalLimitedLead = "final-limited-lead"
 
     /// The agent with no `maxTurns` that can start ``flashHelper``.
     private static let countingLead = "counting-lead"
@@ -100,16 +85,6 @@ struct MaxTurnsTests {
 
             You are a lead with a small count of turns.
             """,
-        "agents/\(finalLimitedLead).md": """
-            ---
-            name: \(finalLimitedLead)
-            description: Gives a part of a task to the helper in a count of turns with no final answer.
-            maxTurns: \(deliveryTurnLimit)
-            tools: Agent(\(flashHelper))
-            ---
-
-            You are a lead with a count of turns that stops before the final answer.
-            """,
         "agents/\(countingLead).md": """
             ---
             name: \(countingLead)
@@ -137,19 +112,19 @@ struct MaxTurnsTests {
     private static let listStep = ScriptedAgentStep.toolCall(
         name: ToolVocabulary.agentsToolName, argumentsJSON: listArguments)
 
-    /// The key of the play of the task-turn tests.
+    /// The key of the play of the task-answer tests.
     private static let taskKey = "max-turns-task-key: count the passes"
 
-    /// The key of the play of the lead in the delivery tests.
+    /// The key of the play of the lead in the mail tests.
     private static let leadKey = "max-turns-lead-key: give the part to the helper"
 
     /// The key of the play of the helper.
     private static let helperKey = "max-turns-helper-key: do the part"
 
-    /// The answer of a run in the task-turn tests.
+    /// The answer of a run in the task-answer tests.
     private static let answerText = "The task is done."
 
-    /// The answer of the task turn of a lead.
+    /// The answer of the task answer of a lead.
     private static let leadText = "I started the helper."
 
     /// The answer of the helper.
@@ -190,7 +165,7 @@ struct MaxTurnsTests {
     }
 
     /// Starts a host-driven run of `agent` that plays `steps` in its task
-    /// turn, and waits for it to end.
+    /// answer, and waits for it to end.
     ///
     /// - Parameters:
     ///   - agent: The agent of the temporary layer.
@@ -204,11 +179,10 @@ struct MaxTurnsTests {
     }
 
     /// Starts a host-driven run of `lead`. The lead starts ``flashHelper``
-    /// in its task turn, answers, then answers one delivery turn and the
-    /// final-answer turn with the prompts that it read.
+    /// in its task answer, answers, then answers the mail of the helper with
+    /// the prompts that it read.
     ///
-    /// - Parameter lead: ``limitedLead``, ``finalLimitedLead``, or
-    ///   ``countingLead``.
+    /// - Parameter lead: ``limitedLead`` or ``countingLead``.
     /// - Returns: The run and its final state.
     /// - Throws: The error of ``finishedRun(of:prompt:plays:)``.
     private static func finishedLead(_ lead: String) async throws -> (run: AgentRun, final: AgentRunState) {
@@ -221,8 +195,7 @@ struct MaxTurnsTests {
                     steps: [
                         NestedRunTests.startStep(flashHelper, prompt: helperKey),
                         .finalText(leadText),
-                        .finalTextOfLaterPrompts,
-                        NestedRunTests.finalAnswerStep
+                        .finalTextOfLaterPrompts
                     ]),
                 ScriptedAgentPlay(key: helperKey, steps: [.finalText(helperText)])
             ])
@@ -240,7 +213,7 @@ struct MaxTurnsTests {
         return nil
     }
 
-    @Test("a task turn with two tool passes and one answer counts 3, one time each", .timeLimit(.minutes(1)))
+    @Test("a task answer with two tool passes and one answer counts 3, one time each", .timeLimit(.minutes(1)))
     func twoToolPassesAndAnswerCountThree() async throws {
         let ended = try await Self.finishedRun(
             of: Self.unlimited, playing: [Self.listStep, Self.listStep, .finalText(Self.answerText)])
@@ -276,8 +249,8 @@ struct MaxTurnsTests {
         #expect(ended.run.report.contains(Self.limitKey))
     }
 
-    @Test("the passes of a delivery turn add to the same count", .timeLimit(.minutes(1)))
-    func deliveryPassesAddToCount() async throws {
+    @Test("the passes of the answer to the mail of a child add to the same count", .timeLimit(.minutes(1)))
+    func mailPassesAddToCount() async throws {
         let ended = try await Self.finishedLead(Self.countingLead)
         let result = try await ended.run.result()
 
@@ -285,24 +258,13 @@ struct MaxTurnsTests {
         #expect(result.contains(Self.helperText))
     }
 
-    @Test("a lead with maxTurns 2 fails in its delivery turn with the text of that turn",
+    @Test("a lead with maxTurns 2 fails in its answer to the mail of its child with the text of that answer",
         .timeLimit(.minutes(1)))
-    func deliveryPassAboveLimitFails() async throws {
+    func mailPassAboveLimitFails() async throws {
         let ended = try await Self.finishedLead(Self.limitedLead)
         let partial = Self.partialText(of: ended.final)
 
         #expect(partial?.contains(Self.helperText) == true)
-        #expect(ended.run.turns.count == Self.leadPassesToDelivery)
-    }
-
-    @Test("a lead with maxTurns 3 fails in its final-answer turn with the text of that turn",
-        .timeLimit(.minutes(1)))
-    func finalAnswerPassAboveLimitFails() async throws {
-        let ended = try await Self.finishedLead(Self.finalLimitedLead)
-        let partial = Self.partialText(of: ended.final)
-
-        #expect(partial?.contains(Self.helperText) == true)
-        #expect(partial?.contains(AgentRun.finalAnswerPrompt) == true)
         #expect(ended.run.turns.count == Self.leadPasses)
     }
 
@@ -315,7 +277,7 @@ struct MaxTurnsTests {
         #expect(ended.run.turns.count == Self.manyToolPasses + Self.answerPasses)
     }
 
-    @Test("a hitMaxTurns run with an open child cancels the child first, then posts one .completed",
+    @Test("a hitMaxTurns run with an open child cancels the child first, and the Router records both final messages",
         .timeLimit(.minutes(1)))
     func hitMaxTurnsCancelsOpenChildThenPosts() async throws {
         let gate = ScriptedGate()
@@ -336,20 +298,21 @@ struct MaxTurnsTests {
             registry: AgentRegistry(layers: [layer.layer]))
         defer { try? harness.delete() }
         let root = NestedRunTests.rootSession(of: harness)
+        let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: NestedRunTests.rootPrompt) == NestedRunTests.rootText)
         let lead = try await NestedRunTests.onlyRun(of: harness.runner, caller: root.id)
         let leadFinal = await lead.finalState()
         let child = try await NestedRunTests.onlyRun(of: harness.runner, caller: lead.id)
         let childStateAtParentEnd = child.state
+        _ = try await NestedRunTests.settlement(of: lead, in: rootEvents)
         let leadPosts = try NestedRunTests.posts(of: lead, in: root.recordingDirectory)
         let childPosts = try NestedRunTests.posts(of: child, in: lead.recordingDirectory)
         await root.close()
 
         #expect(leadFinal == .failed(.hitMaxTurns(partial: Self.leadText)))
         #expect(childStateAtParentEnd == .cancelled)
-        #expect(childPosts.map(\.outcome) == [.cancelled])
-        #expect(leadPosts.map(\.outcome) == [.failed])
-        #expect(leadPosts.first?.detail == lead.report)
+        #expect(childPosts.map(\.detail) == ["\(child.subject) was cancelled."])
+        #expect(leadPosts.map(\.detail) == [lead.report])
     }
 }

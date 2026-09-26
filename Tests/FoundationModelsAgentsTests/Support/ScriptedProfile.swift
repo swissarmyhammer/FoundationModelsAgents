@@ -126,10 +126,12 @@ struct ScriptedMachine: MachineProbe {
 /// The numbers are the numbers of the stub metadata in
 /// FoundationModelsACPAgent, which are sufficient for the sizing pass.
 struct ScriptedMetadata: MetadataSource {
-    /// The `config.json` of the tiny model.
+    /// The `config.json` of the tiny model. The Router reads the context
+    /// window of the model from `max_position_embeddings`.
     private static let configJSON = """
         {"num_hidden_layers":2,"num_attention_heads":8,\
-        "num_key_value_heads":2,"head_dim":16,"hidden_size":128}
+        "num_key_value_heads":2,"head_dim":16,"hidden_size":128,\
+        "max_position_embeddings":32768}
         """
 
     /// The file tree of the tiny model: one 10 MB weights file.

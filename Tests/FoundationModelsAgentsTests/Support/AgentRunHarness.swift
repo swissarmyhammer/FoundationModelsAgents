@@ -117,6 +117,10 @@ struct AgentRunHarness {
     ///     layers.
     ///   - budget: Makes the budget of each run. The default is
     ///     `AgentEnvironment.defaultBudget`.
+    ///   - flash: The model of the `flash` slot. The default is
+    ///     `ScriptedProfile.flashModel`, a model of its own with its own
+    ///     generation queue. Give `ScriptedProfile.standardModel` to put the
+    ///     two slots on one model, thus on one generation queue.
     /// - Returns: The harness.
     /// - Throws: The error of the file system, of the profile, or of
     ///   `registry.load()`.
@@ -124,13 +128,15 @@ struct AgentRunHarness {
         script: ScriptedAgentScript,
         registry: AgentRegistry = AgentRegistry(stack: FixtureLibrary.stack()),
         skills: SkillsRegistry = SkillsRegistry(roots: []),
-        budget: @escaping AgentEnvironment.BudgetFactory = AgentEnvironment.defaultBudget
+        budget: @escaping AgentEnvironment.BudgetFactory = AgentEnvironment.defaultBudget,
+        flash: ModelRef = ScriptedProfile.flashModel
     ) async throws -> AgentRunHarness {
         let scratch = try TemporaryLayer.makeEmpty()
         try scratch.write(agentsMdText, at: agentsMdName)
         let (router, profile) = try await ScriptedProfile.make(
             script: script,
-            recordingsDir: scratch.container.appendingPathComponent(recordingsFolderName, isDirectory: true))
+            recordingsDir: scratch.container.appendingPathComponent(recordingsFolderName, isDirectory: true),
+            flash: flash)
         try await registry.load()
         return AgentRunHarness(
             router: router, profile: profile, script: script, registry: registry, skills: skills, budget: budget,

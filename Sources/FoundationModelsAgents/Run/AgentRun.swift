@@ -9,9 +9,10 @@ import ULID
 /// `start` does the synchronous steps before it returns: it renders the
 /// body, puts the instructions in order, makes the tools, matches the model,
 /// and makes the session. Thus ``id`` is the session id at once. Only the
-/// turn runs in the background, and nothing goes to the caller during the
-/// turn. The text of the last turn is the result. The run then closes its
-/// session, and a finished run holds no session.
+/// answers run in the background, and nothing goes to the caller while they
+/// run. The run ends when its session is idle, and the reply of the last
+/// answer is the result. The run then closes its session, and a finished run
+/// holds no session.
 ///
 /// A run whose setup fails has no session. It gets a new ULID, no recording
 /// directory, and the state ``AgentRunState/failed(_:)``.
@@ -24,21 +25,27 @@ public final class AgentRun: Sendable {
         /// The state of the run.
         var state: AgentRunState
 
-        /// The session of the run until the turn ends, then `nil`.
+        /// The session of the run until its answers end, then `nil`.
         var session: (any RoutedSession)?
 
-        /// The background task of the turn, or `nil` for a run whose setup
-        /// failed. It gives the final state of the run.
-        var turn: Task<AgentRunState, Never>?
+        /// The background task that drives the session, or `nil` for a run
+        /// whose setup failed. It gives the final state of the run.
+        var driver: Task<AgentRunState, Never>?
 
-        /// The live progress of the run: its phase, its passes, its last
-        /// tool calls, and the tail of its text.
+        /// The live progress of the run: its phase, its last tool calls, and
+        /// the tail of its text.
         var progress = AgentRunProgress()
 
-        /// The final state of the run from the time that its turns end, or
+        /// The answers of the session so far.
+        var answers = AgentRunAnswers()
+
+        /// `true` after a caller cancelled the run.
+        var isCancelRequested = false
+
+        /// The final state of the run from the time that its answers end, or
         /// `nil` before that time. ``state`` stays
-        /// ``AgentRunState/running`` until the run cancels its children,
-        /// closes its session, and posts. A cancel reads this value.
+        /// ``AgentRunState/running`` until the run cancels its children and
+        /// closes its session. A cancel reads this value.
         var settled: AgentRunState?
     }
 
@@ -64,27 +71,31 @@ public final class AgentRun: Sendable {
     let slot: ModelSlot?
 
     /// The context of the tool call that started the run, or `nil` for a
-    /// host-driven run. The run posts its final message through it
-    /// (plan.md §9.2).
+    /// host-driven run. It gives the lineage of the session (plan.md §8.2).
     let context: ToolContext?
 
-    /// The run that started this run with its `agents` tool, or `nil` when
-    /// the caller is not a run. The run tells it when the run ends.
-    let parent: ParentRun?
-
     /// The runs that this run started. The run finishes only after each of
-    /// them ends (plan.md §9.3, children).
+    /// them ends and its final message was answered (plan.md §9.3,
+    /// children).
     let children: AgentRunChildren
 
-    /// The count of the passes of the control loop over all the turns of
+    /// The watch of the session of the run. The `agents` tool of the run
+    /// waits on it, and the run feeds it.
+    let sessionWatch: ParentSessionWatch
+
+    /// The count of the passes of the control loop over all the answers of
     /// the run, and the `maxTurns` limit of the agent (plan.md §5).
     let turns: AgentRunTurns
+
+    /// The signals that decide the end of the run.
+    let signals = AgentRunSignals()
 
     /// The mutable state of the run.
     private let storage: Mutex<Storage>
 
     /// `true` when the setup of the run failed: the run made no session and
-    /// ran no turn. Its state is ``AgentRunState/failed(_:)`` from the start.
+    /// ran no answer. Its state is ``AgentRunState/failed(_:)`` from the
+    /// start.
     var isSetupFailure: Bool {
         slot == nil
     }
@@ -102,16 +113,16 @@ public final class AgentRun: Sendable {
         storage.withLock { $0.state }
     }
 
-    /// The session that the run holds: the session of the turn in operation,
-    /// or `nil` after the turn ends. The run never gives the session to the
-    /// caller.
+    /// The session that the run holds: the session of the answers in
+    /// operation, or `nil` after the answers end. The run never gives the
+    /// session to the caller.
     var heldSession: (any RoutedSession)? {
         storage.withLock { $0.session }
     }
 
     /// The live progress of the run, with the pass count of ``turns``. A
-    /// read takes only the locks of the run, thus it never waits for the
-    /// turn.
+    /// read takes only the locks of the run, thus it never waits for an
+    /// answer.
     var progress: AgentRunProgress {
         var progress = storage.withLock { $0.progress }
         progress.passes = turns.count
@@ -121,6 +132,16 @@ public final class AgentRun: Sendable {
     /// The part of the life of the run after its setup.
     var phase: AgentRunPhase {
         storage.withLock { $0.progress.phase }
+    }
+
+    /// The answers of the session of the run so far.
+    var answers: AgentRunAnswers {
+        storage.withLock { $0.answers }
+    }
+
+    /// `true` after a caller cancelled the run.
+    var isCancelRequested: Bool {
+        storage.withLock { $0.isCancelRequested }
     }
 
     /// `true` when the run holds a place in the run limit: it is in
@@ -137,10 +158,10 @@ public final class AgentRun: Sendable {
     ///   - id: The id of the run.
     ///   - request: The inputs of the run.
     ///   - made: The session and its slot, or `nil` when the setup failed.
-    ///   - children: The list of the runs that this run starts.
+    ///   - family: The children and the session watch of the run.
     ///   - state: The first state of the run.
     private init(
-        id: ULID, request: AgentRunRequest, made: AgentSessionMaker.Made?, children: AgentRunChildren,
+        id: ULID, request: AgentRunRequest, made: AgentSessionMaker.Made?, family: ParentRun.Family,
         state: AgentRunState
     ) {
         self.id = id
@@ -150,10 +171,10 @@ public final class AgentRun: Sendable {
         self.recordingDirectory = made?.session.recordingDirectory
         self.slot = made?.slot
         self.context = request.context
-        self.parent = request.parent
-        self.children = children
+        self.children = family.children
+        self.sessionWatch = family.sessionWatch
         self.turns = AgentRunTurns(limit: request.definition.maxTurns)
-        self.storage = Mutex(Storage(state: state, session: made?.session, turn: nil))
+        self.storage = Mutex(Storage(state: state, session: made?.session, driver: nil))
     }
 
     /// Gives the maker of the `agents` tool of each run that `runner`
@@ -180,7 +201,7 @@ public final class AgentRun: Sendable {
     ///
     /// The setup is done when the call returns, thus the run has its id.
     /// A run whose caller is a run adds itself to the children of that run
-    /// before its turn starts. The turn then runs in the background.
+    /// before its answers start. The answers then run in the background.
     ///
     /// - Parameters:
     ///   - request: The inputs of the run.
@@ -191,17 +212,17 @@ public final class AgentRun: Sendable {
     static func start(
         _ request: AgentRunRequest, environment: AgentEnvironment, renderer: AgentBodyRenderer
     ) async -> AgentRun {
-        let children = AgentRunChildren()
+        let family = ParentRun.Family()
         let made: AgentSessionMaker.Made
         do {
             made = try await AgentSessionMaker(environment: environment, renderer: renderer)
-                .makeSession(for: request, children: children)
+                .makeSession(for: request, family: family)
         } catch {
-            return AgentRun(id: ULID(), request: request, made: nil, children: children, state: .failed(error))
+            return AgentRun(id: ULID(), request: request, made: nil, family: family, state: .failed(error))
         }
-        let run = AgentRun(id: made.session.id, request: request, made: made, children: children, state: .running)
+        let run = AgentRun(id: made.session.id, request: request, made: made, family: family, state: .running)
         let isAdopted = request.parent?.children.add(run) ?? true
-        run.startTurn(on: made.session, prompt: request.prompt)
+        run.startDriver(on: made.session, prompt: request.prompt)
         if !isAdopted {
             run.cancel()
         }
@@ -214,7 +235,7 @@ public final class AgentRun: Sendable {
     /// call then throws `CancellationError` when the run ends as cancelled.
     /// A run that ended before the cancel gives its result as usual.
     ///
-    /// - Returns: The text of the last turn.
+    /// - Returns: The reply of the last answer of the run.
     /// - Throws: The ``AgentRunFailure`` of a failed run, or
     ///   `CancellationError` for a cancelled run.
     public func result() async throws -> String {
@@ -239,28 +260,33 @@ public final class AgentRun: Sendable {
     /// - Returns: The final state of the run. The session is closed when the
     ///   call returns.
     func finalState() async -> AgentRunState {
-        let turn = storage.withLock { $0.turn }
-        return await turn?.value ?? state
+        let driver = storage.withLock { $0.driver }
+        return await driver?.value ?? state
     }
 
-    /// Cancels the turn of the run and the runs that it started. The run
-    /// cancels its open children and waits for them, then closes its session,
-    /// posts its final message, and goes to ``AgentRunState/cancelled``. A
-    /// run that ended stays as it is.
+    /// Cancels the answers of the run and the runs that it started. The run
+    /// stops its session, cancels its open children and waits for them, then
+    /// closes its session and goes to ``AgentRunState/cancelled``. A run that
+    /// ended stays as it is.
+    ///
+    /// The cancel is a signal to the task that drives the run, not a cancel
+    /// of that task. Thus the task still reads the session events while it
+    /// stops the session and waits for the children.
     public func cancel() {
-        storage.withLock { $0.turn }?.cancel()
+        storage.withLock { $0.isCancelRequested = true }
+        signals.continuation.yield(.cancelRequested)
     }
 
     /// Cancels the run, and tells what the cancel did (plan.md §9.1,
     /// `cancel agent`).
     ///
-    /// The final state of a run is known when its turns end, before it
-    /// cancels its children, closes its session, and posts. A cancel from
-    /// that time on changes nothing, thus it tells the known final state.
+    /// The final state of a run is known when its answers end, before it
+    /// cancels its children and closes its session. A cancel from that time
+    /// on changes nothing, thus it tells the known final state.
     ///
     /// - Returns: ``CancelOutcome/reported(_:)`` with `.cancelled` when the
     ///   final state was not known: the cancel is sent, and the run stops
-    ///   when its turn unwinds. ``CancelOutcome/alreadySettled(_:)`` with
+    ///   when its answer unwinds. ``CancelOutcome/alreadySettled(_:)`` with
     ///   the final message of the known final state when the run had ended
     ///   before the cancel.
     func requestCancel() -> CancelOutcome {
@@ -274,76 +300,45 @@ public final class AgentRun: Sendable {
         return .alreadySettled(finalMessage)
     }
 
-    /// Starts the background task that drives the turns of the run.
+    /// Starts the background task that drives the session of the run
+    /// (``drive(_:prompt:)``).
     ///
     /// The task is detached, thus it does not take the `ToolContext` of the
     /// tool call that started the run. The tools of the session bind their
     /// own contexts.
     ///
-    /// Before the task turn, the task subscribes to the session events. A
-    /// child task reads that one subscription for the whole run
-    /// (``followPasses(_:on:)``): it counts the passes of each turn and feeds
-    /// the progress.
-    ///
-    /// When the last turn ends, the task records the settled final state
-    /// (``settle(_:)``) at once. It then cancels the open children and waits
-    /// for them (a cancel or a failure can leave children open), and closes
-    /// the session. The close finishes the subscription, thus the child task
-    /// ends. The task then posts the final message, records the final state,
-    /// and tells the parent run. Thus a caller that sees the final state
-    /// knows that the post is done, and that no task of the run stays.
-    ///
     /// - Parameters:
     ///   - session: The session of the run.
-    ///   - prompt: The prompt of the task turn.
-    private func startTurn(on session: any RoutedSession, prompt: String) {
-        let turn = Task.detached {
-            let events = await session.streamSessionEvents()
-            let final = await withTaskGroup(of: Void.self) { group in
-                group.addTask { await self.followPasses(events, on: session) }
-                let final = self.settle(await self.drive(session, prompt: prompt))
-                await self.children.cancelOpenRuns()
-                await session.close()
-                return final
-            }
-            await self.postFinalMessage(for: final)
+    ///   - prompt: The task prompt.
+    private func startDriver(on session: any RoutedSession, prompt: String) {
+        let driver = Task.detached {
+            let final = await self.drive(session, prompt: prompt)
             self.end(in: final)
-            self.parent?.children.childDidEnd()
             return final
         }
-        storage.withLock { $0.turn = turn }
+        storage.withLock { $0.driver = driver }
     }
 
-    /// Records the part of the life of the run that starts now.
+    /// Adds one event of the session to the record of the run: its progress,
+    /// its answers, and its phase.
     ///
-    /// - Parameter phase: The new phase.
-    func enter(_ phase: AgentRunPhase) {
-        storage.withLock { $0.progress.phase = phase }
-    }
-
-    /// Adds one event of a turn to the progress of the run.
-    ///
-    /// - Parameter event: An event of the session-event subscription of the
-    ///   run, or a text event of the task turn.
+    /// - Parameter event: An event of the session-event subscription.
     func record(_ event: SessionEvent) {
-        storage.withLock { $0.progress.apply(event) }
+        let openChildren = children.openCount
+        storage.withLock { storage in
+            storage.progress.apply(event)
+            storage.answers.apply(event)
+            storage.progress.phase = AgentRunPhase(
+                after: storage.answers, openChildren: openChildren, current: storage.progress.phase)
+        }
     }
 
-    /// Sets the text tail of the progress to the text of a delivery turn or
-    /// a final-answer turn. The session events of these turns carry no text,
-    /// thus the tail changes only when the turn returns.
+    /// Records the final state of the run when its answers end. From this
+    /// time on, ``requestCancel()`` tells this state.
     ///
-    /// - Parameter text: The text that the turn gave.
-    func recordDelivered(_ text: String) {
-        storage.withLock { $0.progress.replaceText(with: text) }
-    }
-
-    /// Records the final state of the run when its turns end. From this time
-    /// on, ``requestCancel()`` tells this state.
-    ///
-    /// - Parameter final: The final state that the turns gave.
+    /// - Parameter final: The final state that the answers gave.
     /// - Returns: `final`.
-    private func settle(_ final: AgentRunState) -> AgentRunState {
+    func settle(_ final: AgentRunState) -> AgentRunState {
         storage.withLock { $0.settled = final }
         return final
     }
@@ -355,33 +350,6 @@ public final class AgentRun: Sendable {
         storage.withLock { storage in
             storage.state = final
             storage.session = nil
-        }
-    }
-
-    /// Drives the task turn with `prompt` (``runTaskTurn(on:prompt:)``).
-    /// Then delivers the final messages of the children in delivery turns,
-    /// and runs a final-answer turn after them
-    /// (``finishAfterChildren(on:taskTurnText:)``).
-    ///
-    /// When the count goes above the `maxTurns` limit, the run cancels its
-    /// turn, and fails with ``AgentRunFailure/hitMaxTurns(partial:)``, not
-    /// as cancelled.
-    ///
-    /// - Parameters:
-    ///   - session: The session of the run.
-    ///   - prompt: The prompt of the task turn.
-    /// - Returns: The final state: ``AgentRunState/finished(_:)`` with the
-    ///   text of the last turn, ``AgentRunState/cancelled`` for a cancelled
-    ///   run, or ``AgentRunState/failed(_:)`` for an error of a turn or for
-    ///   a count above the `maxTurns` limit.
-    private func drive(_ session: any RoutedSession, prompt: String) async -> AgentRunState {
-        do {
-            let taskTurnText = try await runTaskTurn(on: session, prompt: prompt)
-            let result = try await finishAfterChildren(on: session, taskTurnText: taskTurnText)
-            return Task.isCancelled ? .cancelled : .finished(result)
-        } catch {
-            return Task.isCancelled || error is CancellationError
-                ? .cancelled : .failed(AgentRunFailure.turnFailure(for: error))
         }
     }
 }

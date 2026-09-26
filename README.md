@@ -124,15 +124,16 @@ let root = profile.standard.makeSession(
     instructions: "You give work to agents with the agents tool.",
     workingDirectory: projectDirectory,
     tools: [agentsTool])
-let events = await root.streamSessionEvents()   // subscribe before the first turn
-for try await _ in await root.streamEvents(to: "Ask code-reviewer to review Sources/Parser.swift.") {}
+let events = await root.streamSessionEvents()   // subscribe before the first message
+_ = try await root.respond(to: "Ask code-reviewer to review Sources/Parser.swift.")
 
-// `start agent` returns at once. When the run ends, its final message
-// is staged in the root session, and the next turn reads it.
-_ = await events.first { event in
-    if case .runSettled = event { true } else { false }
+// `start agent` returns at once. When the run ends, the Router gives its
+// final message to the root session as mail, and the root answers it.
+let mailAnswers = events.compactMap { event -> String? in
+    guard case .answered(let answer) = event, answer.messageIds.isEmpty else { return nil }
+    return answer.reply
 }
-let answer = try await root.dispatchNextPrompt()
+let answer = await mailAnswers.first { _ in true }
 
 // The Router does not know the runs of a session: cancel them before close().
 await runner.cancelRuns(caller: root.id)
@@ -150,13 +151,13 @@ The registry reads the files in `load()`, not in its init. Call `load()` after
 `registry.onReload` gives each new catalog.
 
 A run that the host starts gives its final text to `result()`. A run that a
-model starts with `start agent` posts one final message into the calling
+model starts with `start agent` gives one final message to the calling
 session. The message names the agent and the run, then holds the full text:
 "Agent `name` (`id`) finished.", a blank line, and the final text. Thus a
 model that started two agents can tell which result came from which. The
-Router records the message and sends a `runSettled` event, and the next
-prompt of the session reads the message. Thus the host calls
-`dispatchNextPrompt()` after the event. `AgentRunner` is also a
+Router records the message, sends a `runSettled` event, and gives the
+message to the session as mail. The session answers the mail with no call
+of the host. `AgentRunner` is also a
 `SlashCommandProviding`: each agent that the user can start is one slash
 command.
 

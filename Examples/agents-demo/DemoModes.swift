@@ -109,8 +109,8 @@ enum AgentsDemoModes {
     /// ``chatPrompt``. The model starts ``leadAgent``, and `lead` starts
     /// ``reviewerAgent`` and ``testWriterAgent``. The mode writes the answer
     /// of the first turn. Then, for each run that the first turn started, it
-    /// waits for the `runSettled` event, writes it, and calls
-    /// `dispatchNextPrompt()` to give the final message to the model. Then
+    /// waits for the `runSettled` event and writes it, and it writes the
+    /// answer that the Router starts for the final message. Then
     /// it calls `cancelRuns(caller:)`, because `close()` does not know the
     /// runs of the session, and closes the session. Last, it writes the run
     /// tree: each run with its state, and the children of each run indented.
@@ -251,29 +251,38 @@ enum AgentsDemoModes {
         let sessionEvents = await root.streamSessionEvents()
         output(rootLine(try await root.streamEvents(to: chatPrompt).reduce("", text(_:after:))))
         let started = await runner.runs(caller: root.id)
-        try await deliverSettledRuns(count: started.count, from: sessionEvents, to: root, output: output)
+        await deliverSettledRuns(count: started.count, from: sessionEvents, output: output)
     }
 
-    /// Writes each `runSettled` event, and runs one delivery turn after
-    /// each, until `count` runs have settled.
+    /// Writes each `runSettled` event and each answer of the root to the
+    /// mail of the runs, until `count` runs have settled and the root
+    /// answered after the last one.
+    ///
+    /// The pump of the Router delivers each final message to the root as
+    /// mail, and starts the answer to it with no call of this function. A
+    /// run that settles inside the grace of its call gives its result in the
+    /// answer of the chat prompt, thus that answer also ends the wait.
     ///
     /// - Parameters:
     ///   - count: The count of runs to wait for.
-    ///   - events: The session events of `root`.
-    ///   - root: The root session.
+    ///   - events: The session events of `root`, from before the chat prompt.
     ///   - output: The receiver of each line.
-    /// - Throws: The error of a delivery turn.
     private static func deliverSettledRuns(
-        count: Int, from events: AsyncStream<SessionEvent>, to root: any RoutedSession, output: AgentsDemoOutput
-    ) async throws {
+        count: Int, from events: AsyncStream<SessionEvent>, output: AgentsDemoOutput
+    ) async {
         guard count > 0 else { return }
         var remaining = count
-        for await case .runSettled(let terminal) in events {
-            output(settledPrefix + terminal.detail)
-            if let answer = try await root.dispatchNextPrompt() {
-                output(rootLine(answer))
+        for await event in events {
+            if case .runSettled(let terminal) = event {
+                output(settledPrefix + terminal.detail)
+                remaining -= 1
             }
-            remaining -= 1
+            guard case .answered(let answer) = event else {
+                continue
+            }
+            if answer.messageIds.isEmpty {
+                output(rootLine(answer.reply))
+            }
             if remaining == 0 {
                 return
             }
