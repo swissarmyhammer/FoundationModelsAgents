@@ -25,10 +25,34 @@ comments:
     - evidence: 5 files — Sources/FoundationModelsAgents/Run/AgentRunner.swift, Sources/FoundationModelsAgents/Tool/AgentsToolOperations.swift, Sources/FoundationModelsAgents/FoundationModelsAgents.docc/TheFinalMessage.md, Tests/FoundationModelsAgentsTests/AgentRunnerTests.swift, plan.md; swift test 359 tests in 49 suites pass; swiftlint 0 violations; IntegrationTests build --build-tests pass; agents-demo build pass
     - next: /review
   timestamp: 2026-09-26T13:16:13.839879+00:00
+- actor: claude-code
+  id: 01m3eyx6gte6sv5ygfh9chh9d1
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD; 1 finding (1 confirmed, 0 refuted) — Sources/FoundationModelsAgents/Run/AgentRunner.swift:184 (completeness/invariant-propagation)
+    - next: Correct the open finding in the Review Findings section. The task stays in review.
+  timestamp: 2026-09-26T13:36:36.890119+00:00
+- actor: claude-code
+  id: 01m3eyxy98ys0z37131g5dw9ns
+  text: |-
+    ### finish iteration 1 — stuck (conflict)
+    - implement: changed — 5 files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 359 passed; swiftlint 0 (one unrelated flake of the burst test under CPU load, task ^9291ngj)
+    - commit: 451b8d5
+    - review: findings — Sources/FoundationModelsAgents/Run/AgentRunner.swift:184
+
+    BLOCKER — the finding conflicts with a documented contract. A person must decide.
+    - The finding says that `$0.id` (a run id) and `callerID` (a session id) are types that cannot be compared, and it tells us to use `$0.caller != callerID`.
+    - Fact: `AgentRun.id` is the session id of the run. Its doc comment says "The id of the run. It is the session id". Thus `$0.id != callerID` removes the calling run itself from the count.
+    - Plan §9.3 (Decision B, ^9geawdj, commit 4881fbe) says: the limit does not count the run that calls `start agent`. The test `AgentSchedulingTests+CallingRun.swift` proves this rule.
+    - `$0.caller != callerID` removes the children of the calling session from the count, and it counts the calling run. This breaks Decision B and that test.
+    - This commit did not change the rule. It changed only `$0.run.id` to `$0.id`, because the `Entry` wrapper was removed.
+    Options: (1) drop the finding, because its premise is false; (2) keep the comparison and make the meaning explicit, for example a named property `sessionID` on `AgentRun` that the comparison uses; (3) change Decision B.
+  timestamp: 2026-09-26T13:37:01.224264+00:00
 depends_on:
 - 01M3A6D0PH2N6Z6BWHGJ8KGEGV
 - 01M3A6DKKKADT8YYMXA9GEAWDJ
-position_column: doing
+position_column: review
 position_ordinal: '80'
 title: Remove the completion-token index that only tests use
 ---
@@ -48,3 +72,16 @@ title: Remove the completion-token index that only tests use
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
+
+## Review Findings (2026-09-26 08:32)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 3 file(s) reviewed, 8 not reviewed.
+
+> 6 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 6 file(s)
+
+> 2 file(s) not reviewed — no validator matched:
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/TheFinalMessage.md` — no validator matches this file
+> - `plan.md` — no validator matches this file
+
+- [ ] `Sources/FoundationModelsAgents/Run/AgentRunner.swift:184` `completeness/invariant-propagation` — The change replaces the completion-token index with direct access to run properties, using `$0.caller` to identify runs by their session (lines 281, 287). However, line 184 compares `$0.id != callerID` where `$0.id` is a run ID and `callerID` is a session ID from `request.context?.sessionID` — these are incommensurable types. The pattern should use `$0.caller != callerID` to exclude runs from the same session, consistent with how the caller property is used elsewhere. Change line 184 to `let working = openRuns.values.count(where: { $0.isWorking && $0.caller != callerID })`.
