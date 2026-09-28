@@ -208,6 +208,10 @@ enum AgentsDemoModes {
     /// `textDelta`. Thus the answer line comes from `answered` only, and a
     /// `textDelta` gives no line.
     ///
+    /// The switch names each case of `SessionEvent`, with no `default`. Thus a
+    /// new case of the Router is a compile error here, and the demo decides
+    /// its line.
+    ///
     /// - Parameter event: The event.
     /// - Returns: A ``rootLine(_:)`` for `answered`, a ``failedPrefix`` line
     ///   for `answerFailed`, a ``settledPrefix`` line for `runSettled`, a
@@ -223,7 +227,10 @@ enum AgentsDemoModes {
             [settledPrefix + terminal.detail]
         case .mailDeliveryPaused(let pause):
             [pausedPrefix + pause.description, sendMessageHint]
-        default:
+        case .textDelta, .textReset, .reasoningDelta, .toolCall, .toolStatus, .toolInvocation,
+            .toolCallReport, .entryRecorded, .compaction, .discoveryPrimingFailed, .generationStalled,
+            .submissionQueued, .submissionStarted, .submissionEnded, .repetitionStopped,
+            .elicitationRequested, .generationCall:
             []
         }
     }

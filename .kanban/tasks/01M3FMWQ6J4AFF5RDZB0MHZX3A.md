@@ -45,6 +45,41 @@ comments:
     - next: /review ^0mhzx3a. A person decides if ^thxe76k is still necessary (note on that card).
     task: ^0mhzx3a
   timestamp: 2026-09-28T20:40:34.727716+00:00
+- actor: claude-code
+  id: 01m3mwp6g24yk1qhqzexygmkn6
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (ea24368). 2 findings (2 confirmed, 4 refuted) — Examples/agents-demo/AgentsDemoMain.swift:94, Examples/agents-demo/DemoModes.swift:226
+    - next: correct the 2 findings in the dated Review Findings section, then run /review again. The task stays in review.
+  timestamp: 2026-09-28T20:53:16.930822+00:00
+- actor: claude-code
+  id: 01m3mwph6eyjcqhzjb6j6x268m
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 11 files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 379 passed; swiftlint 0; IntegrationTests 12/12
+    - commit: ea24368
+    - review: findings — Examples/agents-demo/AgentsDemoMain.swift:94, Examples/agents-demo/DemoModes.swift:226
+  timestamp: 2026-09-28T20:53:27.886917+00:00
+- actor: claude-code
+  id: 01m3mx0f7ycwb53r77v65z3pws
+  text: |-
+    ### Review findings fix (2026-09-28)
+    - swift/fluent-usage: `standardInput()` is now `makeStandardInput()` in `Examples/agents-demo/AgentsDemoMain.swift`, with its call site and doc comment. The same cause in `Sources/FoundationModelsAgents/Commands/AgentRunner+SlashCommands.swift` (a file of ea24368) is also removed: `slashCommands(for:)` is now `makeSlashCommands(for:)`, `slashCommand(for:)` is now `makeSlashCommand(for:)`, and `finalTextStream(ofAgent:prompt:)` is now `makeFinalTextStream(ofAgent:prompt:)`. All three are private, and all callers are in that file.
+    - Not changed: the `script(_:)` test helper in `AgentsCLITests.swift` was in the file before ea24368, and ea24368 did not change it. The review skill drops findings that ask to refactor tests that already existed. The same helper name is in `AgentsToolOperationsTests.swift`, `AgentRunTests.swift` and `AgentSchedulingTests+Setup.swift`, which are not in ea24368. The line functions (`rootLine`, `runLine`, `fanOutLine`, `provenanceLine`, `lines(for:)`) are side-effect-free noun phrases, not factories.
+    - swift/state-modeling: `AgentsDemoModes.lines(for:)` now names each `SessionEvent` case, with no `default`. The Router `SessionEvent` has no library evolution, so the compiler needs no `@unknown default`, and a new Router case is a compile error in the demo. Note: the Router doc comment of `SessionEvent` tells consumers to "write a `default` arm to absorb new cases". The swift/state-modeling rule and the task order take precedence here. The other switches in the files of ea24368 (`run(mode:)`, `text(of:)`, `status(of:)`, and `action(of:)` in the tests) were already exhaustive.
+    - No new test: these are renames and a switch with the same behavior. The existing `textDeltaGivesNoLine` and event-line tests cover `lines(for:)`.
+  timestamp: 2026-09-28T20:58:53.566731+00:00
+- actor: claude-code
+  id: 01m3mx0ht9b814gwqsc2m6fprp
+  text: |-
+    ### implement — changed
+    step: implement
+    outcome: changed
+    evidence: 3 files. Examples/agents-demo/AgentsDemoMain.swift, Examples/agents-demo/DemoModes.swift, Sources/FoundationModelsAgents/Commands/AgentRunner+SlashCommands.swift. swift build -Xswiftc -warnings-as-errors: pass. swift test -Xswiftc -warnings-as-errors: 379 tests in 52 suites passed. swiftlint lint Sources Tests Package.swift Examples: 0 violations in 130 files. The 2 findings are checked. Not committed, not pushed.
+    - next: /review ^0mhzx3a
+    task: ^0mhzx3a
+  timestamp: 2026-09-28T20:58:56.201317+00:00
 depends_on:
 - 01M3A6EGTPK2A08N066GGPYAEM
 position_column: doing
@@ -70,3 +105,16 @@ After ^ggpyaem, the Router pump delivers messages and settled runs. A host sends
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
+
+## Review Findings (2026-09-28 15:45)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 10 file(s) reviewed, 15 not reviewed.
+
+> 14 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 14 file(s)
+
+> 1 file(s) not reviewed — no validator matched:
+> - `plan.md` — no validator matches this file
+
+- [x] `Examples/agents-demo/AgentsDemoMain.swift:94` `swift/fluent-usage` — Factory method should begin with `make`. The function `standardInput()` creates and returns a stream object, making it a factory method, which should follow the naming convention. Rename `private static func standardInput()` to `private static func makeStandardInput()` and update the call site at line 83.
+- [x] `Examples/agents-demo/DemoModes.swift:226` `swift/state-modeling` — Switch statement over domain enum `SessionEvent` contains a `default:` case that silently swallows future cases. The rule requires exhaustive switches over domain enums without `default`, since new cases added later would be silently missed. Replace `default:` with an explicit case for any unlisted event type (e.g., `case .textDelta(_): []`), or use `@unknown default` with a reason to ensure new cases trigger a compiler warning.

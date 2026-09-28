@@ -19,6 +19,10 @@ comments:
   id: 01m3mv3vt8cyv8t0wtbrf771dh
   text: '2026-09-28: Extras OTel A to D are on Extras origin/main (70ad74d), so the enter-log helper (Extras C, `TracedCall.run`) is available. The `waits-on-extras` tag is removed. One open part: a test that checks the trace id and span id on the "enter" record needs a tracer that injects W3C `traceparent`; Extras OTel E (^wts388b, a W3C-capable test tracer) is in progress and not pushed. If ^wts388b is not on Extras main when this task runs, test the span tree and the "enter" record without the id check, and write the missing id check on this task as open, not checked.'
   timestamp: 2026-09-28T20:25:47.592066+00:00
+- actor: claude-code
+  id: 01m3mwcca6tg6bxqj4c07pjv3s
+  text: '2026-09-28: Extras OTel E (^wts388b) is on Extras origin/main (6c399a4). `TelemetryCapture.Context.tracer` is now a `W3CInMemoryTracer`, and "enter" records of `TracedCall.run` in a capture have `trace.id` and `span.id`. So the id check is no longer open: do it. Code that needs the `InMemoryTracer` type uses `context.tracer.inMemoryTracer`; code that uses it as `any Tracer` or reads `finishedSpans` compiles as before. Run `swift package update FoundationModelsExtras` to get 6c399a4 or later.'
+  timestamp: 2026-09-28T20:47:55.206484+00:00
 depends_on:
 - 01M3MN916AA5AE3QAWE96S67KS
 position_column: todo

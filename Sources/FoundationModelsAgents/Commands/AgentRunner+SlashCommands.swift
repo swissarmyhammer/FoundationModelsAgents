@@ -34,7 +34,7 @@ extension AgentRunner: SlashCommandProviding {
     ///   Not used: each run uses ``AgentEnvironment/workingDirectory``.
     /// - Returns: One command for each user-invocable agent.
     public nonisolated func commands(workingDirectory: URL) async -> [SlashCommand] {
-        slashCommands(for: registry.catalog())
+        makeSlashCommands(for: registry.catalog())
     }
 
     /// The full command list after each new catalog of the registry
@@ -53,7 +53,7 @@ extension AgentRunner: SlashCommandProviding {
         let reloads = registry.onReload
         let (stream, continuation) = AsyncStream<[SlashCommand]>.makeStream()
         let commandsOfCatalog: @Sendable (AgentCatalog) -> [SlashCommand]? = { [weak self] catalog in
-            self?.slashCommands(for: catalog)
+            self?.makeSlashCommands(for: catalog)
         }
         let follow = Task {
             await Self.relay(reloads, commands: commandsOfCatalog, to: continuation)
@@ -100,12 +100,12 @@ extension AgentRunner: SlashCommandProviding {
         try await start(name, prompt: prompt).result()
     }
 
-    /// Gives one command for each user-invocable agent of `catalog`.
+    /// Makes one command for each user-invocable agent of `catalog`.
     ///
     /// - Parameter catalog: The catalog.
     /// - Returns: The commands, in id order.
-    private nonisolated func slashCommands(for catalog: AgentCatalog) -> [SlashCommand] {
-        catalog.userInvocable.map(slashCommand(for:))
+    private nonisolated func makeSlashCommands(for catalog: AgentCatalog) -> [SlashCommand] {
+        catalog.userInvocable.map(makeSlashCommand(for:))
     }
 
     /// Makes the command of one agent.
@@ -114,18 +114,18 @@ extension AgentRunner: SlashCommandProviding {
     /// - Returns: The command: `name` is the id of the agent, `description`
     ///   is its description (empty when absent), `argumentHint` is
     ///   ``taskArgumentHint``, and the `.action` body starts a run.
-    private nonisolated func slashCommand(for definition: AgentDefinition) -> SlashCommand {
+    private nonisolated func makeSlashCommand(for definition: AgentDefinition) -> SlashCommand {
         let name = definition.id
         return SlashCommand(
             name: name,
             description: definition.description ?? "",
             argumentHint: Self.taskArgumentHint,
             body: .action { [self] invocation in
-                finalTextStream(ofAgent: name, prompt: invocation.arguments)
+                makeFinalTextStream(ofAgent: name, prompt: invocation.arguments)
             })
     }
 
-    /// Gives a stream with the final text of one host-driven run.
+    /// Makes a stream with the final text of one host-driven run.
     ///
     /// A cancel of the stream cancels the run.
     ///
@@ -134,7 +134,7 @@ extension AgentRunner: SlashCommandProviding {
     ///   - prompt: The prompt of the run, unchanged.
     /// - Returns: A stream that gives the final text one time, then
     ///   finishes, or finishes with the error of the run.
-    private nonisolated func finalTextStream(ofAgent name: String, prompt: String)
+    private nonisolated func makeFinalTextStream(ofAgent name: String, prompt: String)
         -> AsyncThrowingStream<String, Error> {
         let (stream, continuation) = AsyncThrowingStream<String, Error>.makeStream()
         let delivery = Task {

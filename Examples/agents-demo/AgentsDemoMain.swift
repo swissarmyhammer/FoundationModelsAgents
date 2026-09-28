@@ -80,18 +80,18 @@ enum AgentsDemoMain {
         let registry = AgentRegistry(stack: AgentsDemoLibrary.stack(libraryRoot: AgentsDemoLibrary.root))
         try await mode(
             profile, registry, AgentsDemoLibrary.projectDirectory(libraryRoot: AgentsDemoLibrary.root),
-            standardInput(), standardOutput)
+            makeStandardInput(), standardOutput)
         withExtendedLifetime(router) {}
     }
 
-    /// Gives the lines of standard input as the input of a mode.
+    /// Makes a stream of the lines of standard input, as the input of a mode.
     ///
     /// A read task relays each line. The stream ends at the end of standard
     /// input. A read error ends the stream too, and the example writes the
     /// error to standard error.
     ///
     /// - Returns: The stream of the lines.
-    private static func standardInput() -> AgentsDemoInput {
+    private static func makeStandardInput() -> AgentsDemoInput {
         let (lines, continuation) = AgentsDemoInput.makeStream()
         let reader = Task {
             await relayStandardInput(to: continuation)
