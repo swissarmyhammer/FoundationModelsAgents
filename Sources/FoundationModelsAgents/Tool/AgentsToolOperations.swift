@@ -154,7 +154,9 @@ struct CheckAgent {
 
 extension CheckAgent {
     /// Gives the state of the run `id` at once, or of each run of the caller
-    /// when there is no `id`. The call never waits for a run.
+    /// when there is no `id`. The call never waits for a run to end. It
+    /// waits only for a `start agent` call of the pass before whose body did
+    /// not add its run yet, thus it finds the run of that call.
     ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The report of the run: running with its last event and,
@@ -181,6 +183,10 @@ struct CancelAgent {
 
 extension CancelAgent {
     /// Cancels the run `id`, and gives the `CancelOutcome` as text.
+    ///
+    /// When `id` is the token of a `start agent` call whose body did not add
+    /// its run yet, the call first waits for that body, thus it cancels the
+    /// run of that call.
     ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The text of the `CancelOutcome`, or a corrective for an id

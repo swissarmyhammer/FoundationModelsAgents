@@ -156,6 +156,13 @@ public struct AgentsTool: Tool {
     ///   message.
     /// - Throws: The error of `OperationTool.call(arguments:)`.
     public func call(arguments: GeneratedContent) async throws -> String {
+        // The body of a background call ends here, also when it added no run:
+        // a corrective, a setup failure, or a payload that names no operation.
+        defer {
+            if let call = ToolContext.current {
+                context.startedRuns.close(call: call.completionToken)
+            }
+        }
         let answer = try await operationTool.call(arguments: arguments)
         return (try? JSONDecoder().decode(String.self, from: Data(answer.utf8))) ?? answer
     }
@@ -188,12 +195,19 @@ extension AgentsTool: BackgroundTool {
     /// Gives the canceler of the call `completionToken`: it cancels the run
     /// that the call started, or the run that the call starts later.
     ///
+    /// The Router asks for the canceler of each background call before it
+    /// gives the pending envelope to the model, and before the body of the
+    /// call runs. Thus this call also opens the call in the record of the
+    /// started runs: from now on, `check agent` and `cancel agent` wait for
+    /// the body to add its run, and do not answer that no run has the token.
+    ///
     /// - Parameter completionToken: The completion token of the call.
     /// - Returns: The canceler. It reports ``OperationOutcome/cancelled``.
     public func canceler(
         forCompletionToken completionToken: String
     ) -> (@Sendable () async -> OperationOutcome)? {
         let startedRuns = context.startedRuns
+        startedRuns.open(call: completionToken)
         return {
             startedRuns.cancelRun(ofCall: completionToken)
             return .cancelled

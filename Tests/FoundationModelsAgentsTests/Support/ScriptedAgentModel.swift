@@ -18,6 +18,12 @@ enum ScriptedAgentStep: Sendable {
     /// one pass: one `.toolCalls` entry that holds `count` calls.
     case repeatedToolCall(name: String, argumentsJSON: String, count: Int)
 
+    /// Calls the mounted tool `name` with the op `operation` and, as `id`,
+    /// the completion token of the pending envelope in the last tool output
+    /// of the transcript. Thus the call names a background call of the pass
+    /// before, as a model does when it reads the envelope.
+    case toolCallWithLastToken(name: String, operation: String)
+
     /// Answers with `text`. The turn ends here.
     case finalText(String)
 
@@ -324,6 +330,12 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
             .toolCalls(name: name, argumentsJSON: arguments.json, count: singleCall)
         case .repeatedToolCall(let name, let argumentsJSON, let count):
             .toolCalls(name: name, argumentsJSON: argumentsJSON, count: count)
+        case .toolCallWithLastToken(let name, let operation):
+            .toolCalls(
+                name: name,
+                argumentsJSON: ScriptedTranscriptText.idArguments(
+                    operation, id: ScriptedTranscriptText.lastCompletionToken(of: transcript)),
+                count: singleCall)
         case .finalText(let text):
             .finalText(text)
         case .finalTextOfLaterPrompts:

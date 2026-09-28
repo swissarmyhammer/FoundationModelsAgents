@@ -111,8 +111,9 @@ public struct AgentsToolContext: Sendable {
     /// This is the background body of a `start agent` call in a Router
     /// session. The call adds the run to ``startedRuns`` under the completion
     /// token of `call`, thus the canceler of the call, `check agent`, and
-    /// `cancel agent` find the run by that token. A cancel of the task of
-    /// the body cancels the run.
+    /// `cancel agent` find the run by that token. The add also ends the open
+    /// call, thus each `check agent` and `cancel agent` that waits for the
+    /// call continues. A cancel of the task of the body cancels the run.
     ///
     /// The Router answers the call with the pending envelope before the body
     /// ends, for each caller, thus the final message always comes as mail.
@@ -163,19 +164,29 @@ public struct AgentsToolContext: Sendable {
     /// Gives the answer of `check agent` with no id: one block for each run
     /// of the caller, and only those runs.
     ///
+    /// The call first waits for each `start agent` call of the tool whose
+    /// body did not add its run yet (``StartedRuns/waitForStarts()``). Thus a
+    /// run that the model started in its pass before is in the answer.
+    ///
     /// - Returns: The report of each run of the caller in id order, or "You
     ///   have no runs." Both are a success.
     func reportsOfCallerRuns() async -> AgentsToolAnswer {
-        .success(AgentsToolText.reports(of: await runner.runs(caller: ToolContext.current?.sessionID)))
+        await startedRuns.waitForStarts()
+        return .success(AgentsToolText.reports(of: await runner.runs(caller: ToolContext.current?.sessionID)))
     }
 
     /// Finds the run that `id` names: the run with that id, or the run that
     /// the `start agent` call with that completion token started.
     ///
+    /// When `id` is the token of a `start agent` call whose body did not add
+    /// its run yet, the call first waits for that body
+    /// (``StartedRuns/waitForStart(ofCall:)``).
+    ///
     /// - Parameter id: The id that the model gave.
     /// - Returns: The run, or `nil` when `id` names no run.
     private func run(named id: String) async -> AgentRun? {
         let key = id.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        await startedRuns.waitForStart(ofCall: key)
         if let runID = ULID(ulidString: key), let run = await runner.run(id: runID) {
             return run
         }

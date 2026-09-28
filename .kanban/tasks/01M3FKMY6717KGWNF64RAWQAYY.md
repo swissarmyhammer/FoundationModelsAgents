@@ -19,10 +19,26 @@ comments:
     - evidence: 2 files — plan.md (§4.2 tier cell, §9.3 fan-out example), Tests/FoundationModelsAgentsTests/PlanTextTests.swift (new, 6 test cases); swift build -Xswiftc -warnings-as-errors: Build complete; swift test -Xswiftc -warnings-as-errors: 384 tests in 54 suites passed, 0 failures
     - next: /review
   timestamp: 2026-09-28T22:38:34.922193+00:00
+- actor: claude-code
+  id: 01m3n2v2nrh949x59btjg3kdqr
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (f39464e). 0 findings (confirmed 0, refuted 0, attempted 7, failed 0). Validators examined PlanTextTests.swift. No validator matches plan.md. The .kanban/ files are excluded by .reviewignore.
+    - next: none. The task is in done.
+  timestamp: 2026-09-28T22:40:48.312634+00:00
+- actor: claude-code
+  id: 01m3n2v9z5esksc31ta541taxw
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — plan.md §4.2 and §9.3, new PlanTextTests.swift
+    - test: green — swift test -Xswiftc -warnings-as-errors, 384 tests in 54 suites passed; swiftlint 0 issues
+    - commit: f39464e
+    - review: clean — 0 findings
+  timestamp: 2026-09-28T22:40:55.781694+00:00
 depends_on:
 - 01M3FMWXRW3637CJ74T7F7Z6QA
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: b980
 title: 'plan.md: the §4.2 name tier and the §9.3 example'
 ---
 ## What

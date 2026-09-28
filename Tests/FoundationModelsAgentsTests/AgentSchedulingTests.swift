@@ -274,6 +274,9 @@ struct AgentSchedulingTests {
 
         _ = try await rootA.respond(to: Self.rootPrompt)
         _ = try await rootB.respond(to: Self.rootPrompt)
+        // The Router answers each start agent call before its body adds the
+        // run. Wait until the body of each of the three calls added its run.
+        await harness.tool.context.startedRuns.waitForStarts()
         await gate.waitForArrival()
         let runsOfA = await harness.runner.runs(caller: rootA.id).sorted { $0.id < $1.id }
         let runOfB = try await Self.onlyRun(in: harness, of: rootB)
