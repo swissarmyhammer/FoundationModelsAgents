@@ -65,20 +65,53 @@ enum AgentsDemoMain {
     /// Resolves the real profile of ``AgentsDemoProfile``, then runs a mode
     /// that needs a profile over the stack of `Examples/agent-library`.
     ///
-    /// Only `--chat` and `--fan-out` call this function. The router stays
-    /// alive until the mode returns.
+    /// Only `--chat` and `--fan-out` call this function. The mode reads the
+    /// lines of standard input, and ends at the end of the input. The router
+    /// stays alive until the mode returns.
     ///
     /// - Parameter mode: The function of the mode.
     /// - Throws: The error of the resolve or of the mode.
     private static func withResolvedProfile(
-        _ mode: (LanguageModelProfile, AgentRegistry, URL, AgentsDemoOutput) async throws -> Void
+        _ mode: (LanguageModelProfile, AgentRegistry, URL, AgentsDemoInput, @escaping AgentsDemoOutput)
+            async throws -> Void
     ) async throws {
         let router = AgentsDemoProfile.makeRouter()
         let profile = try await AgentsDemoProfile.resolve(with: router)
         let registry = AgentRegistry(stack: AgentsDemoLibrary.stack(libraryRoot: AgentsDemoLibrary.root))
         try await mode(
             profile, registry, AgentsDemoLibrary.projectDirectory(libraryRoot: AgentsDemoLibrary.root),
-            standardOutput)
+            standardInput(), standardOutput)
         withExtendedLifetime(router) {}
+    }
+
+    /// Gives the lines of standard input as the input of a mode.
+    ///
+    /// A read task relays each line. The stream ends at the end of standard
+    /// input. A read error ends the stream too, and the example writes the
+    /// error to standard error.
+    ///
+    /// - Returns: The stream of the lines.
+    private static func standardInput() -> AgentsDemoInput {
+        let (lines, continuation) = AgentsDemoInput.makeStream()
+        let reader = Task {
+            await relayStandardInput(to: continuation)
+        }
+        continuation.onTermination = { _ in reader.cancel() }
+        return lines
+    }
+
+    /// Gives each line of standard input to `continuation`, then finishes
+    /// the stream.
+    ///
+    /// - Parameter continuation: The continuation of the input of the mode.
+    private static func relayStandardInput(to continuation: AgentsDemoInput.Continuation) async {
+        do {
+            for try await line in FileHandle.standardInput.bytes.lines {
+                continuation.yield(line)
+            }
+        } catch {
+            StandardStream.error.write(line: "agents-demo: standard input: \(error)")
+        }
+        continuation.finish()
     }
 }

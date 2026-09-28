@@ -79,6 +79,30 @@ struct SlashCommandTests {
         #expect(run.state == .finished(Self.finalText))
     }
 
+    @Test(
+        "/lead gives the answer of lead to the mail of the runs that it starts, with no driver call",
+        .timeLimit(.minutes(1)))
+    func commandOfAParentGivesItsAnswerToTheMail() async throws {
+        let harness = try await AgentRunHarness.make(
+            script: ScriptedAgentScript([
+                NestedRunTests.parentPlay(
+                    NestedRunTests.leadKey, children: [(NestedRunTests.reviewer, NestedRunTests.reviewerKey)]),
+                ScriptedAgentPlay(key: NestedRunTests.reviewerKey, steps: [.finalText(NestedRunTests.reviewerText)])
+            ]))
+        defer { try? harness.delete() }
+        let runner = harness.makeRunner()
+        let commands = await runner.commands(workingDirectory: harness.workingDirectory)
+        let command = try #require(commands.first { $0.name == NestedRunTests.lead })
+        let action = try #require(Self.action(of: command))
+
+        let texts: [String] = try await action(
+            SlashCommand.Invocation(arguments: NestedRunTests.leadKey, workingDirectory: harness.workingDirectory)
+        ).reduce(into: []) { texts, text in texts.append(text) }
+
+        #expect(texts.count == 1)
+        #expect(try #require(texts.first).contains(NestedRunTests.reviewerText))
+    }
+
     @Test("a cancel of the command stream cancels the run", .timeLimit(.minutes(1)))
     func cancelOfTheStreamCancelsTheRun() async throws {
         let gate = ScriptedGate()

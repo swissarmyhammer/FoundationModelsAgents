@@ -11,6 +11,12 @@ import FoundationModelsExtras
 /// prompt for the host session: `/code-reviewer check the diff` gives the task
 /// to the agent. The prompt is `$ARGUMENTS` of the body of the agent.
 ///
+/// The body does not drive a Router session. When the agent starts runs
+/// of its own, the Router pump of the session of the run gives their final
+/// messages to that session as mail, and starts the answer to each. The run
+/// ends when its session is idle, and ``AgentRun/result()`` then gives the
+/// final text.
+///
 /// Skills and agents are separate things. This conformance gives commands for
 /// agents only. `SkillsRegistry` gives the commands of the skills.
 extension AgentRunner: SlashCommandProviding {

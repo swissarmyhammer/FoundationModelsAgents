@@ -80,10 +80,26 @@ comments:
     - evidence: 1 file — Tests/FoundationModelsAgentsTests/AgentsToolMountTests.swift (+2 tests: `mountOfEachOperationHasNoTimeout` with 6 cases, `toolHasNoInlineSettleGrace`). No source change. RED shown with a temporary mutation of `AgentsTool` (timeout 1 and grace 1): both new tests failed; the mutation was then removed, and `git diff -- Sources` is empty. `swift build -Xswiftc -warnings-as-errors`: pass. `swift test -Xswiftc -warnings-as-errors`: 372 tests in 51 suites pass (370 before; no compiler warnings). `cd IntegrationTests && swift test` 3 runs: 12 tests in 6 suites pass each time (754 s, 667 s, 481 s; the machine had other builds). swiftlint on Sources, Tests and IntegrationTests/Tests: 0 violations. `swift package update` not run; Router 960dab2 and Extras 4a733cd resolved in both Package.resolved files. All 5 boxes checked; the check of each box is in the comment before this one. The mode tests live in `AgentsToolMountTests.swift`, not in `AgentsToolOperationsTests.swift` as the card names.
     - next: /review. Not committed.
   timestamp: 2026-09-28T19:58:57.764263+00:00
+- actor: claude-code
+  id: 01m3mt0wfctxpcbvr21kb5y0hw
+  text: |-
+    ### review — clean
+    - evidence: 0 findings. `review sha HEAD~1..HEAD` (67b44e9). 1 file reviewed (Tests/FoundationModelsAgentsTests/AgentsToolMountTests.swift). 7 validator runs attempted, 0 failed, 0 skipped. 16 `.kanban/` files not reviewed because `.reviewignore` excludes them. All 5 acceptance and test items are checked. The task has no earlier `## Review Findings` section.
+    - next: none. The task is in done.
+  timestamp: 2026-09-28T20:06:41.388580+00:00
+- actor: claude-code
+  id: 01m3mt147308ze57d8mx8fp2cb
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — AgentsToolMountTests.swift (+2 tests); most of the work is in 04db4ec (^ggpyaem)
+    - test: green — swift test -Xswiftc -warnings-as-errors, 372 passed; swiftlint 0; IntegrationTests 3 live runs 12/12
+    - commit: 67b44e9
+    - review: clean — 0 findings
+  timestamp: 2026-09-28T20:06:49.315949+00:00
 depends_on:
 - 01M3A6EGTPK2A08N066GGPYAEM
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: b580
 title: 'The agents tool chooses per operation: start agent is background, list/check/cancel are synchronous'
 ---
 ## Why

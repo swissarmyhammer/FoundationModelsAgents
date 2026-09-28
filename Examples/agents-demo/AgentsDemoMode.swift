@@ -14,12 +14,15 @@ enum AgentsDemoMode: Equatable {
     case marketplace
 
     /// `--chat`: a root Router session with the `agents` tool starts the
-    /// `lead` agent, and `lead` starts two agents. It needs a resolved
-    /// profile.
+    /// `lead` agent, and `lead` starts two agents. The final message of
+    /// `lead` comes to the root session as mail. It needs a resolved profile,
+    /// and it reads the lines of standard input.
     case chat
 
-    /// `--fan-out`: two host-driven runs, one on each generation slot, at the
-    /// same time. It needs a resolved profile.
+    /// `--fan-out`: a root Router session with the `agents` tool starts two
+    /// agents at the same time, one on each generation slot. The final
+    /// message of each comes to the root session as mail. It needs a
+    /// resolved profile, and it reads the lines of standard input.
     case fanOut
 
     /// A first argument that names no mode.
@@ -72,10 +75,13 @@ enum AgentsDemoUsage {
                          marketplace is a file:// source of a MarketplaceStore.
           \(AgentsDemoMode.chatFlag)         A root session with the agents tool starts the lead
                          agent, and lead starts code-reviewer and test-writer.
-          \(AgentsDemoMode.fanOutFlag)      Run code-reviewer (flash) and test-writer (standard)
-                         at the same time, and write both results.
+          \(AgentsDemoMode.fanOutFlag)      A root session with the agents tool starts code-reviewer
+                         (flash) and test-writer (standard) at the same time.
 
         \(AgentsDemoMode.chatFlag) and \(AgentsDemoMode.fanOutFlag) resolve a real profile of small
-        mlx-community models. The first run downloads the models.
+        mlx-community models. The first run downloads the models. Each mode sends
+        each line of standard input to the root session, and writes each answer,
+        also the answer to the final message of an agent. End the input
+        (Control-D) to stop the mode.
         """
 }

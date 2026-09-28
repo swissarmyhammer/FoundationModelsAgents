@@ -10,11 +10,17 @@ import ULID
 /// test gives a closure that keeps the line.
 typealias AgentsDemoOutput = @Sendable (String) -> Void
 
+/// The lines that the user types, in order.
+///
+/// The binary gives the lines of standard input. A test gives a stream that
+/// it controls, and ends the stream when it read the lines that it checks.
+typealias AgentsDemoInput = AsyncStream<String>
+
 /// The work of each mode of `agents-demo` (plan.md §12, §13).
 ///
 /// Each function takes its registry and its output. The functions of
-/// `--chat` and `--fan-out` also take a resolved profile. Thus a test calls
-/// each function with no process, and with a scripted profile.
+/// `--chat` and `--fan-out` also take a resolved profile and an input. Thus a
+/// test calls each function with no process, and with a scripted profile.
 enum AgentsDemoModes {
     /// The agent that the root session of the chat mode starts. It starts
     /// ``reviewerAgent`` and ``testWriterAgent``.
@@ -41,11 +47,37 @@ enum AgentsDemoModes {
     /// The prompt of the ``testWriterAgent`` run of the fan-out mode.
     static let testWriterPrompt = "Write one unit test for the parse function in Sources/Parser.swift."
 
+    /// The instructions of the root session of the fan-out mode.
+    static let fanOutInstructions = """
+        You give work to agents. Use the agents tool to start two agents at the same time: \
+        the agent "\(reviewerAgent)" with the task "\(reviewerPrompt)", and the agent \
+        "\(testWriterAgent)" with the task "\(testWriterPrompt)". Then tell the user in one \
+        short sentence what you did. When the final message of an agent comes, tell the user \
+        its result in one short sentence.
+        """
+
+    /// The first prompt of the root session of the fan-out mode.
+    static let fanOutPrompt = "Review the parse function in Sources/Parser.swift, and test it."
+
     /// The text that opens each answer of the root session.
     static let rootPrefix = "root: "
 
-    /// The text that opens each `runSettled` line of the chat mode.
+    /// The text that opens each line of an answer of the root session that
+    /// failed.
+    static let failedPrefix = "root failed: "
+
+    /// The text of a cancelled run, and of an answer that a cancel stopped.
+    static let cancelledText = "cancelled"
+
+    /// The text that opens each `runSettled` line.
     static let settledPrefix = "settled: "
+
+    /// The text that opens each `mailDeliveryPaused` line.
+    static let pausedPrefix = "paused: "
+
+    /// The line after each `mailDeliveryPaused` line: the held mail goes to
+    /// the root session with the next message of the user.
+    static let sendMessageHint = "Send a message to deliver the held mail."
 
     /// The indent of each level of the run tree of the chat mode.
     static let levelIndent = "  "
@@ -105,67 +137,107 @@ enum AgentsDemoModes {
 
     /// Runs the chat mode (plan.md §12, model-driven).
     ///
-    /// A root session on the `standard` slot gets the `agents` tool and
-    /// ``chatPrompt``. The model starts ``leadAgent``, and `lead` starts
-    /// ``reviewerAgent`` and ``testWriterAgent``. The mode writes the answer
-    /// of the first turn. Then, for each run that the first turn started, it
-    /// waits for the `runSettled` event and writes it, and it writes the
-    /// answer that the Router starts for the final message. Then
-    /// it calls `cancelRuns(caller:)`, because `close()` does not know the
-    /// runs of the session, and closes the session. Last, it writes the run
-    /// tree: each run with its state, and the children of each run indented.
+    /// A root session on the `standard` slot gets the `agents` tool. The mode
+    /// sends ``chatPrompt`` with `send(_:)`, then each line of `input`. The
+    /// model starts ``leadAgent``, and `lead` starts ``reviewerAgent`` and
+    /// ``testWriterAgent``. `start agent` is a background run: when `lead`
+    /// ends, the Router pump gives its final message to the root session as
+    /// mail, and starts the answer to it. The mode writes each answer from
+    /// the session events, the answers that mail starts too, with no user
+    /// input and no driver call. See ``lines(for:)``.
+    ///
+    /// The mode does not wait for the runs. When `input` ends, it cancels the
+    /// runs of the root session, closes the session, and writes the run tree:
+    /// each run with its state, and the children of each run indented.
     ///
     /// - Parameters:
     ///   - profile: The resolved profile of the runs and of the root session.
     ///   - registry: The registry of the agents. The mode loads it.
     ///   - workingDirectory: The working directory of each session.
+    ///   - input: The lines of the user. The mode ends when they end.
     ///   - output: The receiver of each line.
-    /// - Throws: The error of `load()`, of the `agents` tool, or of a turn of
-    ///   the root session.
+    /// - Throws: The error of `load()`, or of the `agents` tool.
     static func chat(
-        profile: LanguageModelProfile, registry: AgentRegistry, workingDirectory: URL, output: AgentsDemoOutput
+        profile: LanguageModelProfile, registry: AgentRegistry, workingDirectory: URL,
+        input: AgentsDemoInput, output: @escaping AgentsDemoOutput
     ) async throws {
         let runner = try await makeRunner(profile: profile, registry: registry, workingDirectory: workingDirectory)
-        let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
-        let root = profile.standard.makeSession(
-            instructions: chatInstructions, workingDirectory: workingDirectory, tools: [agentsTool])
-        let failure: (any Error)?
-        do {
-            try await converse(with: root, runner: runner, output: output)
-            failure = nil
-        } catch {
-            failure = error
-        }
-        await runner.cancelRuns(caller: root.id)
-        await root.close()
-        await writeRuns(of: root.id, runner: runner, level: 0, output: output)
-        if let failure {
-            throw failure
+        let conversation = Conversation(
+            instructions: chatInstructions, firstPrompt: chatPrompt, profile: profile,
+            workingDirectory: workingDirectory)
+        let root = try await converse(conversation, runner: runner, input: input, output: output)
+        await writeRuns(of: root, runner: runner, level: 0, output: output)
+    }
+
+    /// Runs the fan-out mode (plan.md §12, model-driven, two runs at once).
+    ///
+    /// The flow is the flow of ``chat(profile:registry:workingDirectory:input:output:)``
+    /// with ``fanOutInstructions`` and ``fanOutPrompt``. The model starts
+    /// ``reviewerAgent`` on the `flash` slot and ``testWriterAgent`` on the
+    /// `standard` slot at the same time. The two slots have two generation
+    /// queues, thus neither run waits for the other. The final message of
+    /// each run comes to the root session as mail, and the mode writes the
+    /// answer to it. When `input` ends, the mode writes one line for each
+    /// run of the root session.
+    ///
+    /// - Parameters:
+    ///   - profile: The resolved profile of the runs and of the root session.
+    ///   - registry: The registry of the agents. The mode loads it.
+    ///   - workingDirectory: The working directory of each session.
+    ///   - input: The lines of the user. The mode ends when they end.
+    ///   - output: The receiver of each line.
+    /// - Throws: The error of `load()`, or of the `agents` tool.
+    static func fanOut(
+        profile: LanguageModelProfile, registry: AgentRegistry, workingDirectory: URL,
+        input: AgentsDemoInput, output: @escaping AgentsDemoOutput
+    ) async throws {
+        let runner = try await makeRunner(profile: profile, registry: registry, workingDirectory: workingDirectory)
+        let conversation = Conversation(
+            instructions: fanOutInstructions, firstPrompt: fanOutPrompt, profile: profile,
+            workingDirectory: workingDirectory)
+        let root = try await converse(conversation, runner: runner, input: input, output: output)
+        for run in await runner.runs(caller: root) {
+            let model = run.agent.model ?? inheritedModel
+            output(fanOutLine(agent: run.agent.id, model: model, text: status(of: run.state)))
         }
     }
 
-    /// Runs the fan-out mode (plan.md §12, host-driven).
+    /// The lines of one event of the root session.
     ///
-    /// The mode starts ``reviewerAgent`` on the `flash` slot and
-    /// ``testWriterAgent`` on the `standard` slot with `async let`, thus the
-    /// two runs work at the same time. The two slots have two generation
-    /// gates, thus neither run waits for the other. The mode writes one line
-    /// for each result.
+    /// `send(_:)` and mail give each reply whole in `answered`, and send no
+    /// `textDelta`. Thus the answer line comes from `answered` only, and a
+    /// `textDelta` gives no line.
     ///
-    /// - Parameters:
-    ///   - profile: The resolved profile of the runs.
-    ///   - registry: The registry of the agents. The mode loads it.
-    ///   - workingDirectory: The working directory of each run.
-    ///   - output: The receiver of each line.
-    /// - Throws: The error of `load()`, of a start, or of a run.
-    static func fanOut(
-        profile: LanguageModelProfile, registry: AgentRegistry, workingDirectory: URL, output: AgentsDemoOutput
-    ) async throws {
-        let runner = try await makeRunner(profile: profile, registry: registry, workingDirectory: workingDirectory)
-        async let review = resultLine(of: reviewerAgent, prompt: reviewerPrompt, runner: runner)
-        async let tests = resultLine(of: testWriterAgent, prompt: testWriterPrompt, runner: runner)
-        for line in try await [review, tests] {
-            output(line)
+    /// - Parameter event: The event.
+    /// - Returns: A ``rootLine(_:)`` for `answered`, a ``failedPrefix`` line
+    ///   for `answerFailed`, a ``settledPrefix`` line for `runSettled`, a
+    ///   ``pausedPrefix`` line and ``sendMessageHint`` for
+    ///   `mailDeliveryPaused`, and no line for each other event.
+    static func lines(for event: SessionEvent) -> [String] {
+        switch event {
+        case .answered(let answer):
+            [rootLine(answer.reply)]
+        case .answerFailed(let failure):
+            [failedPrefix + text(of: failure.reason)]
+        case .runSettled(let terminal):
+            [settledPrefix + terminal.detail]
+        case .mailDeliveryPaused(let pause):
+            [pausedPrefix + pause.description, sendMessageHint]
+        default:
+            []
+        }
+    }
+
+    /// The text of the reason of an answer that failed.
+    ///
+    /// - Parameter reason: The reason.
+    /// - Returns: ``cancelledText``, or the text of the error.
+    static func text(of reason: AnswerFailure.Reason) -> String {
+        switch reason {
+        case .cancelled:
+            cancelledText
+        case .error(let description):
+            description
         }
     }
 
@@ -202,7 +274,7 @@ enum AgentsDemoModes {
         case .failed(let failure):
             "failed: \(failure)"
         case .cancelled:
-            "cancelled"
+            cancelledText
         }
     }
 
@@ -235,54 +307,71 @@ enum AgentsDemoModes {
         return AgentRunner(registry: registry, environment: environment)
     }
 
-    /// Runs the turns of the root session of the chat mode.
-    ///
-    /// The function subscribes to the session events before the first turn,
-    /// thus it gets each `runSettled` event.
-    ///
-    /// - Parameters:
-    ///   - root: The root session with the `agents` tool.
-    ///   - runner: The runner of the runs of the session.
-    ///   - output: The receiver of each line.
-    /// - Throws: The error of a turn.
-    private static func converse(
-        with root: any RoutedSession, runner: AgentRunner, output: AgentsDemoOutput
-    ) async throws {
-        let sessionEvents = await root.streamSessionEvents()
-        output(rootLine(try await root.streamEvents(to: chatPrompt).reduce("", text(_:after:))))
-        let started = await runner.runs(caller: root.id)
-        await deliverSettledRuns(count: started.count, from: sessionEvents, output: output)
+    /// The root session of one conversation mode, and its first prompt.
+    private struct Conversation {
+        /// The instructions of the root session.
+        let instructions: String
+
+        /// The prompt that the mode sends before the first line of the input.
+        let firstPrompt: String
+
+        /// The resolved profile. The root session is on its `standard` slot.
+        let profile: LanguageModelProfile
+
+        /// The working directory of the root session.
+        let workingDirectory: URL
     }
 
-    /// Writes each `runSettled` event and each answer of the root to the
-    /// mail of the runs, until `count` runs have settled and the root
-    /// answered after the last one.
+    /// Runs the root session of one conversation mode until `input` ends.
     ///
-    /// The pump of the Router delivers each final message to the root as
-    /// mail, and starts the answer to it with no call of this function.
+    /// The function subscribes to the session events before the first
+    /// message, and one writer task writes the ``lines(for:)`` of each event.
+    /// It sends the first prompt, then each line of `input`, with
+    /// `send(_:)`. It calls no driver method: the Router pump delivers the
+    /// mail of the runs and starts the answers to it. When `input` ends, the
+    /// function cancels the runs of the session and waits for them, then
+    /// closes the session. `close()` ends the event stream, thus the writer
+    /// ends after the last event.
     ///
     /// - Parameters:
-    ///   - count: The count of runs to wait for.
-    ///   - events: The session events of `root`, from before the chat prompt.
+    ///   - conversation: The root session to make, and its first prompt.
+    ///   - runner: The runner of the runs of the session.
+    ///   - input: The lines of the user.
     ///   - output: The receiver of each line.
-    private static func deliverSettledRuns(
-        count: Int, from events: AsyncStream<SessionEvent>, output: AgentsDemoOutput
-    ) async {
-        guard count > 0 else { return }
-        var remaining = count
+    /// - Returns: The id of the root session.
+    /// - Throws: The error of `AgentsTool.make(context:)`.
+    private static func converse(
+        _ conversation: Conversation, runner: AgentRunner, input: AgentsDemoInput,
+        output: @escaping AgentsDemoOutput
+    ) async throws -> ULID {
+        let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
+        let root = conversation.profile.standard.makeSession(
+            instructions: conversation.instructions, workingDirectory: conversation.workingDirectory,
+            tools: [agentsTool])
+        let events = await root.streamSessionEvents()
+        let writer = Task {
+            await write(events, to: output)
+        }
+        _ = await root.send(conversation.firstPrompt)
+        for await line in input {
+            _ = await root.send(line)
+        }
+        await runner.cancelRuns(caller: root.id)
+        await root.close()
+        await writer.value
+        return root.id
+    }
+
+    /// Writes the ``lines(for:)`` of each event of `events`, until the stream
+    /// ends.
+    ///
+    /// - Parameters:
+    ///   - events: The session events of the root session.
+    ///   - output: The receiver of each line.
+    private static func write(_ events: AsyncStream<SessionEvent>, to output: AgentsDemoOutput) async {
         for await event in events {
-            if case .runSettled(let terminal) = event {
-                output(settledPrefix + terminal.detail)
-                remaining -= 1
-            }
-            guard case .answered(let answer) = event else {
-                continue
-            }
-            if answer.messageIds.isEmpty {
-                output(rootLine(answer.reply))
-            }
-            if remaining == 0 {
-                return
+            for line in lines(for: event) {
+                output(line)
             }
         }
     }
@@ -300,35 +389,5 @@ enum AgentsDemoModes {
             output(runLine(agent: run.agent.id, status: status(of: run.state), level: level))
             await writeRuns(of: run.id, runner: runner, level: level + 1, output: output)
         }
-    }
-
-    /// Gives the text of a turn after one more event of the turn.
-    ///
-    /// - Parameters:
-    ///   - text: The text before `event`.
-    ///   - event: The next event of the turn.
-    /// - Returns: The text with the fragment of a `textDelta`, an empty text
-    ///   after a `textReset`, or `text` for each other event.
-    private static func text(_ text: String, after event: SessionEvent) -> String {
-        if case .textDelta(let fragment) = event {
-            return text + fragment
-        }
-        if case .textReset = event {
-            return ""
-        }
-        return text
-    }
-
-    /// Starts one host-driven run and gives its line.
-    ///
-    /// - Parameters:
-    ///   - agent: The id of the agent.
-    ///   - prompt: The prompt of the run.
-    ///   - runner: The runner.
-    /// - Returns: The line of the result of the run.
-    /// - Throws: The error of the start or of the run.
-    private static func resultLine(of agent: String, prompt: String, runner: AgentRunner) async throws -> String {
-        let run = try await runner.start(agent, prompt: prompt)
-        return fanOutLine(agent: agent, model: run.agent.model ?? inheritedModel, text: try await run.result())
     }
 }

@@ -1,6 +1,13 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m3mvyh7pjmddyy1djyer82wk
+  text: |-
+    ### Note from ^0mhzx3a (the same lines changed)
+    ^0mhzx3a removed `AgentsDemoModes.converse` and `deliverSettledRuns` from `Examples/agents-demo/DemoModes.swift`, because that card removes each host wait for settled runs. The mode no longer counts runs: `--chat` and `--fan-out` send the first prompt and each input line with `send(_:)`, one writer task writes a line for each `answered`, `answerFailed`, `runSettled` and `mailDeliveryPaused` event, and the mode ends when its input ends (then `cancelRuns(caller:)`, `close()`, the run tree). Thus the early count of `runner.runs(caller:)` that this card names is gone. The test `chatModeWritesTheAnswerToTheMail` in `Tests/FoundationModelsAgentsTests/AgentsDemoProfileModeTests.swift` ends the input only after it read the settled line and the mail answer, and pins the count of `settled:` lines to 1. ^0mhzx3a did not move or close this card; a person decides if it is still necessary.
+  timestamp: 2026-09-28T20:40:21.494943+00:00
 position_column: todo
 position_ordinal: '9480'
 title: 'agents-demo --chat: count the start calls from the pending envelopes, not from runner.runs after the first answer'

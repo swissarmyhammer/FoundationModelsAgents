@@ -11,6 +11,14 @@ comments:
     Remove the tag `waits-on-extras` when ^ykgz2aa is on Extras main.
     Open: the tool span name may change from `FoundationModelsRouter.tool` to `FoundationModelsExtras.tool`; the user has not decided. Do not hard-code the tool span name in the tests: find the parent span from the trace, not by name, or take the name from the module that defines it.
   timestamp: 2026-09-28T18:44:46.692020+00:00
+- actor: claude-code
+  id: 01m3mtwdv9z1ec2grj4gad4gyv
+  text: '2026-09-28: the tool span name is decided: `FoundationModelsExtras.tool` (names in Extras `ExtrasTelemetry.swift`). `ToolCallSpan.withSpan` gives its body a `ToolCallSpan.Call` value. The "enter" helper is `TracedCall.run`; it takes the trace id and span id from the injected `traceparent`, and `InMemoryTracer` does not inject, so an id check needs a tracer that injects. See the facts comment on ^96s67ks (capture, logger and metric lifetime).'
+  timestamp: 2026-09-28T20:21:43.913075+00:00
+- actor: claude-code
+  id: 01m3mv3vt8cyv8t0wtbrf771dh
+  text: '2026-09-28: Extras OTel A to D are on Extras origin/main (70ad74d), so the enter-log helper (Extras C, `TracedCall.run`) is available. The `waits-on-extras` tag is removed. One open part: a test that checks the trace id and span id on the "enter" record needs a tracer that injects W3C `traceparent`; Extras OTel E (^wts388b, a W3C-capable test tracer) is in progress and not pushed. If ^wts388b is not on Extras main when this task runs, test the span tree and the "enter" record without the id check, and write the missing id check on this task as open, not checked.'
+  timestamp: 2026-09-28T20:25:47.592066+00:00
 depends_on:
 - 01M3MN916AA5AE3QAWE96S67KS
 position_column: todo
@@ -40,4 +48,4 @@ BLOCKED outside this board: the "enter" log helper comes from FoundationModelsEx
 - [ ] Run `swift test -Xswiftc -warnings-as-errors`. Expected: pass.
 
 ## Workflow
-- Use `/tdd` — write failing tests first, then implement to make them pass. #otel #waits-on-extras
+- Use `/tdd` — write failing tests first, then implement to make them pass. #otel

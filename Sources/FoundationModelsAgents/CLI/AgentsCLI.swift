@@ -15,7 +15,9 @@ import OperationsCLI
 ///
 /// - `agent start` waits for the run and gives the final text. The command
 ///   has no `ToolContext`, thus the run posts nothing. The run is a
-///   host-driven run of ``AgentRunner/start(_:prompt:)``.
+///   host-driven run of ``AgentRunner/start(_:prompt:)``. The command does
+///   not drive a Router session: the Router pump gives the final message of
+///   each run that the agent starts to the session of the run as mail.
 /// - `agent list` gives the agent lines only, with no delegation sentence
 ///   for a model.
 ///

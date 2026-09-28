@@ -1,6 +1,11 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m3mtwh4aatmb7jxb6hn8m9xw
+  text: '2026-09-28: use `TelemetryCapture` (Extras `TelemetryTestSupport`, task-local `withMetricsFactory`) in the tests. Make the metrics per run or per call, not a `static let`: a metric made before the first capture does not go to the capture. See the facts comment on ^96s67ks. This changes "a test metrics factory (injected)" in the Tests section to `TelemetryCapture`.'
+  timestamp: 2026-09-28T20:21:47.274720+00:00
 depends_on:
 - 01M3MN916AA5AE3QAWE96S67KS
 position_column: todo

@@ -705,7 +705,8 @@ Examples/
   agents-demo/              (no mode)       the usage
                             --chat          a Router session with the agents tool;
                                             the lead agent starts two agents
-                            --fan-out       host-driven runs on the two slots
+                            --fan-out       a Router session with the agents tool;
+                                            two agents at once, one on each slot
                             --watch         an AgentReloadReport on each onReload
                             --marketplace   the marketplace fixture as a source
 ```

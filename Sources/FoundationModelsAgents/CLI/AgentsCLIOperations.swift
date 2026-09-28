@@ -79,6 +79,12 @@ extension StartAgentCommand {
     /// cancel of the task that waits cancels the run, through
     /// ``AgentRun/result()``.
     ///
+    /// The command does not drive a Router session. When the agent
+    /// starts runs of its own, the Router pump of the session of the run
+    /// gives their final messages to that session as mail. The run ends when
+    /// its session is idle, and ``AgentRun/result()`` then gives the final
+    /// text.
+    ///
     /// - Parameter context: The shared context of the commands.
     /// - Returns: The final text of the run.
     /// - Throws: ``AgentsCLIFailure`` with the corrective of the `agents` tool

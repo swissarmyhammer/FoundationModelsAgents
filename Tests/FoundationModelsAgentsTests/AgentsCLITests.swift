@@ -138,6 +138,25 @@ struct AgentsCLITests {
         #expect(run.depth == AgentRunner.hostDepth)
     }
 
+    @Test(
+        "agent start of an agent that starts runs gives its answer to their mail, with no driver call",
+        .timeLimit(.minutes(1)))
+    func startOfAParentGivesItsAnswerToTheMail() async throws {
+        let script = ScriptedAgentScript([
+            NestedRunTests.parentPlay(
+                NestedRunTests.leadKey, children: [(NestedRunTests.reviewer, NestedRunTests.reviewerKey)]),
+            ScriptedAgentPlay(key: NestedRunTests.reviewerKey, steps: [.finalText(NestedRunTests.reviewerText)])
+        ])
+        let (harness, driver) = try await Self.makeDriver(script: script)
+        defer { try? harness.delete() }
+
+        let result = await driver.run(
+            arguments: Self.startArguments(NestedRunTests.lead, prompt: NestedRunTests.leadKey))
+
+        #expect(result.exitCode == Self.successStatus)
+        #expect(try Self.text(of: result).contains(NestedRunTests.reviewerText))
+    }
+
     @Test("agent start with an unknown name gives the corrective text and a non-zero exit status")
     func startUnknownNameFails() async throws {
         let (harness, driver) = try await Self.makeDriver()
