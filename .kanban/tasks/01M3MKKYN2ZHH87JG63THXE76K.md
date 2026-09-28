@@ -27,6 +27,30 @@ comments:
     - evidence: Examples/agents-demo/DemoModes.swift:350-370 (no run count; the mode stops when the input ends); Tests/FoundationModelsAgentsTests/AgentsDemoProfileModeTests.swift:94 (pins 1 `settled:` line); swift build -Xswiftc -warnings-as-errors exit 0; swift test -Xswiftc -warnings-as-errors: 379 tests in 52 suites passed
     - next: /review. Both boxes are checked. The task stays in doing.
   timestamp: 2026-09-28T21:10:02.124577+00:00
+- actor: claude-code
+  id: 01m3my841ryfmdeqe1tpk02r9z
+  text: |-
+    ### review — stuck
+    - evidence: review file Examples/agents-demo/DemoModes.swift: 0 findings. review file Tests/FoundationModelsAgentsTests/AgentsDemoProfileModeTests.swift: 3 findings (3 confirmed, 0 refuted): AgentsDemoProfileModeTests.swift:25 (swift/idioms), AgentsDemoProfileModeTests.swift:158 (reuse/reuse), AgentsDemoProfileModeTests.swift:233 (swift/idioms).
+    - conflict: the two swift/idioms findings tell you to remove `-> Void` from a function type. The Swift grammar requires `->` and a result type. `swiftc -parse` on the changed form gives exit 1. The rule requires code that cannot compile. The "Blocker" section in the description has the proof.
+    - next: a person corrects the swift/idioms rule, then starts the review again. The reuse/reuse finding at AgentsDemoProfileModeTests.swift:158 stays open. The task stays in review.
+  timestamp: 2026-09-28T21:20:32.824693+00:00
+- actor: claude-code
+  id: 01m3mymvasttax48bwk0htdkq2
+  text: |-
+    ### Findings fixed in Tests/FoundationModelsAgentsTests/AgentsDemoProfileModeTests.swift
+    - swift/idioms (both findings): the file has no function type now. The `Reader` typealias became the private protocol `LineReading` (`didWrite(_:input:) async`), with one struct for each case: `SettledMailReader`, `UserLineReader`, `GatedRunReader(gate:)`, `FanOutAnswerReader`. The `mode:` closure parameter became the private enum `ProfileMode` (`chat`, `fanOut`) with `run(profile:workingDirectory:input:output:) async throws`. The reader logic that branched in closures is now in named methods.
+    - reuse/reuse: the new helper `run(_:script:reader:) -> ModeRecord` makes the temporary recordings folder and working directory, calls `ScriptedProfile.make`, runs the mode, reads the recorded slots, and deletes the folders. All four cases call it. `chatLines` is removed. `ModeRecord` holds `written` and `slots`; only the fan-out case reads `slots`.
+    - The earlier blocker was not a true conflict: the rule is met when the signature has no function type. The validator was not changed.
+    - Verification: `swift build -Xswiftc -warnings-as-errors` exit 0. `swift test -Xswiftc -warnings-as-errors` exit 0: 379 tests in 52 suites passed (the only warnings are the SwiftPM manifest cache "disk I/O error" lines). `swiftlint lint Sources Tests Package.swift Examples`: 0 violations in 130 files.
+  timestamp: 2026-09-28T21:27:29.881596+00:00
+- actor: claude-code
+  id: 01m3mymx94zb9zpasxwvny5v6y
+  text: |-
+    ### implement — changed
+    - evidence: 1 file — Tests/FoundationModelsAgentsTests/AgentsDemoProfileModeTests.swift; swift build -Xswiftc -warnings-as-errors exit 0; swift test -Xswiftc -warnings-as-errors: 379 tests in 52 suites passed; swiftlint: 0 violations in 130 files
+    - next: /review. The three findings are checked. The task stays in doing.
+  timestamp: 2026-09-28T21:27:31.876837+00:00
 position_column: doing
 position_ordinal: '80'
 title: 'agents-demo --chat: count the start calls from the pending envelopes, not from runner.runs after the first answer'
@@ -43,3 +67,17 @@ title: 'agents-demo --chat: count the start calls from the pending envelopes, no
 
 ## Tests
 - [x] A scripted test of `AgentsDemoModes.chat` that pins the count of `settled:` lines.
+
+## Review Findings (2026-09-28 16:14)
+
+> Scope: `review file Examples/agents-demo/DemoModes.swift` (0 findings) and `review file Tests/FoundationModelsAgentsTests/AgentsDemoProfileModeTests.swift` — reviewed the whole of each named file. 2 file(s) reviewed, 0 not reviewed.
+
+- [x] `Tests/FoundationModelsAgentsTests/AgentsDemoProfileModeTests.swift:25` `swift/idioms` — Typealias for function type returns `Void` explicitly; omit `-> Void` from function types. Remove `-> Void` to write `async` instead.
+- [x] `Tests/FoundationModelsAgentsTests/AgentsDemoProfileModeTests.swift:158` `reuse/reuse` — fanOutModeWritesOneResultFromEachSlot reimplements the profile setup pattern (creating temporary directories, deferring deletion, and calling ScriptedProfile.make) that is already implemented in chatLines. Should extract this common setup into a shared helper. Extract a shared helper—e.g., `profileSetup(script:) -> (RoutedSession, TemporaryLayer, TemporaryLayer, AgentProfile)`—that both chatLines and fanOutModeWritesOneResultFromEachSlot can call, eliminating the duplication.
+- [x] `Tests/FoundationModelsAgentsTests/AgentsDemoProfileModeTests.swift:233` `swift/idioms` — Closure type returns `Void` explicitly; omit `-> Void` from function types. Remove `-> Void` to write `async throws` instead.
+
+## Blocker: resolved by removing the function types (no validator change)
+- The two `swift/idioms` findings (AgentsDemoProfileModeTests.swift:25 and :233) are met. The test file has no function type with `-> Void` now.
+- The `Reader` typealias is gone. The private protocol `LineReading` with the method `didWrite(_:input:) async` replaces it. Each case gives a small struct that conforms: `SettledMailReader`, `UserLineReader`, `GatedRunReader`, `FanOutAnswerReader`.
+- The `mode` closure parameter is gone. The private enum `ProfileMode` (`chat`, `fanOut`) with the method `run(profile:workingDirectory:input:output:) async throws` replaces it.
+- The `swift/idioms` rule was not changed. It is not a conflict, because a form with no function type in its signature meets the rule and compiles.

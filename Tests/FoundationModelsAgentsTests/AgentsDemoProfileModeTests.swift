@@ -19,10 +19,109 @@ import Testing
 /// code-reviewer runs on the `flash` slot.
 @Suite("agents-demo with a profile")
 struct AgentsDemoProfileModeTests {
-    /// The receiver of each line that a mode writes in a case: all the lines
-    /// so far, and the input of the mode. The receiver sends a line or ends
-    /// the input.
-    typealias Reader = ([String], AsyncStream<String>.Continuation) async -> Void
+    /// The receiver of each line that a mode writes in a case. The receiver
+    /// sends a line or ends the input.
+    private protocol LineReading {
+        /// Tells the receiver that the mode wrote a line.
+        ///
+        /// - Parameters:
+        ///   - written: All the lines that the mode wrote so far, in order.
+        ///   - input: The input of the mode.
+        func didWrite(_ written: [String], input: AgentsDemoInput.Continuation) async
+    }
+
+    /// The mode of `agents-demo` that a case runs.
+    private enum ProfileMode {
+        /// The `--chat` mode.
+        case chat
+
+        /// The `--fan-out` mode.
+        case fanOut
+
+        /// Runs the mode over the fixture library.
+        ///
+        /// - Parameters:
+        ///   - profile: The resolved profile.
+        ///   - workingDirectory: The working directory of the runs.
+        ///   - input: The lines that the user types.
+        ///   - output: The receiver of each line.
+        /// - Throws: The error of the mode.
+        func run(
+            profile: LanguageModelProfile, workingDirectory: URL, input: AgentsDemoInput,
+            output: @escaping AgentsDemoOutput
+        ) async throws {
+            let registry = AgentRegistry(stack: FixtureLibrary.stack())
+            switch self {
+            case .chat:
+                try await AgentsDemoModes.chat(
+                    profile: profile, registry: registry, workingDirectory: workingDirectory,
+                    input: input, output: output)
+            case .fanOut:
+                try await AgentsDemoModes.fanOut(
+                    profile: profile, registry: registry, workingDirectory: workingDirectory,
+                    input: input, output: output)
+            }
+        }
+    }
+
+    /// What a mode wrote in a case, and the slots that its sessions used.
+    private struct ModeRecord {
+        /// The lines that the mode wrote, in order.
+        let written: [String]
+
+        /// The slot of each Router session that recorded.
+        let slots: [ModelSlot]
+    }
+
+    /// Ends the input when the lines have a `runSettled` line and the root
+    /// answer to the mail of the lead run.
+    private struct SettledMailReader: LineReading {
+        func didWrite(_ written: [String], input: AgentsDemoInput.Continuation) async {
+            let settled = written.contains { $0.hasPrefix(AgentsDemoModes.settledPrefix) }
+            if settled && written.contains(AgentsDemoModes.rootLine(AgentsDemoProfileModeTests.deliveredText)) {
+                input.finish()
+            }
+        }
+    }
+
+    /// Sends ``userLine`` after the first root answer, and ends the input
+    /// after the answer to ``userLine``.
+    private struct UserLineReader: LineReading {
+        func didWrite(_ written: [String], input: AgentsDemoInput.Continuation) async {
+            if written.last == AgentsDemoModes.rootLine(AgentsDemoProfileModeTests.rootText) {
+                input.yield(AgentsDemoProfileModeTests.userLine)
+            }
+            if written.last == AgentsDemoModes.rootLine(AgentsDemoProfileModeTests.userAnswer) {
+                input.finish()
+            }
+        }
+    }
+
+    /// Ends the input after the root answer to the mail, when the gated run
+    /// waits on its gate.
+    private struct GatedRunReader: LineReading {
+        /// The gate that the late run waits on.
+        let gate: ScriptedGate
+
+        func didWrite(_ written: [String], input: AgentsDemoInput.Continuation) async {
+            if written.last == AgentsDemoModes.rootLine(AgentsDemoProfileModeTests.deliveredText) {
+                await gate.waitForArrival()
+                input.finish()
+            }
+        }
+    }
+
+    /// Ends the input when a root answer holds the text of each fan-out run.
+    private struct FanOutAnswerReader: LineReading {
+        func didWrite(_ written: [String], input: AgentsDemoInput.Continuation) async {
+            let answer = written.last { $0.hasPrefix(AgentsDemoModes.rootPrefix) }
+            if let answer,
+                answer.contains(AgentsDemoProfileModeTests.reviewerText),
+                answer.contains(AgentsDemoProfileModeTests.testWriterText) {
+                input.finish()
+            }
+        }
+    }
 
     /// The prompt that the root session gives to the `lead` run.
     private static let leadKey = "demo-lead-key: divide the task"
@@ -81,12 +180,7 @@ struct AgentsDemoProfileModeTests {
             ScriptedAgentPlay(key: Self.testWriterKey, steps: [.finalText(Self.testWriterText)])
         ])
 
-        let written = try await Self.chatLines(script: script) { written, input in
-            let settled = written.contains { $0.hasPrefix(AgentsDemoModes.settledPrefix) }
-            if settled && written.contains(AgentsDemoModes.rootLine(Self.deliveredText)) {
-                input.finish()
-            }
-        }
+        let written = try await Self.run(.chat, script: script, reader: SettledMailReader()).written
         let leadPrefix = AgentsDemoModes.runLine(agent: AgentsDemoModes.leadAgent, status: "", level: 0)
         let leadLine = try #require(written.first { $0.hasPrefix(leadPrefix) })
 
@@ -108,14 +202,7 @@ struct AgentsDemoProfileModeTests {
                 steps: [.finalText(Self.rootText), .finalText(Self.userAnswer)])
         ])
 
-        let written = try await Self.chatLines(script: script) { written, input in
-            if written.last == AgentsDemoModes.rootLine(Self.rootText) {
-                input.yield(Self.userLine)
-            }
-            if written.last == AgentsDemoModes.rootLine(Self.userAnswer) {
-                input.finish()
-            }
-        }
+        let written = try await Self.run(.chat, script: script, reader: UserLineReader()).written
 
         #expect(written == [AgentsDemoModes.rootLine(Self.rootText), AgentsDemoModes.rootLine(Self.userAnswer)])
     }
@@ -139,12 +226,7 @@ struct AgentsDemoProfileModeTests {
             ScriptedAgentPlay(key: Self.lateReviewerKey, steps: [.wait(gate), .finalText(Self.lateReviewerText)])
         ])
 
-        let written = try await Self.chatLines(script: script) { written, input in
-            if written.last == AgentsDemoModes.rootLine(Self.deliveredText) {
-                await gate.waitForArrival()
-                input.finish()
-            }
-        }
+        let written = try await Self.run(.chat, script: script, reader: GatedRunReader(gate: gate)).written
         let cancelledLine = AgentsDemoModes.runLine(
             agent: AgentsDemoModes.reviewerAgent, status: AgentsDemoModes.status(of: .cancelled), level: 0)
 
@@ -155,10 +237,6 @@ struct AgentsDemoProfileModeTests {
     @Test("the fan-out mode writes the mail answer and one result from each generation slot",
         .timeLimit(.minutes(1)))
     func fanOutModeWritesOneResultFromEachSlot() async throws {
-        let recordings = try TemporaryLayer.makeEmpty()
-        defer { try? recordings.delete() }
-        let workingDirectory = try TemporaryLayer.makeEmpty()
-        defer { try? workingDirectory.delete() }
         let script = ScriptedAgentScript([
             NestedRunTests.parentPlay(
                 AgentsDemoModes.fanOutInstructions,
@@ -169,80 +247,70 @@ struct AgentsDemoProfileModeTests {
             ScriptedAgentPlay(key: AgentsDemoModes.reviewerPrompt, steps: [.finalText(Self.reviewerText)]),
             ScriptedAgentPlay(key: AgentsDemoModes.testWriterPrompt, steps: [.finalText(Self.testWriterText)])
         ])
-        let (router, profile) = try await ScriptedProfile.make(script: script, recordingsDir: recordings.root)
 
-        let written = try await Self.conversation(
-            mode: { input, output in
-                try await AgentsDemoModes.fanOut(
-                    profile: profile, registry: AgentRegistry(stack: FixtureLibrary.stack()),
-                    workingDirectory: workingDirectory.root, input: input, output: output)
-            },
-            reader: { written, input in
-                let answer = written.last { $0.hasPrefix(AgentsDemoModes.rootPrefix) }
-                if let answer, answer.contains(Self.reviewerText), answer.contains(Self.testWriterText) {
-                    input.finish()
-                }
-            })
-        let slots = try Self.recordedSlots(in: recordings.root)
-        withExtendedLifetime(router) {}
+        let record = try await Self.run(.fanOut, script: script, reader: FanOutAnswerReader())
 
-        #expect(written.contains(AgentsDemoModes.fanOutLine(
+        #expect(record.written.contains(AgentsDemoModes.fanOutLine(
             agent: AgentsDemoModes.reviewerAgent, model: ModelSlot.flash.rawValue, text: Self.reviewerText)))
-        #expect(written.contains(AgentsDemoModes.fanOutLine(
+        #expect(record.written.contains(AgentsDemoModes.fanOutLine(
             agent: AgentsDemoModes.testWriterAgent, model: ModelSlot.standard.rawValue, text: Self.testWriterText)))
-        #expect(Set(slots.map(\.rawValue)) == Set([ModelSlot.flash, ModelSlot.standard].map(\.rawValue)))
+        #expect(Set(record.slots.map(\.rawValue)) == Set([ModelSlot.flash, ModelSlot.standard].map(\.rawValue)))
     }
 
     // MARK: - Helpers
 
-    /// Runs the chat mode over the fixture library with a scripted profile
-    /// that plays `script`.
+    /// Runs `mode` over the fixture library with a scripted profile that
+    /// plays `script`, in a temporary recordings folder and a temporary
+    /// working directory.
     ///
     /// - Parameters:
+    ///   - mode: The mode to run.
     ///   - script: The script of each generation slot.
     ///   - reader: The receiver of each line. It must end the input.
-    /// - Returns: The lines that the mode wrote, in order.
+    /// - Returns: The lines that the mode wrote, and the slot of each session
+    ///   that recorded.
     /// - Throws: The error of the profile, of the file system, or of the mode.
-    private static func chatLines(script: ScriptedAgentScript, reader: Reader) async throws -> [String] {
+    private static func run(
+        _ mode: ProfileMode, script: ScriptedAgentScript, reader: some LineReading
+    ) async throws -> ModeRecord {
         let recordings = try TemporaryLayer.makeEmpty()
         defer { try? recordings.delete() }
         let workingDirectory = try TemporaryLayer.makeEmpty()
         defer { try? workingDirectory.delete() }
         let (router, profile) = try await ScriptedProfile.make(script: script, recordingsDir: recordings.root)
         let written = try await conversation(
-            mode: { input, output in
-                try await AgentsDemoModes.chat(
-                    profile: profile, registry: AgentRegistry(stack: FixtureLibrary.stack()),
-                    workingDirectory: workingDirectory.root, input: input, output: output)
-            },
-            reader: reader)
+            mode: mode, profile: profile, workingDirectory: workingDirectory.root, reader: reader)
+        let slots = try recordedSlots(in: recordings.root)
         withExtendedLifetime(router) {}
-        return written
+        return ModeRecord(written: written, slots: slots)
     }
 
     /// Runs a mode with an input stream, and gives each line that it writes
     /// to `reader`.
     ///
     /// - Parameters:
-    ///   - mode: The work of the mode, over the input and the output.
+    ///   - mode: The mode to run.
+    ///   - profile: The resolved profile.
+    ///   - workingDirectory: The working directory of the runs.
     ///   - reader: The receiver of each line. It must end the input, else the
     ///     mode does not end.
     /// - Returns: The lines that the mode wrote, in order.
     /// - Throws: The error of the mode.
     private static func conversation(
-        mode: @escaping @Sendable (AgentsDemoInput, @escaping AgentsDemoOutput) async throws -> Void,
-        reader: Reader
+        mode: ProfileMode, profile: LanguageModelProfile, workingDirectory: URL, reader: some LineReading
     ) async throws -> [String] {
-        let (input, inputContinuation) = AsyncStream.makeStream(of: String.self)
+        let (input, inputContinuation) = AgentsDemoInput.makeStream()
         let (lines, linesContinuation) = AsyncStream.makeStream(of: String.self)
         let run = Task {
             defer { linesContinuation.finish() }
-            try await mode(input) { linesContinuation.yield($0) }
+            try await mode.run(profile: profile, workingDirectory: workingDirectory, input: input) {
+                linesContinuation.yield($0)
+            }
         }
         var written: [String] = []
         for await line in lines {
             written.append(line)
-            await reader(written, inputContinuation)
+            await reader.didWrite(written, input: inputContinuation)
         }
         try await run.value
         return written
