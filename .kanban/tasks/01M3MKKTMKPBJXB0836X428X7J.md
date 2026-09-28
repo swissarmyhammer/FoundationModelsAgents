@@ -81,6 +81,48 @@ comments:
     - evidence: `swift build -Xswiftc -warnings-as-errors` — build OK, 0 compiler warnings; `swift test -Xswiftc -warnings-as-errors` — 389 tests in 56 suites, all pass, 0 fail, 0 skip; `swiftlint lint Sources Tests Package.swift Examples` — 0 violations in 134 files; `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` — build OK, 0 compiler warnings
     - next: no action. The set of changes is clean.
   timestamp: 2026-09-28T23:19:04.170783+00:00
+- actor: claude-code
+  id: 01m3n58b8g8h8ezt41wr0nsfy7
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (66777ce): 1 finding, 1 confirmed, 0 refuted — Tests/FoundationModelsAgentsTests/ScriptedTranscriptTextTests.swift:13 (completeness/case-sensitivity-coverage)
+    - next: Add one test that uses an uppercase completion token. Then run the review again. The task stays in review.
+  timestamp: 2026-09-28T23:23:00.240314+00:00
+- actor: claude-code
+  id: 01m3n58mm91bcw0ehb8mntw6c2
+  text: |-
+    ### finish iteration 2 — findings
+    - implement: changed — 3 files (idArguments(for:id:), case-insensitive token regex, lowercase token test)
+    - test: green — swift test -Xswiftc -warnings-as-errors, 389 passed, 0 failed; swiftlint 0; IntegrationTests build-tests complete
+    - commit: 66777ce
+    - review: findings — Tests/FoundationModelsAgentsTests/ScriptedTranscriptTextTests.swift:13
+  timestamp: 2026-09-28T23:23:09.833975+00:00
+- actor: claude-code
+  id: 01m3n5evqn3sv32q07q8k1bn6a
+  text: |-
+    Review finding (2026-09-28 18:19) corrected.
+    - completeness/case-sensitivity-coverage: `ScriptedTranscriptTextTests` now has one parameterized test, `completionTokenIsExtracted(token:)`, with the arguments `lowercaseToken` ("01m3n4k7gtfg8509ck31v80mjp") and `uppercaseToken` ("01M3N4K7GTFG8509CK31V80MJP"). This test replaces `lowercaseCompletionTokenIsExtracted`. Both test cases pass. The read gives each token with no change of case.
+    - Note: the test is for behavior that exists, thus it passed at the first run. No production code changed.
+    - Note: the `dump validators` file was 754,245 characters. It was too large to read whole.
+
+    ### implement — changed
+    - evidence: Tests/FoundationModelsAgentsTests/ScriptedTranscriptTextTests.swift; `swift test -Xswiftc -warnings-as-errors` 389 tests in 56 suites passed (the filtered run shows 2 test cases for the new test), 0 compiler warnings; `swiftlint lint Sources Tests Package.swift Examples` 0 violations in 134 files.
+    - next: /review
+
+    ```
+    step: implement
+    outcome: changed
+    evidence: 1 file — Tests/FoundationModelsAgentsTests/ScriptedTranscriptTextTests.swift; swift test -Xswiftc -warnings-as-errors: 389 tests in 56 suites passed (new parameterized test: 2 cases); swiftlint 0 violations in 134 files
+    task: ^x428x7j
+    ```
+  timestamp: 2026-09-28T23:26:33.717207+00:00
+- actor: claude-code
+  id: 01m3n5mh3z518jbznr5hcn76wh
+  text: |-
+    ### test — green
+    - evidence: `swift test -Xswiftc -warnings-as-errors` — 389 tests passed, 0 failed, 0 skipped, in 56 suites; `swiftlint lint Sources Tests Package.swift Examples` — 0 violations, 0 serious in 134 files; `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` — build complete, no compiler warnings
+    - next: ready for review/commit
+  timestamp: 2026-09-28T23:29:39.455607+00:00
 position_column: doing
 position_ordinal: '80'
 title: 'check agent and cancel agent right after start agent: the run can be absent before the start body adds it'
@@ -108,3 +150,12 @@ title: 'check agent and cancel agent right after start agent: the run can be abs
 
 - [x] `Tests/FoundationModelsAgentsTests/Support/ScriptedTranscriptText.swift:76` `swift/fluent-usage` — The first argument label is omitted, but this is not a value-preserving conversion. Factory methods and functions that construct/format data must label all arguments to read as grammatical phrases at the call site. Change the parameter from `_ operation:` to `for operation:` (or another appropriate label), so the call reads: `ScriptedTranscriptText.idArguments(for: operation, id: ...)`.
 - [x] `Tests/FoundationModelsAgentsTests/Support/ScriptedTranscriptText.swift:84` `completeness/case-sensitivity-coverage` — The new regex pattern `[0-9A-HJKMNP-TV-Z]{26}` is case-sensitive—it only matches uppercase letters. ULIDs use Crockford base-32 encoding, which is defined as case-insensitive. If the router ever generates lowercase completion tokens (e.g., `wf_abc123xyz...` instead of `WF_ABC123XYZ...`), this regex will fail to extract them. No test exercises lowercase completion tokens. Either update the regex to be case-insensitive—`(?i)[0-9A-HJKMNP-TV-Z]{26}`—or add a regression test that verifies the behavior when a lowercase token appears (either that it is rejected, or that it is normalized and accepted).
+
+## Review Findings (2026-09-28 18:19)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 3 file(s) reviewed, 2 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+- [x] `Tests/FoundationModelsAgentsTests/ScriptedTranscriptTextTests.swift:13` `completeness/case-sensitivity-coverage` — The completionTokenField regex was changed to match tokens case-insensitively using (?i:[0-9A-HJKMNP-TV-Z]{26}), but the test only verifies lowercase tokens work. Testing an uppercase variant would confirm the case-insensitive matching actually applies to both canonical (lowercase) and non-canonical (uppercase) spellings, not just that lowercase happens to be accepted. Add one test that uses an uppercase token (e.g., '01M3N4K7GTFG8509CK31V80MJP') to verify the case-insensitive matching works for the non-canonical spelling.
