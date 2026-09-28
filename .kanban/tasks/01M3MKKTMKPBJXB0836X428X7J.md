@@ -39,6 +39,48 @@ comments:
     - evidence: swift build -Xswiftc -warnings-as-errors — build complete, 0 errors; swift test -Xswiftc -warnings-as-errors — 388 tests, 55 suites, 0 failed; swiftlint lint Sources Tests Package.swift Examples — 0 violations, 0 serious, 133 files; cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors — build complete, 0 errors
     - next: none
   timestamp: 2026-09-28T23:05:01.947629+00:00
+- actor: claude-code
+  id: 01m3n4jwn8xqr90bdtnbhrt2dx
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD; 2 findings (2 confirmed, 0 refuted) — Tests/FoundationModelsAgentsTests/Support/ScriptedTranscriptText.swift:76, Tests/FoundationModelsAgentsTests/Support/ScriptedTranscriptText.swift:84
+    - next: Correct the 2 open items in the "Review Findings (2026-09-28 18:05)" section. Then do the review again. The task stays in review.
+  timestamp: 2026-09-28T23:11:17.160897+00:00
+- actor: claude-code
+  id: 01m3n4k7gtfg8509ck31v80mjp
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 8 files
+    - test: green — swift test -Xswiftc -warnings-as-errors, 388 tests in 55 suites passed; swiftlint 0; IntegrationTests build-tests complete
+    - commit: 9acf42b
+    - review: findings — Tests/FoundationModelsAgentsTests/Support/ScriptedTranscriptText.swift:76, Tests/FoundationModelsAgentsTests/Support/ScriptedTranscriptText.swift:84
+  timestamp: 2026-09-28T23:11:28.282591+00:00
+- actor: claude-code
+  id: 01m3n4v5g70by04jydpwg757a9
+  text: |-
+    Review findings (2026-09-28 18:05) corrected.
+    - swift/fluent-usage: `ScriptedTranscriptText.idArguments(_:id:)` is now `idArguments(for:id:)`. The one call site (`ScriptedAgentModel.swift`, step `toolCallWithLastToken`) uses `for:`. The other functions of the file all have a first label already (`of:`, `in:`). Note: `AgentsToolMountTests` and `AgentSchedulingTests` each have a private `idArguments(_ operation:, of run:)` of the same shape. Those files were not in the scope of this finding, thus they did not change.
+    - completeness/case-sensitivity-coverage: the token group of `completionTokenField` is now `(?i:[0-9A-HJKMNP-TV-Z]{26})`. Only the token is case-insensitive; the JSON field name `completionToken` still matches in its one case. The read gives the token with no change of case.
+    - RED: new `ScriptedTranscriptTextTests.lowercaseCompletionTokenIsExtracted` failed first with `completionToken(in:) -> nil` for a lowercase ULID. GREEN after the regex change.
+
+    ### implement — changed
+    - evidence: Tests/FoundationModelsAgentsTests/Support/ScriptedTranscriptText.swift, Tests/FoundationModelsAgentsTests/Support/ScriptedAgentModel.swift, Tests/FoundationModelsAgentsTests/ScriptedTranscriptTextTests.swift (new); `swift test -Xswiftc -warnings-as-errors` 389 tests in 56 suites passed, 0 compiler warnings; `swiftlint lint Sources Tests Package.swift Examples` 0 violations in 134 files; `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` Build complete.
+    - next: /review
+
+    ```
+    step: implement
+    outcome: changed
+    evidence: 3 files — Tests/FoundationModelsAgentsTests/Support/ScriptedTranscriptText.swift, Tests/FoundationModelsAgentsTests/Support/ScriptedAgentModel.swift, Tests/FoundationModelsAgentsTests/ScriptedTranscriptTextTests.swift (new); swift test -Xswiftc -warnings-as-errors: 389 tests in 56 suites passed; swiftlint 0 violations in 134 files; IntegrationTests build-tests complete
+    task: ^x428x7j
+    ```
+  timestamp: 2026-09-28T23:15:48.359666+00:00
+- actor: claude-code
+  id: 01m3n514qa7ckwge6a38n5z4th
+  text: |-
+    ### test — green
+    - evidence: `swift build -Xswiftc -warnings-as-errors` — build OK, 0 compiler warnings; `swift test -Xswiftc -warnings-as-errors` — 389 tests in 56 suites, all pass, 0 fail, 0 skip; `swiftlint lint Sources Tests Package.swift Examples` — 0 violations in 134 files; `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` — build OK, 0 compiler warnings
+    - next: no action. The set of changes is clean.
+  timestamp: 2026-09-28T23:19:04.170783+00:00
 position_column: doing
 position_ordinal: '80'
 title: 'check agent and cancel agent right after start agent: the run can be absent before the start body adds it'
@@ -56,3 +98,13 @@ title: 'check agent and cancel agent right after start agent: the run can be abs
 
 ## Tests
 - [x] `swift test -Xswiftc -warnings-as-errors` passes.
+
+## Review Findings (2026-09-28 18:05)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 8 file(s) reviewed, 4 not reviewed.
+
+> 4 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 4 file(s)
+
+- [x] `Tests/FoundationModelsAgentsTests/Support/ScriptedTranscriptText.swift:76` `swift/fluent-usage` — The first argument label is omitted, but this is not a value-preserving conversion. Factory methods and functions that construct/format data must label all arguments to read as grammatical phrases at the call site. Change the parameter from `_ operation:` to `for operation:` (or another appropriate label), so the call reads: `ScriptedTranscriptText.idArguments(for: operation, id: ...)`.
+- [x] `Tests/FoundationModelsAgentsTests/Support/ScriptedTranscriptText.swift:84` `completeness/case-sensitivity-coverage` — The new regex pattern `[0-9A-HJKMNP-TV-Z]{26}` is case-sensitive—it only matches uppercase letters. ULIDs use Crockford base-32 encoding, which is defined as case-insensitive. If the router ever generates lowercase completion tokens (e.g., `wf_abc123xyz...` instead of `WF_ABC123XYZ...`), this regex will fail to extract them. No test exercises lowercase completion tokens. Either update the regex to be case-insensitive—`(?i)[0-9A-HJKMNP-TV-Z]{26}`—or add a regression test that verifies the behavior when a lowercase token appears (either that it is rejected, or that it is normalized and accepted).

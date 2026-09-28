@@ -73,15 +73,17 @@ enum ScriptedTranscriptText {
     ///   - operation: The op of the call.
     ///   - id: The id that the call names.
     /// - Returns: The JSON text.
-    static func idArguments(_ operation: String, id: String) -> String {
+    static func idArguments(for operation: String, id: String) -> String {
         #"{"op": "\#(operation)", "id": "\#(id)"}"#
     }
 
     /// The `completionToken` field of a rendered `PendingRunEnvelope`: a
-    /// ULID of 26 Crockford base-32 characters. A computed property, because
-    /// a `Regex` is not `Sendable`.
+    /// ULID of 26 Crockford base-32 characters. Crockford base-32 is
+    /// case-insensitive, thus the token matches in each case. The field name
+    /// is JSON, thus it matches in its one case only. A computed property,
+    /// because a `Regex` is not `Sendable`.
     private static var completionTokenField: Regex<(Substring, token: Substring)> {
-        #/"completionToken":"(?<token>[0-9A-HJKMNP-TV-Z]{26})"/#
+        #/"completionToken":"(?<token>(?i:[0-9A-HJKMNP-TV-Z]{26}))"/#
     }
 
     /// The text of each `.prompt` entry of `transcript`, in transcript order.

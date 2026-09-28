@@ -334,7 +334,7 @@ struct ScriptedAgentExecutor: LanguageModelExecutor {
             .toolCalls(
                 name: name,
                 argumentsJSON: ScriptedTranscriptText.idArguments(
-                    operation, id: ScriptedTranscriptText.lastCompletionToken(of: transcript)),
+                    for: operation, id: ScriptedTranscriptText.lastCompletionToken(of: transcript)),
                 count: singleCall)
         case .finalText(let text):
             .finalText(text)
