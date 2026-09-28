@@ -159,7 +159,7 @@ You are a code reviewer. Analyze the code and give specific feedback.
 
 | Tier | Fields | Behavior |
 |---|---|---|
-| 1 — enforced | `name`, `description` (required); `tools`, `disallowedTools`; `model`; `skills`; `maxTurns`; `compactionPrompt`; `disable-model-invocation`, `user-invocable` | Full semantics (§5–§9) |
+| 1 — enforced | `name` (a warning when absent or not equal to the file name; the file name is the id); `description` (a warning when absent or empty; the agent is then not model-visible); `tools`, `disallowedTools`; `model`; `skills`; `maxTurns`; `compactionPrompt`; `disable-model-invocation`, `user-invocable` | Full semantics (§5–§9) |
 | 2 — data | `color`; `background`; unknown keys | On `AgentListing`. `background: false` gets an advisory; all runs are background runs. |
 | 3 — not supported | `permissionMode`, `mcpServers`, `hooks`, `memory`, `effort`, `isolation`, `initialPrompt` | Advisory, then ignored. A Claude file loads. |
 
@@ -564,8 +564,10 @@ recorder, or a display model.
   caller (`ToolContext.sessionID` or `nil`), slot, and depth; plus the
   records of finished runs.
 - `runner.catalog()`: the registry catalog with the model match.
-- Host-driven fan-out:
-  `async let a = runner.start("code-reviewer", prompt: p1).result()`.
+- Host-driven fan-out. `start` is `async throws(AgentRunnerError)` and
+  `result()` is `async throws`:
+  `async let a = try await runner.start("code-reviewer", prompt: p1).result()`,
+  then `let reviewA = try await a`.
 - `run.cancel()` cancels the answer and the open children. `cancelRuns(caller:)`
   cancels each open run of one caller. `stop()` cancels all and closes all
   sessions.

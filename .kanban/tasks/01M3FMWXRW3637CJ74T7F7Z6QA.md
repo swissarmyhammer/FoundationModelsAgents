@@ -31,10 +31,26 @@ comments:
     - evidence: 26 files — plan.md; Sources/FoundationModelsAgents/FoundationModelsAgents.docc/{TheFinalMessage,RunningAnAgent,DelegatingWithTheAgentsTool}.md; Sources/FoundationModelsAgents/Tool/{AgentsToolText,AgentsToolDescription,AgentsTool}.swift; Sources/FoundationModelsAgents/Run/{AgentRunProgress,AgentRun+Children,AgentRunner}.swift; Sources/FoundationModelsAgents/CLI/{AgentsCLI,AgentsCLIOperations}.swift; Tests/FoundationModelsAgentsTests/{DocumentationTests,RunModelWordingTests (new),AgentsToolMountTests,AgentsToolDescriptionTests,AgentRunProgressTests,CheckAgentProgressTests,AgentSchedulingTests,AgentSchedulingTests+CallingRun,Support/ScriptedAgentModel}.swift; IntegrationTests/Tests/AgentsIntegrationTests/{LiveSlotTests,LiveNestedTests,Support/LiveTools,Support/LiveHarness,Support/LiveProfile}.swift (comments only); Examples/agents-demo/AgentsDemoProfile.swift (comments only). `swift build -Xswiftc -warnings-as-errors`: Build complete. `swift test -Xswiftc -warnings-as-errors`: 382 tests in 53 suites passed. swiftlint: 0 violations. Not committed.
     - next: /review
   timestamp: 2026-09-28T22:21:52.965455+00:00
+- actor: claude-code
+  id: 01m3n2a99m21r3s3yazkxyswg8
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (dccb6fc). 0 findings (confirmed 0, refuted 1, attempted 7, failed 0). 23 files reviewed. 8 files not reviewed: 4 .kanban files (ignore rule), and plan.md, DelegatingWithTheAgentsTool.md, RunningAnAgent.md, TheFinalMessage.md (no validator matches these files).
+    - next: none. All acceptance criteria are checked. The task is in done.
+  timestamp: 2026-09-28T22:31:38.036282+00:00
+- actor: claude-code
+  id: 01m3n2aj2bk6f4ry78ngfrjrpd
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 26 files (plan, DocC, tool text, doc comments, RunModelWordingTests)
+    - test: green — swift test -Xswiftc -warnings-as-errors, 382 passed; swiftlint 0; IntegrationTests build passes
+    - commit: dccb6fc
+    - review: clean — 0 findings (no validator reads plan.md or the DocC articles)
+  timestamp: 2026-09-28T22:31:47.019387+00:00
 depends_on:
 - 01M3A6EGTPK2A08N066GGPYAEM
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: b880
 title: 'Documents for background runs: plan §8 and §9, the README, TheFinalMessage and the tool text'
 ---
 ## What
