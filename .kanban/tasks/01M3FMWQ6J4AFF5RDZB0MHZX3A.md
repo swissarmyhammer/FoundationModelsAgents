@@ -80,10 +80,26 @@ comments:
     - next: /review ^0mhzx3a
     task: ^0mhzx3a
   timestamp: 2026-09-28T20:58:56.201317+00:00
+- actor: claude-code
+  id: 01m3mxad3csd38w093358sy2zf
+  text: |-
+    ### review — clean
+    - evidence: 0 findings. `review sha HEAD~1..HEAD` (9de4de9). 3 files reviewed, 4 files under .kanban/ not reviewed (ignore rule). All items of the review of 2026-09-28 15:45 are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-09-28T21:04:19.052630+00:00
+- actor: claude-code
+  id: 01m3mxamw2zv26cgek8t0p7bkk
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — 3 files (make- factory names; exhaustive SessionEvent switch)
+    - test: the implementer's full run passed 379 tests; I re-ran only the build (pass) and swiftlint (0); no separate test step this iteration
+    - commit: 9de4de9
+    - review: clean — 0 findings
+  timestamp: 2026-09-28T21:04:27.010634+00:00
 depends_on:
 - 01M3A6EGTPK2A08N066GGPYAEM
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: b680
 title: 'Hosts on the Router pump: agents-demo, slash commands, the CLI and the README example'
 ---
 ## What
