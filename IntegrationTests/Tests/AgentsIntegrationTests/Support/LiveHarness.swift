@@ -8,8 +8,8 @@ import Testing
 /// The parent suite of each live suite of this package.
 ///
 /// `.serialized` applies to each nested suite, thus one live test at a time
-/// uses the models. The Router holds the generation gate of a model for the
-/// whole turn, also while a tool call waits. Two live tests at the same time
+/// uses the models. The generation queue of a model runs one submission at a
+/// time, also while a tool call waits. Two live tests at the same time
 /// can then block each other: a tool that waits in one test keeps a slot
 /// busy that a run of the other test needs.
 @Suite("Live", .serialized)

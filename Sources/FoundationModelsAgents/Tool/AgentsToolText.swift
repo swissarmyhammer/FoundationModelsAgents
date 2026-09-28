@@ -88,19 +88,20 @@ enum AgentsToolText {
     /// Gives the `next` sentence of the pending envelope of a call in a
     /// Router session.
     ///
-    /// For `start agent` the run goes on in the background, and its final
-    /// message comes to the caller as a new message. The sentence tells the
-    /// model not to wait and not to guess the result, and how to ask about
-    /// the run with the completion token of the call.
+    /// Only `start agent` is a background call. Its run works in the
+    /// background, and its final message comes to the caller as mail. The
+    /// pump of the Router delivers the mail only after the answer of the
+    /// caller ends. Thus the sentence tells the model not to wait, not to
+    /// guess the result, and to end its answer. It also tells the model how
+    /// to ask about the run with the completion token of the call.
     ///
     /// - Parameter completionToken: The completion token of the call.
     /// - Returns: The sentence.
     static func collectInstruction(forCompletionToken completionToken: String) -> String {
         """
-        This work goes on in the background. When it is an agent, its final message comes to you \
-        as a new message when the agent finishes. Do not wait for it, and never guess its result: \
-        end your answer now, or do other work. \
-        To see its state, call {"op": "check agent", "id": "\(completionToken)"}.
+        This agent works in the background. Do not wait for it, and never guess its result. \
+        End your answer now, or do other work first: its final message comes to you as a new message \
+        after your answer ends. To see its state, call {"op": "check agent", "id": "\(completionToken)"}.
         """
     }
 

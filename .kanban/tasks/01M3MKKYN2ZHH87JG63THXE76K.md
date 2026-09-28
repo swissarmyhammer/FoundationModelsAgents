@@ -51,8 +51,24 @@ comments:
     - evidence: 1 file — Tests/FoundationModelsAgentsTests/AgentsDemoProfileModeTests.swift; swift build -Xswiftc -warnings-as-errors exit 0; swift test -Xswiftc -warnings-as-errors: 379 tests in 52 suites passed; swiftlint: 0 violations in 130 files
     - next: /review. The three findings are checked. The task stays in doing.
   timestamp: 2026-09-28T21:27:31.876837+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m3mytdz429mvff96ed6xwz39
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` (1a55cad). 0 findings (7 validator runs, 0 failed). 1 file reviewed: Tests/FoundationModelsAgentsTests/AgentsDemoProfileModeTests.swift. The 2 .kanban files were not reviewed because of .reviewignore. All 3 findings of the review of 2026-09-28 16:14 are checked.
+    - next: none. The task moved to done.
+  timestamp: 2026-09-28T21:30:32.804866+00:00
+- actor: claude-code
+  id: 01m3mytqvj39qjs67g9zr74trb
+  text: |-
+    ### finish iteration 2 — clean
+    - iteration 1: implement no-change (met by ea24368/9de4de9 of ^0mhzx3a); review of the files gave 3 findings (reviewer marked stuck; not a true conflict: the rule is met with no function type)
+    - iteration 2: implement changed — AgentsDemoProfileModeTests.swift; 379 tests passed; swiftlint 0
+    - commit: 1a55cad
+    - review: clean — 0 findings
+  timestamp: 2026-09-28T21:30:42.930840+00:00
+position_column: done
+position_ordinal: b780
 title: 'agents-demo --chat: count the start calls from the pending envelopes, not from runner.runs after the first answer'
 ---
 ## Why

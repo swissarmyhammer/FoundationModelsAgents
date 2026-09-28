@@ -66,10 +66,10 @@ struct DocumentationTests {
     // MARK: - The DocC catalog
 
     /// The DocC catalog of the library, relative to the package root.
-    private static let catalogPath = "Sources/FoundationModelsAgents/FoundationModelsAgents.docc"
+    static let catalogPath = "Sources/FoundationModelsAgents/FoundationModelsAgents.docc"
 
     /// The suffix of a page of the catalog.
-    private static let pageSuffix = ".md"
+    static let pageSuffix = ".md"
 
     /// The landing page of the catalog.
     private static let landingPage = "FoundationModelsAgents"
@@ -89,8 +89,8 @@ struct DocumentationTests {
     /// The four articles of the catalog.
     private static let articles = [catalogArticle, runArticle, toolArticle, finalMessageArticle]
 
-    /// Each page of the catalog.
-    private static let pages = [landingPage] + articles
+    /// Each page of the catalog. `RunModelWordingTests` reads each page too.
+    static let pages = [landingPage] + articles
 
     /// The words that give speed as the reason of a design. The reason that
     /// the registry reads its files in `load()` is that the I/O shows at the
@@ -104,6 +104,18 @@ struct DocumentationTests {
 
     /// The rule for an agent with no `tools` key (plan.md §5).
     private static let noToolsKeyRule = "An agent with no `tools` key gets no `agents` tool."
+
+    /// The rule of the mount of `start agent` (plan.md §9.1).
+    private static let backgroundRunRule = "`start agent` is a background run."
+
+    /// The rule that gives the final message to the caller (plan.md §9.2).
+    private static let mailRule = "The final message comes to the calling session as mail."
+
+    /// The rule that delivers the mail (plan.md §9.2).
+    private static let pumpRule = "The pump of the Router delivers the mail."
+
+    /// The rule of the end of a run (plan.md §8 step 8).
+    private static let idleRule = "A run ends when its session is idle."
 
     /// Every claim that a page must make.
     private static let claims: [Claim] =
@@ -129,7 +141,13 @@ struct DocumentationTests {
             Claim(page: toolArticle, text: "`cancel agent`"),
             Claim(page: toolArticle, text: "To run a skill in its own context"),
             Claim(page: finalMessageArticle, text: "`.completed` `OperationEvent`"),
-            Claim(page: finalMessageArticle, text: "`dispatchNextPrompt()`"),
+            Claim(page: runArticle, text: idleRule),
+            Claim(page: toolArticle, text: backgroundRunRule),
+            Claim(page: toolArticle, text: mailRule),
+            Claim(page: finalMessageArticle, text: backgroundRunRule),
+            Claim(page: finalMessageArticle, text: mailRule),
+            Claim(page: finalMessageArticle, text: pumpRule),
+            Claim(page: finalMessageArticle, text: idleRule),
             Claim(page: finalMessageArticle, text: "``AgentRunner/cancelRuns(caller:)``")
         ]
 

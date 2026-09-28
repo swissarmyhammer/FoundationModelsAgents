@@ -24,17 +24,18 @@ enum ScriptedAgentStep: Sendable {
     /// Answers with the text of each prompt of the session after the first
     /// prompt, with a blank line between two prompts. The turn ends here.
     ///
-    /// A run that waits for its children reads their final messages in the
-    /// prompts of its delivery turns. Thus this answer holds each final
-    /// message that the run read.
+    /// A run that waits for its children reads their final messages as mail,
+    /// in the prompts of its answers to mail. Thus this answer holds each
+    /// final message that the run read.
     case finalTextOfLaterPrompts
 
     /// Answers with the text of the newest prompt of the session only. The
     /// turn ends here.
     ///
-    /// A real model replies to each delivery post by itself. Thus a run that
-    /// reads one final message in each delivery turn answers with that final
-    /// message only, and not with the final messages of earlier turns.
+    /// A real model replies to each final message by itself. Thus a run that
+    /// reads one final message in each answer to mail answers with that
+    /// final message only, and not with the final messages of earlier
+    /// answers.
     case finalTextOfLastPrompt
 
     /// Holds the turn until the test opens the gate. The step gives no

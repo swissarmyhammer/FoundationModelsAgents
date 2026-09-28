@@ -54,9 +54,9 @@ extension AgentSchedulingTests {
         /// Makes the script of the test.
         ///
         /// The parent starts the child, waits on `parentGate`, and answers.
-        /// Then it answers the delivery turn and the final-answer turn with
-        /// the prompts that it read. The child waits on `childGate`, then
-        /// answers.
+        /// Then it answers the final message of the child, which comes as
+        /// mail, with the prompts that it read. The child waits on
+        /// `childGate`, then answers.
         ///
         /// - Parameters:
         ///   - parentGate: The gate that holds the task turn of the parent.

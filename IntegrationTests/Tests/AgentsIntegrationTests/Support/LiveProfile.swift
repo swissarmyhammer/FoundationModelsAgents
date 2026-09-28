@@ -13,7 +13,7 @@ import Tokenizers
 ///
 /// The profile has small `mlx-community` models: a different model in the
 /// `standard` slot and in the `flash` slot, and an embedding model. Thus each
-/// generation slot has its own generation gate. The recipe is the recipe of
+/// generation slot has its own generation queue. The recipe is the recipe of
 /// `Examples/agents-demo/AgentsDemoProfile.swift`: a `Router` over the live
 /// model loader, then one resolve of ``definition``.
 ///

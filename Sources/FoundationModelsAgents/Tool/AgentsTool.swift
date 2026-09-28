@@ -176,7 +176,8 @@ extension AgentsTool: BackgroundTool {
     }
 
     /// Gives the `next` sentence of the pending envelope of a call: the run
-    /// goes on in the background, and its final message comes as a message.
+    /// works in the background, and its final message comes as mail after
+    /// the answer of the model ends.
     ///
     /// - Parameter completionToken: The completion token of the call.
     /// - Returns: The sentence. It names `completionToken`.

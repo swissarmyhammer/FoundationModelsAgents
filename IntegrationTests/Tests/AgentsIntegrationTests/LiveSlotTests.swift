@@ -10,9 +10,9 @@ extension LiveSuites {
     ///   the slot.
     /// - A run on the `flash` slot and a run on the `standard` slot are in
     ///   operation at the same time. The `standard` run waits in
-    ///   ``LiveHoldTool``, and the Router holds the generation gate of a model
-    ///   for the whole turn. The `flash` run can finish in that time only when
-    ///   the two slots have two gates.
+    ///   ``LiveHoldTool``, and its submission holds its place in the generation
+    ///   queue of its model while the tool waits. The `flash` run can finish in
+    ///   that time only when the two slots have two queues.
     @Suite("Live slots", .serialized, .timeLimit(LiveProfile.timeLimit))
     struct LiveSlotTests {
         /// The agent whose `model` is the model reference of the `flash`

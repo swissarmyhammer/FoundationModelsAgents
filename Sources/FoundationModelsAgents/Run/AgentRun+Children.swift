@@ -20,7 +20,7 @@ enum AgentRunPhase: Sendable, Equatable {
 
     /// The run is in an answer to the final message of a run that it
     /// started.
-    case delivery
+    case answeringMail
 
     /// Gives the phase of a run after one session event.
     ///
@@ -29,7 +29,7 @@ enum AgentRunPhase: Sendable, Equatable {
     ///   - current: The phase before the event.
     init(after answers: AgentRunAnswers, current: AgentRunPhase) {
         if answers.isAnswerOpen {
-            self = answers.hasAnswered ? .delivery : .taskTurn
+            self = answers.hasAnswered ? .answeringMail : .taskTurn
         } else if answers.hasAnswered {
             self = .waitingForChildren
         } else {

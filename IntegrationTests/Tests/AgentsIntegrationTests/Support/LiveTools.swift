@@ -74,8 +74,9 @@ final class LiveWordTool: Tool {
 
 /// A tool that holds its call until the test opens it.
 ///
-/// The Router holds the generation gate of the model for the whole turn,
-/// thus a held call keeps the run in operation, and keeps its slot busy.
+/// The generation queue of a model runs one submission at a time, and a
+/// submission holds its place while a tool call waits. Thus a held call keeps
+/// the run in operation, and keeps its slot busy.
 final class LiveHoldTool: Tool {
     /// The tool takes no arguments.
     @Generable

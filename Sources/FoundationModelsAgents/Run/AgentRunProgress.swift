@@ -66,8 +66,8 @@ struct AgentRunProgress: Sendable, Equatable {
             "the task turn"
         case .waitingForChildren:
             "the wait for the agents that it started"
-        case .delivery:
-            "a delivery turn"
+        case .answeringMail:
+            "an answer to a final message"
         }
     }
 

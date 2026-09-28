@@ -94,9 +94,9 @@ struct CheckAgentProgressTests {
     }
 
     @Test(
-        "check agent in an answer to mail gives the delivery phase and the new passes; the tail updates at its end",
+        "check agent in an answer to mail gives the mail phase and the new passes; the tail updates at its end",
         .timeLimit(.minutes(1)))
-    func deliveryTurnGivesProgress() async throws {
+    func answerToMailGivesProgress() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([
@@ -120,7 +120,7 @@ struct CheckAgentProgressTests {
         gate.open()
         let result = try await lead.result()
 
-        #expect(progress.phase == .delivery)
+        #expect(progress.phase == .answeringMail)
         #expect(progress.passes == Self.mailPassesAtGate)
         #expect(
             progress.toolNames

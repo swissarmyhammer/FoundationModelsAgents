@@ -33,7 +33,7 @@ struct AgentRunProgressTests {
     /// The text of the answer of a turn.
     private static let answer = "The diff is correct."
 
-    /// The text that a delivery turn gives.
+    /// The text of an answer to a final message.
     private static let deliveredText = "Both agents finished."
 
     /// The session of each tool-invocation record.
@@ -95,11 +95,11 @@ struct AgentRunProgressTests {
     func firstLineTellsEachPhase() {
         var waiting = AgentRunProgress()
         waiting.phase = .waitingForChildren
-        var delivery = AgentRunProgress()
-        delivery.phase = .delivery
+        var answeringMail = AgentRunProgress()
+        answeringMail.phase = .answeringMail
 
         #expect(waiting.text.hasPrefix("Phase: the wait for the agents that it started.\n"))
-        #expect(delivery.text.hasPrefix("Phase: a delivery turn.\n"))
+        #expect(answeringMail.text.hasPrefix("Phase: an answer to a final message.\n"))
     }
 
     @Test("an entry event adds no pass: the text tells the count that the run sets from its one counter")
@@ -154,7 +154,7 @@ struct AgentRunProgressTests {
         #expect(reset.textTail == Self.answer)
     }
 
-    @Test("the text of a delivery turn replaces the tail")
+    @Test("the text of an answer to a final message replaces the tail")
     func deliveredTextReplacesTail() {
         var progress = Self.record(applying: [.textDelta(Self.answer)])
         progress.replaceText(with: Self.deliveredText)

@@ -4,14 +4,18 @@ Read the result of a run that a model started with `start agent`.
 
 ## Overview
 
-`start agent` returns at once, and it posts nothing. The call reads
-`ToolContext.current` and gives it to the run. The run posts nothing while
-it works. All its work is in its own transcript.
+`start agent` is a background run.
+In a Router session, the call answers the model at once with the pending
+envelope of the Router. The run works in the background. All its work is in
+its own transcript.
 
-When the run ends, it posts one final message through that `ToolContext`: a
-`.completed` `OperationEvent`. The Router journals the post into the
-transcript of the calling session at once, and stages it. The next prompt of
-the calling session reads it, as a line of this form:
+The body of the call waits for the run, and gives the final message text of
+the run as the detail of the Router run. The Router makes the terminal of the
+call: a `.completed` `OperationEvent` with that detail.
+The final message comes to the calling session as mail.
+The pump of the Router delivers the mail.
+The pump puts the mail at the start of the next prompt of the calling session,
+as a line of this form, and records it in the transcript of that session:
 
 ```
 [agents] start agent (<token>) completed: <detail>
@@ -20,51 +24,55 @@ the calling session reads it, as a line of this form:
 ### The event
 
 The event is always `.completed`, because only a `.completed` event is a
-terminal that makes the caller run a turn. The `detail` is the text that
+terminal that the Router delivers as mail. The `detail` is the text that
 `check agent` gives for the run, thus it names the agent and the run:
 
 | The run | `detail` | `outcome` |
 |---|---|---|
-| Finished | "Agent `name` (`id`) finished.", a blank line, and the full text of its last turn. | `.succeeded` |
+| Finished | "Agent `name` (`id`) finished.", a blank line, and the full reply of its last answer. | `.succeeded` |
 | Failed | "Agent `name` (`id`) failed: reason." | `.failed` |
 | Cancelled | "Agent `name` (`id`) was cancelled." | `.cancelled` |
 
-The answer of `start agent` gives the run id, and not the token. The name and
-the id in the `detail` let the model join each post to the run that it
-started. When two runs finish, the caller can tell which result came from
-which. The full text stays in the `detail`, also when it is longer than 4 096
-characters.
-
-The run posts before the runner marks it finished, and it posts one time
-only. The Router drops a second terminal for the same token.
+The name and the id in the `detail` let the model join each final message to
+the run that it started. When two runs finish, the caller can tell which
+result came from which. The full text stays in the `detail`, also when it is
+longer than 4 096 characters. The Router records one terminal for each call.
 
 ### Act on the final message
 
-Each journaled `.completed` post emits `SessionEvent.runSettled(event)`, into
-the turn in operation or into `streamSessionEvents()`. A chat host waits for
-the next user prompt. An autonomous host calls `dispatchNextPrompt()`, and the
-Router runs one turn with the staged posts:
+The pump of the Router delivers mail only after the answer in operation ends.
+Thus the pending envelope tells the model not to wait and not to guess the
+result, but to end its answer. The pump then starts an answer to the mail
+with no call of the host. The Router also sends
+`SessionEvent.runSettled(event)` on `streamSessionEvents()`, and each answer
+ends with `SessionEvent.answered(_:)`. An answer that answers only mail has no
+message ids. A host reads these answers from its subscription:
 
 ```swift
-for try await event in root.streamEvents(to: userPrompt) {
-    // .runSettled: an agent run has posted its final message
+let events = await root.streamSessionEvents()   // subscribe before the first message
+_ = try await root.respond(to: userPrompt)
+for await case .answered(let answer) in events where answer.messageIds.isEmpty {
+    print(answer.reply)                          // the answer to a final message
 }
-let followUp = try await root.dispatchNextPrompt()   // reads staged posts; nil when none
 ```
 
-A run that started agents uses the same path. It does not finish while one of
-its children is open. Each time a child ends, the run calls
-`dispatchNextPrompt()` on its own session: this is a delivery turn. After the
-last delivery turn, the run sends a final-answer prompt, and the text of that
-turn is its result. The passes of each delivery turn and of each final-answer
-turn count toward `maxTurns`.
+A run that started agents uses the same path on its own session.
+A run ends when its session is idle.
+The session is idle when each run that it started ended, when the session
+answered the final message of each of those runs, when no pending envelope
+waits for its final message, and when no message waits in the queue. The
+reply of the last answer is the result of the run.
+The passes of each answer, also each answer to mail, count toward
+`maxTurns`. When the Router holds the mail and starts no answer for it
+(`SessionEvent.mailDeliveryPaused(_:)`), the run fails with
+``AgentRunFailure/mailDeliveryPaused(_:)``.
 
 ### A run with no calling session
 
-A host-driven run has no `ToolContext`, thus it posts nothing. The host reads
-the result with ``AgentRun/result()``. When a model calls `start agent`
-outside a Router session, no final message comes back, and the model asks
-about the run with `check agent`.
+A host-driven run has no `ToolContext`, thus its final message goes to no
+session. The host reads the result with ``AgentRun/result()``. When a model
+calls `start agent` outside a Router session, no final message comes back,
+and the model asks about the run with `check agent`.
 
 ### Close a calling session
 

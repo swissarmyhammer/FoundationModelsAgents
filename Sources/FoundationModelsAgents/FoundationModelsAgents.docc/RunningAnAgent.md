@@ -37,8 +37,8 @@ the catalog of the registry at each start, thus call
 ### Start a run and wait for it
 
 ``AgentRunner/start(_:prompt:)`` starts a host-driven run and gives the run at
-once. ``AgentRun/result()`` waits for the run and gives the text of its last
-turn.
+once. ``AgentRun/result()`` waits for the run and gives the reply of its last
+answer.
 
 ```swift
 let report = try await runner.start("code-reviewer", prompt: "Review:\n\(diff)").result()
@@ -79,20 +79,26 @@ and it is the name of the recording directory of the session. A run whose
 setup fails has no session: it gets a new ULID, no recording directory, and
 the state ``AgentRunState/failed(_:)``.
 
-Then one turn runs in the background with the prompt as the first user
-prompt. Nothing goes to the caller during the turn. A run that started no
-agents finishes when this turn ends, and the text of this turn is its
-result.
+Then the run sends the prompt as the first message of its session, and the
+session answers it in the background. Nothing goes to the caller during the
+answer. A run that started no agents ends when this answer ends, and the
+reply of this answer is its result.
 
-A run that started agents waits for them. Each final message of an agent
-starts a delivery turn. When no agent that the run started is open and no
-final message is unread, the run sends one more prompt: "All agents that you
-started have finished. Give your full final answer." The text of this
-final-answer turn is the result. A final-answer turn can start more agents.
-The run then waits for them, and sends the final-answer prompt again.
+A run that started agents waits for them. `start agent` is a background run
+of the Router, thus the final message of each agent comes to the session of
+the run as mail. The pump of the Router delivers the mail and starts an
+answer to it, with no call of the run. An answer to mail can start more
+agents.
 
-When the last turn ends, the run closes its session. A finished run holds no
-session.
+A run ends when its session is idle.
+The session is idle when each agent that the run started ended, when the
+session answered the final message of each of those agents, when no pending
+envelope waits for its final message, and when no message waits in the queue.
+The reply of the last answer is the result of the run. When the Router holds
+the mail and starts no answer for it, the run fails with
+``AgentRunFailure/mailDeliveryPaused(_:)``.
+
+When the run ends, it closes its session. A finished run holds no session.
 
 ### The state of a run
 
@@ -108,13 +114,14 @@ session.
 The `maxTurns` key counts the passes of the control loop. In each pass the
 model generates. Then it calls tools and the loop goes around again, or it
 answers and the loop ends. One pass that calls three tools counts as one. The
-run counts the passes over all its turns: the task turn, each delivery turn,
-and each final-answer turn. Above the limit, the run cancels its turn and
-fails with ``AgentRunFailure/hitMaxTurns(partial:)``, with the text so far.
+run counts the passes from the live events of its session, over all its
+answers: the answer to the task prompt and each answer to mail. Above the
+limit, the run stops its session and fails with
+``AgentRunFailure/hitMaxTurns(partial:)``, with the text so far.
 
 ### Cancel and stop
 
-``AgentRun/cancel()`` cancels the turn of the run and the runs that it
+``AgentRun/cancel()`` cancels the answer of the run and the runs that it
 started. The run waits for its children, closes its session, and goes to
 ``AgentRunState/cancelled``. ``AgentRunner/cancelRuns(caller:)`` cancels each
 open run of one caller. ``AgentRunner/stop()`` cancels all the runs. Both calls

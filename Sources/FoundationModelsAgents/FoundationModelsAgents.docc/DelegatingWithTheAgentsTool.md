@@ -11,12 +11,26 @@ operations:
 | Operation | Parameters | Answer |
 |---|---|---|
 | `list agents` | `filter?` | One `- name: description` line for each model-visible agent that matches. |
-| `start agent` | `name`, `prompt` | At once: "Agent `name` started with the id `id`." |
+| `start agent` | `name`, `prompt` | At once: in a Router session, the pending envelope of the Router; outside one, "Agent `name` started with the id `id`." |
 | `check agent` | `id?` | At once: the state of the run. With no `id`, one block for each run of the caller. |
 | `cancel agent` | `id` | What the cancel did. |
 
 The verb aliases are `stop` for `cancel`, `run` for `start`, `status` for
 `check`, and `show` for `list`.
+
+### The mount of each operation
+
+`start agent` is a background run.
+Its `@Operation` declares `ToolMount(mode: .background)`, thus in a Router
+session the call answers at once with the pending envelope, and the run works
+behind it. The `next` sentence of the envelope tells the model not to wait,
+never to guess the result, and to end its answer. It also gives the
+`check agent` call for the completion token of the call.
+The final message comes to the calling session as mail.
+The pump of the Router delivers it after the answer of the model ends (see
+<doc:TheFinalMessage>). `list agents`, `check agent`, and `cancel agent` are
+synchronous: each call gives its real answer in the same answer of the model.
+No call waits for a time before it answers.
 
 ### Make the tool
 
@@ -57,7 +71,7 @@ wrong and what it can do now:
 - A blank prompt.
 - A start when ``AgentEnvironment/maxConcurrentAgents`` runs have a turn in
   operation. The count does not include the run that calls `start agent`:
-  after its turn, that run waits for the new child, and a run that waits holds
+  after its answer, that run waits for the new child, and a run that waits holds
   no place. Thus with a limit of one, a parent and one child can work at one
   time. The runner keeps no queue: the model does the work itself, or starts
   the agent later.
@@ -78,11 +92,13 @@ its own `agents` tool when its depth is less than ``AgentEnvironment/maxDepth``.
 A run at the depth limit gets no `agents` tool.
 
 A run that starts agents finishes only after each of them ends. While it
-waits, it holds no place in the run limit. Each final message of a child
-starts a delivery turn of the parent, and the parent can start more agents in
-that turn. When all its children ended, the parent gets a final-answer prompt,
-and the text of that turn is its result. A cancel, or a failure of the parent,
-cancels its children first.
+waits, it holds no place in the run limit. The final message of each child
+comes to the session of the parent as mail, and the pump of the Router starts
+an answer of the parent to it. The parent can start more agents in that
+answer. The parent ends when its session is idle: no child is open, the
+parent answered each final message, and no message waits. The reply of its
+last answer is its result. A cancel, or a failure of the parent, cancels its
+children first.
 
 ### Skills through an agent
 
@@ -93,7 +109,7 @@ that has the `skills` tool, and tell it in the prompt to use the named skill.
 ### Not a code-mode surface
 
 ``AgentsTool`` does not conform to `OperationDescribing` or `ForkableTool`. A
-run is a session with its own turns, and the final message needs a Router
+run is a session with its own answers, and the final message needs a Router
 session as the caller. Register the tool directly on a session.
 
 ### Slash commands and the command line

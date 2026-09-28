@@ -19,8 +19,8 @@ enum AgentsDemoProfile {
     /// The profile that the example resolves: small `mlx-community` models.
     ///
     /// The `standard` and `flash` slots have different models. Thus each slot
-    /// has its own generation gate, and a turn on one slot does not wait for
-    /// a turn on the other slot.
+    /// has its own generation queue, and a submission on one slot does not
+    /// wait for a submission on the other slot.
     static let definition = ProfileDefinition(
         name: "agents-demo",
         description: "Small local models for the agents-demo example.",
@@ -36,8 +36,9 @@ enum AgentsDemoProfile {
 
     /// Makes a router over the live model loader.
     ///
-    /// The router records each session under ``recordingsDirectory``. The
-    /// agent runs post their final messages into these recordings.
+    /// The router records each session under ``recordingsDirectory``, also
+    /// the session of each agent run and each final message that comes to a
+    /// session as mail.
     ///
     /// - Returns: The router. The caller keeps it while it uses the profile.
     static func makeRouter() -> Router {

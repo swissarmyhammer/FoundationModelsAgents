@@ -162,13 +162,13 @@ public actor AgentRunner {
     /// ``AgentEnvironment/maxConcurrentAgents`` runs are working
     /// (plan.md §9.3, the limit).
     ///
-    /// Only `start agent` calls it. A host-driven ``start(_:prompt:)``, a
-    /// child-delivery turn, and a final-answer turn do not check the limit.
-    /// There is no queue: at the limit, the runner starts no run.
+    /// Only `start agent` calls it. A host-driven ``start(_:prompt:)`` and an
+    /// answer to a final message do not check the limit. There is no queue:
+    /// at the limit, the runner starts no run.
     ///
     /// The count holds each run in operation that does not wait for its
     /// children (``AgentRun/isWorking``), and not the calling run: after its
-    /// turn the calling run waits for the new child, and a run that waits
+    /// answer the calling run waits for the new child, and a run that waits
     /// holds no place (plan.md §9.3). Thus a fan-out of siblings does not
     /// block their children.
     ///
@@ -260,11 +260,11 @@ public actor AgentRunner {
     /// started. Thus the host calls this before it closes a session that has
     /// the `agents` tool. The call cancels each run in operation of the
     /// caller. It also waits until the setup of each start of the caller
-    /// that is in setup ends, then cancels that run. Each such run posts its
-    /// final message, then goes to ``AgentRunState/cancelled``, unless its
-    /// turn ended first. All of this occurs before the call returns, thus no
-    /// run posts into the session after the host closes it. The runs of each
-    /// other caller stay as they are.
+    /// that is in setup ends, then cancels that run. Each such run goes to
+    /// ``AgentRunState/cancelled``, unless its answers ended first. All of
+    /// this occurs before the call returns, thus no run of the caller is in
+    /// operation when the host closes the session. The runs of each other
+    /// caller stay as they are.
     ///
     /// - Parameter caller: The id of the session of the caller.
     public func cancelRuns(caller: ULID) async {

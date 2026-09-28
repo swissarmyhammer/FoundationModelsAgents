@@ -9,8 +9,9 @@ import Testing
 ///
 /// A caller is a root session that calls the tool. Each root session runs on
 /// the `standard` slot, and its turn ends before the test holds a child. A
-/// gated child holds the generation gate of its slot for its whole turn,
-/// thus each gated child at one time runs on its own slot: code-reviewer on
+/// gated child is one submission in the generation queue of the model of its
+/// slot, and the queue runs one submission at a time, also while a tool call
+/// waits. Thus each gated child at one time runs on its own slot: code-reviewer on
 /// `flash`, test-writer on `standard`.
 @Suite("Agent scheduling")
 struct AgentSchedulingTests {

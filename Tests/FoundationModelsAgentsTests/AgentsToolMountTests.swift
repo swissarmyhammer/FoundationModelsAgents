@@ -43,6 +43,19 @@ struct AgentsToolMountTests {
     /// The JSON arguments of the scripted `list agents` call.
     private static let listArguments = #"{"op": "list agents"}"#
 
+    /// A completion token of a `start agent` call.
+    private static let completionToken = "01M3N00000000000000000TOKN"
+
+    /// The `next` sentence of the pending envelope of `start agent`, word for
+    /// word from plan.md §9.2. The Router delivers the final message only
+    /// after the answer of the model ends, thus the sentence tells the model
+    /// to end its answer.
+    private static let collectSentence = """
+        This agent works in the background. Do not wait for it, and never guess its result. \
+        End your answer now, or do other work first: its final message comes to you as a new message \
+        after your answer ends. To see its state, call {"op": "check agent", "id": "\(completionToken)"}.
+        """
+
     /// Each op with the mode of its mount. A verb alias gives the mode of
     /// the operation that it names.
     private static let modes: [(op: String, mode: ToolMount.Mode)] = [
@@ -102,6 +115,14 @@ struct AgentsToolMountTests {
         defer { try? harness.delete() }
 
         #expect(harness.tool.inlineSettleGrace == nil)
+    }
+
+    @Test("the pending envelope tells the model to end its answer to get the final message as mail")
+    func collectSentenceTellsTheModelToEndItsAnswer() async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+
+        #expect(harness.tool.collectInstruction(forCompletionToken: Self.completionToken) == Self.collectSentence)
     }
 
     @Test(

@@ -74,10 +74,10 @@ extension StartAgentCommand {
     /// Starts a host-driven run of the agent `name` with `prompt`, waits for
     /// the run, and gives its final text.
     ///
-    /// The run has no `ToolContext`, thus it posts nothing. It has depth one
-    /// and runs on ``AgentEnvironment/defaultSlot`` for `model: inherit`. A
-    /// cancel of the task that waits cancels the run, through
-    /// ``AgentRun/result()``.
+    /// The run has no `ToolContext`, thus its final message goes to no
+    /// session as mail. It has depth one and runs on
+    /// ``AgentEnvironment/defaultSlot`` for `model: inherit`. A cancel of the
+    /// task that waits cancels the run, through ``AgentRun/result()``.
     ///
     /// The command does not drive a Router session. When the agent
     /// starts runs of its own, the Router pump of the session of the run

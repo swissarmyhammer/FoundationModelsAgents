@@ -10,8 +10,8 @@ extension LiveSuites {
     /// The root session starts the agent ``lead``. The model of `lead` starts
     /// the agent ``leaf``. The `agentSpawn` record of each run names its
     /// parent session, and its `parentToolCallId` is the correlation id of
-    /// the final message that the run posts into the transcript of the parent:
-    /// the completion token of the `start agent` call. The answer of each
+    /// the final message that comes to the parent as mail: the completion
+    /// token of the `start agent` call. The answer of each
     /// `start agent` call is the pending envelope that holds that token.
     ///
     /// Only `leaf` knows the word ``leafWord``. The final answer of `lead`
@@ -93,11 +93,11 @@ extension LiveSuites {
         ///
         /// `lead` inherits the `standard` slot of the root and may start only
         /// `leaf`. The body of `lead` does not hold ``leafWord``, thus `lead`
-        /// can give that word only from the post of `leaf`. After its call,
-        /// `lead` writes a fixed word (``LiveHarness/waitInstruction``), thus
-        /// it does not guess an answer before the post comes. `leaf` runs on the
-        /// `flash` slot, thus it does not wait for the generation gate that
-        /// the turn of `lead` holds.
+        /// can give that word only from the final message of `leaf`. After its
+        /// call, `lead` writes a fixed word (``LiveHarness/waitInstruction``),
+        /// thus it does not guess an answer before the mail comes. `leaf` runs on the
+        /// `flash` slot, thus it does not wait behind the submission of
+        /// `lead` in the generation queue of the `standard` model.
         ///
         /// - Returns: The text of each file, by its path.
         /// - Throws: The error of ``LiveHarness/agentsCallText(_:)``.
