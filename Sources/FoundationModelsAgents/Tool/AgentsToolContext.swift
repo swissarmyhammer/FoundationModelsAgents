@@ -114,10 +114,8 @@ public struct AgentsToolContext: Sendable {
     /// `cancel agent` find the run by that token. A cancel of the task of
     /// the body cancels the run.
     ///
-    /// When a run calls the tool, the body then waits until the submission
-    /// that made the call ended (``ParentSessionWatch``). Thus the final
-    /// message never settles inside the grace of the call: the call answers
-    /// with the pending envelope, and the final message comes as mail.
+    /// The Router answers the call with the pending envelope before the body
+    /// ends, for each caller, thus the final message always comes as mail.
     ///
     /// - Parameters:
     ///   - run: The run that the call started.
@@ -131,7 +129,6 @@ public struct AgentsToolContext: Sendable {
         } onCancel: {
             run.cancel()
         }
-        await parent?.sessionWatch.waitForEndOfSubmission(ofCall: call.completionToken)
         return run.report(of: final)
     }
 

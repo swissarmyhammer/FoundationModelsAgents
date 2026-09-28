@@ -238,8 +238,7 @@ struct AgentSchedulingTests {
         checkArguments.set(Self.idArguments("check agent", of: run))
         cancelArguments.set(Self.idArguments("cancel agent", of: run))
         _ = try await rootB.respond(to: Self.rootPrompt)
-        let answersOfB = harness.runHarness.script.toolOutputs.suffix(Self.lastAnswerCount)
-            .map(ToolOutputEnvelope.answer(of:))
+        let answersOfB = Array(harness.runHarness.script.toolOutputs.suffix(Self.lastAnswerCount))
         let stateAfterB = run.state
         gate.open()
         let result = try await run.result()
@@ -279,8 +278,7 @@ struct AgentSchedulingTests {
         let runOfB = try await Self.onlyRun(in: harness, of: rootB)
         _ = try await rootA.respond(to: Self.nextPrompt)
         _ = try await rootB.respond(to: Self.nextPrompt)
-        let answers = harness.runHarness.script.toolOutputs.suffix(Self.lastAnswerCount)
-            .map(ToolOutputEnvelope.answer(of:))
+        let answers = Array(harness.runHarness.script.toolOutputs.suffix(Self.lastAnswerCount))
         let reportsOfA = runsOfA.map(\.report).joined(separator: Self.blockSeparator)
         let reportOfB = runOfB.report
         let hostAnswer = try await harness.call("check agent")

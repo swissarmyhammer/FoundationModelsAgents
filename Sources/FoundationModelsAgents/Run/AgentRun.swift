@@ -79,9 +79,9 @@ public final class AgentRun: Sendable {
     /// children).
     let children: AgentRunChildren
 
-    /// The watch of the session of the run. The `agents` tool of the run
-    /// waits on it, and the run feeds it.
-    let sessionWatch: ParentSessionWatch
+    /// The watch of the session of the run. The follower of the run feeds
+    /// it, and the run waits on it before it closes its session.
+    let sessionWatch = ParentSessionWatch()
 
     /// The count of the passes of the control loop over all the answers of
     /// the run, and the `maxTurns` limit of the agent (plan.md §5).
@@ -158,7 +158,7 @@ public final class AgentRun: Sendable {
     ///   - id: The id of the run.
     ///   - request: The inputs of the run.
     ///   - made: The session and its slot, or `nil` when the setup failed.
-    ///   - family: The children and the session watch of the run.
+    ///   - family: The children of the run.
     ///   - state: The first state of the run.
     private init(
         id: ULID, request: AgentRunRequest, made: AgentSessionMaker.Made?, family: ParentRun.Family,
@@ -172,7 +172,6 @@ public final class AgentRun: Sendable {
         self.slot = made?.slot
         self.context = request.context
         self.children = family.children
-        self.sessionWatch = family.sessionWatch
         self.turns = AgentRunTurns(limit: request.definition.maxTurns)
         self.storage = Mutex(Storage(state: state, session: made?.session, driver: nil))
     }
@@ -324,12 +323,10 @@ public final class AgentRun: Sendable {
     ///
     /// - Parameter event: An event of the session-event subscription.
     func record(_ event: SessionEvent) {
-        let openChildren = children.openCount
         storage.withLock { storage in
             storage.progress.apply(event)
             storage.answers.apply(event)
-            storage.progress.phase = AgentRunPhase(
-                after: storage.answers, openChildren: openChildren, current: storage.progress.phase)
+            storage.progress.phase = AgentRunPhase(after: storage.answers, current: storage.progress.phase)
         }
     }
 

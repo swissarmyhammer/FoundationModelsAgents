@@ -86,6 +86,75 @@ comments:
     evidence: swift build -Xswiftc -warnings-as-errors passes in the root and in IntegrationTests. swift test -Xswiftc -warnings-as-errors: 367 tests in 50 suites passed, 3 runs in a row. agents-demo builds. swiftlint: 0 violations (Sources, Tests, Package.swift, Examples, and the 4 changed IntegrationTests files). periphery: no new item. cd IntegrationTests && swift test, 3 runs: 12 tests in 6 suites passed each time (122.5 s, 170.4 s, 129.9 s). The criterion "start agent returns at once with the pending envelope" is not checked. For a run parent it is true: the start body waits until the submission of the parent ends. For a host root session, a child on another model that ends inside the 1 s inlineSettleGrace settles in the start envelope, not as mail. The tool cannot see when a host root submission ends. Task ^0mhzx3a (hosts) must decide this. Each start answer gives outcome `.succeeded`, and the detail tells the state (finished, failed or cancelled). For ^7f7z6qa: TheFinalMessage.md and plan.md still name dispatchNextPrompt(), and a DocumentationTests claim checks that text. The README usage block and the dispatchNextPrompt paragraph got the smallest change, and ReadmeExampleSource.swift matches the README. AgentSchedulingTests still puts two gated runs on two models, because two held runs at one time need two generation queues. Not committed, not pushed.
     task: ^ggpyaem
   timestamp: 2026-09-26T21:11:37.781672+00:00
+- actor: claude-code
+  id: 01m3fsqmqrkm14ajgncn04fffg
+  text: |-
+    ### review — findings
+    step: review
+    outcome: findings
+    evidence: review sha HEAD~1..HEAD (354faa0): 2 engine findings (2 confirmed, 0 refuted) — IntegrationTests/Tests/AgentsIntegrationTests/FullCircleTests.swift:84, IntegrationTests/Tests/AgentsIntegrationTests/LiveNestedTests.swift:60. 1 acceptance-criterion finding — Sources/FoundationModelsAgents/Tool/AgentsToolContext.swift:134: the criterion "start agent returns at once with the Router pending envelope" is not met for a host root caller (`parent` is nil, thus no wait for the end of the caller submission, and a child that ends inside the 1 s inlineSettleGrace settles inline).
+    task: ^ggpyaem
+    - next: /implement ^ggpyaem to correct the 3 open items in "## Review Findings (2026-09-26 16:14)". For the criterion, make start agent return the pending envelope for each caller, or a person changes the criterion (host behavior is task ^0mhzx3a).
+  timestamp: 2026-09-26T21:25:26.392422+00:00
+- actor: claude-code
+  id: 01m3fsr41xwbk0f6m54gnka4yp
+  text: |-
+    ### finish iteration 2 — findings
+    - implement: changed — 44 files (background tool, pump driver, idle rule)
+    - test: green — swift test -Xswiftc -warnings-as-errors, 367 passed; swiftlint 0; IntegrationTests 3 live runs 12/12
+    - commit: 354faa0
+    - review: findings — IntegrationTests/Tests/AgentsIntegrationTests/FullCircleTests.swift:84, IntegrationTests/Tests/AgentsIntegrationTests/LiveNestedTests.swift:60, Sources/FoundationModelsAgents/Tool/AgentsToolContext.swift:134
+  timestamp: 2026-09-26T21:25:42.077711+00:00
+- actor: claude-code
+  id: 01m3hmbz9tgyfemrzm7048jzhp
+  text: |-
+    ### Question: finding 3 needs a host API decision
+
+    Findings 1 and 2 are fixed (see the step record later). Finding 3 is open.
+
+    Facts (Router c208add):
+    - The start body gets `ToolContext.current`. It holds `sessionID` only. The `mailbox` and the `sink` are internal or private. It does not hold the `RoutedSession`.
+    - The Router has no public lookup from a session id to a `RoutedSession`, and a `SessionConfiguration` gives no session to its tools.
+    - `BackgroundToolRunner.launch` calls no tool code after the grace ends. `SubmissionBoundaryTool.submissionWillBegin()` comes only before the NEXT submission, and for a host root session that next submission is often the mail of this run, thus a wait on it can deadlock.
+    - Thus the tool alone cannot see when the submission of a host root caller ends. A wait on time (grace plus a margin) is a race, not a guarantee.
+
+    The only method that I found that guarantees mail for each caller:
+    - (A) A new public host step: `AgentsToolContext.follow(_ session: any RoutedSession)` (or the same on `AgentsTool`). The host calls it after `makeSession(...)`. The context feeds a `ParentSessionWatch` for that session id from `streamSessionEvents()`. The start body of a host root caller waits on that watch, the same as for a run. When the host did not follow the caller session, `start agent` fails loudly and starts no run. Each host must change: README usage block and `ReadmeExampleSource.swift`, `Examples/agents-demo/DemoModes.swift`, `IntegrationTests/.../LiveHarness.swift`, and the unit tests that put the tool on a root session (NestedRunTests, FinalMessageTests, AgentSchedulingTests, NestedRunTests+Limits). The card says that ^0mhzx3a owns the host design, thus this is a design decision for a person.
+    - (B) Stop. A person changes the criterion, or moves the host root case to ^0mhzx3a.
+
+    Answer A or B.
+  timestamp: 2026-09-27T14:30:09.978818+00:00
+- actor: claude-code
+  id: 01m3mevbftnjgc33kp0ea8hdky
+  text: |-
+    ### Resolved revisions (2026-09-28, after `swift package update` in the root and in IntegrationTests/)
+    Both packages resolve the same revisions:
+    - FoundationModelsRouter main 960dab2a1ab1467df3f862dd64501b5762df2151
+    - FoundationModelsExtras main 4a733cdde7ec6db917f054141d5005e59549312c
+    - mlx-swift-lm stable a1f77ad9337bc6dbbcf515f6c0f51199add3da8f
+    - FoundationModelsSkills main ed142ece8bab35a2ce7500133627beea9fa4267e
+    - FoundationModelsMetadataRegistry main 32288c582ec407ce46a2e51bc8c0f526dd48d4a6
+  timestamp: 2026-09-28T16:51:25.818679+00:00
+- actor: claude-code
+  id: 01m3mhmk0zcyr46x07nnwyspxa
+  text: |-
+    ### Progress and discoveries (2026-09-28)
+    - Finding 3 code: `StartAgent` declares `mount: ToolMount(mode: .background)` on its `@Operation`; `AgentsTool.mount(for:)` gives `operationTool.mount(for:)`. The whole-tool `mount`, `inlineSettleGrace`, `settleGrace`, the end-of-submission wait in `AgentsToolContext.finalMessage` and the end-of-submission part of `ParentSessionWatch` are removed. The watch is now owned by the run only (no longer in `ParentRun.Family`). The live probe `LiveAgentsToolProbe` forwards `mount(for:)`.
+    - New tests: `AgentsToolMountTests` (mount per op, and list/check/cancel give real output with no envelope in a Router session). The uncommitted `FinalMessageTests.fastChildOfRootSessionComesAsMail` of the stopped implementer is kept. All three failed before the change (RED checked).
+    - Discovery 1: Router 960dab2 refuses a profile whose `standard` and `flash` slots name one model (`SameGenerationModelFailure`). 13 unit tests used `flash: ScriptedProfile.standardModel`. They now use two models; the same-model case (`parentAndChildOnOneModel`) puts parent and child on the `standard` slot (child test-writer). `ModelMatchTests` shared case now uses one repository at two revisions. The `flash:` parameter of the two test harnesses is removed. Note for ^7f7z6qa: plan.md §7 table still says "standard when the two slots share a model".
+    - Discovery 2: with no grace, the body of `start agent` can start after the submission of the caller continues. Thus (a) a parent can go idle before its child is registered (production race; `waitingSiblingsLetChildrenStart` failed), and (b) tests that read `runner.runs(caller:)` right after `respond` race. Fix in progress: the idle rule also needs each pending envelope of the session transcript to be settled (`runSettled`) and its detail delivered in a prompt; a `runSettled` event re-checks idle. Tests wait for a gate arrival or a settlement before the lookup.
+    - Note: an earlier edit of two test files used a python string replace in place of the sah files tool (drop of `flash: ScriptedProfile.standardModel`). The result was checked with git diff.
+  timestamp: 2026-09-28T17:40:09.887053+00:00
+- actor: claude-code
+  id: 01m3mkpj4wz6cgnfzy9mbmq2dy
+  text: |-
+    ### implement — changed
+    step: implement
+    outcome: changed
+    evidence: Resolved in the root and in IntegrationTests/: FoundationModelsRouter 960dab2, FoundationModelsExtras 4a733cd, mlx-swift-lm a1f77ad (stable), FoundationModelsSkills ed142ec. No compile error came from the move; the Router refuses a profile with one model for standard and flash (`SameGenerationModelFailure`), and the tests changed for it. Findings 1 and 2: `makeAsyncIterator().next()` in place of `.first { _ in true }` (FullCircleTests, LiveNestedTests, NestedRunTests, README, ReadmeExampleSource). Finding 3: `StartAgent` has `mount: ToolMount(mode: .background)`; `AgentsTool.mount(for:)` gives the operation mount; the whole-tool mount, `inlineSettleGrace`/`settleGrace` and the end-of-submission wait (AgentsToolContext, ParentSessionWatch) are removed. Because the start body can now add its run after the answer of the caller ends, the idle rule also needs each pending envelope of the transcript to be settled and delivered (`runSettled` re-checks idle), and `AgentRunPhase` is `waitingForChildren` after each answer ends. New tests: AgentsToolMountTests (7 cases), FinalMessageTests.fastChildOfRootSessionComesAsMail; all failed before the change. Files: Sources (AgentsTool, AgentsToolContext, AgentsToolOperations, AgentRun, AgentRun+Children, AgentRun+Drive, AgentSessionMaker, ModelMatch, ParentSessionWatch), Examples/agents-demo/DemoModes.swift (doc), Tests (AgentsToolMountTests new, AgentSchedulingTests, AgentSchedulingTests+CallingRun, FinalMessageTests, MaxTurnsTests, ModelMatchTests, NestedRunTests, NestedRunTests+Idle, NestedRunTests+Limits, ReadmeExampleSource, ReadmeExampleTests, Support/AgentRunHarness, Support/AgentsToolHarness, Support/ScriptedProfile; Support/ToolOutputEnvelope removed), IntegrationTests (FullCircleTests, LiveNestedTests, Support/LiveTools), README.md. swift build -Xswiftc -warnings-as-errors: pass (root and IntegrationTests; agents-demo builds). swift test -Xswiftc -warnings-as-errors: 370 tests in 51 suites passed, 3 runs. swiftlint: 0 violations (Sources, Tests, Package.swift, Examples, the 3 changed IntegrationTests files). periphery (index store of a native build): 10 items, all in files that this change did not touch (AgentDefinitionRules, ScriptedAgentModel, ScriptedSessionBackend). cd IntegrationTests && swift test: 12 tests in 6 suites passed, 3 runs (214.7 s, 214.1 s, 283.9 s). SwiftPM prints "failed loading cached manifest ... disk I/O error" warnings for the global manifest cache; they are not compiler warnings. Not committed, not pushed.
+    - next: /review ^ggpyaem. New tasks: ^x428x7j (check/cancel right after start can miss a run that is not added yet), ^thxe76k (agents-demo --chat counts runs too early). For ^7f7z6qa: plan.md §7 still says "standard when the two slots share a model".
+    task: ^ggpyaem
+  timestamp: 2026-09-28T18:16:11.676892+00:00
 depends_on:
 - 01M3A6DQW7S7GYSPTDY3QHG0XH
 - 01M3A6DZBWW4SMKGJCA3H1KBYF
@@ -114,7 +183,7 @@ The Router at `c208add` (resolved in both packages; see the comments) queues one
 
 ## Acceptance Criteria
 - [x] `swift build -Xswiftc -warnings-as-errors` passes with Router `c208add` or later, in the root and in `IntegrationTests/`.
-- [ ] `start agent` returns at once with the Router pending envelope; the parent session gets the child's final message as mail with no driver call.
+- [x] `start agent` returns at once with the Router pending envelope; the parent session gets the child's final message as mail with no driver call.
 - [x] A parent and a child on the SAME model: the parent's submission ends after `start agent`, the child completes, and the parent answers from the mail (scripted test).
 - [x] A run ends only when its session is idle as defined above; a run with two children ends after both results were delivered and answered.
 - [x] `maxTurns`, `cancel agent`, `stop()` and `cancelRuns(caller:)` work as their tests say.
@@ -128,3 +197,32 @@ The Router at `c208add` (resolved in both packages; see the comments) queues one
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.
+
+## Review Findings (2026-09-26 16:14)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 41 file(s) reviewed, 3 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+> 1 file(s) not reviewed — no validator matched:
+> - `README.md` — no validator matches this file
+
+> ⚠️ tool rule 'code-hygiene/disallowed-constructs-swift' declined an item — it judged the rest of the code, and this it could not judge:
+> disallowed-constructs-swift found no file at Tests/FoundationModelsAgentsTests/NestedRunTests+FinalAnswer.swift, so its constructs are unread
+
+> ⚠️ tool rule 'code-hygiene/function-length-swift' declined an item — it judged the rest of the code, and this it could not judge:
+> function-length-swift found no file at Tests/FoundationModelsAgentsTests/NestedRunTests+FinalAnswer.swift, so its bodies are unread
+
+> ⚠️ tool rule 'code-hygiene/idioms-swift' declined an item — it judged the rest of the code, and this it could not judge:
+> idioms-swift found no file at Tests/FoundationModelsAgentsTests/NestedRunTests+FinalAnswer.swift, so its declarations are unread
+
+> ⚠️ tool rule 'code-hygiene/magic-numbers-swift' declined an item — it judged the rest of the code, and this it could not judge:
+> magic-numbers-swift found no file at Tests/FoundationModelsAgentsTests/NestedRunTests+FinalAnswer.swift, so its literals are unread
+
+> ⚠️ tool rule 'code-hygiene/missing-docs-swift' declined an item — it judged the rest of the code, and this it could not judge:
+> missing-docs-swift found no file at Tests/FoundationModelsAgentsTests/NestedRunTests+FinalAnswer.swift, so its declarations are unread
+
+- [x] `IntegrationTests/Tests/AgentsIntegrationTests/FullCircleTests.swift:84` `swift/naming-clarity` — The closure `{ _ in true }` is needless — it always returns true, making this equivalent to `first` without arguments. The closure does not carry salient information at the use site. Remove the closure and call `mailReplies.first` directly.
+- [x] `IntegrationTests/Tests/AgentsIntegrationTests/LiveNestedTests.swift:60` `swift/naming-clarity` — The closure `{ _ in true }` is needless — it always returns true, making this equivalent to `first` without arguments. The closure does not carry salient information at the use site. Remove the closure and call `mailAnswers.first` directly.
+- [x] `Sources/FoundationModelsAgents/Tool/AgentsToolContext.swift:134` `acceptance-criterion` — The criterion "`start agent` returns at once with the Router pending envelope; the parent session gets the child's final message as mail with no driver call" is not met. The body waits for the end of the caller submission only when `parent` is not nil (`await parent?.sessionWatch.waitForEndOfSubmission(ofCall:)`). For a host root caller, `parent` is nil. Thus a child that ends inside the 1 s `inlineSettleGrace` gives its final message in the start envelope, not as mail. Make `start agent` return the pending envelope for each caller, or get a person to change the criterion (task ^0mhzx3a owns the host behavior).

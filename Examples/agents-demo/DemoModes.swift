@@ -259,9 +259,7 @@ enum AgentsDemoModes {
     /// answered after the last one.
     ///
     /// The pump of the Router delivers each final message to the root as
-    /// mail, and starts the answer to it with no call of this function. A
-    /// run that settles inside the grace of its call gives its result in the
-    /// answer of the chat prompt, thus that answer also ends the wait.
+    /// mail, and starts the answer to it with no call of this function.
     ///
     /// - Parameters:
     ///   - count: The count of runs to wait for.

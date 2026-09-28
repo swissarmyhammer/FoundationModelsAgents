@@ -24,12 +24,12 @@ import Operations
 /// runtime. It resolves the payload, dispatches the operation, and keeps the
 /// retry cap.
 ///
-/// In a Router session the tool is a background tool (``mount``). Each call
-/// runs in the background, and the model gets the pending envelope of the
-/// Router. `list agents`, `check agent`, and `cancel agent` end at once,
-/// inside ``inlineSettleGrace``, thus their answer is in their own envelope.
-/// `start agent` waits for the run that it started, and the final message
-/// of that run comes to the caller as mail when the run ends.
+/// In a Router session each call runs with the mount of its operation
+/// (``mount(for:)``). `start agent` is a background call: the model gets the
+/// pending envelope of the Router at once, the body waits for the run that
+/// it started, and the final message of that run comes to the caller as mail
+/// when the run ends. `list agents`, `check agent`, and `cancel agent` are
+/// synchronous calls: their real answer comes back in band.
 ///
 /// This tool is not a code-mode surface (plan.md §9.5). A host registers it
 /// directly on its session.
@@ -39,11 +39,6 @@ public struct AgentsTool: Tool {
 
     /// The answer of the operation, or a corrective message.
     public typealias Output = String
-
-    /// How long the Router waits for a call before it answers with the
-    /// pending envelope, in seconds. The calls that end at once settle in
-    /// this time.
-    static let settleGrace: TimeInterval = 1
 
     /// The tool that resolves and dispatches each call.
     public let operationTool: OperationTool<AgentsToolContext>
@@ -167,18 +162,17 @@ public struct AgentsTool: Tool {
 }
 
 extension AgentsTool: BackgroundTool {
-    /// The background mount: each call answers at once with the pending
-    /// envelope of the Router, and the work goes on behind it. The mount
-    /// has no timeout, because a run can take any time.
-    public var mount: ToolMount? {
-        ToolMount(mode: .background)
-    }
-
-    /// How long the Router waits for a call before it answers. `list agents`,
-    /// `check agent`, and `cancel agent` end in this time, thus their answer
-    /// is in their own envelope and is no mail.
-    public var inlineSettleGrace: TimeInterval? {
-        Self.settleGrace
+    /// The mount of one call: the mount that the called operation declares
+    /// on its `@Operation`.
+    ///
+    /// `start agent` is background, with no timeout, because a run can take
+    /// any time. `list agents`, `check agent`, `cancel agent`, and an op that
+    /// names no operation are synchronous.
+    ///
+    /// - Parameter arguments: The payload of the model.
+    /// - Returns: The mount of the operation that `arguments` names.
+    public func mount(for arguments: GeneratedContent) -> ToolMount? {
+        operationTool.mount(for: arguments)
     }
 
     /// Gives the `next` sentence of the pending envelope of a call: the run

@@ -10,7 +10,9 @@ import FoundationModelsRouter
 /// | `chosen.stringValue` of a slot, or its part before `@` | that slot |
 /// | other (`opus`, `sonnet`, `embedding`, unknown) | a warning, the caller slot |
 ///
-/// When the two slots share a model, its reference gives `standard`.
+/// The Router gives the two slots two different models. When the two slots
+/// share a repository, each at its own revision, the repository id gives
+/// `standard`.
 ///
 /// Slot names and Hugging Face repository ids do not use the case, thus the
 /// match does not use the case.
@@ -33,7 +35,7 @@ enum ModelMatch {
 
     /// The slots that a `model` value can select, in match order.
     ///
-    /// `standard` is first, thus a model that the two slots share gives
+    /// `standard` is first, thus a repository that the two slots share gives
     /// `standard`. The `embedding` slot makes no session, thus it is not in
     /// the list.
     static let generationSlots = [

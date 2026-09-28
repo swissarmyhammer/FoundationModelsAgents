@@ -9,10 +9,9 @@ import ULID
 /// comes to it as mail, and it finishes only after it answered them. A cancel
 /// or a failure of the parent cancels its open children and waits for them.
 ///
-/// The root sessions and the parent runs are on the `standard` slot. The
-/// tests put the `flash` slot on the same model, thus each run of a test
-/// shares one generation queue: a parent waits in no tool, so its child can
-/// run on the same model.
+/// The root sessions and the parent runs are on the `standard` slot.
+/// code-reviewer runs on the `flash` slot, and test-writer on the `standard`
+/// slot. The Router gives the two slots two different models.
 @Suite("Nested runs")
 struct NestedRunTests {
     /// A failure that a scripted step throws.
@@ -171,11 +170,29 @@ struct NestedRunTests {
     /// - Throws: The error of `#require` when the run has no context, or when
     ///   the events end before the event.
     static func settlement(of run: AgentRun, in events: AsyncStream<SessionEvent>) async throws -> OperationEvent {
-        let token = try #require(run.context?.completionToken)
-        let terminals = events.compactMap { event -> OperationEvent? in
-            if case .runSettled(let terminal) = event, terminal.correlationID == token { terminal } else { nil }
-        }
-        return try #require(await terminals.first { _ in true })
+        try await firstSettlement(in: events, token: try #require(run.context?.completionToken))
+    }
+
+    /// Waits for the first `runSettled` event of a session, or of the call
+    /// `token`. The body of `start agent` adds its run before the run can
+    /// settle, thus a test reads the runs of a caller after this event.
+    ///
+    /// - Parameters:
+    ///   - events: The session events, from before the first message.
+    ///   - token: The completion token of the call, or `nil` for each call.
+    /// - Returns: The terminal of the first run that settled.
+    /// - Throws: The error of `#require` when the events end first.
+    static func firstSettlement(
+        in events: AsyncStream<SessionEvent>, token: String? = nil
+    ) async throws -> OperationEvent {
+        var terminals = events.compactMap { event -> OperationEvent? in
+            if case .runSettled(let terminal) = event, token == nil || terminal.correlationID == token {
+                terminal
+            } else {
+                nil
+            }
+        }.makeAsyncIterator()
+        return try #require(await terminals.next())
     }
 
     /// `true` when `state` failed with ``AgentRunFailure/modelFailed(_:)``.
@@ -210,8 +227,7 @@ struct NestedRunTests {
                     Self.leadKey, children: [(Self.reviewer, Self.reviewerKey), (Self.testWriter, Self.testWriterKey)]),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)]),
                 ScriptedAgentPlay(key: Self.testWriterKey, steps: [.finalText(Self.testWriterText)])
-            ]),
-            flash: ScriptedProfile.standardModel)
+            ]))
         defer { try? harness.delete() }
         let runner = harness.makeRunner()
 
@@ -235,8 +251,7 @@ struct NestedRunTests {
             script: ScriptedAgentScript([
                 Self.parentPlay(Self.leadKey, children: [(Self.reviewer, Self.reviewerKey)]),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.wait(gate), .finalText(Self.reviewerText)])
-            ]),
-            flash: ScriptedProfile.standardModel)
+            ]))
         defer { try? harness.delete() }
         let runner = harness.makeRunner()
 
@@ -258,23 +273,26 @@ struct NestedRunTests {
         .timeLimit(.minutes(1)))
     func failingParentCancelsChildThenPosts() async throws {
         let gate = ScriptedGate()
+        let failGate = ScriptedGate()
+        let leadSteps: [ScriptedAgentStep] = [
+            Self.startStep(Self.reviewer, prompt: Self.reviewerKey), .wait(failGate), .fail(ScriptedFailure.broken)
+        ]
         let harness = try await AgentsToolHarness.make(
             script: ScriptedAgentScript([
                 Self.rootPlay(starting: Self.lead, prompt: Self.leadKey),
-                ScriptedAgentPlay(
-                    key: Self.leadKey,
-                    steps: [Self.startStep(Self.reviewer, prompt: Self.reviewerKey), .fail(ScriptedFailure.broken)]),
+                ScriptedAgentPlay(key: Self.leadKey, steps: leadSteps),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.wait(gate), .finalText(Self.reviewerText)])
-            ]),
-            flash: ScriptedProfile.standardModel)
+            ]))
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
         let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
+        await gate.waitForArrival()
         let lead = try await Self.onlyRun(of: harness.runner, caller: root.id)
-        let leadFinal = await lead.finalState()
         let child = try await Self.onlyRun(of: harness.runner, caller: lead.id)
+        failGate.open()
+        let leadFinal = await lead.finalState()
         let childStateAtParentEnd = child.state
         _ = try await Self.settlement(of: lead, in: rootEvents)
         let leadPosts = try Self.posts(of: lead, in: root.recordingDirectory)
@@ -296,8 +314,7 @@ struct NestedRunTests {
                 Self.rootPlay(starting: Self.lead, prompt: Self.leadKey),
                 Self.parentPlay(Self.leadKey, children: [(Self.reviewer, Self.reviewerKey)]),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.wait(gate), .finalText(Self.reviewerText)])
-            ]),
-            flash: ScriptedProfile.standardModel)
+            ]))
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
         let rootEvents = await root.streamSessionEvents()
@@ -327,18 +344,17 @@ struct NestedRunTests {
             script: ScriptedAgentScript([
                 Self.rootPlay(starting: Self.reviewer, prompt: Self.reviewerKey),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)])
-            ]),
-            flash: ScriptedProfile.standardModel)
+            ]))
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
         let rootEvents = await root.streamSessionEvents()
-        let mailAnswers = rootEvents.compactMap { event -> SessionAnswer? in
+        var mailAnswers = rootEvents.compactMap { event -> SessionAnswer? in
             if case .answered(let answer) = event, answer.messageIds.isEmpty { answer } else { nil }
-        }
+        }.makeAsyncIterator()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
+        let mailAnswer = try #require(await mailAnswers.next())
         let child = try await Self.onlyRun(of: harness.runner, caller: root.id)
-        let mailAnswer = try #require(await mailAnswers.first { _ in true })
         await root.close()
 
         #expect(child.state == .finished(Self.reviewerText))
@@ -354,25 +370,25 @@ struct NestedRunTests {
                 Self.rootPlay(starting: Self.lead, prompt: Self.leadKey),
                 Self.parentPlay(Self.leadKey, children: [(Self.reviewer, Self.reviewerKey)]),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)])
-            ]),
-            flash: ScriptedProfile.standardModel)
+            ]))
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
         let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
+        let leadTerminal = try await Self.firstSettlement(in: rootEvents)
         let lead = try await Self.onlyRun(of: harness.runner, caller: root.id)
         _ = try await lead.result()
         let child = try await Self.onlyRun(of: harness.runner, caller: lead.id)
         let leadToken = try #require(lead.context?.completionToken)
         let childToken = try #require(child.context?.completionToken)
-        _ = try await Self.settlement(of: lead, in: rootEvents)
         let rootSpawn = try RecordedSidecar.read(in: root.recordingDirectory).agentSpawn
         let leadSpawn = try AgentRunTests.sidecar(of: lead).agentSpawn
         let childSpawn = try AgentRunTests.sidecar(of: child).agentSpawn
         let leadPosts = try Self.posts(of: lead, in: root.recordingDirectory)
         await root.close()
 
+        #expect(leadTerminal.correlationID == leadToken)
         #expect(rootSpawn == nil)
         #expect(leadSpawn == SessionSidecar.AgentSpawn(parentSessionId: root.id, parentToolCallId: leadToken))
         #expect(childSpawn == SessionSidecar.AgentSpawn(parentSessionId: lead.id, parentToolCallId: childToken))

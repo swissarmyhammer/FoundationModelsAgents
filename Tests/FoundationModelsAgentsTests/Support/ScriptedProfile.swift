@@ -32,8 +32,8 @@ enum ScriptedProfile {
     ///   - standard: The model of the `standard` slot. The default is
     ///     ``standardModel``.
     ///   - flash: The model of the `flash` slot. The default is
-    ///     ``flashModel``. Give ``standardModel`` to make a profile whose
-    ///     two generation slots share one model.
+    ///     ``flashModel``. It must not be `standard`: the Router refuses a
+    ///     profile whose two generation slots share one model.
     /// - Returns: The router and the resolved profile.
     /// - Throws: Whatever `Router.resolve(profile:reporting:)` throws.
     static func make(

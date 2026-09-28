@@ -46,9 +46,9 @@ extension LiveSuites {
             try await LiveHarness.withHarness(agents: agents) { harness in
                 let root = harness.makeRootSession(tools: [try await harness.makeAgentsTool()])
                 let rootEvents = await root.streamSessionEvents()
-                let mailAnswers = rootEvents.filter { event in
+                var mailAnswers = rootEvents.filter { event in
                     if case .answered(let answer) = event { answer.messageIds.isEmpty } else { false }
-                }
+                }.makeAsyncIterator()
                 _ = try await root.respond(
                     to: try LiveHarness.agentsCallText([
                         "op": LiveHarness.startOperation, "name": Self.lead, "prompt": Self.leadTask
@@ -57,7 +57,7 @@ extension LiveSuites {
                 let leadText = try await lead.result()
                 let leaf = try LiveHarness.run(of: Self.leaf, in: await harness.runner.runs(caller: lead.id))
                 let leafText = try await leaf.result()
-                _ = await mailAnswers.first { _ in true }
+                _ = await mailAnswers.next()
                 await root.close()
 
                 let rootSpawn = try LiveRecording.session(in: root.recordingDirectory).agentSpawn

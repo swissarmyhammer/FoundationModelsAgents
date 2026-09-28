@@ -129,11 +129,11 @@ _ = try await root.respond(to: "Ask code-reviewer to review Sources/Parser.swift
 
 // `start agent` returns at once. When the run ends, the Router gives its
 // final message to the root session as mail, and the root answers it.
-let mailAnswers = events.compactMap { event -> String? in
+var mailAnswers = events.compactMap { event -> String? in
     guard case .answered(let answer) = event, answer.messageIds.isEmpty else { return nil }
     return answer.reply
-}
-let answer = await mailAnswers.first { _ in true }
+}.makeAsyncIterator()
+let answer = await mailAnswers.next()
 
 // The Router does not know the runs of a session: cancel them before close().
 await runner.cancelRuns(caller: root.id)

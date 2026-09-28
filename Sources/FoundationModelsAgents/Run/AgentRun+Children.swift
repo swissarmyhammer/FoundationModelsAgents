@@ -9,9 +9,13 @@ enum AgentRunPhase: Sendable, Equatable {
     /// The run is in the answer of its task prompt.
     case taskTurn
 
-    /// No answer of the run is open, and the run waits for a run that it
-    /// started to end. A run in this phase holds no place in the run limit
-    /// (plan.md §9.3).
+    /// No answer of the run is open after its first answer: the run waits
+    /// for the final messages of the runs that it started. A run in this
+    /// phase holds no place in the run limit (plan.md §9.3).
+    ///
+    /// The phase does not count the children. The body of a `start agent`
+    /// call adds its run after the answer that made the call can end, and a
+    /// run that is not idle after an answer waits for mail in each case.
     case waitingForChildren
 
     /// The run is in an answer to the final message of a run that it
@@ -22,13 +26,11 @@ enum AgentRunPhase: Sendable, Equatable {
     ///
     /// - Parameters:
     ///   - answers: The answers of the session after the event.
-    ///   - openChildren: The count of the runs that the run started and that
-    ///     did not end.
     ///   - current: The phase before the event.
-    init(after answers: AgentRunAnswers, openChildren: Int, current: AgentRunPhase) {
+    init(after answers: AgentRunAnswers, current: AgentRunPhase) {
         if answers.isAnswerOpen {
             self = answers.hasAnswered ? .delivery : .taskTurn
-        } else if openChildren > 0 {
+        } else if answers.hasAnswered {
             self = .waitingForChildren
         } else {
             self = current
@@ -40,19 +42,14 @@ enum AgentRunPhase: Sendable, Equatable {
 /// (plan.md §9.3, children and depth).
 ///
 /// `start agent` uses it to give a child its depth and its inherited slot,
-/// and the child adds itself to ``children``. The body of `start agent`
-/// waits on ``sessionWatch`` before it gives the final message of the child.
-/// A root session that is not a run has no such value.
+/// and the child adds itself to ``children``. A root session that is not a
+/// run has no such value.
 struct ParentRun: Sendable {
-    /// The children and the session watch of one run. The run makes them
-    /// before its session, because the `agents` tool of the session needs
-    /// them.
+    /// The children of one run. The run makes them before its session,
+    /// because the `agents` tool of the session needs them.
     struct Family: Sendable {
         /// The runs that the run starts.
         let children = AgentRunChildren()
-
-        /// The watch of the session of the run.
-        let sessionWatch = ParentSessionWatch()
     }
 
     /// The depth of the calling run. A host-started run has depth one.
@@ -61,17 +58,12 @@ struct ParentRun: Sendable {
     /// The slot of the session of the calling run.
     let slot: ModelSlot
 
-    /// The children and the session watch of the calling run.
+    /// The children of the calling run.
     let family: Family
 
     /// The runs that the calling run started.
     var children: AgentRunChildren {
         family.children
-    }
-
-    /// The watch of the session of the calling run.
-    var sessionWatch: ParentSessionWatch {
-        family.sessionWatch
     }
 }
 

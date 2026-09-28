@@ -86,8 +86,8 @@ extension AgentSchedulingTests {
 
             let parent = try await harness.runner.start(Self.lead, prompt: Self.parentKey)
             await parentGate.waitForArrival()
-            let child = try #require(await harness.runner.runs(caller: parent.id).first)
             await childGate.waitForArrival()
+            let child = try #require(await harness.runner.runs(caller: parent.id).first)
             let refused = try await harness.call(
                 "start agent", ["name": Self.testWriter, "prompt": Self.otherKey])
             let workingRuns = await harness.runner.runs

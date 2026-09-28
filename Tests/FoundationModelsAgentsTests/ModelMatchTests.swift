@@ -33,6 +33,10 @@ struct ModelMatchTests {
     /// The revision of the pinned `flash` model.
     static let flashRevision = "rev1"
 
+    /// The revision of the pinned `standard` model of the shared-repository
+    /// case. It is not ``flashRevision``.
+    static let standardRevision = "rev0"
+
     /// The pinned `flash` model: `scripted/flash@rev1`.
     static let pinnedFlashModel = ModelRef(
         stringLiteral: "\(ScriptedProfile.flashModel.stringValue)@\(flashRevision)")
@@ -86,23 +90,26 @@ struct ModelMatchTests {
         #expect((result.warning != nil) == row.warns)
     }
 
-    /// A model reference that the two slots share gives `standard`, for the
-    /// full reference and for the part before `@`.
-    @Test("A shared model reference gives standard", arguments: [ModelSlot.flash, .standard])
-    func sharedReferenceGivesStandard(_ inherited: ModelSlot) async throws {
-        let sharedModel = ModelRef(
-            stringLiteral: "\(ScriptedProfile.standardModel.stringValue)@\(Self.flashRevision)")
+    /// A repository that the two slots share, each slot at its own revision,
+    /// gives `standard`. The full reference of each slot gives that slot.
+    ///
+    /// The Router gives the two slots two different models, thus the slots
+    /// can share a repository but not a full reference.
+    @Test("A shared repository gives standard", arguments: [ModelSlot.flash, .standard])
+    func sharedRepositoryGivesStandard(_ inherited: ModelSlot) async throws {
+        let repository = ScriptedProfile.standardModel.stringValue
+        let standardModel = ModelRef(stringLiteral: "\(repository)@\(Self.standardRevision)")
+        let flashModel = ModelRef(stringLiteral: "\(repository)@\(Self.flashRevision)")
         let (_, profile) = try await ScriptedProfile.make(
-            script: ScriptedAgentScript([]), standard: sharedModel, flash: sharedModel)
+            script: ScriptedAgentScript([]), standard: standardModel, flash: flashModel)
 
-        let full = ModelMatch.match(sharedModel.stringValue, profile: profile, inherited: inherited)
-        let repository = ModelMatch.match(
-            ScriptedProfile.standardModel.stringValue, profile: profile, inherited: inherited)
+        let shared = ModelMatch.match(repository, profile: profile, inherited: inherited)
+        let flash = ModelMatch.match(flashModel.stringValue, profile: profile, inherited: inherited)
 
-        #expect(full.slot == .standard)
-        #expect(full.warning == nil)
-        #expect(repository.slot == .standard)
-        #expect(repository.warning == nil)
+        #expect(shared.slot == .standard)
+        #expect(shared.warning == nil)
+        #expect(flash.slot == .flash)
+        #expect(flash.warning == nil)
     }
 
     /// `model: sonnet` gives a warning that names the value, the profile,

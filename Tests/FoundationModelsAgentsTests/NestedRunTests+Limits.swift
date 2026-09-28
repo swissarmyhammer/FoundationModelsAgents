@@ -176,10 +176,11 @@ extension NestedRunTests {
             let root = NestedRunTests.rootSession(of: harness)
 
             #expect(try await root.respond(to: NestedRunTests.rootPrompt) == NestedRunTests.rootText)
+            await secondSiblingGate.waitForArrival()
+            await firstChildGate.waitForArrival()
             let siblings = await harness.runner.runs(caller: root.id)
             let first = try #require(siblings.first { $0.agent.id == Self.flashLead })
             let second = try #require(siblings.first { $0.agent.id == Self.planner })
-            await firstChildGate.waitForArrival()
             try await Self.waitingPhase(of: first)
             let firstPhase = first.phase
             secondSiblingGate.open()
@@ -304,8 +305,10 @@ extension NestedRunTests {
             defer { try? harness.delete() }
             let root = harness.runHarness.profile.flash.makeSession(
                 instructions: NestedRunTests.rootKey, tools: [harness.tool])
+            let events = await root.streamSessionEvents()
 
             #expect(try await root.respond(to: NestedRunTests.rootPrompt) == NestedRunTests.rootText)
+            _ = try await NestedRunTests.firstSettlement(in: events)
             let child = try await NestedRunTests.onlyRun(of: harness.runner, caller: root.id)
             let result = try await child.result()
             let defaultSlot = await harness.runner.environment.defaultSlot

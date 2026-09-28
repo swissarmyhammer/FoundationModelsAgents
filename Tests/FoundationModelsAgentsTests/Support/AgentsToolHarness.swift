@@ -34,8 +34,6 @@ struct AgentsToolHarness {
     ///   - maxConcurrentAgents: The count of runs that `start agent` lets
     ///     work at one time. The default is
     ///     `AgentEnvironment.defaultMaxConcurrentAgents`.
-    ///   - flash: The model of the `flash` slot. See
-    ///     `AgentRunHarness.make(script:registry:skills:budget:flash:)`.
     /// - Returns: The harness.
     /// - Throws: The error of the run harness, or of `AgentsTool.make`.
     static func make(
@@ -43,10 +41,9 @@ struct AgentsToolHarness {
         registry: AgentRegistry = AgentRegistry(stack: FixtureLibrary.stack()),
         allowedNames: [String]? = nil,
         catalogCharacterLimit: Int = SkillsTool.defaultCatalogCharacterLimit,
-        maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents,
-        flash: ModelRef = ScriptedProfile.flashModel
+        maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents
     ) async throws -> AgentsToolHarness {
-        let runHarness = try await AgentRunHarness.make(script: script, registry: registry, flash: flash)
+        let runHarness = try await AgentRunHarness.make(script: script, registry: registry)
         let runner = runHarness.makeRunner(maxConcurrentAgents: maxConcurrentAgents)
         let context = AgentsToolContext(runner: runner, allowedNames: allowedNames)
         do {

@@ -152,10 +152,10 @@ extension AgentRun {
     /// Reads the session-event subscription of the run until it finishes.
     ///
     /// Each event feeds the progress and the answers of the run
-    /// (``record(_:)``), the watch that the `agents` tool of the run waits on,
-    /// and the count of passes. When the count goes above the limit, the run
-    /// stops its session at once. Then each event that decides the end of the
-    /// run gives its signal (``signal(after:on:)``).
+    /// (``record(_:)``), the watch of the settled background runs, and the
+    /// count of passes. When the count goes above the limit, the run stops its
+    /// session at once. Then each event that decides the end of the run gives
+    /// its signal (``signal(after:on:)``).
     ///
     /// - Parameters:
     ///   - events: The session-event subscription of the run, made before
@@ -183,6 +183,8 @@ extension AgentRun {
     /// - The end of an answer gives ``AgentRunSignal/limitHit(partial:)``
     ///   after the count went above the limit. Else an answer gives
     ///   ``AgentRunSignal/idle(_:)`` when the session is idle.
+    /// - A settled background run gives ``AgentRunSignal/idle(_:)`` when the
+    ///   session is idle after it (``idleSignalAfterSettlement(on:)``).
     /// - A failed answer to mail alone gives
     ///   ``AgentRunSignal/mailAnswerFailed(_:)``. A failed answer of the task
     ///   prompt gives nothing here: its error comes from its own stream.
@@ -199,6 +201,9 @@ extension AgentRun {
             }
             return await isIdle(on: session) ? .idle(answer.reply) : nil
         }
+        if case .runSettled = event {
+            return await idleSignalAfterSettlement(on: session)
+        }
         if case .answerFailed(let failure) = event {
             if turns.isLimitHit {
                 return .limitHit(partial: answers.partial)
@@ -211,37 +216,77 @@ extension AgentRun {
         return nil
     }
 
+    /// Gives ``AgentRunSignal/idle(_:)`` when the session is idle after a
+    /// background run settled, with the reply of the last answer.
+    ///
+    /// The Router stages the final message of a run before it sends its
+    /// ``SessionEvent/runSettled(_:)``, thus the answer to that final message
+    /// can end before the event. The idle check of that answer then fails,
+    /// and this check after the event is the one that ends the run.
+    ///
+    /// - Parameter session: The session of the run.
+    /// - Returns: The signal, or `nil` when no answer ended yet, when an
+    ///   answer is open, when the count of passes is above the limit, or when
+    ///   the session is not idle.
+    private func idleSignalAfterSettlement(on session: any RoutedSession) async -> AgentRunSignal? {
+        let answers = answers
+        guard answers.hasAnswered, !answers.isAnswerOpen, !turns.isLimitHit else {
+            return nil
+        }
+        return await isIdle(on: session) ? .idle(answers.lastReply) : nil
+    }
+
     /// Tells if the session of the run is idle after an answer.
     ///
     /// The session is idle when each run that this run started ended, when
     /// no message waits, and when the session delivered the final message of
-    /// each of those runs: the text of each final message is in a prompt of
-    /// the settled transcript. The last answer came after that prompt, thus
-    /// it answered each final message.
+    /// each background call of the session. A background call is a tool
+    /// output of the settled transcript that is a pending envelope
+    /// (``pendingRunTokens(in:)``). Its final message is the detail of its
+    /// terminal, and a prompt of the settled transcript must hold that
+    /// detail. The last answer came after that prompt, thus it answered each
+    /// final message.
     ///
-    /// The check reads the transcript, not the order of the events. The
-    /// Router stages a final message before it sends its
-    /// ``SessionEvent/runSettled(_:)``, thus a submission can deliver a final
-    /// message before that event.
+    /// The body of a `start agent` call starts its run after the call gave
+    /// the pending envelope. Thus the run can be absent from ``children``
+    /// when an answer ends. The envelope is in the transcript already, and
+    /// its terminal is not settled, so the session is not idle.
     ///
     /// - Parameter session: The session of the run.
     /// - Returns: `true` when the session is idle.
     private func isIdle(on session: any RoutedSession) async -> Bool {
-        let children = children.runs
-        guard children.allSatisfy({ $0.state != .running }) else {
+        guard children.runs.allSatisfy({ $0.state != .running }) else {
             return false
         }
         let depth = await session.messageQueueDepth()
         guard depth.waiting == 0 else {
             return false
         }
-        guard !children.isEmpty else {
-            return true
-        }
-        let prompts = Self.promptTexts(in: await session.transcript)
-        return children.allSatisfy { child in
-            let finalMessage = child.report
+        let transcript = await session.transcript
+        let prompts = Self.promptTexts(in: transcript)
+        return Self.pendingRunTokens(in: transcript).allSatisfy { token in
+            guard let finalMessage = sessionWatch.detail(ofSettledCall: token) else {
+                return false
+            }
             return prompts.contains { $0.contains(finalMessage) }
+        }
+    }
+
+    /// Gives the completion token of each pending envelope that a tool
+    /// output of `transcript` holds.
+    ///
+    /// - Parameter transcript: A transcript of the session.
+    /// - Returns: The tokens, in transcript order.
+    private static func pendingRunTokens(in transcript: Transcript) -> [String] {
+        transcript.compactMap { entry in
+            guard case .toolOutput(let output) = entry else {
+                return nil
+            }
+            let text = output.segments.compactMap(Self.text(of:)).joined()
+            guard let envelope = PendingRunEnvelope.makeDecoded(fromRendered: text), envelope.pending else {
+                return nil
+            }
+            return envelope.completionToken
         }
     }
 
@@ -261,7 +306,7 @@ extension AgentRun {
 
     /// Gives the text of one segment.
     ///
-    /// - Parameter segment: A segment of a prompt.
+    /// - Parameter segment: A segment of a prompt or of a tool output.
     /// - Returns: The text of a text segment, or `nil` for each other
     ///   segment.
     private static func text(of segment: Transcript.Segment) -> String? {

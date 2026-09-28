@@ -30,13 +30,13 @@ extension NestedRunTests {
                     ScriptedAgentPlay(
                         key: NestedRunTests.leadKey,
                         steps: [
-                            NestedRunTests.startStep(NestedRunTests.reviewer, prompt: NestedRunTests.reviewerKey),
+                            NestedRunTests.startStep(NestedRunTests.testWriter, prompt: NestedRunTests.testWriterKey),
                             .finalText(NestedRunTests.startedText),
                             .finalTextOfLastPrompt
                         ]),
-                    ScriptedAgentPlay(key: NestedRunTests.reviewerKey, steps: [.finalText(NestedRunTests.reviewerText)])
-                ]),
-                flash: ScriptedProfile.standardModel)
+                    ScriptedAgentPlay(
+                        key: NestedRunTests.testWriterKey, steps: [.finalText(NestedRunTests.testWriterText)])
+                ]))
             defer { try? harness.delete() }
             let runner = harness.makeRunner()
 
@@ -46,12 +46,11 @@ extension NestedRunTests {
             let prompts = harness.script.prompts
 
             #expect(lead.slot == .standard)
-            #expect(child.slot == .flash)
-            #expect(harness.profile.standard.chosen.stringValue == harness.profile.flash.chosen.stringValue)
+            #expect(child.slot == .standard)
             #expect(harness.script.toolOutputs.first?.contains(Self.pendingMark) == true)
             #expect(prompts.count == Self.oneChildPromptCount)
             #expect(prompts.first == NestedRunTests.leadKey)
-            #expect(prompts.dropFirst().first?.contains(NestedRunTests.reviewerKey) == true)
+            #expect(prompts.dropFirst().first?.contains(NestedRunTests.testWriterKey) == true)
             #expect(prompts.last?.contains(child.report) == true)
             #expect(result == prompts.last)
         }

@@ -214,17 +214,15 @@ final class LiveAgentsToolProbe: Tool {
     }
 }
 
-/// The probe runs in the background as the real tool does: each part gives
-/// the part of the real tool.
+/// The probe mounts each call as the real tool does: each part gives the
+/// part of the real tool.
 extension LiveAgentsToolProbe: BackgroundTool {
-    /// The mount of the real tool.
-    var mount: ToolMount? {
-        wrapped.mount
-    }
-
-    /// The wait of the real tool before the Router answers.
-    var inlineSettleGrace: TimeInterval? {
-        wrapped.inlineSettleGrace
+    /// The mount of one call of the real tool.
+    ///
+    /// - Parameter arguments: The arguments of the call.
+    /// - Returns: The mount of the operation that `arguments` names.
+    func mount(for arguments: GeneratedContent) -> ToolMount? {
+        wrapped.mount(for: arguments)
     }
 
     /// The `next` sentence of the real tool.

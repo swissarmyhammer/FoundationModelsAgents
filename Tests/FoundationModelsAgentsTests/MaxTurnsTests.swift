@@ -281,6 +281,7 @@ struct MaxTurnsTests {
         .timeLimit(.minutes(1)))
     func hitMaxTurnsCancelsOpenChildThenPosts() async throws {
         let gate = ScriptedGate()
+        let leadGate = ScriptedGate()
         let layer = try Self.makeLayer()
         defer { try? layer.delete() }
         let harness = try await AgentsToolHarness.make(
@@ -290,6 +291,7 @@ struct MaxTurnsTests {
                     key: Self.leadKey,
                     steps: [
                         NestedRunTests.startStep(Self.flashHelper, prompt: Self.helperKey),
+                        .wait(leadGate),
                         Self.listStep,
                         .finalText(Self.leadText)
                     ]),
@@ -301,9 +303,11 @@ struct MaxTurnsTests {
         let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: NestedRunTests.rootPrompt) == NestedRunTests.rootText)
+        await gate.waitForArrival()
         let lead = try await NestedRunTests.onlyRun(of: harness.runner, caller: root.id)
-        let leadFinal = await lead.finalState()
         let child = try await NestedRunTests.onlyRun(of: harness.runner, caller: lead.id)
+        leadGate.open()
+        let leadFinal = await lead.finalState()
         let childStateAtParentEnd = child.state
         _ = try await NestedRunTests.settlement(of: lead, in: rootEvents)
         let leadPosts = try NestedRunTests.posts(of: lead, in: root.recordingDirectory)

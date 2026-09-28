@@ -121,8 +121,7 @@ struct FinalMessageTests {
     func startReturnsPendingEnvelopeAndRouterRecordsFinalMessage() async throws {
         let childGate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(
-            script: Self.script(child: [.wait(childGate), .finalText(Self.childText)]),
-            flash: ScriptedProfile.standardModel)
+            script: Self.script(child: [.wait(childGate), .finalText(Self.childText)]))
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
         let events = await root.streamSessionEvents()
@@ -148,20 +147,42 @@ struct FinalMessageTests {
     }
 
     @Test(
-        "the final message holds the whole long text, emits runSettled, and the root answers it as mail",
+        "in a host root session, a child that ends at once gives its final message as mail, not in the start answer",
         .timeLimit(.minutes(1)))
-    func longFinalMessageComesWholeAsMail() async throws {
-        let longText = String(repeating: Self.childText + " ", count: Self.longTextCopies)
-        let harness = try await AgentsToolHarness.make(
-            script: Self.script(child: [.finalText(longText)]), flash: ScriptedProfile.standardModel)
+    func fastChildOfRootSessionComesAsMail() async throws {
+        let harness = try await AgentsToolHarness.make(script: Self.script(child: [.finalText(Self.childText)]))
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
         let events = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
+        let startAnswer = try #require(harness.runHarness.script.toolOutputs.first)
+        try #require(startAnswer.contains(Self.pendingMark), "The start answer was: \(startAnswer)")
+        let terminal = try await NestedRunTests.firstSettlement(in: events)
         let run = try await Self.childRun(in: harness, of: root)
-        _ = try await run.result()
-        let settled = try await NestedRunTests.settlement(of: run, in: events)
+        try await NestedRunTests.arrival(ofPromptContaining: Self.childText, in: harness.runHarness.script)
+        let mailPrompt = try #require(harness.runHarness.script.prompts.last)
+        await root.close()
+
+        #expect(terminal.correlationID == run.context?.completionToken)
+        #expect(!startAnswer.contains(Self.childText))
+        #expect(mailPrompt.contains(Self.finishedDetail(of: run, text: Self.childText)))
+    }
+
+    @Test(
+        "the final message holds the whole long text, emits runSettled, and the root answers it as mail",
+        .timeLimit(.minutes(1)))
+    func longFinalMessageComesWholeAsMail() async throws {
+        let longText = String(repeating: Self.childText + " ", count: Self.longTextCopies)
+        let harness = try await AgentsToolHarness.make(
+            script: Self.script(child: [.finalText(longText)]))
+        defer { try? harness.delete() }
+        let root = Self.rootSession(of: harness)
+        let events = await root.streamSessionEvents()
+
+        #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
+        let settled = try await NestedRunTests.firstSettlement(in: events)
+        let run = try await Self.childRun(in: harness, of: root)
         try await NestedRunTests.arrival(ofPromptContaining: Self.childText, in: harness.runHarness.script)
         let mailPrompt = try #require(harness.runHarness.script.prompts.last)
         let posts = try NestedRunTests.posts(of: run, in: root.recordingDirectory)
@@ -178,15 +199,15 @@ struct FinalMessageTests {
     @Test("a failed run gives one final message with the reason", .timeLimit(.minutes(1)))
     func failedRunGivesOneFinalMessage() async throws {
         let harness = try await AgentsToolHarness.make(
-            script: Self.script(child: [.fail(ScriptedFailure.broken)]), flash: ScriptedProfile.standardModel)
+            script: Self.script(child: [.fail(ScriptedFailure.broken)]))
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
         let events = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
+        _ = try await NestedRunTests.firstSettlement(in: events)
         let run = try await Self.childRun(in: harness, of: root)
         let failureText = try #require(Self.modelFailureText(await run.finalState()))
-        _ = try await NestedRunTests.settlement(of: run, in: events)
         let posts = try NestedRunTests.posts(of: run, in: root.recordingDirectory)
         await root.close()
 
@@ -197,8 +218,7 @@ struct FinalMessageTests {
     func cancelledRunGivesOneFinalMessage() async throws {
         let childGate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(
-            script: Self.script(child: [.wait(childGate), .finalText(Self.childText)]),
-            flash: ScriptedProfile.standardModel)
+            script: Self.script(child: [.wait(childGate), .finalText(Self.childText)]))
         defer { try? harness.delete() }
         let root = Self.rootSession(of: harness)
         let events = await root.streamSessionEvents()

@@ -38,9 +38,8 @@ struct AgentSessionMaker: Sendable {
     ///
     /// - Parameters:
     ///   - request: The run to make the session for.
-    ///   - family: The children and the session watch of the new run. The
-    ///     `agents` tool of the run adds to the children, and waits on the
-    ///     watch.
+    ///   - family: The children of the new run. The `agents` tool of the run
+    ///     adds to the children.
     /// - Returns: The new session and its slot.
     /// - Throws: ``AgentRunFailure/bodyRenderFailed(_:)``,
     ///   ``AgentRunFailure/skillRenderFailed(skill:description:)``,

@@ -75,13 +75,13 @@ extension LiveSuites {
                 let probe = LiveAgentsToolProbe(wrapping: agentsTool)
                 let root = harness.makeRootSession(tools: [probe])
                 let rootEvents = await root.streamSessionEvents()
-                let mailReplies = rootEvents.compactMap { event -> String? in
+                var mailReplies = rootEvents.compactMap { event -> String? in
                     if case .answered(let answer) = event, answer.messageIds.isEmpty { answer.reply } else { nil }
-                }
+                }.makeAsyncIterator()
                 _ = try await root.respond(to: rootPrompt)
                 let finderRun = try LiveHarness.run(of: finder, in: await harness.runner.runs(caller: root.id))
                 let text = try await finderRun.result()
-                let reply = await mailReplies.first { _ in true }
+                let reply = await mailReplies.next()
                 await root.close()
                 let spawn = try #require(try LiveRecording.session(of: finderRun).agentSpawn)
                 let startContext = try #require(
