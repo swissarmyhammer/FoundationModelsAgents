@@ -1,0 +1,1 @@
+{"id":"01M3MN916H1WDFDF5A3X00K25N","timestamp":"2026-09-28T18:43:45.489934Z","op":"create","item_id":"01M3MN916BZDZXMMJWDTSZX6Y3","forward_patch":"--- original\n+++ modified\n@@ -0,0 +1,2 @@\n+color: b60205\n+tag_name: otel\n","reverse_patch":"--- original\n+++ modified\n@@ -1,2 +0,0 @@\n-color: b60205\n-tag_name: otel\n","transaction_id":null}

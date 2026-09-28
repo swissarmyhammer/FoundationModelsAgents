@@ -155,11 +155,34 @@ comments:
     - next: /review ^ggpyaem. New tasks: ^x428x7j (check/cancel right after start can miss a run that is not added yet), ^thxe76k (agents-demo --chat counts runs too early). For ^7f7z6qa: plan.md §7 still says "standard when the two slots share a model".
     task: ^ggpyaem
   timestamp: 2026-09-28T18:16:11.676892+00:00
+- actor: claude-code
+  id: 01m3mm2cvasa986b27td2vj7kw
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` (04db4ec). 0 findings (confirmed 0, refuted 0, attempted 7, failed 0). 28 files reviewed. 9 files not reviewed: 8 `.kanban/` files (ignore rule) and `README.md` (no validator matches). 5 code-hygiene rules declined `Tests/FoundationModelsAgentsTests/Support/ToolOutputEnvelope.swift`, because this commit deletes that file. All 3 findings of 2026-09-26 16:14 are checked. All acceptance criteria and test items are checked.
+    - next: none. The task is in done.
+
+    ```
+    step: review
+    outcome: clean
+    evidence: 0 findings
+    task: ^ggpyaem
+    ```
+  timestamp: 2026-09-28T18:22:39.466605+00:00
+- actor: claude-code
+  id: 01m3mm2p4r0a77dsz9f2gyz0cx
+  text: |-
+    ### finish iteration 3 — clean
+    - implement: changed — 37 files; Router 960dab2, Extras 4a733cd; per-operation mount; findings 1-3 fixed
+    - test: green — swift test -Xswiftc -warnings-as-errors, 370 passed; swiftlint 0; IntegrationTests 3 live runs 12/12
+    - commit: 04db4ec
+    - review: clean — 0 findings
+  timestamp: 2026-09-28T18:22:48.984689+00:00
 depends_on:
 - 01M3A6DQW7S7GYSPTDY3QHG0XH
 - 01M3A6DZBWW4SMKGJCA3H1KBYF
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: b480
 title: 'Runs on the Router pump: start agent is a background run, and a run ends when its session is idle'
 ---
 ## Why

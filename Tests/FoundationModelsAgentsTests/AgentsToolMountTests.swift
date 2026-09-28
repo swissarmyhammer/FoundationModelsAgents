@@ -81,6 +81,29 @@ struct AgentsToolMountTests {
         #expect(harness.tool.mount(for: arguments)?.mode == call.mode)
     }
 
+    /// A mount with no timeout runs its call to the end, however long the
+    /// call takes. Thus a synchronous op gives its real answer in band after
+    /// any time, and the Router never cuts a `start agent` body.
+    @Test("the mount of each op has no timeout", arguments: modes)
+    func mountOfEachOperationHasNoTimeout(_ call: (op: String, mode: ToolMount.Mode)) async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+        let arguments = try GeneratedContent(json: #"{"op": "\#(call.op)"}"#)
+
+        #expect(harness.tool.mount(for: arguments) == ToolMount(mode: call.mode, timeout: nil))
+    }
+
+    /// With no inline settle grace, no call of the tool waits for a time and
+    /// then answers with an envelope: a synchronous op waits for its real
+    /// answer, and `start agent` answers with the envelope at once.
+    @Test("the tool has no inline settle grace")
+    func toolHasNoInlineSettleGrace() async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+
+        #expect(harness.tool.inlineSettleGrace == nil)
+    }
+
     @Test(
         "in a Router session, list, check, and cancel agent give their real answer in band, with no envelope",
         .timeLimit(.minutes(1)))
