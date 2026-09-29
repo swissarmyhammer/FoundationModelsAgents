@@ -82,7 +82,10 @@ let testOnlyDependencies: [Target.Dependency] = [
     // the other marketplace fixtures.
     .product(name: "MarketplaceFixtures", package: "FoundationModelsExtras"),
     // `TelemetryCapture`, the content-safety helper of the telemetry.
-    .product(name: "TelemetryTestSupport", package: "FoundationModelsExtras")
+    .product(name: "TelemetryTestSupport", package: "FoundationModelsExtras"),
+    // `FinishedInMemorySpan`, the type of each span that a capture holds. The
+    // tracing tests read the tree of the spans from it.
+    .product(name: "InMemoryTracing", package: "swift-distributed-tracing")
 ]
 
 /// The `FoundationModelsAgents` SwiftPM package.

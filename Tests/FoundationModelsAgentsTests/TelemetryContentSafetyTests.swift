@@ -14,7 +14,9 @@ import Testing
 /// The capture binds its tracer and its metrics factory to the task of the
 /// test as task-local values. The harness is made inside the capture, thus
 /// each task that inherits the task-local values of the test reports to the
-/// capture.
+/// capture. The pump of a Router session is a detached task, which inherits
+/// no task-local value, thus the test also gives the tracer of the capture
+/// to the harness: the Router and each run then open their spans through it.
 @Suite("Telemetry content safety: no task text, answer or tool argument in the telemetry of a run")
 struct TelemetryContentSafetyTests {
     /// The secret word of the task text of each run.
@@ -32,6 +34,9 @@ struct TelemetryContentSafetyTests {
     /// The name of the tool that the child calls. The fixture agent
     /// code-reviewer lists it in its `tools` key.
     private static let readToolName = "Read"
+
+    /// The count of runs of the test: the lead and code-reviewer.
+    private static let runCount = 2
 
     /// The task text of the parent run. It is the key of its play.
     private static let leadTask = "content-safety-lead-key: divide the task \(taskSecret)"
@@ -68,7 +73,7 @@ struct TelemetryContentSafetyTests {
         .timeLimit(.minutes(1)))
     func parentAndChildRunsCarryNoContent() async throws {
         let context = try await TelemetryCapture.run(forbidding: Self.forbidden) { context in
-            let harness = try await AgentRunHarness.make(script: Self.script, tools: Self.tools)
+            let harness = try await AgentRunHarness.make(script: Self.script, tools: Self.tools, tracer: context.tracer)
             defer { try? harness.delete() }
             let lead = try await harness.makeRunner().start(NestedRunTests.lead, prompt: Self.leadTask)
             let result = try await lead.result()
@@ -84,14 +89,21 @@ struct TelemetryContentSafetyTests {
     /// nothing passes the content check with no issue, thus the test states
     /// what the capture holds.
     ///
-    /// The package emits no telemetry of its own yet. The capture holds the
-    /// spans that the Router opens in the task of the test when the harness
-    /// resolves the profile and makes a session. Each change that makes the
+    /// The capture holds the span of each run, the submission spans of the
+    /// sessions, the tool span of the Read call of the child, and the "enter"
+    /// record of the lead. The "enter" record of the child is not in the
+    /// capture: the child starts in the body of a `start agent` call, which
+    /// runs under the detached pump of the Router, and a detached task does
+    /// not inherit the log capture of the test. Each change that makes the
     /// package emit a span, a log record or a metric adds the expectation of
     /// that record here, thus the content check reads it.
     ///
     /// - Parameter context: The capture of the runs.
     private static func expectMeasuredRuns(in context: TelemetryCapture.Context) {
-        #expect(!context.spans.isEmpty)
+        let trace = CapturedTrace(spans: context.spans)
+        #expect(trace.runSpans.count == runCount)
+        #expect(context.spans.contains { $0.operationName == CapturedTrace.submissionSpanName })
+        #expect(context.spans.contains { CapturedTrace.texts(of: $0).contains(readToolName) })
+        #expect(context.logRecords.contains { "\($0.message)".hasSuffix(AgentsTelemetry.SpanName.run) })
     }
 }

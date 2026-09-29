@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModelsRouter
+import Tracing
 
 /// Makes a resolved `LanguageModelProfile` whose generation slots play a
 /// ``ScriptedAgentScript``, with no download and no network.
@@ -34,17 +35,25 @@ enum ScriptedProfile {
     ///   - flash: The model of the `flash` slot. The default is
     ///     ``flashModel``. It must not be `standard`: the Router refuses a
     ///     profile whose two generation slots share one model.
+    ///   - tracer: The tracer of each span of the router, its sessions and
+    ///     their tools, or `nil` (the default) for
+    ///     `InstrumentationSystem.tracer` at call time. The pump of a session
+    ///     is a detached task, thus a task-local tracer of the test does not
+    ///     reach a submission span or a tool span. A test that reads those
+    ///     spans gives its tracer here.
     /// - Returns: The router and the resolved profile.
     /// - Throws: Whatever `Router.resolve(profile:reporting:)` throws.
     static func make(
         script: ScriptedAgentScript,
         recordingsDir: URL? = nil,
         standard: ModelRef = standardModel,
-        flash: ModelRef = flashModel
+        flash: ModelRef = flashModel,
+        tracer: (any Tracer)? = nil
     ) async throws -> (Router, LanguageModelProfile) {
         let router = Router(
             cacheDir: FileManager.default.temporaryDirectory.appending(path: "ScriptedProfile-\(UUID().uuidString)"),
             recordingsDir: recordingsDir,
+            tracer: tracer,
             probe: ScriptedMachine(),
             metadataSource: ScriptedMetadata(),
             loader: ScriptedModelLoader(script: script),

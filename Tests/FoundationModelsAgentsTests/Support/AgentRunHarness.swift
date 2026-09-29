@@ -3,6 +3,7 @@ import Foundation
 import FoundationModelsRouter
 import FoundationModelsSkills
 import Testing
+import Tracing
 
 /// The parts of one `AgentRun` test: a scripted profile that records to a
 /// temporary folder, a working directory that holds one `AGENTS.md`, and a
@@ -41,6 +42,10 @@ struct AgentRunHarness {
     /// The tool catalog of each run. The `tools` key of an agent selects
     /// from it.
     let tools: ToolCatalog
+
+    /// The tracer of the router and of each run, or `nil` for
+    /// `InstrumentationSystem.tracer` at call time.
+    let tracer: (any Tracer)?
 
     /// The scratch folder. Its root is the working directory of each run.
     let scratch: TemporaryLayer
@@ -85,7 +90,7 @@ struct AgentRunHarness {
         AgentEnvironment(
             profile: profile, skills: skills, workingDirectory: workingDirectory, tools: tools,
             maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth, maxRetainedRuns: maxRetainedRuns,
-            budget: budget)
+            budget: budget, tracer: tracer)
     }
 
     /// Makes a runner over the registry and the environment of the harness.
@@ -123,6 +128,11 @@ struct AgentRunHarness {
     ///     `AgentEnvironment.defaultBudget`.
     ///   - tools: The tool catalog of each run. The default is an empty
     ///     catalog.
+    ///   - tracer: The tracer of the router and of each run, or `nil` (the
+    ///     default) for `InstrumentationSystem.tracer` at call time. A test
+    ///     that reads the spans of the sessions gives its tracer here,
+    ///     because the pump of a session does not inherit a task-local
+    ///     tracer.
     /// - Returns: The harness.
     /// - Throws: The error of the file system, of the profile, or of
     ///   `registry.load()`.
@@ -131,17 +141,19 @@ struct AgentRunHarness {
         registry: AgentRegistry = AgentRegistry(stack: FixtureLibrary.stack()),
         skills: SkillsRegistry = SkillsRegistry(roots: []),
         budget: @escaping AgentEnvironment.BudgetFactory = AgentEnvironment.defaultBudget,
-        tools: ToolCatalog = ToolCatalog()
+        tools: ToolCatalog = ToolCatalog(),
+        tracer: (any Tracer)? = nil
     ) async throws -> AgentRunHarness {
         let scratch = try TemporaryLayer.makeEmpty()
         try scratch.write(agentsMdText, at: agentsMdName)
         let (router, profile) = try await ScriptedProfile.make(
             script: script,
-            recordingsDir: scratch.container.appendingPathComponent(recordingsFolderName, isDirectory: true))
+            recordingsDir: scratch.container.appendingPathComponent(recordingsFolderName, isDirectory: true),
+            tracer: tracer)
         try await registry.load()
         return AgentRunHarness(
             router: router, profile: profile, script: script, registry: registry, skills: skills, budget: budget,
-            tools: tools, scratch: scratch)
+            tools: tools, tracer: tracer, scratch: scratch)
     }
 
     /// Starts a host-started run of `agent` with `prompt`.

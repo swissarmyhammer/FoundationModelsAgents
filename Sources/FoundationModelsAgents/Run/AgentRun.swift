@@ -1,6 +1,7 @@
 import Foundation
 import FoundationModelsRouter
 import Synchronization
+import Tracing
 import ULID
 
 /// One delegated task: one agent, one prompt, and one Router session
@@ -58,6 +59,12 @@ public final class AgentRun: Sendable {
 
     /// The session of the caller, or `nil` for a host-driven run.
     public let caller: ULID?
+
+    /// The id of the run that started this run: the session of the caller
+    /// when the caller is a run, or `nil` when the host or a session that is
+    /// not a run started this run. The session of a run has the id of the
+    /// run.
+    let parentRunID: ULID?
 
     /// The depth of the run. A host-started run has depth one.
     public let depth: Int
@@ -167,6 +174,7 @@ public final class AgentRun: Sendable {
         self.id = id
         self.agent = request.definition
         self.caller = request.context?.sessionID
+        self.parentRunID = request.parent == nil ? nil : request.context?.sessionID
         self.depth = request.depth
         self.recordingDirectory = made?.session.recordingDirectory
         self.slot = made?.slot
@@ -202,6 +210,10 @@ public final class AgentRun: Sendable {
     /// A run whose caller is a run adds itself to the children of that run
     /// before its answers start. The answers then run in the background.
     ///
+    /// Each run has one span (``traced(by:_:)``), a child of the
+    /// `ServiceContext` of the caller. The span of a run whose setup failed
+    /// starts and ends in this call.
+    ///
     /// - Parameters:
     ///   - request: The inputs of the run.
     ///   - environment: The dependencies and the limits of the runs.
@@ -217,11 +229,13 @@ public final class AgentRun: Sendable {
             made = try await AgentSessionMaker(environment: environment, renderer: renderer)
                 .makeSession(for: request, family: family)
         } catch {
-            return AgentRun(id: ULID(), request: request, made: nil, family: family, state: .failed(error))
+            let run = AgentRun(id: ULID(), request: request, made: nil, family: family, state: .failed(error))
+            _ = await run.traced(by: environment.tracer) { _ in run.state }
+            return run
         }
         let run = AgentRun(id: made.session.id, request: request, made: made, family: family, state: .running)
         let isAdopted = request.parent?.children.add(run) ?? true
-        run.startDriver(on: made.session, prompt: request.prompt)
+        run.startDriver(on: made.session, prompt: request.prompt, tracer: environment.tracer)
         if !isAdopted {
             run.cancel()
         }
@@ -299,21 +313,36 @@ public final class AgentRun: Sendable {
         return .alreadySettled(finalMessage)
     }
 
-    /// Starts the background task that drives the session of the run
-    /// (``drive(_:prompt:)``).
+    /// Starts the background task that holds the span of the run
+    /// (``traced(by:_:)``), and in it the task that drives the session of the
+    /// run (``drive(_:prompt:)``).
     ///
-    /// The task is detached, thus it does not take the `ToolContext` of the
-    /// tool call that started the run. The tools of the session bind their
-    /// own contexts.
+    /// The task of the span is not detached: it takes the task-local values
+    /// of the caller. Thus the span is a child of the `ServiceContext` of the
+    /// caller, and the "enter" record goes to the log capture of the caller.
+    /// The task that drives the session is detached, thus it does not take
+    /// the `ToolContext` of the tool call that started the run. The tools of
+    /// the session bind their own contexts. That task binds the context of
+    /// the span, thus the session gets it when the run sends its task prompt,
+    /// and the Router opens the submission spans of that prompt as children
+    /// of the span of the run.
     ///
     /// - Parameters:
     ///   - session: The session of the run.
     ///   - prompt: The task prompt.
-    private func startDriver(on session: any RoutedSession, prompt: String) {
-        let driver = Task.detached {
-            let final = await self.drive(session, prompt: prompt)
-            self.end(in: final)
-            return final
+    ///   - tracer: The tracer of the span, or `nil` for
+    ///     `InstrumentationSystem.tracer`.
+    private func startDriver(on session: any RoutedSession, prompt: String, tracer: (any Tracer)?) {
+        let driver = Task {
+            await self.traced(by: tracer) { spanContext in
+                let final = await Task.detached {
+                    await ServiceContext.withValue(spanContext) {
+                        await self.drive(session, prompt: prompt)
+                    }
+                }.value
+                self.end(in: final)
+                return final
+            }
         }
         storage.withLock { $0.driver = driver }
     }
