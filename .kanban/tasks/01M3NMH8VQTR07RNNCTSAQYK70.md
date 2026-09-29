@@ -54,8 +54,24 @@ comments:
     - evidence: `swift build -Xswiftc -warnings-as-errors` clean (0 warnings from our code); `swift test -Xswiftc -warnings-as-errors` — 430 tests, 63 suites, 0 failed, 0 skipped; `swiftlint lint Sources Tests Package.swift Examples` — 0 violations, 0 serious, 147 files; `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` clean (0 warnings from our code)
     - next: ready for review
   timestamp: 2026-09-29T05:09:04.508079+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m3ns6hnbt4wqpxf7nxa14hct
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` — 0 findings (confirmed 0, refuted 0; 7 validator runs attempted, 0 failed). 3 files reviewed. Not reviewed: 4 `.kanban/` files (excluded by .reviewignore), `plan.md` (no validator matches). No prior review findings. All acceptance criteria are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-09-29T05:11:32.779055+00:00
+- actor: claude-code
+  id: 01m3ns6rm1zthdpyxgxatg9bqm
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — AgentRunAnswers.swift, AgentRun+Drive.swift, AgentRunAnswersTests.swift (new), plan.md; cause traced: transcript ahead of processed events at runSettled
+    - test: green — swift test -Xswiftc -warnings-as-errors, 430 tests in 63 suites passed; task filter 20/20; swiftlint 0; IntegrationTests build-tests complete
+    - commit: 3f3775d
+    - review: clean — 0 findings
+  timestamp: 2026-09-29T05:11:39.905064+00:00
+position_column: done
+position_ordinal: c280
 title: 'AgentRun idle rule: a runSettled check can see the mail prompt before the event of its submission start'
 ---
 ## What
