@@ -142,9 +142,11 @@ public actor AgentRunner {
     /// Starts the run of `request`, and puts it in the index.
     ///
     /// While the setup is in operation, the start is in ``setups``. After
-    /// the setup, the run goes in the index, and then each cancel call that
-    /// waits for the setup continues. Thus that call finds the run in the
-    /// index.
+    /// the setup, the run goes in the index before its answers begin. Thus
+    /// the run is in the index before its session can call a tool, and a
+    /// read of the index from a step of the session finds the run. Then each
+    /// cancel call that waits for the setup continues, and finds the run in
+    /// the index.
     ///
     /// - Parameter request: The inputs of the run.
     /// - Returns: The run. Its setup is done, thus it has its id.
@@ -152,8 +154,9 @@ public actor AgentRunner {
         retireEndedRuns()
         let setupKey = ULID()
         setups[setupKey] = Setup(caller: request.context?.sessionID)
-        let run = await AgentRun.start(request, environment: environment, renderer: renderer)
+        let run = await AgentRun.make(request, environment: environment, renderer: renderer)
         openRuns[run.id] = run
+        run.begin(request, environment: environment)
         for waiter in setups.removeValue(forKey: setupKey)?.waiters ?? [] {
             waiter.resume()
         }

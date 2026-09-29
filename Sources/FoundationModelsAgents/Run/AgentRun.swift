@@ -7,13 +7,13 @@ import ULID
 /// One delegated task: one agent, one prompt, and one Router session
 /// (plan.md §8, §8.1).
 ///
-/// `start` does the synchronous steps before it returns: it renders the
+/// `make` does the synchronous steps before it returns: it renders the
 /// body, puts the instructions in order, makes the tools, matches the model,
 /// and makes the session. Thus ``id`` is the session id at once. Only the
-/// answers run in the background, and nothing goes to the caller while they
-/// run. The run ends when its session is idle, and the reply of the last
-/// answer is the result. The run then closes its session, and a finished run
-/// holds no session.
+/// answers run in the background from `begin`, and nothing goes to the
+/// caller while they run. The run ends when its session is idle, and the
+/// reply of the last answer is the result. The run then closes its session,
+/// and a finished run holds no session.
 ///
 /// A run whose setup fails has no session. It gets a new ULID, no recording
 /// directory, and the state ``AgentRunState/failed(_:)``.
@@ -204,11 +204,11 @@ public final class AgentRun: Sendable {
         }
     }
 
-    /// Starts the run of `request` (plan.md §8).
+    /// Makes the run of `request`: the setup, and no answer (plan.md §8).
     ///
-    /// The setup is done when the call returns, thus the run has its id.
-    /// A run whose caller is a run adds itself to the children of that run
-    /// before its answers start. The answers then run in the background.
+    /// The setup is done when the call returns, thus the run has its id. The
+    /// session gets no prompt until ``begin(_:environment:)``. Thus the runner
+    /// can put the run in its index before the session can call a tool.
     ///
     /// Each run has one span and its log records (``traced(in:_:)``), a child
     /// of the `ServiceContext` of the caller. The span and the records of a
@@ -220,7 +220,7 @@ public final class AgentRun: Sendable {
     ///   - renderer: Renders the body of the agent.
     /// - Returns: The run, in ``AgentRunState/running``, or in
     ///   ``AgentRunState/failed(_:)`` when the setup failed.
-    static func start(
+    internal static func make(
         _ request: AgentRunRequest, environment: AgentEnvironment, renderer: AgentBodyRenderer
     ) async -> AgentRun {
         let family = ParentRun.Family()
@@ -233,13 +233,26 @@ public final class AgentRun: Sendable {
             _ = await run.traced(in: environment) { _ in run.state }
             return run
         }
-        let run = AgentRun(id: made.session.id, request: request, made: made, family: family, state: .running)
-        let isAdopted = request.parent?.children.add(run) ?? true
-        run.startDriver(on: made.session, prompt: request.prompt, environment: environment)
+        return AgentRun(id: made.session.id, request: request, made: made, family: family, state: .running)
+    }
+
+    /// Begins the answers of a run that ``make(_:environment:renderer:)``
+    /// gave. Call it one time for each run.
+    ///
+    /// A run whose caller is a run adds itself to the children of that run
+    /// before its answers start. The answers then run in the background. A
+    /// run whose setup failed has no session, thus the call does nothing.
+    ///
+    /// - Parameters:
+    ///   - request: The inputs of the run: the request of `make`.
+    ///   - environment: The dependencies and the limits of the runs.
+    internal func begin(_ request: AgentRunRequest, environment: AgentEnvironment) {
+        guard let session = heldSession else { return }
+        let isAdopted = request.parent?.children.add(self) ?? true
+        startDriver(on: session, prompt: request.prompt, environment: environment)
         if !isAdopted {
-            run.cancel()
+            cancel()
         }
-        return run
     }
 
     /// Waits for the run to end, and gives its result.

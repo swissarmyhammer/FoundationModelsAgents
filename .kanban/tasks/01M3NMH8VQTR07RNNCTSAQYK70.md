@@ -1,0 +1,30 @@
+---
+assignees:
+- claude-code
+position_column: todo
+position_ordinal: '80'
+title: 'AgentRun idle rule: a runSettled check can see the mail prompt before the event of its submission start'
+---
+## What
+Some nested-run tests fail one time in some runs: the parent result does not hold the final message of the child. Seen failures:
+- `AgentSchedulingTests+CallingRun.swift` `limitDoesNotCountCallingRun`: `result.contains(Self.childText)` is false.
+- `NestedRunTests+Limits.swift` maxDepth 2 test: `result.contains(Self.childPlannerText)` is false.
+- `NestedRunTests+Limits.swift` `waitingSiblingsLetChildrenStart`: `firstResult.contains(Self.firstHelperText)` is false.
+- `NestedRunTests+Idle.swift` `parentAndChildOnOneModel`: `result == prompts.last` is false, but `prompts.last` holds the report of the child. Thus the parent answered the mail, and its result is the reply of an earlier answer.
+
+Probable cause (not proved): `AgentRun.idleSignalAfterSettlement(on:)` runs at a `runSettled` event. It reads `answers` (from the events that the follower processed) and the live `session.transcript`. The Router stages the final message before it sends `runSettled`, thus the pump can start the answer to the mail first. The transcript then holds the mail prompt, but the follower did not process `submissionStarted` yet. `isAnswerOpen` is `false`, `isIdle` is `true`, and the run ends with `.idle(lastReply)`: the reply of the task answer.
+
+In the CallingRun test the child is started and adopted long before the gates open, thus the start order of a run has no effect on this window.
+
+Frequency: 2 of 20 runs of `swift test --filter 'AgentRunTests|AgentRunnerTests|AgentSchedulingTests|NestedRunTests|MaxTurnsTests|AgentsCLITests|FinalMessageTests|AgentsToolMountTests'` during ^5761w5h; 0 of 25 runs before that change.
+
+## Acceptance Criteria
+- [ ] Find the cause with evidence (for example the order of the session events at the failure).
+- [ ] The run ends with `.idle` only when no answer is open in the session, also when the transcript is ahead of the event stream.
+- [ ] A test that fails before the fix and passes after it, with no sleep.
+
+## Tests
+- [ ] The filter above passes 20 runs in a row; `swift test -Xswiftc -warnings-as-errors` passes; `swiftlint lint Sources Tests Package.swift Examples` gives 0 violations.
+
+## Workflow
+- Use `/tdd` — write failing tests first, then implement to make them pass.

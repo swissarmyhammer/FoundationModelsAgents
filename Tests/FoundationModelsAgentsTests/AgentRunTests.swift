@@ -142,6 +142,23 @@ struct AgentRunTests {
         #expect(run.heldSession == nil)
     }
 
+    @Test("a made run holds its session and sends no prompt until begin", .timeLimit(.minutes(1)))
+    func madeRunSendsNoPromptUntilBegin() async throws {
+        let harness = try await AgentRunHarness.make(script: Self.script([.finalText(Self.finalText)]))
+        defer { try? harness.delete() }
+        let request = try harness.request(Self.reviewer, prompt: Self.prompt)
+
+        let run = await harness.makeRun(request)
+        let promptsBeforeBegin = harness.script.prompts
+        let sessionBeforeBegin = run.heldSession
+        run.begin(request, environment: harness.environment)
+
+        #expect(promptsBeforeBegin.isEmpty)
+        #expect(sessionBeforeBegin?.id == run.id)
+        #expect(try await run.result() == Self.finalText)
+        #expect(harness.script.prompts == [Self.prompt])
+    }
+
     @Test("the run id is the session id, and the recording is at <recordingsDir>/<routerId>/<run.id>")
     func idIsSessionIdAndNamesRecording() async throws {
         let gate = ScriptedGate()

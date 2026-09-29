@@ -53,8 +53,33 @@ comments:
     - evidence: `swift build -Xswiftc -warnings-as-errors` — build complete, 0 warnings from our code. `swift test -Xswiftc -warnings-as-errors` — 424 tests in 62 suites passed, 0 failures, 0 skipped. `swift test -Xswiftc -warnings-as-errors --filter AgentSchedulingTests` — 10 runs in a row, each 11 tests in 3 suites, all passed. `swiftlint lint Sources Tests Package.swift Examples` — 0 violations in 146 files. `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` — build complete, 0 warnings from our code.
     - next: ready for review.
   timestamp: 2026-09-29T02:31:33.979494+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m3ngct8dzzrarnwexzhkym9n
+  text: |-
+    ### review — clean
+    - scope: `review sha HEAD~1..HEAD` (commit c662a8a). 6 files reviewed. 6 `.kanban/` files are excluded by `.reviewignore`.
+    - evidence: 0 findings after the drop rule. The engine gave 1 finding (1 confirmed, 0 refuted). The review skill drops it because it asks for a refactor of tests that already existed: `Tests/FoundationModelsAgentsTests/AgentsToolMountTests.swift:76` `reuse/reuse` — "The `idArguments` function duplicates an identical function being added to AgentSchedulingTests.swift in the same commit. This utility should be shared across test files rather than copied. Extract `idArguments` to a shared test helper module (e.g., a test utilities file or base class) so AgentSchedulingTests and AgentsToolMountTests both call a single implementation." Both private `idArguments` helpers existed before this commit. The commit only added the `for:` label to them.
+    - acceptance criteria: all checked. There are no prior Review Findings sections.
+    - next: none. The task is in done.
+
+    ```
+    step: review
+    outcome: clean
+    evidence: 0 findings
+    task: ^wd8e43v
+    ```
+  timestamp: 2026-09-29T02:37:41.005279+00:00
+- actor: claude-code
+  id: 01m3ngd4n8qf8kvnm1dgqy1s0e
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 6 test files (waitForStarts before runs(caller:) reads; idArguments(for:of:)); follow-up ^5761w5h for reads outside harness.tool
+    - test: green — swift test -Xswiftc -warnings-as-errors, 424 tests in 62 suites passed; AgentSchedulingTests 10/10 runs; swiftlint 0; IntegrationTests build-tests complete
+    - commit: c662a8a
+    - review: clean — 0 findings (1 engine finding, reuse/reuse at AgentsToolMountTests.swift:76, dropped by the review rule for tests that already existed)
+  timestamp: 2026-09-29T02:37:51.656285+00:00
+position_column: done
+position_ordinal: c080
 title: 'Scheduling tests: wait for open start calls before they read runner.runs(caller:)'
 ---
 ## What

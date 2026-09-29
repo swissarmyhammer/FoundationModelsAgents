@@ -182,6 +182,24 @@ struct AgentRunnerTests {
         #expect(await runner.runs.isEmpty)
     }
 
+    @Test("a run is in the index when its session reaches a step, also before start returns", .timeLimit(.minutes(1)))
+    func runIsInIndexWhenItsSessionRuns() async throws {
+        let gate = ScriptedGate()
+        let harness = try await AgentRunHarness.make(
+            script: Self.script(first: [.wait(gate), .finalText(Self.firstText)], second: []))
+        defer { try? harness.delete() }
+        let runner = harness.makeRunner()
+
+        async let started = runner.start(Self.reviewer, prompt: Self.firstPrompt)
+        await gate.waitForArrival()
+        let indexed = await runner.runs(caller: nil)
+        gate.open()
+        let run = try await started
+
+        #expect(indexed.map(\.id) == [run.id])
+        #expect(try await run.result() == Self.firstText)
+    }
+
     @Test("with maxRetainedRuns 2, a third finished run removes the oldest record")
     func thirdFinishedRunRemovesOldestRecord() async throws {
         let prompts = [Self.firstPrompt, Self.secondPrompt, Self.firstPrompt]

@@ -178,7 +178,7 @@ struct AgentRunHarness {
             tools: tools, tracer: tracer, logger: logger, metricsFactory: metricsFactory, scratch: scratch)
     }
 
-    /// Starts a host-started run of `agent` with `prompt`.
+    /// Makes the request of a host-started run of `agent` with `prompt`.
     ///
     /// - Parameters:
     ///   - agent: The id of the agent in the registry.
@@ -186,7 +186,40 @@ struct AgentRunHarness {
     ///   - context: The context of the tool call that starts the run, or
     ///     `nil` for a host-driven run.
     ///   - agentsTool: Makes the `agents` tool, or `nil`.
-    /// - Returns: The run, when `start` returns.
+    /// - Returns: The request, with depth one and no parent run.
+    /// - Throws: The error of `#require` when the registry has no such agent.
+    func request(
+        _ agent: String,
+        prompt: String,
+        context: ToolContext? = nil,
+        agentsTool: AgentRunRequest.AgentsToolMaker? = nil
+    ) throws -> AgentRunRequest {
+        let definition = try #require(registry.catalog().definition(named: agent))
+        return AgentRunRequest(
+            definition: definition, prompt: prompt, context: context,
+            inheritedSlot: environment.defaultSlot, depth: AgentRunner.hostDepth, parent: nil,
+            agentsTool: agentsTool)
+    }
+
+    /// Makes the run of `request` over the environment of the harness, and
+    /// does not begin its answers.
+    ///
+    /// - Parameter request: The inputs of the run.
+    /// - Returns: The run, when `AgentRun.make` returns.
+    func makeRun(_ request: AgentRunRequest) async -> AgentRun {
+        await AgentRun.make(request, environment: environment, renderer: AgentBodyRenderer(registry: registry))
+    }
+
+    /// Starts a host-started run of `agent` with `prompt`: it makes the run,
+    /// then begins its answers.
+    ///
+    /// - Parameters:
+    ///   - agent: The id of the agent in the registry.
+    ///   - prompt: The prompt of the run.
+    ///   - context: The context of the tool call that starts the run, or
+    ///     `nil` for a host-driven run.
+    ///   - agentsTool: Makes the `agents` tool, or `nil`.
+    /// - Returns: The run, when its answers began.
     /// - Throws: The error of `#require` when the registry has no such agent.
     func start(
         _ agent: String,
@@ -194,14 +227,10 @@ struct AgentRunHarness {
         context: ToolContext? = nil,
         agentsTool: AgentRunRequest.AgentsToolMaker? = nil
     ) async throws -> AgentRun {
-        let definition = try #require(registry.catalog().definition(named: agent))
-        let environment = environment
-        let request = AgentRunRequest(
-            definition: definition, prompt: prompt, context: context,
-            inheritedSlot: environment.defaultSlot, depth: AgentRunner.hostDepth, parent: nil,
-            agentsTool: agentsTool)
-        return await AgentRun.start(
-            request, environment: environment, renderer: AgentBodyRenderer(registry: registry))
+        let request = try self.request(agent, prompt: prompt, context: context, agentsTool: agentsTool)
+        let run = await makeRun(request)
+        run.begin(request, environment: environment)
+        return run
     }
 
     /// Removes the folders of the harness.
