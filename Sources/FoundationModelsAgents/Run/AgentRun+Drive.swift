@@ -244,8 +244,12 @@ extension AgentRun {
     /// output of the settled transcript that is a pending envelope
     /// (``pendingRunTokens(in:)``). Its final message is the detail of its
     /// terminal, and a prompt of the settled transcript must hold that
-    /// detail. The last answer came after that prompt, thus it answered each
-    /// final message.
+    /// detail. An answer that the processed events ended must come after
+    /// that prompt (``AgentRunAnswers/hasAnswered(promptHolding:in:)``).
+    /// The settled transcript can be ahead of the processed events: at a
+    /// ``SessionEvent/runSettled(_:)``, it can hold the prompt of the final
+    /// message and its reply before the run read the start of that answer.
+    /// The session is then not idle, and the end of that answer checks again.
     ///
     /// The body of a `start agent` call starts its run after the call gave
     /// the pending envelope. Thus the run can be absent from ``children``
@@ -263,12 +267,12 @@ extension AgentRun {
             return false
         }
         let transcript = await session.transcript
-        let prompts = Self.promptTexts(in: transcript)
+        let answers = answers
         return Self.pendingRunTokens(in: transcript).allSatisfy { token in
             guard let finalMessage = sessionWatch.detail(ofSettledCall: token) else {
                 return false
             }
-            return prompts.contains { $0.contains(finalMessage) }
+            return answers.hasAnswered(promptHolding: finalMessage, in: transcript)
         }
     }
 

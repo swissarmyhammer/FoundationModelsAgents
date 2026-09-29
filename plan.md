@@ -364,13 +364,17 @@ parameter.
    session of the run.
 8. **End when idle.** A run ends when its session is idle. The run checks
    this after each answer and after each settled child. The session is idle
-   when each child ended, when a prompt of the session holds the final
-   message of each pending envelope of the settled transcript (thus the
-   session answered each final message), and when no caller message waits
-   in the queue. The reply of the last answer is the result. A run that
-   started no child ends after the answer of its task. The run also ends
-   when the count of passes goes above `maxTurns` (`hitMaxTurns`), when an
-   answer fails, when the Router holds the mail and starts no answer for it
+   when each child ended, when the session answered the final message of
+   each pending envelope of the settled transcript, and when no caller
+   message waits in the queue. The session answered a final message when
+   no answer is open and a prompt that holds it comes before the newest
+   transcript entry that a processed `SessionEvent.entryRecorded` named.
+   The settled transcript can be ahead of the events that the run
+   processed, thus a prompt alone is not proof of an answer. The reply of
+   the last answer is the result. A run that started no child ends after
+   the answer of its task. The run also ends when the count of passes goes
+   above `maxTurns` (`hitMaxTurns`), when an answer fails, when the Router
+   holds the mail and starts no answer for it
    (`SessionEvent.mailDeliveryPaused`; the run fails with
    `mailDeliveryPaused`), or when a caller cancels it. When the run ends, it
    records its final state at once, cancels its open children and waits for

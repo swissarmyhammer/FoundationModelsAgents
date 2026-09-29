@@ -1,7 +1,60 @@
 ---
 assignees:
 - claude-code
-position_column: todo
+comments:
+- actor: claude-code
+  id: 01m3nqyr7336bn41w682bxaafw
+  text: |-
+    ### Research and evidence
+
+    Router facts (read in `.build/checkouts/FoundationModelsRouter`):
+    - `session.transcript` is the SETTLED transcript (`SettledTranscript`). The Router updates it at the end of a submission (after the recording diff), at a tool-result boundary, and at a reseed.
+    - The recording diff at the end of a submission sends `entryRecorded(id:kind:)` for each `.toolCalls`, `.reasoning` and `.response` entry, before `submissionEnded` and `answered`. The `id` is the `Transcript.Entry.id` of the same entry in `session.transcript`.
+    - `submissionStarted` is sent before the SDK call starts. Thus each prompt in the settled transcript has its `submissionStarted` in the subscription already, but the follower can still be behind it.
+    - `RoutedSessionActor.record(event:)` appends the journal entry, then sends `runSettled`. The pump can start the answer to the staged mail before or after that. The Router gives no order between `runSettled` and the `submissionStarted` of the mail answer.
+
+    Evidence (temporary stderr trace in `follow`, now removed). Loop of the task filter: failure in run 23 of 23, test "a child with no model runs on the flash slot when its parent is on flash" (`result.contains(Self.helperText)` false). The trace at the `runSettled` idle signal of `flash-lead`:
+    - processed events: `submissionStarted(message)`, `toolCall`, `entryRecorded(toolCalls,scripted-call-0-entry)`, `entryRecorded(response,14C10B17…)`, `submissionEnded`, `answered(I started the agents.)`, `runSettled`
+    - live transcript: `instructions`, `prompt[0CDF…]` (task), `toolCalls`, `toolOutput`, `response[14C10B17…]`, `prompt[D9D8…]:[agents] agents (01M3…` (the mail), `response[40CB…]`
+    - the run ended with `.idle("I started the agents.")`, the reply of the task answer.
+
+    Thus the cause is proved: at `runSettled` the settled transcript holds the mail prompt and its response, but the follower did not process the `submissionStarted`, `entryRecorded(response,40CB…)` and `answered` of the mail answer.
+
+    Fix plan (no Router change): the answers record also keeps the id of the newest entry that a processed `entryRecorded` named. A final message counts as answered only when no answer is open and a prompt that holds it comes before that entry in the transcript. A prompt after that entry belongs to an answer that the follower did not process, thus the session is not idle. The later `answered` event of that answer checks again. The rule applies in `isIdle`, thus both the `answered` path and the `runSettled` path use it.
+  timestamp: 2026-09-29T04:49:48.771062+00:00
+- actor: claude-code
+  id: 01m3nrxa1nv9x2fygefq2ct3t5
+  text: |-
+    ### Implementation
+
+    - `AgentRunAnswers` keeps `lastRecordedEntryID`, the id of the newest entry that a processed `entryRecorded` named. The new `hasAnswered(promptHolding:in:)` gives `true` only when no answer is open and a prompt that holds the text comes before that entry in the transcript. It gives `false` when the transcript does not hold that entry (for example after a compaction). The end of the next answer then checks again, because the Router settles the transcript before it sends `answered`.
+    - `AgentRun.isIdle(on:)` uses that rule for each final message. Thus both the `answered` path and the `runSettled` path wait for the events of the mail answer. No Router change.
+    - plan.md §8 step 8 states the rule. Its old text said that a prompt that holds the final message proves the answer. That is the wrong inference that caused the bug.
+
+    TDD record:
+    - Step 1: a behavior-preserving seam `hasAnswered(promptHolding:in:)` with the old rule (prompt text alone). Existing tests stayed green.
+    - Step 2 (RED): `AgentRunAnswersTests` records the events and the transcript of one real scripted session with two answers. It applies only a part of the events, and reads the full transcript. Thus the transcript is ahead of the events with no timing and no sleep. 3 of 4 tests failed with the old rule, for the expected reason (`hasAnswered` gave `true`).
+    - Step 3 (GREEN): the new rule. 4 of 4 pass.
+
+    Why no end-to-end gate test: the race is in the follower of the run. The follower reads `session.transcript` after it dequeues `runSettled`, and no test seam can hold the follower between those two steps. A gate in the scripted model holds the pump, which makes the transcript behind the events, not ahead. The Router makes `SubmissionID` internal, thus a test cannot make a `submissionStarted` event by hand. The recorded real session is the deterministic replacement.
+
+    Note: SwiftPM prints `disk I/O error` warnings for its user manifest cache (`~/Library/Caches/org.swift.swiftpm/manifests/manifest.db`). These are SwiftPM tool warnings, not compiler warnings. The builds and tests pass. I did not touch that cache.
+  timestamp: 2026-09-29T05:06:30.069198+00:00
+- actor: claude-code
+  id: 01m3nrxdk7qey625qyrkx1z76x
+  text: |-
+    ### implement — changed
+    - evidence: 4 files — Sources/FoundationModelsAgents/Run/AgentRunAnswers.swift, Sources/FoundationModelsAgents/Run/AgentRun+Drive.swift, Tests/FoundationModelsAgentsTests/AgentRunAnswersTests.swift (new), plan.md. Task filter 20 of 20 runs pass (96 tests each); `swift test -Xswiftc -warnings-as-errors` 430 tests in 63 suites pass; `swiftlint lint Sources Tests Package.swift Examples` 0 violations; `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` builds.
+    - next: /review
+  timestamp: 2026-09-29T05:06:33.703811+00:00
+- actor: claude-code
+  id: 01m3ns20vwtecq4gx5sh6xqvfz
+  text: |-
+    ### test — green
+    - evidence: `swift build -Xswiftc -warnings-as-errors` clean (0 warnings from our code); `swift test -Xswiftc -warnings-as-errors` — 430 tests, 63 suites, 0 failed, 0 skipped; `swiftlint lint Sources Tests Package.swift Examples` — 0 violations, 0 serious, 147 files; `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` clean (0 warnings from our code)
+    - next: ready for review
+  timestamp: 2026-09-29T05:09:04.508079+00:00
+position_column: doing
 position_ordinal: '80'
 title: 'AgentRun idle rule: a runSettled check can see the mail prompt before the event of its submission start'
 ---
@@ -19,12 +72,12 @@ In the CallingRun test the child is started and adopted long before the gates op
 Frequency: 2 of 20 runs of `swift test --filter 'AgentRunTests|AgentRunnerTests|AgentSchedulingTests|NestedRunTests|MaxTurnsTests|AgentsCLITests|FinalMessageTests|AgentsToolMountTests'` during ^5761w5h; 0 of 25 runs before that change.
 
 ## Acceptance Criteria
-- [ ] Find the cause with evidence (for example the order of the session events at the failure).
-- [ ] The run ends with `.idle` only when no answer is open in the session, also when the transcript is ahead of the event stream.
-- [ ] A test that fails before the fix and passes after it, with no sleep.
+- [x] Find the cause with evidence (for example the order of the session events at the failure).
+- [x] The run ends with `.idle` only when no answer is open in the session, also when the transcript is ahead of the event stream.
+- [x] A test that fails before the fix and passes after it, with no sleep.
 
 ## Tests
-- [ ] The filter above passes 20 runs in a row; `swift test -Xswiftc -warnings-as-errors` passes; `swiftlint lint Sources Tests Package.swift Examples` gives 0 violations.
+- [x] The filter above passes 20 runs in a row; `swift test -Xswiftc -warnings-as-errors` passes; `swiftlint lint Sources Tests Package.swift Examples` gives 0 violations.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass.

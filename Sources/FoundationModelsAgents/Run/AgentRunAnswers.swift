@@ -1,3 +1,4 @@
+import FoundationModels
 import FoundationModelsRouter
 
 /// The answers of the session of one run, as its session events tell them
@@ -7,7 +8,8 @@ import FoundationModelsRouter
 /// session: the task prompt, or the final message of a run that this run
 /// started. The run reads one session-event subscription, and this record
 /// keeps what the run needs from it: whether an answer is open, the text of
-/// the last answer, and the text that the open answer streamed so far.
+/// the last answer, the text that the open answer streamed so far, and the
+/// newest transcript entry that the events recorded.
 struct AgentRunAnswers: Sendable, Equatable {
     /// `true` from a submission start to the end of its answer.
     private(set) var isAnswerOpen = false
@@ -20,6 +22,10 @@ struct AgentRunAnswers: Sendable, Equatable {
 
     /// The text that the open answer streamed so far.
     private(set) var streamedText = ""
+
+    /// The id of the newest transcript entry that a processed
+    /// `entryRecorded` event named, or `nil` before the first one.
+    internal private(set) var lastRecordedEntryID: String?
 
     /// The text so far of the run: the text that the open answer streamed,
     /// or the reply of the last answer when the open answer streamed none.
@@ -46,6 +52,40 @@ struct AgentRunAnswers: Sendable, Equatable {
         if case .answerFailed = event {
             isAnswerOpen = false
         }
+        if case .entryRecorded(let id, _) = event {
+            lastRecordedEntryID = id
+        }
+    }
+
+    /// Tells if an answer that the processed events ended answered a prompt
+    /// of `transcript` that holds `text`.
+    ///
+    /// The transcript can be ahead of the processed events: the Router
+    /// settles the transcript at the end of a submission, and the run reads
+    /// the events of that submission later. Thus a prompt in the transcript
+    /// is not proof of an answer. The Router sends `entryRecorded` for each
+    /// entry of a submission after its `submissionStarted` and before the
+    /// end of its answer. Thus a prompt before the newest entry that a
+    /// processed `entryRecorded` named was answered when no answer is open.
+    /// A prompt after that entry belongs to an answer whose events the run
+    /// did not process yet.
+    ///
+    /// - Parameters:
+    ///   - text: The text that the prompt holds, for example a final message.
+    ///   - transcript: A transcript of the session.
+    /// - Returns: `true` when no answer is open, and a prompt that holds
+    ///   `text` comes before the newest recorded entry. `false` also when
+    ///   `transcript` does not hold that entry, for example after a
+    ///   compaction: the end of the next answer then checks again.
+    internal func hasAnswered(promptHolding text: String, in transcript: Transcript) -> Bool {
+        guard !isAnswerOpen,
+            let lastRecordedEntryID,
+            let end = transcript.firstIndex(where: { $0.id == lastRecordedEntryID })
+        else {
+            return false
+        }
+        let answered = Transcript(entries: transcript[transcript.startIndex..<end])
+        return AgentRun.promptTexts(in: answered).contains { $0.contains(text) }
     }
 
     /// Ends the open answer with `reply`.

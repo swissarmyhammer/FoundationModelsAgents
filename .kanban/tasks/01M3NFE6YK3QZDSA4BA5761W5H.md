@@ -41,8 +41,31 @@ comments:
     - the known idle-race nested-run failure (task ^saqyk70) did not occur in this run, so the two extra full-suite runs were not needed.
     - next: task is ready for review.
   timestamp: 2026-09-29T04:31:04.742897+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m3nq4sm2vx2mdfcj5be01g2c
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (15fc6a6): 0 findings (5 files reviewed, 7 attempts, 0 failed). No prior review findings. All acceptance criteria are checked.
+    - next: none. The task is in done.
+
+    ```
+    step: review
+    outcome: clean
+    evidence: 0 findings
+    task: ^5761w5h
+    ```
+  timestamp: 2026-09-29T04:35:38.242242+00:00
+- actor: claude-code
+  id: 01m3nq50qqgn5zjapdk2097tq6
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 5 files (AgentRun make/begin split, AgentRunner indexes before begin, two new tests); idle race found and recorded as ^saqyk70
+    - test: green — swift test -Xswiftc -warnings-as-errors, 426 tests in 62 suites passed; swiftlint 0; IntegrationTests build-tests complete
+    - commit: 15fc6a6
+    - review: clean — 0 findings
+  timestamp: 2026-09-29T04:35:45.527231+00:00
+position_column: done
+position_ordinal: c180
 title: 'Tests: wait for the runner index of runs that a run or the host starts, before a read of runner.runs(caller:)'
 ---
 ## What
