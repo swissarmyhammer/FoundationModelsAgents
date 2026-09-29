@@ -112,10 +112,28 @@ comments:
     - evidence: `swift build -Xswiftc -warnings-as-errors` — build complete, 0 errors, 0 warnings from our code. `swift test -Xswiftc -warnings-as-errors` — 405 tests, 59 suites, all passed, 0 failed, 0 skipped. `swiftlint lint Sources Tests Package.swift Examples` — 0 violations, 140 files. `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` — build complete, 0 errors, 0 warnings from our code.
     - next: ready for review.
   timestamp: 2026-09-29T01:16:12.601160+00:00
+- actor: claude-code
+  id: 01m3nbv2j0zq724f1jt4am2624
+  text: |-
+    ### review — clean
+    - step: review
+    - outcome: clean
+    - evidence: 0 findings (review sha HEAD~1..HEAD, commit 0db5db7; 7 validator runs, 0 failed; 1 file reviewed, 2 .kanban files excluded by .reviewignore). The prior finding is checked. All acceptance criteria are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-09-29T01:18:05.376470+00:00
+- actor: claude-code
+  id: 01m3nbvd9fajkegatnpebg8xjc
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — AgentRun+Tracing.swift, explicit access on each declaration
+    - test: green — swift test -Xswiftc -warnings-as-errors, 405 tests in 59 suites passed; swiftlint 0; IntegrationTests build-tests complete
+    - commit: 0db5db7
+    - review: clean — 0 findings
+  timestamp: 2026-09-29T01:18:16.367883+00:00
 depends_on:
 - 01M3MN916AA5AE3QAWE96S67KS
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: bd80
 title: 'OTel 2: a span for each agent run, a child of the start agent tool span, and the parent of the Router spans of its session'
 ---
 ## Why

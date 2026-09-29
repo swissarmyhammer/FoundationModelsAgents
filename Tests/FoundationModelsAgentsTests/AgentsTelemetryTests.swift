@@ -34,16 +34,33 @@ struct AgentsTelemetryTests {
         AgentsTelemetry.LogMetadataKey.failureKind
     ]
 
+    /// The log metadata keys that no span attribute has: the keys of the end
+    /// record of a run.
+    private static let logOnlyKeys = [
+        AgentsTelemetry.LogMetadataKey.durationSeconds,
+        AgentsTelemetry.LogMetadataKey.errorType
+    ]
+
     /// The metric names.
     private static let metricNames = [
         AgentsTelemetry.MetricName.runCount,
         AgentsTelemetry.MetricName.runDuration
     ]
 
-    /// Each distinct name of the vocabulary. The log metadata keys are the
-    /// attribute keys, thus the list holds them one time.
+    /// The message of each start and end record of a run.
+    private static let logMessages = [
+        AgentsTelemetry.LogMessage.runStarted,
+        AgentsTelemetry.LogMessage.runEnded(.finished),
+        AgentsTelemetry.LogMessage.runEnded(.failed),
+        AgentsTelemetry.LogMessage.runEnded(.cancelled)
+    ]
+
+    /// Each distinct name of the vocabulary. The log metadata keys of
+    /// ``logMetadataKeys`` are the attribute keys, thus the list holds them
+    /// one time.
     private static let names =
-        [AgentsTelemetry.SpanName.run, AgentsTelemetry.logLabel] + attributeKeys + metricNames
+        [AgentsTelemetry.SpanName.run, AgentsTelemetry.logLabel] + attributeKeys + logOnlyKeys + metricNames
+            + logMessages
 
     @Test("each name starts with the module prefix")
     func eachNameStartsWithTheModulePrefix() {
@@ -72,10 +89,21 @@ struct AgentsTelemetryTests {
         #expect(values == ["finished", "failed", "cancelled"])
     }
 
-    @Test("the failure kinds are hitMaxTurns, error and stopped")
-    func theFailureKindsAreTheThreeKinds() {
-        let values = [AgentsTelemetry.FailureKind.hitMaxTurns, .error, .stopped].map(\.rawValue)
+    @Test("the failure kinds are hitMaxTurns, error, stopped, setupFailed and catalogNotLoaded")
+    func theFailureKindsAreTheFiveKinds() {
+        let values = [
+            AgentsTelemetry.FailureKind.hitMaxTurns, .error, .stopped, .setupFailed, .catalogNotLoaded
+        ].map(\.rawValue)
 
-        #expect(values == ["hitMaxTurns", "error", "stopped"])
+        #expect(values == ["hitMaxTurns", "error", "stopped", "setupFailed", "catalogNotLoaded"])
+    }
+
+    @Test("the messages of the start and end records name the span of a run and the outcome")
+    func theLogMessagesNameTheSpanAndTheOutcome() {
+        #expect(
+            Self.logMessages == [
+                "FoundationModelsAgents.run started", "FoundationModelsAgents.run finished",
+                "FoundationModelsAgents.run failed", "FoundationModelsAgents.run cancelled"
+            ])
     }
 }

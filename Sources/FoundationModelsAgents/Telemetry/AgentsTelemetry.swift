@@ -1,7 +1,7 @@
 /// The telemetry vocabulary of the package: the name of the span of a run,
 /// the key of each span attribute and each log metadata value, the label of
-/// the logger, the name of each metric, and the values of the outcome of a
-/// run.
+/// the logger, the message of each log record, the name of each metric, and
+/// the values of the outcome of a run.
 ///
 /// Rule 3 of the OpenTelemetry design of 2026-09-28: each package keeps all of
 /// its telemetry names in one vocabulary file. A name is written one time,
@@ -88,8 +88,10 @@ enum AgentsTelemetry {
 
     /// The key of each metadata value of the log records of a run.
     ///
-    /// Each key is the key of the span attribute with the same meaning, thus
-    /// a log record and a span of one run use the same keys.
+    /// A key with the meaning of a span attribute is the key of that
+    /// attribute, thus a log record and a span of one run use the same keys.
+    /// ``durationSeconds`` and ``errorType`` have no span attribute: the span
+    /// has its own duration and its own error.
     enum LogMetadataKey {
         /// The name of the agent of the run. The value is a name, not
         /// content.
@@ -114,6 +116,38 @@ enum AgentsTelemetry {
 
         /// Why a failed run failed. The value is a kind, not content.
         static let failureKind = AttributeKey.failureKind
+
+        /// The duration of a run in seconds, from its start to its final
+        /// state. Only an end record has this key. The value is a duration,
+        /// not content.
+        static let durationSeconds = prefix + "run.duration_seconds"
+
+        /// The name of the type of the error of a failed run, for example
+        /// `AgentRunFailure`. Only a failed record has this key. The value is
+        /// a type name, never the text of the error, thus it carries no
+        /// content.
+        static let errorType = prefix + "run.error_type"
+    }
+
+    /// The message of each log record of a run, other than the "enter" record
+    /// of its span.
+    ///
+    /// Each message starts with the name of the span of a run, thus a query
+    /// can find all the records of the runs from one name. A message never
+    /// holds content.
+    enum LogMessage {
+        /// The message of the record that a run writes when it starts.
+        static let runStarted = SpanName.run + " started"
+
+        /// Gives the message of the record that a run writes at its final
+        /// state: `FoundationModelsAgents.run finished`, `... failed` or
+        /// `... cancelled`.
+        ///
+        /// - Parameter outcome: How the run ended.
+        /// - Returns: The message.
+        static func runEnded(_ outcome: Outcome) -> String {
+            SpanName.run + " " + outcome.rawValue
+        }
     }
 
     /// The name of each metric of the package.
@@ -160,5 +194,14 @@ enum AgentsTelemetry {
 
         /// The run was stopped.
         case stopped
+
+        /// The setup of the run failed before the run made its session: the
+        /// body or a skill did not render, an `AGENTS.md` file was not
+        /// readable, or the tools of the agent could not be made.
+        case setupFailed
+
+        /// The host started a run before the first load of the registry, and
+        /// the runner started no run.
+        case catalogNotLoaded
     }
 }

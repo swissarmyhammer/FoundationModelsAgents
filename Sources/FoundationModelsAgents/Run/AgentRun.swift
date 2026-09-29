@@ -210,9 +210,9 @@ public final class AgentRun: Sendable {
     /// A run whose caller is a run adds itself to the children of that run
     /// before its answers start. The answers then run in the background.
     ///
-    /// Each run has one span (``traced(by:_:)``), a child of the
-    /// `ServiceContext` of the caller. The span of a run whose setup failed
-    /// starts and ends in this call.
+    /// Each run has one span and its log records (``traced(in:_:)``), a child
+    /// of the `ServiceContext` of the caller. The span and the records of a
+    /// run whose setup failed start and end in this call.
     ///
     /// - Parameters:
     ///   - request: The inputs of the run.
@@ -230,12 +230,12 @@ public final class AgentRun: Sendable {
                 .makeSession(for: request, family: family)
         } catch {
             let run = AgentRun(id: ULID(), request: request, made: nil, family: family, state: .failed(error))
-            _ = await run.traced(by: environment.tracer) { _ in run.state }
+            _ = await run.traced(in: environment) { _ in run.state }
             return run
         }
         let run = AgentRun(id: made.session.id, request: request, made: made, family: family, state: .running)
         let isAdopted = request.parent?.children.add(run) ?? true
-        run.startDriver(on: made.session, prompt: request.prompt, tracer: environment.tracer)
+        run.startDriver(on: made.session, prompt: request.prompt, environment: environment)
         if !isAdopted {
             run.cancel()
         }
@@ -313,13 +313,14 @@ public final class AgentRun: Sendable {
         return .alreadySettled(finalMessage)
     }
 
-    /// Starts the background task that holds the span of the run
-    /// (``traced(by:_:)``), and in it the task that drives the session of the
-    /// run (``drive(_:prompt:)``).
+    /// Starts the background task that holds the span and the log records of
+    /// the run (``traced(in:_:)``), and in it the task that drives the session
+    /// of the run (``drive(_:prompt:)``).
     ///
     /// The task of the span is not detached: it takes the task-local values
     /// of the caller. Thus the span is a child of the `ServiceContext` of the
-    /// caller, and the "enter" record goes to the log capture of the caller.
+    /// caller, and the log records go to the log capture of the caller when
+    /// the environment gives no logger.
     /// The task that drives the session is detached, thus it does not take
     /// the `ToolContext` of the tool call that started the run. The tools of
     /// the session bind their own contexts. That task binds the context of
@@ -330,11 +331,11 @@ public final class AgentRun: Sendable {
     /// - Parameters:
     ///   - session: The session of the run.
     ///   - prompt: The task prompt.
-    ///   - tracer: The tracer of the span, or `nil` for
-    ///     `InstrumentationSystem.tracer`.
-    private func startDriver(on session: any RoutedSession, prompt: String, tracer: (any Tracer)?) {
+    ///   - environment: The environment of the run. It gives the tracer of
+    ///     the span and the logger of the records.
+    private func startDriver(on session: any RoutedSession, prompt: String, environment: AgentEnvironment) {
         let driver = Task {
-            await self.traced(by: tracer) { spanContext in
+            await self.traced(in: environment) { spanContext in
                 let final = await Task.detached {
                     await ServiceContext.withValue(spanContext) {
                         await self.drive(session, prompt: prompt)

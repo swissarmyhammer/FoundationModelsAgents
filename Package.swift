@@ -85,7 +85,10 @@ let testOnlyDependencies: [Target.Dependency] = [
     .product(name: "TelemetryTestSupport", package: "FoundationModelsExtras"),
     // `FinishedInMemorySpan`, the type of each span that a capture holds. The
     // tracing tests read the tree of the spans from it.
-    .product(name: "InMemoryTracing", package: "swift-distributed-tracing")
+    .product(name: "InMemoryTracing", package: "swift-distributed-tracing"),
+    // `InMemoryLogHandler.Entry`, the type of each log record that a capture
+    // holds. The logging tests read the records of each run from it.
+    .product(name: "InMemoryLogging", package: "swift-log")
 ]
 
 /// The `FoundationModelsAgents` SwiftPM package.

@@ -163,7 +163,8 @@ struct AgentRunTracingTests {
         #expect(trace.runSpans.count == 1)
         #expect(Self.text(AgentsTelemetry.AttributeKey.outcome, of: span) == AgentsTelemetry.Outcome.failed.rawValue)
         #expect(
-            Self.text(AgentsTelemetry.AttributeKey.failureKind, of: span) == AgentsTelemetry.FailureKind.error.rawValue)
+            Self.text(AgentsTelemetry.AttributeKey.failureKind, of: span)
+                == AgentsTelemetry.FailureKind.setupFailed.rawValue)
     }
 
     @Test("a child run span is a child of the start agent tool span, under a submission of its parent run",
@@ -197,10 +198,10 @@ struct AgentRunTracingTests {
     }
 
     @Test("each failure of a run gives its failure kind", arguments: [
-        (AgentRunFailure.bodyRenderFailed(failureText), AgentsTelemetry.FailureKind.error),
-        (.skillRenderFailed(skill: failureText, description: failureText), .error),
-        (.agentsMdUnreadable(failureText), .error),
-        (.toolsFailed(failureText), .error),
+        (AgentRunFailure.bodyRenderFailed(failureText), AgentsTelemetry.FailureKind.setupFailed),
+        (.skillRenderFailed(skill: failureText, description: failureText), .setupFailed),
+        (.agentsMdUnreadable(failureText), .setupFailed),
+        (.toolsFailed(failureText), .setupFailed),
         (.contextOverflow(failureText), .error),
         (.modelFailed(failureText), .error),
         (.hitMaxTurns(partial: failureText), .hitMaxTurns),

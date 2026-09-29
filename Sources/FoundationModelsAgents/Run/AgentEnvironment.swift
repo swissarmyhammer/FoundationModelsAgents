@@ -1,6 +1,7 @@
 import Foundation
 import FoundationModelsRouter
 import FoundationModelsSkills
+import Logging
 import Tracing
 
 /// The dependencies and the limits of the agent runs of one host
@@ -79,6 +80,17 @@ public struct AgentEnvironment: Sendable {
     /// is not the bootstrapped one.
     public let tracer: (any Tracer)?
 
+    /// The logger of the log records of each run, or `nil` to make a new
+    /// `Logger` with the label of the package when each run starts.
+    ///
+    /// `nil` is the default. The package never bootstraps the logging
+    /// system: a new logger uses the backend that the host bootstrapped. A
+    /// child run starts in the body of a `start agent` call, under the
+    /// detached pump of the Router, thus a log handler that the host binds
+    /// to its own task does not reach it. Give a logger here to send the
+    /// records of each run, the child runs too, to one handler.
+    public let logger: Logger?
+
     /// Makes an environment.
     ///
     /// A value out of its range is a programmer error and stops the process.
@@ -100,6 +112,8 @@ public struct AgentEnvironment: Sendable {
     ///   - tracer: The tracer of the span of each run, or `nil` (the
     ///     default) to read `InstrumentationSystem.tracer` when the run
     ///     starts.
+    ///   - logger: The logger of the log records of each run, or `nil` (the
+    ///     default) to make a new `Logger` when each run starts.
     public init(
         profile: LanguageModelProfile,
         skills: SkillsRegistry,
@@ -110,7 +124,8 @@ public struct AgentEnvironment: Sendable {
         maxDepth: Int = defaultMaxDepth,
         maxRetainedRuns: Int = defaultMaxRetainedRuns,
         budget: @escaping BudgetFactory = defaultBudget,
-        tracer: (any Tracer)? = nil
+        tracer: (any Tracer)? = nil,
+        logger: Logger? = nil
     ) {
         precondition(
             ModelMatch.generationSlots.contains { $0.slot == defaultSlot },
@@ -128,5 +143,6 @@ public struct AgentEnvironment: Sendable {
         self.maxRetainedRuns = maxRetainedRuns
         self.budget = budget
         self.tracer = tracer
+        self.logger = logger
     }
 }

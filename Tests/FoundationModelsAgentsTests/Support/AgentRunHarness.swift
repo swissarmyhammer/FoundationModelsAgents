@@ -2,6 +2,7 @@ import Foundation
 @testable import FoundationModelsAgents
 import FoundationModelsRouter
 import FoundationModelsSkills
+import Logging
 import Testing
 import Tracing
 
@@ -47,6 +48,10 @@ struct AgentRunHarness {
     /// `InstrumentationSystem.tracer` at call time.
     let tracer: (any Tracer)?
 
+    /// The logger of each run, or `nil` for a new
+    /// `Logger(label: AgentsTelemetry.logLabel)` for each run.
+    let logger: Logger?
+
     /// The scratch folder. Its root is the working directory of each run.
     let scratch: TemporaryLayer
 
@@ -90,7 +95,7 @@ struct AgentRunHarness {
         AgentEnvironment(
             profile: profile, skills: skills, workingDirectory: workingDirectory, tools: tools,
             maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth, maxRetainedRuns: maxRetainedRuns,
-            budget: budget, tracer: tracer)
+            budget: budget, tracer: tracer, logger: logger)
     }
 
     /// Makes a runner over the registry and the environment of the harness.
@@ -133,6 +138,11 @@ struct AgentRunHarness {
     ///     that reads the spans of the sessions gives its tracer here,
     ///     because the pump of a session does not inherit a task-local
     ///     tracer.
+    ///   - logger: The logger of each run, or `nil` (the default) for a new
+    ///     `Logger(label: AgentsTelemetry.logLabel)` for each run. A test
+    ///     that reads the log records of a child run gives its logger here,
+    ///     because a child run starts under the detached pump of a session,
+    ///     which does not inherit the log capture of the test.
     /// - Returns: The harness.
     /// - Throws: The error of the file system, of the profile, or of
     ///   `registry.load()`.
@@ -142,7 +152,8 @@ struct AgentRunHarness {
         skills: SkillsRegistry = SkillsRegistry(roots: []),
         budget: @escaping AgentEnvironment.BudgetFactory = AgentEnvironment.defaultBudget,
         tools: ToolCatalog = ToolCatalog(),
-        tracer: (any Tracer)? = nil
+        tracer: (any Tracer)? = nil,
+        logger: Logger? = nil
     ) async throws -> AgentRunHarness {
         let scratch = try TemporaryLayer.makeEmpty()
         try scratch.write(agentsMdText, at: agentsMdName)
@@ -153,7 +164,7 @@ struct AgentRunHarness {
         try await registry.load()
         return AgentRunHarness(
             router: router, profile: profile, script: script, registry: registry, skills: skills, budget: budget,
-            tools: tools, tracer: tracer, scratch: scratch)
+            tools: tools, tracer: tracer, logger: logger, scratch: scratch)
     }
 
     /// Starts a host-started run of `agent` with `prompt`.

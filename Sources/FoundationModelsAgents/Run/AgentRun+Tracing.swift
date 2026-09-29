@@ -28,7 +28,7 @@ extension AgentsTelemetry.Outcome {
     /// ``cancelled``, as ``AgentRun/result()`` reads it.
     ///
     /// - Parameter final: The final state of a run.
-    fileprivate init(_ final: AgentRunState) {
+    internal init(_ final: AgentRunState) {
         switch final {
         case .finished:
             self = .finished
@@ -46,7 +46,9 @@ extension AgentsTelemetry.FailureKind {
     /// ``AgentRunFailure/hitMaxTurns(partial:)`` gives ``hitMaxTurns``.
     /// ``AgentRunFailure/mailDeliveryPaused(_:)`` gives ``stopped``: the
     /// Router stopped the delivery of the final messages, thus the run
-    /// stopped before it could finish. Each other failure gives ``error``.
+    /// stopped before it could finish. A failure of the setup, before the run
+    /// made its session, gives ``setupFailed``. Each other failure gives
+    /// ``error``.
     ///
     /// - Parameter failure: The failure of a run.
     internal init(_ failure: AgentRunFailure) {
@@ -55,8 +57,9 @@ extension AgentsTelemetry.FailureKind {
             self = .hitMaxTurns
         case .mailDeliveryPaused:
             self = .stopped
-        case .bodyRenderFailed, .skillRenderFailed, .agentsMdUnreadable, .toolsFailed, .contextOverflow,
-            .modelFailed:
+        case .bodyRenderFailed, .skillRenderFailed, .agentsMdUnreadable, .toolsFailed:
+            self = .setupFailed
+        case .contextOverflow, .modelFailed:
             self = .error
         }
     }
@@ -64,8 +67,9 @@ extension AgentsTelemetry.FailureKind {
 
 extension AgentRun {
     /// Runs `body` in the span of the run (`FoundationModelsAgents.run`), and
-    /// writes one "enter" log record before `body` starts (item A and item 8
-    /// of the OpenTelemetry design of 2026-09-28).
+    /// writes the log records of the run: one "enter" record, one start
+    /// record before `body` starts, and one end record at the final state
+    /// (items A, B and 8 of the OpenTelemetry design of 2026-09-28).
     ///
     /// The span is a child of the `ServiceContext` of the task that calls
     /// this method: the tool span of the `start agent` call for a child run,
@@ -73,41 +77,46 @@ extension AgentRun {
     /// ids, the name and the depth of the run when it starts, and the outcome
     /// when `body` gives the final state. It ends when this method returns.
     ///
-    /// `TracedCall` writes the "enter" record through a logger that this
-    /// method makes for this run. A logger keeps the handler of the time that
-    /// it was made, thus the run makes its logger when it starts, never in a
-    /// stored value.
+    /// `TracedCall` writes the "enter" record, and this method writes the
+    /// start record and the end record (``logStart(to:)``,
+    /// ``logEnd(in:after:to:)``). All three go through one logger that this
+    /// method gets from the environment when the run starts
+    /// (``AgentEnvironment/makeRunLogger()``).
     ///
     /// - Parameters:
-    ///   - tracer: The tracer of the span, or `nil` for
-    ///     `InstrumentationSystem.tracer` at this time.
+    ///   - environment: The environment of the run. It gives the tracer of
+    ///     the span and the logger of the records.
     ///   - body: Gives the final state of the run. It gets the context of the
     ///     span, to open the Router spans of the session as its children.
     /// - Returns: The final state that `body` gave.
     internal func traced(
-        by tracer: (any Tracer)?,
+        in environment: AgentEnvironment,
         _ body: (ServiceContext) async -> AgentRunState
     ) async -> AgentRunState {
+        let logger = environment.makeRunLogger()
         // The body throws nothing, thus `try?` discards no error, and the
         // value is always there. `state` is only the static fallback.
         let final = try? await TracedCall.run(
             AgentsTelemetry.SpanName.run,
             ofKind: .internal,
-            tracer: tracer,
-            logger: Logger(label: AgentsTelemetry.logLabel),
+            tracer: environment.tracer,
+            logger: logger,
             attributes: { attributes in self.setIdentity(on: &attributes) },
             metadata: identityMetadata,
             { span in
+                let started = ContinuousClock.now
+                logStart(to: logger)
                 let final = await body(span.context)
                 Self.record(final, on: span)
+                logEnd(in: final, after: ContinuousClock.now - started, to: logger)
                 return final
             })
         return final ?? state
     }
 
-    /// The log metadata of the "enter" record: the same ids, name and depth
-    /// as the span attributes. No value is content.
-    private var identityMetadata: Logger.Metadata {
+    /// The log metadata of each record of the run: the same ids, name and
+    /// depth as the span attributes. No value is content.
+    internal var identityMetadata: Logger.Metadata {
         var metadata: Logger.Metadata = [
             AgentsTelemetry.LogMetadataKey.agentName: .string(agent.id),
             AgentsTelemetry.LogMetadataKey.runID: .string(id.description),
