@@ -47,7 +47,14 @@ let commonDependencies: [Target.Dependency] = [
     // `AgentFrontmatter.decode` reads YAML with Yams.
     .product(name: "Yams", package: "Yams"),
     // Run ids.
-    .product(name: "ULID", package: "ULID.swift")
+    .product(name: "ULID", package: "ULID.swift"),
+    // The telemetry APIs of `AgentsTelemetry`: spans, log records and
+    // metrics. These are APIs only. The library bootstraps no backend, and
+    // the package has no `swift-otel` dependency: an executable of the host
+    // bootstraps the backend.
+    .product(name: "Tracing", package: "swift-distributed-tracing"),
+    .product(name: "Logging", package: "swift-log"),
+    .product(name: "Metrics", package: "swift-metrics")
 ]
 
 /// The products that only the example links: the live model loader of
@@ -73,7 +80,9 @@ let testOnlyDependencies: [Target.Dependency] = [
     .product(name: "FoundationModelsRouterTestSupport", package: "FoundationModelsRouter"),
     // `MarketplaceStoreFixture`, `GitFixtureRepository`, `ManualClock`, and
     // the other marketplace fixtures.
-    .product(name: "MarketplaceFixtures", package: "FoundationModelsExtras")
+    .product(name: "MarketplaceFixtures", package: "FoundationModelsExtras"),
+    // `TelemetryCapture`, the content-safety helper of the telemetry.
+    .product(name: "TelemetryTestSupport", package: "FoundationModelsExtras")
 ]
 
 /// The `FoundationModelsAgents` SwiftPM package.
@@ -100,6 +109,11 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", exact: "6.2.2"),
         // The same pin as the ULID.swift pin of `FoundationModelsRouter`.
         .package(url: "https://github.com/yaslab/ULID.swift.git", from: "1.3.1"),
+        // The same pins as the telemetry pins of `FoundationModelsExtras`.
+        // `FoundationModelsRouter` pins swift-distributed-tracing the same.
+        .package(url: "https://github.com/apple/swift-distributed-tracing.git", from: "1.4.1"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.15.1"),
+        .package(url: "https://github.com/apple/swift-metrics.git", from: "2.11.0"),
         // The same pins as the pins of `FoundationModelsRouter`. Only the
         // example uses them, for the live model loader.
         .package(url: "https://github.com/swissarmyhammer/mlx-swift-lm", branch: "stable"),

@@ -38,6 +38,10 @@ struct AgentRunHarness {
     /// Makes the budget of each run.
     let budget: AgentEnvironment.BudgetFactory
 
+    /// The tool catalog of each run. The `tools` key of an agent selects
+    /// from it.
+    let tools: ToolCatalog
+
     /// The scratch folder. Its root is the working directory of each run.
     let scratch: TemporaryLayer
 
@@ -79,7 +83,7 @@ struct AgentRunHarness {
         maxDepth: Int = AgentEnvironment.defaultMaxDepth
     ) -> AgentEnvironment {
         AgentEnvironment(
-            profile: profile, skills: skills, workingDirectory: workingDirectory,
+            profile: profile, skills: skills, workingDirectory: workingDirectory, tools: tools,
             maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth, maxRetainedRuns: maxRetainedRuns,
             budget: budget)
     }
@@ -117,6 +121,8 @@ struct AgentRunHarness {
     ///     layers.
     ///   - budget: Makes the budget of each run. The default is
     ///     `AgentEnvironment.defaultBudget`.
+    ///   - tools: The tool catalog of each run. The default is an empty
+    ///     catalog.
     /// - Returns: The harness.
     /// - Throws: The error of the file system, of the profile, or of
     ///   `registry.load()`.
@@ -124,7 +130,8 @@ struct AgentRunHarness {
         script: ScriptedAgentScript,
         registry: AgentRegistry = AgentRegistry(stack: FixtureLibrary.stack()),
         skills: SkillsRegistry = SkillsRegistry(roots: []),
-        budget: @escaping AgentEnvironment.BudgetFactory = AgentEnvironment.defaultBudget
+        budget: @escaping AgentEnvironment.BudgetFactory = AgentEnvironment.defaultBudget,
+        tools: ToolCatalog = ToolCatalog()
     ) async throws -> AgentRunHarness {
         let scratch = try TemporaryLayer.makeEmpty()
         try scratch.write(agentsMdText, at: agentsMdName)
@@ -134,7 +141,7 @@ struct AgentRunHarness {
         try await registry.load()
         return AgentRunHarness(
             router: router, profile: profile, script: script, registry: registry, skills: skills, budget: budget,
-            scratch: scratch)
+            tools: tools, scratch: scratch)
     }
 
     /// Starts a host-started run of `agent` with `prompt`.

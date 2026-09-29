@@ -23,8 +23,41 @@ comments:
   id: 01m3mv3scwgfs17x5z48rm3mzy
   text: '2026-09-28: Extras OTel A to D are on Extras origin/main (70ad74d). The `waits-on-extras` tag is removed. First step of this task: `swift package update FoundationModelsExtras` in the root and in `IntegrationTests/`, and record the resolved revision in a comment.'
   timestamp: 2026-09-28T20:25:45.116341+00:00
-position_column: todo
-position_ordinal: '9580'
+- actor: claude-code
+  id: 01m3n8tdr91rc6fk4hyh61k3p6
+  text: |-
+    Picked up. Research results (2026-09-28):
+    - `swift package update FoundationModelsExtras` ran in the root and in `IntegrationTests/`. Both resolve Extras at main 6c399a4. The Extras manifest declares the product `TelemetryTestSupport`. `Package.resolved` is in `.gitignore` in both places, thus no resolved file changes.
+    - Versions to match: Extras uses swift-distributed-tracing from 1.4.1, swift-log from 1.15.1, swift-metrics from 2.11.0. Router uses swift-distributed-tracing from 1.4.1 only. No swift-otel.
+    - `TelemetryCapture.run(forbidding:_:)` gives a `Context` (tracer `W3CInMemoryTracer`, `TestMetrics` factory, logger). It binds the tracer with `withTracer` and the factory with `withMetricsFactory`, and it bootstraps logging one time. It records one issue for each place that holds a forbidden string. `Context.spans`, `logRecords` and `metricRecords` tell what the capture measured.
+    - Model: `RouterTracing.swift` (internal enum, nested `SpanName`, `AttributeKey`, value enums) and `ExtrasTelemetry.swift` (log label, `MetricName`, `LogMetadataKey` that reuses the attribute keys).
+    - The fixture agent code-reviewer has `tools: Read, Grep`. A test can register `Read` in a `ToolCatalog`, thus the child can call a tool with a secret argument. `AgentRunHarness` has no tool catalog now; the test support gets one.
+    - Periphery counts the test targets as callers, thus the vocabulary names have callers through the vocabulary tests until tasks ^wprxwv2, ^9q72162 and ^zqmx67z use them.
+    - Decision: the card says each name has the prefix `FoundationModelsAgents.`. The span name, the attribute keys, the log metadata keys, the logger label and the metric names get the prefix. The outcome values and the failure kinds are values, not names, thus they are the plain words of the card (finished, failed, cancelled; hitMaxTurns, error, stopped). The failure kind gets its own attribute key, because a failed outcome carries a kind.
+  timestamp: 2026-09-29T00:25:18.345372+00:00
+- actor: claude-code
+  id: 01m3n9bjd0cdjh4stpr2e7gvx4
+  text: |-
+    Implementation landed (TDD).
+    - RED 1: the new tests did not compile, because the module `TelemetryTestSupport` was missing. RED 2: after the `Package.swift` change, they did not compile, because `AgentsTelemetry` was missing. GREEN after the vocabulary file.
+    - Names: span `FoundationModelsAgents.run`; logger label `FoundationModelsAgents.runner` (the label cannot be the span name, because the vocabulary test requires distinct names); attribute keys and log metadata keys `FoundationModelsAgents.agent.name`, `.run.id`, `.run.parent_id`, `.caller.session_id`, `.run.depth`, `.run.outcome`, `.run.failure_kind`; metrics `FoundationModelsAgents.runs` and `FoundationModelsAgents.run.duration`; `Outcome` finished/failed/cancelled; `FailureKind` hitMaxTurns/error/stopped.
+    - The vocabulary file imports no module. The three API products are declared in `commonDependencies`, thus the library, the example and the test target link them. No `swift-otel`.
+    - Test support: `AgentRunHarness.make` takes a `tools: ToolCatalog` (default empty), thus the content-safety test registers the tool `Read` for the child code-reviewer.
+    - DISCOVERY for ^wprxwv2, ^9q72162 and ^zqmx67z: in the content-safety test the capture holds only the Router spans `FoundationModelsRouter.resolve` and `FoundationModelsRouter.session`, 0 log records and 0 metrics. The submission spans of the sessions and the Extras tool spans, logs and metrics of the tool calls do not reach the capture, although the harness is made inside the capture. The Router pump and the tool calls run on tasks that do not inherit the task-local tracer and metrics factory. Thus a run span, log or metric that is emitted on the run task can also miss the capture. Each later task must make sure that its telemetry reaches the task-local capture (or passes the context explicitly), and must add its record to `expectMeasuredRuns` of `TelemetryContentSafetyTests`. Now that helper expects only non-empty spans.
+  timestamp: 2026-09-29T00:34:40.160144+00:00
+- actor: claude-code
+  id: 01m3n9bsswk6rtc1hw7vbfsejy
+  text: |-
+    ### implement — changed
+    - evidence: 5 files — Package.swift, Sources/FoundationModelsAgents/Telemetry/AgentsTelemetry.swift (new), Tests/FoundationModelsAgentsTests/AgentsTelemetryTests.swift (new), Tests/FoundationModelsAgentsTests/TelemetryContentSafetyTests.swift (new), Tests/FoundationModelsAgentsTests/Support/AgentRunHarness.swift. `swift test -Xswiftc -warnings-as-errors`: 397 tests in 58 suites passed, 0 warnings. `swift build -Xswiftc -warnings-as-errors`: complete. `swiftlint lint Sources Tests Package.swift Examples`: 0 violations in 137 files. `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors`: complete. Extras resolved at main 6c399a4 in both packages.
+    - next: /review. Not committed.
+  timestamp: 2026-09-29T00:34:47.740631+00:00
+- actor: claude-code
+  id: 01m3n9gx9fws9dme5jt3eq31cc
+  text: '### test — green\n- evidence: `swift build -Xswiftc -warnings-as-errors` — build OK, 0 errors, 0 warnings from project code. `swift test -Xswiftc -warnings-as-errors` — 397 tests, 58 suites, 397 passed, 0 failed, 0 skipped. `swiftlint lint Sources Tests Package.swift Examples` — 0 violations, 0 serious, in 137 files. `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` — build OK, 0 errors, 0 warnings from project code.\n- next: the task is clean and can move to review.'
+  timestamp: 2026-09-29T00:37:35.151535+00:00
+position_column: doing
+position_ordinal: '80'
 title: 'OTel 1: the AgentsTelemetry vocabulary file, the API dependencies, and the content-safety test'
 ---
 ## Why
@@ -45,13 +78,13 @@ BLOCKED outside this board: the content-safety test uses the shared test helper 
 - `Tests/FoundationModelsAgentsTests/TelemetryContentSafetyTests.swift`: use the Extras helper. Run a scripted parent and child with a secret word in the task text, the child's answer and a tool argument; assert that no span attribute, log record or metric dimension holds the secret word. (The test becomes useful as tasks 2, 3 and 4 add the telemetry; add it here with the vocabulary so each later task keeps it green.)
 
 ## Acceptance Criteria
-- [ ] `FoundationModelsAgents` builds with the three API products and without `swift-otel`.
-- [ ] `AgentsTelemetry.swift` holds every name that this package emits, each with the prefix.
-- [ ] The content-safety test uses the Extras helper and passes.
+- [x] `FoundationModelsAgents` builds with the three API products and without `swift-otel`.
+- [x] `AgentsTelemetry.swift` holds every name that this package emits, each with the prefix.
+- [x] The content-safety test uses the Extras helper and passes.
 
 ## Tests
-- [ ] `TelemetryContentSafetyTests.swift` (new).
-- [ ] Run `swift build -Xswiftc -warnings-as-errors` and `swift test -Xswiftc -warnings-as-errors`. Expected: pass.
+- [x] `TelemetryContentSafetyTests.swift` (new).
+- [x] Run `swift build -Xswiftc -warnings-as-errors` and `swift test -Xswiftc -warnings-as-errors`. Expected: pass.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass. #otel

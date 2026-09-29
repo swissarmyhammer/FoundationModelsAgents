@@ -23,6 +23,10 @@ comments:
   id: 01m3mwcca6tg6bxqj4c07pjv3s
   text: '2026-09-28: Extras OTel E (^wts388b) is on Extras origin/main (6c399a4). `TelemetryCapture.Context.tracer` is now a `W3CInMemoryTracer`, and "enter" records of `TracedCall.run` in a capture have `trace.id` and `span.id`. So the id check is no longer open: do it. Code that needs the `InMemoryTracer` type uses `context.tracer.inMemoryTracer`; code that uses it as `any Tracer` or reads `finishedSpans` compiles as before. Run `swift package update FoundationModelsExtras` to get 6c399a4 or later.'
   timestamp: 2026-09-28T20:47:55.206484+00:00
+- actor: claude-code
+  id: 01m3n9bpkgm0gfhny4yavkcdxw
+  text: '2026-09-29 fact from ^96s67ks: in `TelemetryContentSafetyTests` (harness made inside `TelemetryCapture.run`), the capture holds only `FoundationModelsRouter.resolve` and `FoundationModelsRouter.session`. No submission span and no Extras tool span, log or metric reaches it. The Router pump and the tool calls run on tasks that do not inherit the task-local tracer. Make sure that the run span reaches the capture (task-local inheritance or an explicit tracer), and add the run span to `expectMeasuredRuns` of `TelemetryContentSafetyTests`.'
+  timestamp: 2026-09-29T00:34:44.464712+00:00
 depends_on:
 - 01M3MN916AA5AE3QAWE96S67KS
 position_column: todo
