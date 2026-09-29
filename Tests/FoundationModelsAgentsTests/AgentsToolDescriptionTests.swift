@@ -17,8 +17,9 @@ struct AgentsToolDescriptionTests {
     private static let fixedSentences =
         "An agent is a model session that works in the background. Each agent starts with an empty context "
         + "and sees only the prompt that you give it, so put all that the agent needs in the prompt. "
-        + #"To give a task to an agent, call this tool with {"op": "start agent", "name": "<name>", "#
-        + #""prompt": "<the full task>"}. The call returns at once. When the agent finishes, its final "#
+        + #"To give a task to an agent, call the tool "agents" with the arguments {"op": "start agent", "#
+        + #""name": "<name>", "prompt": "<the full task>"}. The value of "op" is an operation of the tool "#
+        + #""agents", not the name of a tool. The call returns at once. When the agent finishes, its final "#
         + "message comes to you as a new message after you end your answer. Your answer is the text of "
         + "your last turn, so give your final answer after you have the results of the agents that you "
         + "started. You can ask about a run "
@@ -139,6 +140,23 @@ struct AgentsToolDescriptionTests {
             agents: [Self.alpha, Self.beta, Self.verbose], characterLimit: limit)
 
         #expect(description.hasPrefix(Self.fixedSentences + Self.listSeparator))
+    }
+
+    // MARK: - The delegation sentence
+
+    /// A small model called the op name "start agent" as the name of a tool,
+    /// and the Router rejected that call as `undeclared_tool`. Thus the
+    /// delegation sentence names the `agents` tool, and it tells that the
+    /// value of `op` is not a tool name.
+    @Test func theDelegationSentenceNamesTheToolAndTellsThatTheOpIsNotATool() async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+        let toolReference = #"the tool "\#(harness.tool.name)""#
+
+        let sentence = AgentsToolDescription.delegationSentence
+
+        #expect(sentence.hasPrefix("To give a task to an agent, call \(toolReference) with the arguments "))
+        #expect(sentence.hasSuffix(#"The value of "op" is an operation of \#(toolReference), not the name of a tool."#))
     }
 
     // MARK: - The tool

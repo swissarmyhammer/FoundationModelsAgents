@@ -1,11 +1,37 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m3n654c7qqhsy3g9a3jppc37
+  text: |-
+    Research and change:
+    - The claim of the card is correct. `AgentsToolDescription.delegationSentence` said "call this tool with {...}" and did not name the tool.
+    - The Router records no `.toolCalls` entry for a rejected call. It sends the prompt again with the tool error "Tool error: Your call to the tool "x" was rejected (undeclared_tool), and no tool ran." The transcript records that `.prompt` entry. `ToolCallPayload` is internal to the Router, thus the live test reads the prompt text to find a rejection.
+    - New sentence: 'To give a task to an agent, call the tool "agents" with the arguments {"op": "start agent", "name": "<name>", "prompt": "<the full task>"}. The value of "op" is an operation of the tool "agents", not the name of a tool.' The tool name comes from `ToolVocabulary.agentsToolName`.
+    - The check sentence, the list forms, and the pinned schema did not change. The `list agents` answer ends with the new sentence, because it uses `delegationSentence`.
+    - plan.md §9.1 quotes the new text. The DocC article does not quote the fixed sentences, thus it did not change.
+    - FullCircleTests: both cases now expect no rejected tool call in the root transcript (`LiveRecording.rejectedToolCallPrompts(in:)`).
+  timestamp: 2026-09-28T23:38:43.463766+00:00
+- actor: claude-code
+  id: 01m3n82tknmt39e7dcag89zczq
+  text: |-
+    ### implement — changed
+    - evidence: 5 files — Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift, Tests/FoundationModelsAgentsTests/AgentsToolDescriptionTests.swift, IntegrationTests/Tests/AgentsIntegrationTests/FullCircleTests.swift, IntegrationTests/Tests/AgentsIntegrationTests/Support/LiveRecording.swift, plan.md. RED: 14 issues in "Agents tool description" before the source change. `swift test -Xswiftc -warnings-as-errors`: 390 tests in 56 suites passed. `swiftlint lint Sources Tests Package.swift Examples`: 0 violations in 134 files. `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors`: build complete. `cd IntegrationTests && swift test`: 3 runs in a row, each 12 tests in 6 suites passed, with the new expectation of no rejected tool call in the root transcript. An old recording from before the change (01M3FRHP5G7GF7M7X3KF8HWQY7) holds 'Tool error: Your call to the tool "start agent" was rejected (undeclared_tool)' on a `.prompt` entry, thus the new expectation finds this failure. The recordings of the new runs hold no such text.
+    - next: /review
+  timestamp: 2026-09-29T00:12:25.077849+00:00
+- actor: claude-code
+  id: 01m3n88q80abkpzndnwprka9km
+  text: |-
+    ### test — green
+    - evidence: `swift build -Xswiftc -warnings-as-errors` clean (Build complete); `swift test -Xswiftc -warnings-as-errors` — 390 tests, 56 suites, all passed, 0 failed, 0 skipped; `swiftlint lint Sources Tests Package.swift Examples` — 0 violations, 0 serious, in 134 files; `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` clean (Build complete)
+    - next: ready for review
+  timestamp: 2026-09-29T00:15:38.240195+00:00
 depends_on:
 - 01M3A6EGTPK2A08N066GGPYAEM
 - 01M3FMWXRW3637CJ74T7F7Z6QA
-position_column: todo
-position_ordinal: '8e80'
+position_column: doing
+position_ordinal: '80'
 title: 'The agents tool description: a model calls the op name "start agent" as a tool'
 ---
 ## What
@@ -18,9 +44,9 @@ The fixed sentences in `Sources/FoundationModelsAgents/Tool/AgentsToolDescriptio
 - Keep the pinned schema and the other description forms.
 
 ## Acceptance Criteria
-- [ ] In the root transcript of the no-JSON live case, the first tool call of the root is a call of `agents`, with no `undeclared_tool` error, in 3 runs in a row.
-- [ ] The unit tests of the description text are updated.
+- [x] In the root transcript of the no-JSON live case, the first tool call of the root is a call of `agents`, with no `undeclared_tool` error, in 3 runs in a row.
+- [x] The unit tests of the description text are updated.
 
 ## Tests
-- [ ] The unit tests of `AgentsToolDescription`.
-- [ ] Run `cd IntegrationTests && swift test` 3 times. Expected: pass each time.
+- [x] The unit tests of `AgentsToolDescription`.
+- [x] Run `cd IntegrationTests && swift test` 3 times. Expected: pass each time.

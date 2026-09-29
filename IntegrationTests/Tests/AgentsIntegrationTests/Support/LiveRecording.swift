@@ -47,6 +47,11 @@ enum LiveRecording {
     /// The name of the transcript file in a session directory.
     private static let transcriptFileName = "transcript.jsonl"
 
+    /// The words of the tool error that the Router adds to a prompt after it
+    /// rejected a tool call: "Tool error: Your call to the tool "x" was
+    /// rejected (reason), and no tool ran."
+    private static let rejectedToolCallMarker = "was rejected ("
+
     /// Reads the `session.json` of a session directory.
     ///
     /// - Parameter directory: The recording directory of the session.
@@ -122,6 +127,25 @@ enum LiveRecording {
             return read.seq < answer.seq
         }
         return false
+    }
+
+    /// Gives the text of each prompt that tells the model that the Router
+    /// rejected one of its tool calls.
+    ///
+    /// The parser records no `.toolCalls` entry for a rejected call. The
+    /// Router sends the prompt again with a tool error after it, and the
+    /// transcript records that prompt. The tool error names the reason, for
+    /// example `undeclared_tool` for a call of a tool that the session does
+    /// not have.
+    ///
+    /// - Parameter directory: The recording directory of the session.
+    /// - Returns: The text of each such `.prompt` entry, in file order.
+    /// - Throws: The error of ``events(in:)``.
+    static func rejectedToolCallPrompts(in directory: URL) throws -> [String] {
+        try events(in: directory)
+            .filter { $0.kind == .prompt }
+            .compactMap(\.text)
+            .filter { $0.contains(rejectedToolCallMarker) }
     }
 
     /// Gives the text of each tool answer that the session recorded. A post

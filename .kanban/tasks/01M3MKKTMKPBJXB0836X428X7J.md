@@ -123,8 +123,24 @@ comments:
     - evidence: `swift test -Xswiftc -warnings-as-errors` — 389 tests passed, 0 failed, 0 skipped, in 56 suites; `swiftlint lint Sources Tests Package.swift Examples` — 0 violations, 0 serious in 134 files; `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` — build complete, no compiler warnings
     - next: ready for review/commit
   timestamp: 2026-09-28T23:29:39.455607+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m3n5s8wt8vg7ggw0ce0dc7kq
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (2cd36b2) — 0 findings, 0 confirmed, 0 refuted, 7 attempted, 0 failed. 1 file reviewed. All prior findings are checked. All acceptance criteria are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-09-28T23:32:14.874145+00:00
+- actor: claude-code
+  id: 01m3n5sfranrsk0299tbx8yd13
+  text: |-
+    ### finish iteration 3 — clean
+    - implement: changed — ScriptedTranscriptTextTests.swift, one parameterized test for both spellings
+    - test: green — swift test -Xswiftc -warnings-as-errors, 389 passed, 0 failed; swiftlint 0; IntegrationTests build-tests complete
+    - commit: 2cd36b2
+    - review: clean — 0 findings
+  timestamp: 2026-09-28T23:32:21.898233+00:00
+position_column: done
+position_ordinal: ba80
 title: 'check agent and cancel agent right after start agent: the run can be absent before the start body adds it'
 ---
 ## Why

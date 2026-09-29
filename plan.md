@@ -436,12 +436,13 @@ the catalog one time; a new tool for each session and for each run.
 > An agent is a model session that works in the background. Each agent
 > starts with an empty context and sees only the prompt that you give it, so
 > put all that the agent needs in the prompt. To give a task to an agent,
-> call this tool with {"op": "start agent", "name": "<name>", "prompt":
-> "<the full task>"}. The call returns at once. When the agent finishes, its
-> final message comes to you as a new message after you end your answer.
-> Your answer is the text of your last turn, so give your final answer after
-> you have the results of the agents that you started. You can ask about a
-> run with {"op": "check agent", "id": "<id>"}.
+> call the tool "agents" with the arguments {"op": "start agent", "name":
+> "<name>", "prompt": "<the full task>"}. The value of "op" is an operation
+> of the tool "agents", not the name of a tool. The call returns at once.
+> When the agent finishes, its final message comes to you as a new message
+> after you end your answer. Your answer is the text of your last turn, so
+> give your final answer after you have the results of the agents that you
+> started. You can ask about a run with {"op": "check agent", "id": "<id>"}.
 
 Then the model-visible agents under `catalogCharacterLimit` (default
 `SkillsTool.defaultCatalogCharacterLimit`, 8000), in the first form that

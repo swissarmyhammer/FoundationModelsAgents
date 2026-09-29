@@ -29,6 +29,9 @@ extension LiveSuites {
     ///
     /// The test asserts on recorded facts: the calls of the tool, the
     /// `agentSpawn` of the sub-agent, and the posts in the root transcript.
+    /// The root transcript also holds no tool call that the Router rejected,
+    /// thus the first tool call of the root is a call of `agents`, and not a
+    /// call of an op name such as "start agent" as a tool.
     /// The test reads the root transcript only after `close()` of the root
     /// session, thus the transcript is complete (``LiveRecording``).
     @Suite("Full circle", .serialized, .timeLimit(LiveProfile.timeLimit))
@@ -94,8 +97,10 @@ extension LiveSuites {
                     .filter { $0.kind == .completed && $0.correlationID == spawn.parentToolCallId }
                 let read = try LiveRecording.operationEvents(of: .prompt, in: root.recordingDirectory)
                     .filter { $0.kind == .completed && $0.correlationID == spawn.parentToolCallId }
+                let rejected = try LiveRecording.rejectedToolCallPrompts(in: root.recordingDirectory)
                 let detail = "Agent \(finder) (\(finderRun.id)) finished.\n\n\(text)"
 
+                #expect(rejected.isEmpty, "The Router rejected a tool call of the root: \(rejected)")
                 #expect(wordTool.callCount > 0)
                 #expect(text.localizedCaseInsensitiveContains(LiveWordTool.word), "The final text was: \(text)")
                 #expect(startContext.sessionID == root.id)

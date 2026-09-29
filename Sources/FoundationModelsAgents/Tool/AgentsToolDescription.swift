@@ -26,11 +26,20 @@ enum AgentsToolDescription {
         let description: String?
     }
 
+    /// The words that name the `agents` tool in the delegation sentence.
+    private static let toolReference = #"the tool "\#(ToolVocabulary.agentsToolName)""#
+
     /// The delegation sentence: how to give a task to an agent. The fixed
     /// sentences hold it, and the answer of `list agents` ends with it.
+    ///
+    /// The sentence names the `agents` tool, and it tells that the value of
+    /// `op` is not a tool name. Without these words, a small model called
+    /// the op name "start agent" as the name of a tool, and the Router
+    /// rejected that call as `undeclared_tool`.
     static let delegationSentence = """
-        To give a task to an agent, call this tool with {"op": "start agent", "name": "<name>", \
-        "prompt": "<the full task>"}.
+        To give a task to an agent, call \(toolReference) with the arguments {"op": "start agent", \
+        "name": "<name>", "prompt": "<the full task>"}. The value of "op" is an operation of \
+        \(toolReference), not the name of a tool.
         """
 
     /// The fixed sentences: what an agent is and how to delegate to one.
