@@ -66,6 +66,52 @@ comments:
     - evidence: `swift build -Xswiftc -warnings-as-errors` — build OK, 0 code warnings. `swift test -Xswiftc -warnings-as-errors` — 405 tests, 59 suites, all pass, 0 fail. `swiftlint lint Sources Tests Package.swift Examples` — 140 files, 0 violations. `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` — build OK, 0 code warnings.
     - next: none. The work is ready for the next step.
   timestamp: 2026-09-29T01:03:29.778184+00:00
+- actor: claude-code
+  id: 01m3nbaht4jyhhbc5rk8h311cv
+  text: |-
+    ### review — findings
+    - step: review
+    - outcome: findings
+    - evidence: 1 finding (review sha HEAD~1..HEAD; confirmed 1, refuted 1) — Sources/FoundationModelsAgents/Run/AgentRun+Tracing.swift:87 (swift/access-control)
+    - task: ^wprxwv2
+    - next: Make the access modifier explicit on `traced(by:_:)`. The literal `private` does not compile, because the callers are in `AgentRun.swift`. Write `internal func traced(`, or move the method into `AgentRun.swift` as `private`. Also make the access modifier explicit on the two `init` declarations in `AgentRun+Tracing.swift`. Then run the review again.
+  timestamp: 2026-09-29T01:09:03.940332+00:00
+- actor: claude-code
+  id: 01m3nbaym94cf8cqds8m99zxqb
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 9 files (AgentEnvironment tracer, AgentRun+Tracing.swift, AgentRunTracingTests.swift, CapturedTrace.swift, content-safety expectations)
+    - test: green — swift test -Xswiftc -warnings-as-errors, 405 tests in 59 suites passed; swiftlint 0; IntegrationTests build-tests complete
+    - commit: 392d6df
+    - review: findings — Sources/FoundationModelsAgents/Run/AgentRun+Tracing.swift:87
+  timestamp: 2026-09-29T01:09:17.065951+00:00
+- actor: claude-code
+  id: 01m3nbgzdpvkb95s3jc8zqbqcw
+  text: |-
+    Finding `swift/access-control` (AgentRun+Tracing.swift, `traced(by:_:)`) is fixed with option (b). Each declaration in the file now has an explicit access level:
+    - `internal func traced(by:_:)`: the callers are in `AgentRun.swift`, thus `private` and `fileprivate` do not compile. Option (a) was not used: `AgentRun.swift` has 381 lines, and a move of `traced` needs its three private helpers (`identityMetadata`, `setIdentity(on:)`, `record(_:on:)`) too. That goes past the swiftlint `file_length` limit of 400 lines.
+    - `fileprivate init(_ final: AgentRunState)` on `AgentsTelemetry.Outcome`: only `AgentRun.record(_:on:)` in this file calls it. `private` does not compile, because the caller is a different type.
+    - `internal init(_ failure: AgentRunFailure)` on `AgentsTelemetry.FailureKind`: `AgentRunTracingTests.failureGivesItsKind` calls it through `@testable import`.
+    - `internal struct AgentRunSpanFailure`, `internal let kind`, `internal var description`: `AgentRunTracingTests.failedRunSpanHasFailureKind` casts to the type and reads `kind`. `description` is the witness of `CustomStringConvertible`.
+    The other declarations were already `private`.
+  timestamp: 2026-09-29T01:12:34.486002+00:00
+- actor: claude-code
+  id: 01m3nbh1t9wyqbgwnyz84ha4xw
+  text: |-
+    ### implement — changed
+    - step: implement
+    - outcome: changed
+    - evidence: 1 file — Sources/FoundationModelsAgents/Run/AgentRun+Tracing.swift. `swift test -Xswiftc -warnings-as-errors`: 405 tests in 59 suites passed, 0 compiler warnings. `swiftlint lint Sources Tests Package.swift Examples`: 0 violations in 140 files. `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors`: Build complete, 0 compiler warnings.
+    - task: ^wprxwv2
+    - next: /review. Not committed.
+  timestamp: 2026-09-29T01:12:36.937907+00:00
+- actor: claude-code
+  id: 01m3nbqmdswe85ra648xwq1bq5
+  text: |-
+    ### test — green
+    - evidence: `swift build -Xswiftc -warnings-as-errors` — build complete, 0 errors, 0 warnings from our code. `swift test -Xswiftc -warnings-as-errors` — 405 tests, 59 suites, all passed, 0 failed, 0 skipped. `swiftlint lint Sources Tests Package.swift Examples` — 0 violations, 140 files. `cd IntegrationTests && swift build --build-tests -Xswiftc -warnings-as-errors` — build complete, 0 errors, 0 warnings from our code.
+    - next: ready for review.
+  timestamp: 2026-09-29T01:16:12.601160+00:00
 depends_on:
 - 01M3MN916AA5AE3QAWE96S67KS
 position_column: doing
@@ -94,3 +140,14 @@ Design of 2026-09-28 (item A): one span for each sub-agent run, so a trace shows
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass. #otel
+
+## Review Findings (2026-09-28 20:03)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 9 file(s) reviewed, 6 not reviewed.
+
+> 6 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 6 file(s)
+
+- [x] `Sources/FoundationModelsAgents/Run/AgentRun+Tracing.swift:87` `swift/access-control` — The `traced(by:_:)` method is called only from within the `AgentRun` class (lines 233 and 337 of AgentRun.swift) and should be explicitly marked `private` rather than defaulting to `internal`. Library code should spell access modifiers explicitly when the intent is internal implementation detail. Change `func traced(` on line 87 to `private func traced(`.
+
+> Note from the review driver: the callers of `traced(by:_:)` are in `AgentRun.swift`, a different file. A `private` member of an extension in `AgentRun+Tracing.swift` is not visible in `AgentRun.swift`, thus `private func traced(` does not compile. A form that compiles and meets the rule "spell access modifiers explicitly": write `internal func traced(`. Another form: move `traced(by:_:)` into `AgentRun.swift` and make it `private`. Remove the cause from the whole file: the `init(_ final: AgentRunState)` and `init(_ failure: AgentRunFailure)` declarations in `AgentRun+Tracing.swift` also use the implicit `internal` default.

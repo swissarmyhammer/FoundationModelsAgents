@@ -10,12 +10,12 @@ import Tracing
 /// A span leaves the process through the tracing backend of the host, thus
 /// the span records this error in place of the failure. Its description is
 /// the raw value of the kind.
-struct AgentRunSpanFailure: Error, CustomStringConvertible {
+internal struct AgentRunSpanFailure: Error, CustomStringConvertible {
     /// Why the run failed.
-    let kind: AgentsTelemetry.FailureKind
+    internal let kind: AgentsTelemetry.FailureKind
 
     /// The raw value of ``kind``. It carries no content.
-    var description: String {
+    internal var description: String {
         kind.rawValue
     }
 }
@@ -28,7 +28,7 @@ extension AgentsTelemetry.Outcome {
     /// ``cancelled``, as ``AgentRun/result()`` reads it.
     ///
     /// - Parameter final: The final state of a run.
-    init(_ final: AgentRunState) {
+    fileprivate init(_ final: AgentRunState) {
         switch final {
         case .finished:
             self = .finished
@@ -49,7 +49,7 @@ extension AgentsTelemetry.FailureKind {
     /// stopped before it could finish. Each other failure gives ``error``.
     ///
     /// - Parameter failure: The failure of a run.
-    init(_ failure: AgentRunFailure) {
+    internal init(_ failure: AgentRunFailure) {
         switch failure {
         case .hitMaxTurns:
             self = .hitMaxTurns
@@ -84,7 +84,7 @@ extension AgentRun {
     ///   - body: Gives the final state of the run. It gets the context of the
     ///     span, to open the Router spans of the session as its children.
     /// - Returns: The final state that `body` gave.
-    func traced(
+    internal func traced(
         by tracer: (any Tracer)?,
         _ body: (ServiceContext) async -> AgentRunState
     ) async -> AgentRunState {
