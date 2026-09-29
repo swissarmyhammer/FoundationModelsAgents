@@ -165,6 +165,27 @@ enum AgentsTelemetry {
         static let runDuration = prefix + "run.duration"
     }
 
+    /// The key of each dimension of the metrics of a run.
+    ///
+    /// A key is the key of the span attribute with the same meaning, thus a
+    /// metric, a span and a log record of one run use the same keys. Each key
+    /// has a small, fixed set of values: the agent names of the catalog, the
+    /// three values of ``AgentsTelemetry/Outcome`` and the values of
+    /// ``AgentsTelemetry/FailureKind``. The ids and the depth of a run are
+    /// never a dimension, because their values have no limit.
+    enum MetricDimension {
+        /// The name of the agent of the run. The value is a name, not
+        /// content.
+        static let agentName = AttributeKey.agentName
+
+        /// How the run ended. The value is an outcome, not content.
+        static let outcome = AttributeKey.outcome
+
+        /// Why a failed run failed. Only the metrics of a failed run have
+        /// this dimension. The value is a kind, not content.
+        static let failureKind = AttributeKey.failureKind
+    }
+
     /// The value that ``AttributeKey/outcome`` carries: how a run ended.
     ///
     /// Each value is one of the three terminal states of a run. A value is an

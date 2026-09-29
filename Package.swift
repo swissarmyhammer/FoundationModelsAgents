@@ -88,7 +88,10 @@ let testOnlyDependencies: [Target.Dependency] = [
     .product(name: "InMemoryTracing", package: "swift-distributed-tracing"),
     // `InMemoryLogHandler.Entry`, the type of each log record that a capture
     // holds. The logging tests read the records of each run from it.
-    .product(name: "InMemoryLogging", package: "swift-log")
+    .product(name: "InMemoryLogging", package: "swift-log"),
+    // `TestMetrics`, the type of the metrics factory of a capture. The metrics
+    // tests read the counter and the timer of each run from it.
+    .product(name: "MetricsTestKit", package: "swift-metrics")
 ]
 
 /// The `FoundationModelsAgents` SwiftPM package.

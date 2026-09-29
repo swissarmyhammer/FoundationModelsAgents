@@ -66,10 +66,11 @@ extension AgentsTelemetry.FailureKind {
 }
 
 extension AgentRun {
-    /// Runs `body` in the span of the run (`FoundationModelsAgents.run`), and
+    /// Runs `body` in the span of the run (`FoundationModelsAgents.run`),
     /// writes the log records of the run: one "enter" record, one start
-    /// record before `body` starts, and one end record at the final state
-    /// (items A, B and 8 of the OpenTelemetry design of 2026-09-28).
+    /// record before `body` starts, and one end record at the final state,
+    /// and records the metrics of the run at the final state (items A, B, C
+    /// and 8 of the OpenTelemetry design of 2026-09-28).
     ///
     /// The span is a child of the `ServiceContext` of the task that calls
     /// this method: the tool span of the `start agent` call for a child run,
@@ -81,11 +82,14 @@ extension AgentRun {
     /// start record and the end record (``logStart(to:)``,
     /// ``logEnd(in:after:to:)``). All three go through one logger that this
     /// method gets from the environment when the run starts
-    /// (``AgentEnvironment/makeRunLogger()``).
+    /// (``AgentEnvironment/makeRunLogger()``). The run counter and the run
+    /// timer get the same duration as the end record
+    /// (``recordMetrics(of:after:in:)``).
     ///
     /// - Parameters:
     ///   - environment: The environment of the run. It gives the tracer of
-    ///     the span and the logger of the records.
+    ///     the span, the logger of the records and the metrics factory of
+    ///     the metrics.
     ///   - body: Gives the final state of the run. It gets the context of the
     ///     span, to open the Router spans of the session as its children.
     /// - Returns: The final state that `body` gave.
@@ -107,8 +111,10 @@ extension AgentRun {
                 let started = ContinuousClock.now
                 logStart(to: logger)
                 let final = await body(span.context)
+                let duration = ContinuousClock.now - started
                 Self.record(final, on: span)
-                logEnd(in: final, after: ContinuousClock.now - started, to: logger)
+                logEnd(in: final, after: duration, to: logger)
+                recordMetrics(of: final, after: duration, in: environment)
                 return final
             })
         return final ?? state

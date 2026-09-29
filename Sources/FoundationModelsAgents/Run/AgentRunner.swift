@@ -125,6 +125,7 @@ public actor AgentRunner {
         }
         guard registry.isLoaded else {
             logStartBeforeLoad(of: name)
+            countStartBeforeLoad(of: name)
             throw .catalogNotLoaded
         }
         let catalog = registry.catalog()

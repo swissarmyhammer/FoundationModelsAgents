@@ -2,6 +2,7 @@ import Foundation
 import FoundationModelsRouter
 import FoundationModelsSkills
 import Logging
+import Metrics
 import Tracing
 
 /// The dependencies and the limits of the agent runs of one host
@@ -91,6 +92,18 @@ public struct AgentEnvironment: Sendable {
     /// records of each run, the child runs too, to one handler.
     public let logger: Logger?
 
+    /// The metrics factory of the run counter and the run timer, or `nil` to
+    /// read `MetricsSystem.factory` when each run ends.
+    ///
+    /// `nil` is the default. The package never bootstraps the metrics
+    /// system: with `nil`, each run uses the factory that the host
+    /// bootstrapped, or the task-local factory of `withMetricsFactory`. A
+    /// child run starts in the body of a `start agent` call, under the
+    /// detached pump of the Router, thus a task-local factory does not reach
+    /// it. Give a factory here to send the metrics of each run, the child
+    /// runs too, to one factory.
+    public let metricsFactory: (any MetricsFactory)?
+
     /// Makes an environment.
     ///
     /// A value out of its range is a programmer error and stops the process.
@@ -114,6 +127,9 @@ public struct AgentEnvironment: Sendable {
     ///     starts.
     ///   - logger: The logger of the log records of each run, or `nil` (the
     ///     default) to make a new `Logger` when each run starts.
+    ///   - metricsFactory: The metrics factory of the metrics of each run, or
+    ///     `nil` (the default) to read `MetricsSystem.factory` when each run
+    ///     ends.
     public init(
         profile: LanguageModelProfile,
         skills: SkillsRegistry,
@@ -125,7 +141,8 @@ public struct AgentEnvironment: Sendable {
         maxRetainedRuns: Int = defaultMaxRetainedRuns,
         budget: @escaping BudgetFactory = defaultBudget,
         tracer: (any Tracer)? = nil,
-        logger: Logger? = nil
+        logger: Logger? = nil,
+        metricsFactory: (any MetricsFactory)? = nil
     ) {
         precondition(
             ModelMatch.generationSlots.contains { $0.slot == defaultSlot },
@@ -144,5 +161,6 @@ public struct AgentEnvironment: Sendable {
         self.budget = budget
         self.tracer = tracer
         self.logger = logger
+        self.metricsFactory = metricsFactory
     }
 }

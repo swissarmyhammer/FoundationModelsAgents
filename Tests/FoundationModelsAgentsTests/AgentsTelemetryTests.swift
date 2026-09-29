@@ -82,6 +82,22 @@ struct AgentsTelemetryTests {
         #expect(Self.logMetadataKeys == Self.attributeKeys)
     }
 
+    @Test("the metric dimension keys are the span attribute keys of the agent name, the outcome and the failure kind")
+    func theMetricDimensionsAreAttributeKeys() {
+        let dimensions = [
+            AgentsTelemetry.MetricDimension.agentName,
+            AgentsTelemetry.MetricDimension.outcome,
+            AgentsTelemetry.MetricDimension.failureKind
+        ]
+
+        #expect(
+            dimensions == [
+                AgentsTelemetry.AttributeKey.agentName,
+                AgentsTelemetry.AttributeKey.outcome,
+                AgentsTelemetry.AttributeKey.failureKind
+            ])
+    }
+
     @Test("the outcome values are finished, failed and cancelled")
     func theOutcomeValuesAreTheThreeEnds() {
         let values = [AgentsTelemetry.Outcome.finished, .failed, .cancelled].map(\.rawValue)

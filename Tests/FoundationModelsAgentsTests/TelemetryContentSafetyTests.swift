@@ -15,10 +15,11 @@ import Testing
 /// test as task-local values. The harness is made inside the capture, thus
 /// each task that inherits the task-local values of the test reports to the
 /// capture. The pump of a Router session is a detached task, which inherits
-/// no task-local value, thus the test also gives the tracer and the logger of
-/// the capture to the harness: the Router and each run then open their spans
-/// through that tracer, and each run writes its log records through that
-/// logger.
+/// no task-local value, thus the test also gives the tracer, the logger and
+/// the metrics factory of the capture to the harness: the Router and each run
+/// then open their spans through that tracer, each run writes its log records
+/// through that logger, and each run records its metrics through that
+/// factory.
 @Suite("Telemetry content safety: no task text, answer or tool argument in the telemetry of a run")
 struct TelemetryContentSafetyTests {
     /// The secret word of the task text of each run.
@@ -39,6 +40,10 @@ struct TelemetryContentSafetyTests {
 
     /// The count of runs of the test: the lead and code-reviewer.
     private static let runCount = 2
+
+    /// The agent names of the runs of the test, sorted: the lead and
+    /// code-reviewer.
+    private static let runAgents = [NestedRunTests.lead, NestedRunTests.reviewer].sorted()
 
     /// The task text of the parent run. It is the key of its play.
     private static let leadTask = "content-safety-lead-key: divide the task \(taskSecret)"
@@ -76,7 +81,8 @@ struct TelemetryContentSafetyTests {
     func parentAndChildRunsCarryNoContent() async throws {
         let context = try await TelemetryCapture.run(forbidding: Self.forbidden) { context in
             let harness = try await AgentRunHarness.make(
-                script: Self.script, tools: Self.tools, tracer: context.tracer, logger: context.logger)
+                script: Self.script, tools: Self.tools, tracer: context.tracer, logger: context.logger,
+                metricsFactory: context.metricsFactory)
             defer { try? harness.delete() }
             let lead = try await harness.makeRunner().start(NestedRunTests.lead, prompt: Self.leadTask)
             let result = try await lead.result()
@@ -94,13 +100,15 @@ struct TelemetryContentSafetyTests {
     ///
     /// The capture holds the span of each run, the submission spans of the
     /// sessions, the tool span of the Read call of the child, and the
-    /// "enter" record, the start record and the end record of each run. The
-    /// records of the child reach the capture through the logger of the
-    /// environment: the child starts in the body of a `start agent` call,
-    /// which runs under the detached pump of the Router, and a detached task
-    /// does not inherit the log capture of the test. Each change that makes
-    /// the package emit a span, a log record or a metric adds the expectation
-    /// of that record here, thus the content check reads it.
+    /// "enter" record, the start record and the end record of each run, and
+    /// the run counter and the run timer of each run. The records and the
+    /// metrics of the child reach the capture through the logger and the
+    /// metrics factory of the environment: the child starts in the body of a
+    /// `start agent` call, which runs under the detached pump of the Router,
+    /// and a detached task does not inherit the log capture or the metrics
+    /// factory of the test. Each change that makes the package emit a span, a
+    /// log record or a metric adds the expectation of that record here, thus
+    /// the content check reads it.
     ///
     /// - Parameter context: The capture of the runs.
     private static func expectMeasuredRuns(in context: TelemetryCapture.Context) {
@@ -112,5 +120,26 @@ struct TelemetryContentSafetyTests {
         #expect(log.enterRecords.count == runCount)
         #expect(log.startRecords.count == runCount)
         #expect(log.endRecords.count == runCount)
+        #expect(Self.agents(of: .counter, named: AgentsTelemetry.MetricName.runCount, in: context) == runAgents)
+        #expect(Self.agents(of: .timer, named: AgentsTelemetry.MetricName.runDuration, in: context) == runAgents)
+    }
+
+    /// Gives the agent names of the metrics of one kind and one label in the
+    /// capture, sorted: one name for each metric.
+    ///
+    /// - Parameters:
+    ///   - kind: The kind of the metrics.
+    ///   - label: The label of the metrics.
+    ///   - context: The capture of the runs.
+    /// - Returns: The value of the agent-name dimension of each metric.
+    private static func agents(
+        of kind: MetricRecord.Kind, named label: String, in context: TelemetryCapture.Context
+    ) -> [String] {
+        context.metricRecords
+            .filter { $0.kind == kind && $0.label == label }
+            .compactMap { record in
+                record.dimensions.first { $0.key == AgentsTelemetry.MetricDimension.agentName }?.value
+            }
+            .sorted()
     }
 }
