@@ -289,6 +289,7 @@ struct NestedRunTests {
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
         await gate.waitForArrival()
+        await harness.tool.context.startedRuns.waitForStarts()
         let lead = try await Self.onlyRun(of: harness.runner, caller: root.id)
         let child = try await Self.onlyRun(of: harness.runner, caller: lead.id)
         failGate.open()
@@ -321,6 +322,7 @@ struct NestedRunTests {
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
         await gate.waitForArrival()
+        await harness.tool.context.startedRuns.waitForStarts()
         let lead = try await Self.onlyRun(of: harness.runner, caller: root.id)
         let child = try await Self.onlyRun(of: harness.runner, caller: lead.id)
         lead.cancel()

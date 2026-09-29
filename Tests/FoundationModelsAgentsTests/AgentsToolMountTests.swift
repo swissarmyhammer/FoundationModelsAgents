@@ -73,7 +73,7 @@ struct AgentsToolMountTests {
     ///   - operation: The op of the call.
     ///   - run: The run.
     /// - Returns: The JSON text.
-    private static func idArguments(_ operation: String, of run: AgentRun) -> String {
+    private static func idArguments(for operation: String, of run: AgentRun) -> String {
         #"{"op": "\#(operation)", "id": "\#(run.id)"}"#
     }
 
@@ -150,10 +150,13 @@ struct AgentsToolMountTests {
 
         _ = try await root.respond(to: Self.rootPrompt)
         await gate.waitForArrival()
+        // The Router answers the start agent call before its body adds the
+        // run. Wait until the body of the call added its run.
+        await harness.tool.context.startedRuns.waitForStarts()
         let runs = await harness.runner.runs(caller: root.id)
         let run = try #require(runs.first)
-        checkArguments.set(Self.idArguments("check agent", of: run))
-        cancelArguments.set(Self.idArguments("cancel agent", of: run))
+        checkArguments.set(Self.idArguments(for: "check agent", of: run))
+        cancelArguments.set(Self.idArguments(for: "cancel agent", of: run))
         let listText = try await harness.call("list agents")
         let checkText = run.report
         _ = try await root.respond(to: Self.nextPrompt)

@@ -304,6 +304,9 @@ struct MaxTurnsTests {
 
         #expect(try await root.respond(to: NestedRunTests.rootPrompt) == NestedRunTests.rootText)
         await gate.waitForArrival()
+        // The Router answers the start agent call before its body adds the
+        // run. Wait until the body of the call added its run.
+        await harness.tool.context.startedRuns.waitForStarts()
         let lead = try await NestedRunTests.onlyRun(of: harness.runner, caller: root.id)
         let child = try await NestedRunTests.onlyRun(of: harness.runner, caller: lead.id)
         leadGate.open()

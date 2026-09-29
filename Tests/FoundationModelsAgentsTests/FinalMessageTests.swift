@@ -81,12 +81,18 @@ struct FinalMessageTests {
 
     /// Gives the one run that the root session started.
     ///
+    /// The Router answers each `start agent` call before its body adds the
+    /// run, and the child can arrive at its gate before the runner has the
+    /// run. Thus the call first waits until the body of each open
+    /// `start agent` call added its run, and then reads the runs.
+    ///
     /// - Parameters:
     ///   - harness: The harness of the tool.
     ///   - root: The root session.
     /// - Returns: The run.
     /// - Throws: The error of `#require` when the root session started no run.
     private static func childRun(in harness: AgentsToolHarness, of root: any RoutedSession) async throws -> AgentRun {
+        await harness.tool.context.startedRuns.waitForStarts()
         let runs = await harness.runner.runs(caller: root.id)
         #expect(runs.count == 1)
         return try #require(runs.first)

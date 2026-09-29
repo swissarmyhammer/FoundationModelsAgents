@@ -105,7 +105,7 @@ struct AgentSchedulingTests {
     ///   - operation: The op of the call.
     ///   - run: The run.
     /// - Returns: The JSON text.
-    private static func idArguments(_ operation: String, of run: AgentRun) -> String {
+    private static func idArguments(for operation: String, of run: AgentRun) -> String {
         #"{"op": "\#(operation)", "id": "\#(run.id)"}"#
     }
 
@@ -141,12 +141,18 @@ struct AgentSchedulingTests {
 
     /// Gives the one run that a root session started.
     ///
+    /// The Router answers each `start agent` call before its body adds the
+    /// run, and the child can arrive at its gate before the runner has the
+    /// run. Thus the call first waits until the body of each open
+    /// `start agent` call added its run, and then reads the runs.
+    ///
     /// - Parameters:
     ///   - harness: The harness of the tool.
     ///   - root: The root session.
     /// - Returns: The run.
     /// - Throws: The error of `#require` when the root session started no run.
     private static func onlyRun(in harness: AgentsToolHarness, of root: any RoutedSession) async throws -> AgentRun {
+        await harness.tool.context.startedRuns.waitForStarts()
         let runs = await harness.runner.runs(caller: root.id)
         #expect(runs.count == 1)
         return try #require(runs.first)
@@ -236,8 +242,8 @@ struct AgentSchedulingTests {
         _ = try await rootA.respond(to: Self.rootPrompt)
         await gate.waitForArrival()
         let run = try await Self.onlyRun(in: harness, of: rootA)
-        checkArguments.set(Self.idArguments("check agent", of: run))
-        cancelArguments.set(Self.idArguments("cancel agent", of: run))
+        checkArguments.set(Self.idArguments(for: "check agent", of: run))
+        cancelArguments.set(Self.idArguments(for: "cancel agent", of: run))
         _ = try await rootB.respond(to: Self.rootPrompt)
         let answersOfB = Array(harness.runHarness.script.toolOutputs.suffix(Self.lastAnswerCount))
         let stateAfterB = run.state

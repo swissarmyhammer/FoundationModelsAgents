@@ -178,6 +178,9 @@ extension NestedRunTests {
             #expect(try await root.respond(to: NestedRunTests.rootPrompt) == NestedRunTests.rootText)
             await secondSiblingGate.waitForArrival()
             await firstChildGate.waitForArrival()
+            // The Router answers each start agent call before its body adds
+            // the run. Wait until the body of each call added its run.
+            await harness.tool.context.startedRuns.waitForStarts()
             let siblings = await harness.runner.runs(caller: root.id)
             let first = try #require(siblings.first { $0.agent.id == Self.flashLead })
             let second = try #require(siblings.first { $0.agent.id == Self.planner })
