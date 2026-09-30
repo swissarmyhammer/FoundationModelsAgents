@@ -45,8 +45,25 @@ comments:
     - open: `swift test` and `swift test --package-path IntegrationTests` were not run in this pass (test step). "CI is green" stays open; the push is for the user.
     - next: /test, then /review.
   timestamp: 2026-09-30T15:32:21.945837+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m3sfxyq69zhhpkw3h7hp33bk
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (2c20462). 7 files reviewed. 0 findings, 0 confirmed, 0 refuted, 0 failed. 4 .kanban files are excluded by .reviewignore.
+    - next: The user pushes the commit. Then the user confirms that CI is green on the pushed commit (the open acceptance item).
+  timestamp: 2026-09-30T15:46:31.782672+00:00
+- actor: claude-code
+  id: 01m3sfy6nrzffapnzgeqqqrwa7
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: no-change — swift package update (root and IntegrationTests); MetadataRegistry 815420b6, Router 4f2a5c58; both packages build
+    - test: green — swift test 430 passed in 63 suites; swift test --package-path IntegrationTests 12 passed in 6 suites; test files adapted to TelemetryCapture.LogRecord and run-label metric filters
+    - commit: 2c20462
+    - review: clean — 7 files, 0 findings
+    - next: the user pushes to origin main and confirms that CI is green
+  timestamp: 2026-09-30T15:46:39.928288+00:00
+position_column: done
+position_ordinal: c380
 title: Adopt LiveModelLoader(reporting:)
 ---
 ## What
