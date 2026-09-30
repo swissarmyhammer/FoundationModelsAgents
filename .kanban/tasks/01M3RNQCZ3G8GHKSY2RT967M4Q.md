@@ -62,6 +62,13 @@ comments:
     - review: clean — 7 files, 0 findings
     - next: the user pushes to origin main and confirms that CI is green
   timestamp: 2026-09-30T15:46:39.928288+00:00
+- actor: claude-code
+  id: 01m3t48mezkn672en7kwf1t7z1
+  text: |-
+    ### ci — green
+    - evidence: pushed f2b2718 (contains 2c20462) to origin main; GitHub Actions CI run 36779782460 completed success; jobs "Build & test" success, "Integration (opt-in, real dependencies)" success
+    - next: none
+  timestamp: 2026-09-30T21:41:53.247722+00:00
 position_column: done
 position_ordinal: c380
 title: Adopt LiveModelLoader(reporting:)
@@ -80,7 +87,7 @@ let router = Router(recordingsDir: dir, loader: LiveModelLoader())
 ## Acceptance Criteria
 - [x] No file calls `LiveModelLoader(downloader:`.
 - [x] The package and its IntegrationTests build.
-- [ ] CI is green on the pushed commit.
+- [x] CI is green on the pushed commit.
 
 ## Tests
 - [x] `swift build` and `swift test` pass.
