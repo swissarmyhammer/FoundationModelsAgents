@@ -45,21 +45,14 @@ let extrasPackageName = "FoundationModelsExtras"
 /// The name of the FoundationModelsSkills package.
 let skillsPackageName = "FoundationModelsSkills"
 
-/// The name of the controlled fork of mlx-swift-lm.
-let mlxPackageName = "mlx-swift-lm"
-
-/// The name of the Hugging Face Hub client package.
-let huggingFacePackageName = "swift-huggingface"
-
-/// The name of the Swift Transformers tokenizer package.
-let transformersPackageName = "swift-transformers"
-
 /// The products that the integration test target links.
 let integrationDependencies: [Target.Dependency] = [
     // The library under test.
     .product(name: rootPackageName, package: rootPackageName),
     // `Router`, `ProfileDefinition`, `LanguageModelProfile`, and
-    // `LiveModelLoader`.
+    // `LiveModelLoader`. `LiveModelLoader()` loads each model through the
+    // Extras `MLXModelLoader`, thus this package links no model package of
+    // its own.
     .product(name: routerPackageName, package: routerPackageName),
     // `MetalLibraryTestBootstrap`, which the live profile reads before the
     // first resolve.
@@ -71,14 +64,7 @@ let integrationDependencies: [Target.Dependency] = [
     // `GitFixtureRepository` and `MarketplaceStoreFixture`.
     .product(name: "MarketplaceFixtures", package: extrasPackageName),
     // `SkillsRegistry` for the environment of each run.
-    .product(name: skillsPackageName, package: skillsPackageName),
-    // The live model loader, as in the `agents-demo` example: the
-    // `#hubDownloader()` and `#huggingFaceTokenizerLoader()` macros expand to
-    // code that uses `HuggingFace.HubClient` and `Tokenizers.AutoTokenizer`.
-    .product(name: "MLXHuggingFace", package: mlxPackageName),
-    .product(name: "MLXLMCommon", package: mlxPackageName),
-    .product(name: "HuggingFace", package: huggingFacePackageName),
-    .product(name: "Tokenizers", package: transformersPackageName)
+    .product(name: skillsPackageName, package: skillsPackageName)
 ]
 
 /// The integration suites of `FoundationModelsAgents`.
@@ -92,10 +78,7 @@ let package = Package(
         .package(path: ".."),
         .package(url: "\(swissArmyHammerOrg)\(routerPackageName).git", branch: "main"),
         .package(url: "\(swissArmyHammerOrg)\(extrasPackageName).git", branch: "main"),
-        .package(url: "\(swissArmyHammerOrg)\(skillsPackageName).git", branch: "main"),
-        .package(url: "https://github.com/swissarmyhammer/\(mlxPackageName)", branch: "stable"),
-        .package(url: "https://github.com/huggingface/\(huggingFacePackageName)", from: "0.9.0"),
-        .package(url: "https://github.com/huggingface/\(transformersPackageName)", from: "1.3.0")
+        .package(url: "\(swissArmyHammerOrg)\(skillsPackageName).git", branch: "main")
     ],
     targets: [
         // The live suites. Each suite resolves the real profile of

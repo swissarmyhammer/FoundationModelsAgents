@@ -57,21 +57,6 @@ let commonDependencies: [Target.Dependency] = [
     .product(name: "Metrics", package: "swift-metrics")
 ]
 
-/// The products that only the example links: the live model loader of
-/// `agents-demo --chat` and `agents-demo --fan-out` (plan.md §13).
-///
-/// The `MLXHuggingFace` macros `#hubDownloader()` and
-/// `#huggingFaceTokenizerLoader()` expand to code that uses
-/// `HuggingFace.HubClient` and `Tokenizers.AutoTokenizer`. Thus the example
-/// links the two Hub packages too. The library links none of them: the host
-/// gives the resolved profile.
-let liveLoaderDependencies: [Target.Dependency] = [
-    .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
-    .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
-    .product(name: "HuggingFace", package: "swift-huggingface"),
-    .product(name: "Tokenizers", package: "swift-transformers")
-]
-
 /// The test-only products. Only the test target links them.
 ///
 /// The library links none of them, thus a host gets no test code.
@@ -86,9 +71,6 @@ let testOnlyDependencies: [Target.Dependency] = [
     // `FinishedInMemorySpan`, the type of each span that a capture holds. The
     // tracing tests read the tree of the spans from it.
     .product(name: "InMemoryTracing", package: "swift-distributed-tracing"),
-    // `InMemoryLogHandler.Entry`, the type of each log record that a capture
-    // holds. The logging tests read the records of each run from it.
-    .product(name: "InMemoryLogging", package: "swift-log"),
     // `TestMetrics`, the type of the metrics factory of a capture. The metrics
     // tests read the counter and the timer of each run from it.
     .product(name: "MetricsTestKit", package: "swift-metrics")
@@ -122,12 +104,7 @@ let package = Package(
         // `FoundationModelsRouter` pins swift-distributed-tracing the same.
         .package(url: "https://github.com/apple/swift-distributed-tracing.git", from: "1.4.1"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.15.1"),
-        .package(url: "https://github.com/apple/swift-metrics.git", from: "2.11.0"),
-        // The same pins as the pins of `FoundationModelsRouter`. Only the
-        // example uses them, for the live model loader.
-        .package(url: "https://github.com/swissarmyhammer/mlx-swift-lm", branch: "stable"),
-        .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.9.0"),
-        .package(url: "https://github.com/huggingface/swift-transformers", from: "1.3.0")
+        .package(url: "https://github.com/apple/swift-metrics.git", from: "2.11.0")
     ],
     targets: [
         .target(
@@ -135,10 +112,14 @@ let package = Package(
             dependencies: commonDependencies
         ),
         // The example of plan.md §13. It is in the root manifest, thus one
-        // `swift build` builds the library and the example.
+        // `swift build` builds the library and the example. The live model
+        // loader of `agents-demo --chat` and `agents-demo --fan-out` is
+        // `LiveModelLoader()` of `FoundationModelsRouter`. It loads each model
+        // through the Extras `MLXModelLoader`, thus the example links no
+        // model package of its own.
         .executableTarget(
             name: demoTargetName,
-            dependencies: [.byName(name: packageName)] + commonDependencies + liveLoaderDependencies,
+            dependencies: [.byName(name: packageName)] + commonDependencies,
             path: "Examples/\(demoTargetName)"
         ),
         // The test target depends on the example. Thus `swift test` builds the

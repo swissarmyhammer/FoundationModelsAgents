@@ -1,5 +1,5 @@
 @testable import FoundationModelsAgents
-import InMemoryLogging
+import TelemetryTestSupport
 import Logging
 import ULID
 
@@ -10,21 +10,21 @@ import ULID
 /// message and from the run id in its metadata.
 struct CapturedLog {
     /// The log records of the capture, in the order of the calls.
-    let records: [InMemoryLogHandler.Entry]
+    let records: [TelemetryCapture.LogRecord]
 
     /// Gives the "enter" records of the span of a run. The message of such a
     /// record ends with the span name.
-    var enterRecords: [InMemoryLogHandler.Entry] {
+    var enterRecords: [TelemetryCapture.LogRecord] {
         records.filter { "\($0.message)".hasSuffix(AgentsTelemetry.SpanName.run) }
     }
 
     /// Gives the start records of each run.
-    var startRecords: [InMemoryLogHandler.Entry] {
+    var startRecords: [TelemetryCapture.LogRecord] {
         records(withMessage: AgentsTelemetry.LogMessage.runStarted)
     }
 
     /// Gives the end records of each run: finished, failed and cancelled.
-    var endRecords: [InMemoryLogHandler.Entry] {
+    var endRecords: [TelemetryCapture.LogRecord] {
         let messages = [AgentsTelemetry.Outcome.finished, .failed, .cancelled].map(AgentsTelemetry.LogMessage.runEnded)
         return records.filter { messages.contains("\($0.message)") }
     }
@@ -33,7 +33,7 @@ struct CapturedLog {
     ///
     /// - Parameter message: The message of the records.
     /// - Returns: The records, in the order of the calls.
-    func records(withMessage message: String) -> [InMemoryLogHandler.Entry] {
+    func records(withMessage message: String) -> [TelemetryCapture.LogRecord] {
         records.filter { "\($0.message)" == message }
     }
 
@@ -45,8 +45,8 @@ struct CapturedLog {
     ///   - runID: The id of the run.
     /// - Returns: The records of the run, in the order of the calls.
     static func records(
-        _ selected: [InMemoryLogHandler.Entry], ofRun runID: ULID
-    ) -> [InMemoryLogHandler.Entry] {
+        _ selected: [TelemetryCapture.LogRecord], ofRun runID: ULID
+    ) -> [TelemetryCapture.LogRecord] {
         selected.filter { $0.metadata[AgentsTelemetry.LogMetadataKey.runID] == .string(runID.description) }
     }
 }

@@ -44,6 +44,26 @@ struct AgentRunMetricsTests {
         return identity + (kind.map { [(Dimension.failureKind, $0.rawValue)] } ?? [])
     }
 
+    /// Gives the counters of the run counter in `factory`. The capture also
+    /// holds the counters of the Router and of the Extras tools, which the
+    /// runs cause, thus a count of all counters is not a count of runs.
+    ///
+    /// - Parameter factory: The metrics factory of the capture.
+    /// - Returns: The counters whose label is the label of the run counter.
+    private static func runCounters(in factory: TestMetrics) -> [TestCounter] {
+        factory.counters.filter { $0.label == AgentsTelemetry.MetricName.runCount }
+    }
+
+    /// Gives the timers of the run timer in `factory`. The capture also holds
+    /// the timers of the Router and of the Extras tools, which the runs cause,
+    /// thus a count of all timers is not a count of runs.
+    ///
+    /// - Parameter factory: The metrics factory of the capture.
+    /// - Returns: The timers whose label is the label of the run timer.
+    private static func runTimers(in factory: TestMetrics) -> [TestTimer] {
+        factory.timers.filter { $0.label == AgentsTelemetry.MetricName.runDuration }
+    }
+
     /// Expects that `factory` holds one count on the run counter and one
     /// duration of zero or more on the run timer, each with exactly
     /// `dimensions`.
@@ -84,8 +104,8 @@ struct AgentRunMetricsTests {
 
         try Self.expectOneCountAndOneDuration(
             in: factory, dimensions: Self.dimensions(agent: AgentRunTests.reviewer, outcome: .finished))
-        #expect(factory.counters.count == 1)
-        #expect(factory.timers.count == 1)
+        #expect(Self.runCounters(in: factory).count == 1)
+        #expect(Self.runTimers(in: factory).count == 1)
     }
 
     @Test("a failed run counts one time and records one duration, with its failure kind",
@@ -162,8 +182,8 @@ struct AgentRunMetricsTests {
             AgentsTelemetry.MetricName.runCount,
             Self.dimensions(agent: AgentRunTests.reviewer, outcome: .failed, kind: .catalogNotLoaded))
         #expect(counter.totalValue == 1)
-        #expect(factory.counters.count == 1)
-        #expect(factory.timers.isEmpty)
+        #expect(Self.runCounters(in: factory).count == 1)
+        #expect(Self.runTimers(in: factory).isEmpty)
     }
 
     @Test("with no metrics factory in the environment, a run uses MetricsSystem.factory",

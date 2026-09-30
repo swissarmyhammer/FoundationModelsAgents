@@ -1,9 +1,5 @@
 import Foundation
 import FoundationModelsRouter
-import HuggingFace
-import MLXHuggingFace
-import MLXLMCommon
-import Tokenizers
 
 /// The real profile of `agents-demo --chat` and `agents-demo --fan-out`
 /// (plan.md §12, §13).
@@ -44,9 +40,7 @@ enum AgentsDemoProfile {
     static func makeRouter() -> Router {
         Router(
             recordingsDir: recordingsDirectory,
-            loader: LiveModelLoader(
-                downloader: #hubDownloader(),
-                tokenizerLoader: #huggingFaceTokenizerLoader()))
+            loader: LiveModelLoader())
     }
 
     /// Resolves ``definition`` with `router`.

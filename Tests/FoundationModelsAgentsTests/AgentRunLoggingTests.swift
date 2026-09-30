@@ -1,5 +1,4 @@
 @testable import FoundationModelsAgents
-import InMemoryLogging
 import Logging
 import TelemetryTestSupport
 import Testing
@@ -73,7 +72,7 @@ struct AgentRunLoggingTests {
     ///   - record: A log record.
     /// - Returns: The text of the value, or `nil` when the record has no such
     ///   key.
-    private static func text(_ key: String, of record: InMemoryLogHandler.Entry) -> String? {
+    private static func text(_ key: String, of record: TelemetryCapture.LogRecord) -> String? {
         record.metadata[key].map { "\($0)" }
     }
 
@@ -84,7 +83,7 @@ struct AgentRunLoggingTests {
     ///   - run: The run.
     /// - Returns: The end record.
     /// - Throws: The error of `#require` when the run has no end record.
-    private static func endRecord(of run: AgentRun, in log: CapturedLog) throws -> InMemoryLogHandler.Entry {
+    private static func endRecord(of run: AgentRun, in log: CapturedLog) throws -> TelemetryCapture.LogRecord {
         let records = CapturedLog.records(log.endRecords, ofRun: run.id)
         #expect(records.count == 1)
         return try #require(records.first)
@@ -97,7 +96,7 @@ struct AgentRunLoggingTests {
     ///   - record: A start or an end record.
     ///   - run: The run.
     ///   - agent: The name of the agent of the run.
-    private static func expectIdentity(of record: InMemoryLogHandler.Entry, run: AgentRun, agent: String) {
+    private static func expectIdentity(of record: TelemetryCapture.LogRecord, run: AgentRun, agent: String) {
         #expect(Self.text(Key.runID, of: record) == run.id.description)
         #expect(Self.text(Key.agentName, of: record) == agent)
         #expect(Self.text(Key.depth, of: record) == "\(AgentRunner.hostDepth)")
@@ -107,7 +106,7 @@ struct AgentRunLoggingTests {
     /// that is zero or more.
     ///
     /// - Parameter record: An end record.
-    private static func expectDuration(of record: InMemoryLogHandler.Entry) {
+    private static func expectDuration(of record: TelemetryCapture.LogRecord) {
         let value = Self.text(Key.durationSeconds, of: record)
         let seconds = value.flatMap(Double.init)
         #expect(seconds.map { $0 >= 0 } == true)

@@ -3,11 +3,7 @@ import FoundationModelsAgents
 import FoundationModelsRouter
 import FoundationModelsRouterTestSupport
 import FoundationModelsSkills
-import HuggingFace
-import MLXHuggingFace
-import MLXLMCommon
 import Testing
-import Tokenizers
 
 /// The resolved real profile of the live suites (plan.md §15).
 ///
@@ -117,9 +113,7 @@ struct LiveProfile: Sendable {
         _ = MetalLibraryTestBootstrap.ensureColocatedMetallib
         let router = Router(
             recordingsDir: recordingsDirectory,
-            loader: LiveModelLoader(
-                downloader: #hubDownloader(),
-                tokenizerLoader: #huggingFaceTokenizerLoader()))
+            loader: LiveModelLoader())
         let profile = try await router.resolve(profile: definition, reporting: ResolutionProgress())
         return LiveProfile(router: router, profile: profile)
     }
