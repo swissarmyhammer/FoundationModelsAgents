@@ -170,7 +170,11 @@ extension AgentRun {
     ///
     /// Each event feeds the progress and the answers of the run
     /// (``record(_:)``), the watch of the settled background runs, and the
-    /// count of passes. When the count goes above the limit, the run stops its
+    /// count of passes. The start of an answer sends the messages from the
+    /// caller that the run held before the answer of its task prompt started
+    /// (``releaseHeldMessages(to:)``). The follower sends them before it
+    /// reads the next event, thus the end of that answer sees them in the
+    /// message queue. When the count goes above the limit, the run stops its
     /// session at once. Then each event that decides the end of the run gives
     /// its signal (``signal(after:on:)``).
     ///
@@ -181,6 +185,9 @@ extension AgentRun {
     private func follow(_ events: AsyncStream<SessionEvent>, on session: any RoutedSession) async {
         for await event in events {
             record(event)
+            if case .submissionStarted = event {
+                await releaseHeldMessages(to: session)
+            }
             sessionWatch.observe(event)
             if turns.apply(event) {
                 await session.cancel()
@@ -293,9 +300,10 @@ extension AgentRun {
     ///
     /// A message from the caller also keeps the session from idle, from the
     /// time that ``deliver(_:)`` accepts it to the end of its answer. While
-    /// the message goes to the queue, ``acceptedMessagesWhenNoneInbound`` is
-    /// `nil`. In the queue, the message waits. The pump then moves it to the
-    /// running messages before the run reads the start of its answer, thus a
+    /// the run holds the message, and while the message goes to the queue,
+    /// ``acceptedMessagesWhenNoneInbound`` is `nil`. In the queue, the
+    /// message waits. The pump then moves it to the running messages before
+    /// the run reads the start of its answer, thus a
     /// running message also keeps the session from idle. The check gives the
     /// count of accepted messages that it read first. A message that the run
     /// accepts after that read changes the count, and the run does not end

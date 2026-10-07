@@ -195,6 +195,48 @@ struct AgentRunMessageTests {
         #expect(harness.script.prompts.isEmpty)
     }
 
+    @Test("a message before begin is held, and the session gets it after the task prompt",
+        .timeLimit(.minutes(1)))
+    func messageBeforeBeginComesAfterTaskPrompt() async throws {
+        let harness = try await AgentRunHarness.make(script: Self.taskThenMessage())
+        defer { try? harness.delete() }
+        let request = try harness.request(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
+
+        let run = await harness.makeRun(request)
+        let outcome = await run.deliver(Self.message)
+        run.begin(request, environment: harness.environment)
+        let result = try await run.result()
+        let prompts = harness.script.prompts
+
+        #expect(outcome == .delivered)
+        let firstPrompt = try #require(prompts.first)
+        #expect(firstPrompt.contains(AgentRunTests.prompt))
+        #expect(!Self.isCallerMessage(firstPrompt))
+        #expect(prompts.dropFirst().contains(where: Self.isCallerMessage))
+        #expect(Self.isCallerMessage(result))
+    }
+
+    /// `begin` starts the task that sends the task prompt, and returns before
+    /// that task sends it. The run holds the message until the task answer
+    /// starts, thus the result does not depend on the time of that send.
+    @Test("a message right after begin is held, and the session gets it after the task prompt",
+        .timeLimit(.minutes(1)))
+    func messageRightAfterBeginComesAfterTaskPrompt() async throws {
+        let harness = try await AgentRunHarness.make(script: Self.taskThenMessage())
+        defer { try? harness.delete() }
+
+        let run = try await harness.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
+        let outcome = await run.deliver(Self.message)
+        let result = try await run.result()
+        let prompts = harness.script.prompts
+
+        #expect(outcome == .delivered)
+        let firstPrompt = try #require(prompts.first)
+        #expect(firstPrompt.contains(AgentRunTests.prompt))
+        #expect(!Self.isCallerMessage(firstPrompt))
+        #expect(Self.isCallerMessage(result))
+    }
+
     @Test("a message to a run whose setup failed tells the failure of the setup")
     func endedAfterSetupFailure() async throws {
         let harness = try await AgentRunHarness.make(script: AgentRunTests.script([.finalText(Self.taskReply)]))

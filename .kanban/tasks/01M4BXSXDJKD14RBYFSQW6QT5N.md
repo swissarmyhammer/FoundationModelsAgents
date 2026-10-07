@@ -20,6 +20,41 @@ comments:
     - evidence: 6 files. New: Sources/FoundationModelsAgents/Run/AgentRunMessageOutcome.swift, Tests/FoundationModelsAgentsTests/AgentRunMessageTests.swift. Changed: Sources/FoundationModelsAgents/Run/AgentRun.swift, Sources/FoundationModelsAgents/Run/AgentRun+Drive.swift, Sources/FoundationModelsAgents/Run/AgentRunAnswers.swift (AgentRunSignal.idle), Sources/FoundationModelsAgents/Tool/AgentsToolText.swift. Red first: the new tests did not compile, then the two race tests and deliveredInTaskTurn failed before the idle fixes. `swift test`: 439 tests in 64 suites passed. NestedRunTests+Idle did not change. The one build warning, "missing creator for mutated node ... mlx-swift_Cmlx.bundle", comes from the build of the mlx dependency, not from these files.
     - next: /review
   timestamp: 2026-10-07T20:34:18.756492+00:00
+- actor: claude-code
+  id: 01m4c1f77aq516q1t2ws9g571g
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD; 1 finding (1 confirmed, 1 refuted) — Sources/FoundationModelsAgents/Run/AgentRun.swift:375 (completeness/invariant-propagation). The .kanban/ files were not reviewed (.reviewignore).
+    - next: implement the finding (a begin gate in deliver(_:) and a test for deliver before begin), then review again.
+  timestamp: 2026-10-07T20:39:23.114840+00:00
+- actor: claude-code
+  id: 01m4c1fg16m86x9dw44v7mgdmt
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 6 files
+    - test: green — swift test, 439 passed in 64 suites
+    - commit: 224ca35
+    - review: findings — Sources/FoundationModelsAgents/Run/AgentRun.swift:375
+  timestamp: 2026-10-07T20:39:32.134978+00:00
+- actor: claude-code
+  id: 01m4c1vw4nmqv49b6ec4s6gs6n
+  text: |-
+    Finding AgentRun.swift:375 (completeness/invariant-propagation): the fix holds the message. It does not reject it.
+
+    - Choice: hold the message, do not return .ended(storage.state). Reason: before begin the state is .running, thus .ended(.running) contradicts AgentRunMessageOutcome ("the final state of the run").
+    - The same cause also exists AFTER begin. begin starts the driver task and returns before that task puts the task prompt in the queue (streamEvents(to:) enqueues in an inner Task). A deliver right after runner.start or harness.start sent the caller message first. The new test messageRightAfterBeginComesAfterTaskPrompt showed this: the first prompt was the caller message. Thus a flag that begin sets is not sufficient. The gate opens when the follower reads the first .submissionStarted, because that submission carries only the task prompt.
+    - Implementation: Storage.callerMessages: CallerMessageGate (.holding([String]) / .open). deliver -> admit(_:in:) gives MessageAdmission (.send / .held / .ended). A held message is in inboundMessages and acceptedMessages, thus the idle rule does not end the run while it is held. follow(_:on:) calls releaseHeldMessages(to:) at each .submissionStarted. The call sends the held messages in order, then sets .open. A message that arrives while the release sends is held too, thus the order stays.
+    - Known limit, documented on deliver: a run that is cancelled or fails before the start of its task answer does not send its held messages. A made run that never begins keeps its held messages.
+    - Tests: messageBeforeBeginComesAfterTaskPrompt (the finding) and messageRightAfterBeginComesAfterTaskPrompt. Both failed RED (first prompt = caller message), and both pass GREEN.
+    - Rules dump: the file of the dump was 754k characters (all languages). I read the completeness/invariant-propagation, swift and test-integrity sections in full, not the full file.
+  timestamp: 2026-10-07T20:46:17.749257+00:00
+- actor: claude-code
+  id: 01m4c1vz09exnstkgk1m1p7t2f
+  text: |-
+    ### implement — changed
+    - evidence: 3 files — Sources/FoundationModelsAgents/Run/AgentRun.swift, Sources/FoundationModelsAgents/Run/AgentRun+Drive.swift, Tests/FoundationModelsAgentsTests/AgentRunMessageTests.swift. RED: `swift test --filter "AgentRunMessageTests/message(Before|RightAfter)Begin"` 2 tests failed (7 issues). GREEN: same filter, 2 passed. Full `swift test`: 441 tests in 64 suites passed. The one build warning ("missing creator for mutated node ... mlx-swift_Cmlx.bundle") comes from the mlx dependency. Finding AgentRun.swift:375 checked.
+    - next: /review
+  timestamp: 2026-10-07T20:46:20.681474+00:00
 position_column: doing
 position_ordinal: '80'
 title: AgentRun accepts a message, or tells that it ended
@@ -66,3 +101,12 @@ Approach:
 
 ## Workflow
 - Use `/tdd`: write the failing tests first, then do the implementation until they pass.
+
+## Review Findings (2026-10-07 15:35)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 6 file(s) reviewed, 16 not reviewed.
+
+> 16 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 16 file(s)
+
+- [x] `Sources/FoundationModelsAgents/Run/AgentRun.swift:375` `completeness/invariant-propagation` — deliver(_:) admits a message to any run that has a session, without checking that begin(_:environment:) was called. A made run that has not begun has a session, so deliver sends the caller message to the session before the task prompt. This breaks the rule that a made run sends no prompt until begin, and no test covers a message sent before begin without a cancel. Add a begin gate to the admission in deliver(_:), for example a flag set by begin that deliver checks, and return .ended(storage.state) or hold the message until begin. Add one test that calls deliver on a made run before begin and asserts the message is not sent before the task prompt.

@@ -51,7 +51,12 @@ public final class AgentRun: Sendable {
 
         /// The count of messages from the caller that ``AgentRun/deliver(_:)``
         /// accepted and did not yet put in the message queue of the session.
+        /// A held message (``callerMessages``) is in this count.
         var inboundMessages = 0
+
+        /// The gate of the messages from the caller. It holds each message
+        /// until the run reads the start of the answer of its task prompt.
+        var callerMessages = CallerMessageGate.holding([])
 
         /// The count of all messages from the caller that
         /// ``AgentRun/deliver(_:)`` accepted. It only goes up. An idle check
@@ -62,6 +67,38 @@ public final class AgentRun: Sendable {
         /// The test hooks of the idle rule. They do nothing in a run that no
         /// test changes.
         var idleHooks = AgentRunIdleHooks()
+    }
+
+    /// The gate of the messages from the caller of the run.
+    ///
+    /// The task prompt is the first message of the session. `begin` starts
+    /// the task that sends it, and returns before that task sends it. Thus a
+    /// message from the caller that goes to the session before the run reads
+    /// the start of the answer of the task prompt can come before the task
+    /// prompt. The run holds each such message, and sends it after that
+    /// start (``AgentRun/releaseHeldMessages(to:)``).
+    private enum CallerMessageGate {
+        /// The run holds these messages, in the order that they arrived. The
+        /// run did not read the start of the answer of its task prompt, or it
+        /// did not yet send each held message.
+        case holding([String])
+
+        /// The run sent each held message. A new message goes to the session
+        /// at once.
+        case open
+    }
+
+    /// What ``AgentRun/deliver(_:)`` does with one message from the caller.
+    private enum MessageAdmission {
+        /// Send the message to this session now.
+        case send(any RoutedSession)
+
+        /// The run holds the message, and sends it later.
+        case held
+
+        /// The run does not accept the message: it started to end in this
+        /// state.
+        case ended(AgentRunState)
     }
 
     /// The id of the run. It is the session id and the name of the
@@ -227,7 +264,9 @@ public final class AgentRun: Sendable {
     ///
     /// The setup is done when the call returns, thus the run has its id. The
     /// session gets no prompt until ``begin(_:environment:)``. Thus the runner
-    /// can put the run in its index before the session can call a tool.
+    /// can put the run in its index before the session can call a tool. A
+    /// message from the caller before that time waits in the run
+    /// (``deliver(_:)``).
     ///
     /// Each run has one span and its log records (``traced(in:_:)``), a child
     /// of the `ServiceContext` of the caller. The span and the records of a
@@ -355,36 +394,108 @@ public final class AgentRun: Sendable {
     /// (``acceptedMessagesIfIdle(on:)``, ``settle(idle:acceptedMessages:)``). The
     /// prompt of the message is ``AgentsToolText/callerMessage(_:)``.
     ///
+    /// The task prompt is always the first message of the session. Before
+    /// ``begin(_:environment:)``, and after it until the run reads the start
+    /// of the answer of the task prompt, the run holds the message
+    /// (``CallerMessageGate``). The run then sends each held message, in
+    /// order (``releaseHeldMessages(to:)``). A held message keeps the run
+    /// from the idle end as a message on its way to the queue does. A run
+    /// that is cancelled or fails before that start does not send its held
+    /// messages.
+    ///
     /// The answer of a message to a run that waits for its children starts
     /// with no check against ``AgentEnvironment/maxConcurrentAgents``. An
     /// answer to the final message of a child does the same.
     ///
     /// - Parameter message: The text of the caller.
-    /// - Returns: ``AgentRunMessageOutcome/delivered`` when the session got
-    ///   the message. ``AgentRunMessageOutcome/ended(_:)`` with the final
-    ///   state when the run started to end before the message: its answers
-    ///   ended, a caller cancelled it, or its setup failed.
+    /// - Returns: ``AgentRunMessageOutcome/delivered`` when the run accepted
+    ///   the message: the session got it, or the run holds it.
+    ///   ``AgentRunMessageOutcome/ended(_:)`` with the final state when the
+    ///   run started to end before the message: its answers ended, a caller
+    ///   cancelled it, or its setup failed.
     func deliver(_ message: String) async -> AgentRunMessageOutcome {
-        let admission = storage.withLock { storage -> (session: (any RoutedSession)?, ended: AgentRunState) in
-            if let settled = storage.settled {
-                return (nil, settled)
-            }
-            if storage.isCancelRequested {
-                return (nil, .cancelled)
-            }
-            guard let session = storage.session else {
-                return (nil, storage.state)
-            }
-            storage.inboundMessages += 1
-            storage.acceptedMessages += 1
-            return (session, storage.state)
+        let admission = storage.withLock { storage in
+            Self.admit(message, in: &storage)
         }
-        guard let session = admission.session else {
-            return .ended(admission.ended)
+        switch admission {
+        case .send(let session):
+            await send(message, to: session)
+            return .delivered
+        case .held:
+            return .delivered
+        case .ended(let state):
+            return .ended(state)
         }
+    }
+
+    /// Sends each message that ``deliver(_:)`` held, in order, and then
+    /// opens the gate (``CallerMessageGate/open``). The follower of the run
+    /// calls it when it reads the start of an answer. The first start is the
+    /// start of the answer of the task prompt, thus each held message goes
+    /// to the session after the task prompt. A message that arrives while
+    /// this call sends is held too, and this call sends it, thus the order
+    /// of the messages stays. After the gate opens, the call does nothing.
+    ///
+    /// - Parameter session: The session of the run.
+    func releaseHeldMessages(to session: any RoutedSession) async {
+        while let message = storage.withLock({ Self.takeHeldMessage(from: &$0) }) {
+            await send(message, to: session)
+        }
+    }
+
+    /// Decides what ``deliver(_:)`` does with `message`, under the lock of
+    /// the run.
+    ///
+    /// - Parameters:
+    ///   - message: The text of the caller.
+    ///   - storage: The state of the run. An accepted message goes in the
+    ///     counts, and a held message goes in the gate.
+    /// - Returns: The admission of the message.
+    private static func admit(_ message: String, in storage: inout Storage) -> MessageAdmission {
+        if let settled = storage.settled {
+            return .ended(settled)
+        }
+        if storage.isCancelRequested {
+            return .ended(.cancelled)
+        }
+        guard let session = storage.session else {
+            return .ended(storage.state)
+        }
+        storage.inboundMessages += 1
+        storage.acceptedMessages += 1
+        guard case .holding(let held) = storage.callerMessages else {
+            return .send(session)
+        }
+        storage.callerMessages = .holding(held + [message])
+        return .held
+    }
+
+    /// Takes the first held message from the gate, under the lock of the
+    /// run. When no message is held, the gate opens.
+    ///
+    /// - Parameter storage: The state of the run.
+    /// - Returns: The first held message, or `nil` when the gate is open.
+    private static func takeHeldMessage(from storage: inout Storage) -> String? {
+        guard case .holding(let held) = storage.callerMessages else {
+            return nil
+        }
+        guard let first = held.first else {
+            storage.callerMessages = .open
+            return nil
+        }
+        storage.callerMessages = .holding(Array(held.dropFirst()))
+        return first
+    }
+
+    /// Puts one accepted message from the caller in the message queue of the
+    /// session, and removes it from the count of inbound messages.
+    ///
+    /// - Parameters:
+    ///   - message: The text of the caller.
+    ///   - session: The session of the run.
+    private func send(_ message: String, to session: any RoutedSession) async {
         await session.send(AgentsToolText.callerMessage(message))
         storage.withLock { $0.inboundMessages -= 1 }
-        return .delivered
     }
 
     /// Sets the test hooks of the idle rule of the run. Call it before
