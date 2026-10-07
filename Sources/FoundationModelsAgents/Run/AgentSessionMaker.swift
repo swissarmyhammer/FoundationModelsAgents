@@ -119,17 +119,18 @@ struct AgentSessionMaker: Sendable {
     }
 
     /// Gives the maker of the `agents` tool of the run of `request`
-    /// (plan.md §9.3, depth).
+    /// (plan.md §9.3, the mount table).
     ///
-    /// A run at ``AgentEnvironment/maxDepth`` gets no `agents` tool: each
-    /// run that it starts would be deeper than the limit. Thus its model
-    /// does not see a tool that can only give a corrective. An `Agent`
-    /// entry of its `tools` key then matches no tool, and the run skips it.
+    /// The tool keeps the link to the caller of the run: the context of the
+    /// call that started the run, and the session of that call. A
+    /// host-started run has no context, thus its tool has no link.
+    /// ``mountedGrant(for:belowMaxDepth:hasCaller:)`` gives the grant of the
+    /// tool.
     ///
-    /// The tool gives each operation. It keeps the link to the caller of the
-    /// run: the context of the call that started the run, and the session of
-    /// that call. A host-started run has no context, thus its tool has no
-    /// link.
+    /// A host-started run at ``AgentEnvironment/maxDepth`` gets no maker:
+    /// each run that it starts would be deeper than the limit, and it has no
+    /// caller to send a message to. An `Agent` entry of its `tools` key then
+    /// matches no tool, and the run skips it.
     ///
     /// - Parameters:
     ///   - request: The run.
@@ -138,12 +139,49 @@ struct AgentSessionMaker: Sendable {
     private func agentsToolFactory(
         for request: AgentRunRequest, as parent: ParentRun
     ) -> ToolResolver.AgentsToolFactory? {
-        guard request.depth < environment.maxDepth, let maker = request.agentsTool else {
-            return nil
-        }
+        let belowMaxDepth = request.depth < environment.maxDepth
         let callerLink = request.context.map { call in
             AgentsToolContext.CallerLink(call: call, sessionID: call.sessionID)
         }
-        return { allowedNames in try await maker(parent, callerLink, .full, allowedNames) }
+        guard let maker = request.agentsTool, belowMaxDepth || callerLink != nil else {
+            return nil
+        }
+        return { entryGrant in
+            guard let grant = Self.mountedGrant(
+                for: entryGrant, belowMaxDepth: belowMaxDepth, hasCaller: callerLink != nil)
+            else {
+                return nil
+            }
+            return try await maker(parent, callerLink, grant, entryGrant?.allowedNames)
+        }
+    }
+
+    /// Gives the grant of the `agents` tool of one run (plan.md §9.3, the
+    /// mount table).
+    ///
+    /// | Case | Grant |
+    /// |---|---|
+    /// | an `Agent` entry, below `maxDepth` | ``AgentsToolContext/Grant/full`` |
+    /// | an `Agent` entry at `maxDepth`, with a caller | ``AgentsToolContext/Grant/messagingOnly`` |
+    /// | no `Agent` entry, with a caller | ``AgentsToolContext/Grant/messagingOnly`` |
+    /// | each other case | no tool |
+    ///
+    /// A `disallowedTools` entry that denies the tool wins over this table:
+    /// the resolver then does not ask for a grant.
+    ///
+    /// - Parameters:
+    ///   - entryGrant: The grant of the `Agent` entries of `tools`, or `nil`
+    ///     when no entry grants the tool.
+    ///   - belowMaxDepth: `true` when the depth of the run is less than
+    ///     ``AgentEnvironment/maxDepth``.
+    ///   - hasCaller: `true` when a tool call started the run.
+    /// - Returns: The grant, or `nil` when the run gets no `agents` tool.
+    private static func mountedGrant(
+        for entryGrant: AgentsGrant?, belowMaxDepth: Bool, hasCaller: Bool
+    ) -> AgentsToolContext.Grant? {
+        if entryGrant != nil && belowMaxDepth {
+            return .full
+        }
+        return hasCaller ? .messagingOnly : nil
     }
 }

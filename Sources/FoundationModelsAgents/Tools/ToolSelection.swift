@@ -73,9 +73,9 @@ struct ToolVocabulary: Sendable {
     /// `true` when the resolution has an `agents` tool factory.
     let hasAgentsTool: Bool
 
-    /// The match of no `tools` key: each catalog name, but not the `agents`
-    /// tool. Only an explicit `tools` entry (`Agent`, `Agent(a, b)`, or
-    /// `agents`) gives the `agents` tool.
+    /// The match of no `tools` key: each catalog name, and no grant of the
+    /// `agents` tool. Only an explicit `tools` entry (`Agent`, `Agent(a, b)`,
+    /// or `agents`) gives a grant.
     var everything: ToolMatch {
         ToolMatch(names: catalogNames, agentsGrant: nil)
     }
@@ -154,8 +154,8 @@ enum ToolListKey: String, Sendable {
 /// made.
 ///
 /// `disallowedTools` applies first, then `tools`. No `tools` key selects
-/// each catalog tool, but not the `agents` tool: only an explicit `tools`
-/// entry gives the `agents` tool. A denied name that `tools` also names is
+/// each catalog tool, and no grant of the `agents` tool: only an explicit
+/// `tools` entry gives a grant. A denied name that `tools` also names is
 /// removed with no warning. An entry that matches no tool is a warning, and
 /// the warnings of `disallowedTools` come first, because a dropped deny
 /// gives more access than the author wanted.
@@ -166,6 +166,10 @@ struct ToolSelection: Sendable {
     /// The grant of the `agents` tool, or `nil` when the selection does not
     /// hold it.
     let agentsGrant: AgentsGrant?
+
+    /// `true` when a `disallowedTools` entry denies the `agents` tool. An
+    /// explicit deny wins: the run then gets no `agents` tool of any grant.
+    let deniesAgents: Bool
 
     /// The warnings: first the `disallowedTools` entries, then the `tools`
     /// entries, each in entry order.
@@ -186,6 +190,7 @@ struct ToolSelection: Sendable {
         let deniesAgents = denials.contains { denial in denial.agentsGrant != nil }
         self.names = Set(grants.flatMap(\.names)).subtracting(denials.flatMap(\.names)).sorted()
         self.agentsGrant = deniesAgents ? nil : Self.joinedGrant(of: grants)
+        self.deniesAgents = deniesAgents
         self.findings = Self.unknownEntryFindings(disallowed, matches: denials, key: .disallowedTools)
             + Self.unknownEntryFindings(tools ?? [], matches: grants, key: .tools)
     }

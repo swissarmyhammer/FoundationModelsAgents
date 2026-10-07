@@ -82,8 +82,10 @@ extension StartAgent {
     /// of the calling run for `model: inherit`. A session that is not a run
     /// gives depth one and ``AgentEnvironment/defaultSlot``. Above
     /// ``AgentEnvironment/maxDepth`` the call starts no run. The new run gets
-    /// an `agents` tool of its own only when its `tools` key has an explicit
-    /// `Agent`, `Agent(a, b)`, or `agents` entry.
+    /// the full `agents` tool of its own only when its `tools` key has an
+    /// explicit `Agent`, `Agent(a, b)`, or `agents` entry and it is below
+    /// `maxDepth`. Else it gets the messaging tool, unless its
+    /// `disallowedTools` key denies the `agents` tool.
     ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The final message text of the run in a Router session, or

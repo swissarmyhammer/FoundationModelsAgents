@@ -38,10 +38,26 @@ comments:
     - evidence: 17 files — Sources/FoundationModelsAgents/Run/{ParentSessionWatch,AgentRun+Drive,AgentRunProgress,AgentRunAnswers,AgentRun+Children,AgentEnvironment,AgentSessionMaker}.swift; Tests/FoundationModelsAgentsTests/{NestedRunTests+Messages (new),ParentSessionWatchTests (new),AgentRunProgressTests,AgentRunAnswersTests,NestedRunTests+Limits,Support/AgentRunHarness,Support/TemporaryLayer}.swift; IntegrationTests/Tests/AgentsIntegrationTests/LiveNestedTests.swift. `swift test`: 483 tests in 68 suites passed. `swift build --package-path IntegrationTests --build-tests`: complete. `swift test --package-path IntegrationTests`: 13 tests in 6 suites passed (live models on this machine), including the new live message test.
     - next: /review
   timestamp: 2026-10-07T23:19:28.147378+00:00
+- actor: claude-code
+  id: 01m4caytt97t37kmfm6gbt3tey
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (dbff084): 0 findings (14 pairs attempted, 0 confirmed, 1 refuted, 0 failed). 15 files reviewed. 4 .kanban/ files are excluded by .reviewignore.
+    - next: none. The task is in done.
+  timestamp: 2026-10-07T23:25:11.881971+00:00
+- actor: claude-code
+  id: 01m4caz14beze1yk1e6j51anab
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 17 files
+    - test: green — swift test, 483 passed in 68 suites (2 runs); IntegrationTests build complete; live suite 13 passed
+    - commit: dbff084
+    - review: clean — 0 findings; task moved to done
+  timestamp: 2026-10-07T23:25:18.347045+00:00
 depends_on:
 - 01M4BXV22HHY1EYE8XEVSV23GW
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: c980
 title: A parent run does not end before it answers each message mail of a child
 ---
 ## What

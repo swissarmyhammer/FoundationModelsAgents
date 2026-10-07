@@ -23,14 +23,15 @@ struct ToolResolverTests {
 
     /// Records each call of the `agents` tool factory.
     actor AgentsToolCalls {
-        /// The `allowed` value of each call, in order.
-        private(set) var allowedNames: [[String]?] = []
+        /// The grant of each call, in order: `nil` for a call with no
+        /// `Agent` entry.
+        private(set) var grants: [AgentsGrant?] = []
 
         /// Records one call.
         ///
-        /// - Parameter allowed: The agent names that the call got.
-        func record(_ allowed: [String]?) {
-            allowedNames.append(allowed)
+        /// - Parameter grant: The grant that the call got.
+        func record(_ grant: AgentsGrant?) {
+            grants.append(grant)
         }
     }
 
@@ -98,13 +99,20 @@ struct ToolResolverTests {
 
     /// Makes an `agents` tool factory that records each call in `calls`.
     ///
-    /// - Parameter calls: The record of the calls.
-    /// - Returns: The factory. Each call gives a new `ProbeTool` with the name
-    ///   `agents`.
-    static func makeAgentsTool(recordingIn calls: AgentsToolCalls) -> ToolResolver.AgentsToolFactory {
-        { allowed in
-            await calls.record(allowed)
-            return ProbeTool(name: agentsName)
+    /// - Parameters:
+    ///   - calls: The record of the calls.
+    ///   - mountsWithNoGrant: `true` when a call with no grant gives a tool,
+    ///     as for a run with a caller. The default is `false`, as for a run
+    ///     with no caller.
+    /// - Returns: The factory. A call with a grant gives a new `ProbeTool`
+    ///   with the name `agents`. A call with no grant gives one only when
+    ///   `mountsWithNoGrant` is `true`.
+    static func makeAgentsTool(
+        recordingIn calls: AgentsToolCalls, mountsWithNoGrant: Bool = false
+    ) -> ToolResolver.AgentsToolFactory {
+        { grant in
+            await calls.record(grant)
+            return grant != nil || mountsWithNoGrant ? ProbeTool(name: agentsName) : nil
         }
     }
 
@@ -239,7 +247,7 @@ struct ToolResolverTests {
         let resolved = try await Self.resolve([entry], agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
         #expect(resolved.tools.map(\.name) == [Self.agentsName])
-        #expect(await calls.allowedNames == [[Self.firstAgent, Self.secondAgent]])
+        #expect(await calls.grants == [.only([Self.firstAgent, Self.secondAgent])])
         #expect(resolved.diagnostics.isEmpty)
     }
 
@@ -249,7 +257,7 @@ struct ToolResolverTests {
         let resolved = try await Self.resolve([entry], agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
         #expect(resolved.tools.map(\.name) == [Self.agentsName])
-        #expect(await calls.allowedNames == [nil])
+        #expect(await calls.grants == [.all])
     }
 
     @Test("two Agent(...) entries give the union of their names")
@@ -258,7 +266,7 @@ struct ToolResolverTests {
         let entries = ["Agent(\(Self.firstAgent))", "Agent(\(Self.secondAgent), \(Self.firstAgent))"]
         _ = try await Self.resolve(entries, agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
-        #expect(await calls.allowedNames == [[Self.firstAgent, Self.secondAgent]])
+        #expect(await calls.grants == [.only([Self.firstAgent, Self.secondAgent])])
     }
 
     @Test("Agent with Agent(a) gives all names")
@@ -267,16 +275,49 @@ struct ToolResolverTests {
         _ = try await Self.resolve(
             ["Agent(\(Self.firstAgent))", "Agent"], agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
-        #expect(await calls.allowedNames == [nil])
+        #expect(await calls.grants == [.all])
     }
 
-    @Test("no tools key with an agents tool factory gives each catalog tool, but not the agents tool")
+    @Test("no tools key asks the factory with no grant, and a factory that gives no tool adds no agents tool")
     func noToolsKeyGivesNoAgentsTool() async throws {
         let calls = AgentsToolCalls()
         let resolved = try await Self.resolve(nil, agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
         #expect(resolved.tools.map(\.name) == Self.catalogNames)
-        #expect(await calls.allowedNames.isEmpty)
+        #expect(await calls.grants == [nil])
+        #expect(resolved.diagnostics.isEmpty)
+    }
+
+    @Test("no tools key mounts the tool that the factory gives with no grant")
+    func noToolsKeyMountsTheToolOfNoGrant() async throws {
+        let calls = AgentsToolCalls()
+        let resolved = try await Self.resolve(
+            nil, agentsTool: Self.makeAgentsTool(recordingIn: calls, mountsWithNoGrant: true))
+
+        #expect(resolved.tools.map(\.name) == Self.catalogNames + [Self.agentsName])
+        #expect(await calls.grants == [nil])
+        #expect(resolved.diagnostics.isEmpty)
+    }
+
+    @Test("a tools key with no Agent entry mounts the tool that the factory gives with no grant")
+    func toolsKeyWithNoAgentEntryMountsTheToolOfNoGrant() async throws {
+        let calls = AgentsToolCalls()
+        let resolved = try await Self.resolve(
+            [Self.read], agentsTool: Self.makeAgentsTool(recordingIn: calls, mountsWithNoGrant: true))
+
+        #expect(resolved.tools.map(\.name) == [Self.read, Self.agentsName])
+        #expect(await calls.grants == [nil])
+    }
+
+    @Test("Agent in disallowedTools gives no tool, also when the factory gives a tool with no grant",
+          arguments: ["Agent", agentsName, "Agent(\(firstAgent))"])
+    func disallowedAgentDeniesTheToolOfNoGrant(entry: String) async throws {
+        let calls = AgentsToolCalls()
+        let resolved = try await Self.resolve(
+            nil, disallowed: [entry], agentsTool: Self.makeAgentsTool(recordingIn: calls, mountsWithNoGrant: true))
+
+        #expect(resolved.tools.map(\.name) == Self.catalogNames)
+        #expect(await calls.grants.isEmpty)
         #expect(resolved.diagnostics.isEmpty)
     }
 
@@ -289,7 +330,7 @@ struct ToolResolverTests {
             tools: nil, disallowed: [], catalog: catalog, agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
         #expect(resolved.tools.map(\.name) == Self.catalogNames)
-        #expect(await calls.allowedNames.isEmpty)
+        #expect(await calls.grants == [nil])
     }
 
     @Test("Agent in disallowedTools removes the agents tool", arguments: ["Agent", agentsName, "Agent(\(firstAgent))"])
@@ -299,7 +340,7 @@ struct ToolResolverTests {
             [Self.read, "Agent"], disallowed: [entry], agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
         #expect(resolved.tools.map(\.name) == [Self.read])
-        #expect(await calls.allowedNames.isEmpty)
+        #expect(await calls.grants.isEmpty)
         #expect(resolved.diagnostics.isEmpty)
     }
 
@@ -317,7 +358,8 @@ struct ToolResolverTests {
     func unknownDisallowedFixtureIsWarnedFirst() throws {
         let attempt = AgentDefinitionAttempt.broken("unknown-disallowed-tool")
         let definition = try #require(attempt.definition)
-        let diagnostics = ToolResolver.diagnostics(of: definition, catalog: Self.makeCatalog(), hasAgentsTool: true)
+        let diagnostics = ToolResolver.diagnostics(
+            of: definition, catalog: Self.makeCatalog(), hasAgentsTool: true, atMaxDepth: false)
         let diagnostic = try #require(diagnostics.first)
 
         #expect(diagnostics.count == 1)
@@ -347,7 +389,7 @@ struct ToolResolverTests {
             agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
         #expect(resolved.tools.map(\.name) == expected)
-        #expect(await calls.allowedNames.isEmpty)
+        #expect(await calls.grants.allSatisfy { $0 == nil })
     }
 
     @Test("the warnings of a definition put the disallowedTools warnings first")
@@ -358,10 +400,48 @@ struct ToolResolverTests {
             disallowedTools: \(Self.unknown)
             """
         let definition = try #require(AgentDefinitionAttempt.inline(yaml).definition)
-        let diagnostics = ToolResolver.diagnostics(of: definition, catalog: Self.makeCatalog(), hasAgentsTool: false)
+        let diagnostics = ToolResolver.diagnostics(
+            of: definition, catalog: Self.makeCatalog(), hasAgentsTool: false, atMaxDepth: false)
 
         #expect(diagnostics.map(\.severity) == [.warning, .warning])
         #expect(diagnostics.first?.message.contains(Self.unknown) == true)
         #expect(diagnostics.last?.message.contains("OtherMissingTool") == true)
+    }
+
+    @Test("at maxDepth, an Agent entry gives a warning that it gives only the message ops",
+          arguments: ["Agent", agentsName, "Agent(\(firstAgent))"])
+    func agentEntryAtMaxDepthIsWarned(entry: String) throws {
+        let definition = try #require(
+            AgentDefinitionAttempt.inline("\(AgentDefinitionAttempt.validDescription)\ntools: \(entry)").definition)
+        let diagnostics = ToolResolver.diagnostics(
+            of: definition, catalog: Self.makeCatalog(), hasAgentsTool: true, atMaxDepth: true)
+        let diagnostic = try #require(diagnostics.first)
+
+        #expect(diagnostics.count == 1)
+        #expect(diagnostic.severity == .warning)
+        #expect(diagnostic.agent == definition.id)
+        #expect(diagnostic.message.contains("only the message ops"))
+    }
+
+    @Test("below maxDepth, an Agent entry gives no warning")
+    func agentEntryBelowMaxDepthIsNotWarned() throws {
+        let definition = try #require(
+            AgentDefinitionAttempt.inline("\(AgentDefinitionAttempt.validDescription)\ntools: Agent").definition)
+
+        let diagnostics = ToolResolver.diagnostics(
+            of: definition, catalog: Self.makeCatalog(), hasAgentsTool: true, atMaxDepth: false)
+
+        #expect(diagnostics.isEmpty)
+    }
+
+    @Test("at maxDepth, an Agent entry that disallowedTools denies gives no maxDepth warning")
+    func deniedAgentEntryAtMaxDepthIsNotWarned() throws {
+        let yaml = "\(AgentDefinitionAttempt.validDescription)\ntools: Agent\ndisallowedTools: Agent"
+        let definition = try #require(AgentDefinitionAttempt.inline(yaml).definition)
+
+        let diagnostics = ToolResolver.diagnostics(
+            of: definition, catalog: Self.makeCatalog(), hasAgentsTool: true, atMaxDepth: true)
+
+        #expect(diagnostics.isEmpty)
     }
 }

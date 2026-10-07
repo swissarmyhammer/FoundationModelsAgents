@@ -235,7 +235,9 @@ public actor AgentRunner {
     /// that is not model-visible (plan.md §5). The diagnostics of the
     /// registry come first. This runner can make the `agents` tool for each
     /// run whose `tools` key lists it, thus an `Agent` entry matches a tool
-    /// and gives no warning.
+    /// and gives no unknown-entry warning. When ``AgentEnvironment/maxDepth``
+    /// is the depth of a host-started run, each run is at `maxDepth`. An
+    /// `Agent` entry then gives a warning: it gives only the message ops.
     ///
     /// - Returns: The catalog. It is empty before `registry.load()`.
     public nonisolated func catalog() -> AgentCatalog {
@@ -332,7 +334,9 @@ public actor AgentRunner {
                 .diagnostic(agent: definition.id, provenance: definition.provenance)]
         } ?? []
         return modelWarnings
-            + ToolResolver.diagnostics(of: definition, catalog: environment.tools, hasAgentsTool: true)
+            + ToolResolver.diagnostics(
+                of: definition, catalog: environment.tools, hasAgentsTool: true,
+                atMaxDepth: environment.maxDepth <= Self.hostDepth)
             + AgentSkillsPreload(skills: environment.skills).diagnostics(of: definition)
     }
 

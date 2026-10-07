@@ -171,29 +171,94 @@ struct AgentsToolMountTests {
     @Test("the tool of a child run with an Agent grant knows the caller session and the start call",
           .timeLimit(.minutes(1)))
     func childToolKnowsItsCaller() async throws {
-        let record = MadeToolRecord()
         let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: [Self.probeStep]))
         defer { try? harness.delete() }
-        let maker = record.wrapping(AgentRun.agentsTool(of: harness.runner))
-        let probe = AgentStartProbe { context in
-            await harness.runner.start(
-                try harness.runHarness.request(
-                    NestedRunTests.lead, prompt: Self.leadPrompt, context: context, agentsTool: maker))
-        }
-        let root = harness.runHarness.profile.standard.makeSession(instructions: Self.rootKey, tools: [probe])
 
-        _ = try await root.respond(to: Self.rootPrompt)
-        let started = try #require(probe.started)
-        _ = await started.run.finalState()
-        await root.close()
-        let call = try #require(started.context)
-        let context = try #require(record.tools.first).context
+        let child = try await Self.calledRun(of: NestedRunTests.lead, in: harness, runner: harness.runner)
+        let context = try #require(child.tools.first).context
         let link = try #require(context.callerLink)
 
-        #expect(record.tools.count == 1)
-        #expect(link.sessionID == root.id)
-        #expect(link.call.completionToken == call.completionToken)
+        #expect(child.tools.count == 1)
+        #expect(link.sessionID == child.rootID)
+        #expect(link.call.completionToken == child.call.completionToken)
         #expect(context.grant == .full)
+    }
+
+    // MARK: - The mount table of a run with a caller
+
+    @Test("a run with a caller and an Agent entry at maxDepth gets the messaging tool", .timeLimit(.minutes(1)))
+    func agentEntryAtMaxDepthGivesTheMessagingTool() async throws {
+        let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: [Self.probeStep]))
+        defer { try? harness.delete() }
+        let runner = harness.runHarness.makeRunner(maxDepth: AgentRunner.hostDepth)
+
+        let child = try await Self.calledRun(of: NestedRunTests.lead, in: harness, runner: runner)
+
+        #expect(child.tools.map(\.context.grant) == [.messagingOnly])
+        #expect(child.tools.first?.context.callerLink?.sessionID == child.rootID)
+    }
+
+    @Test("a run with a caller and a tools key with no Agent entry gets the messaging tool",
+          .timeLimit(.minutes(1)))
+    func toolsKeyWithNoAgentEntryGivesTheMessagingTool() async throws {
+        let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: [Self.probeStep]))
+        defer { try? harness.delete() }
+
+        let child = try await Self.calledRun(of: AgentRunTests.reviewer, in: harness, runner: harness.runner)
+
+        #expect(child.tools.map(\.context.grant) == [.messagingOnly])
+        #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [ToolVocabulary.agentsToolName])
+    }
+
+    @Test("a run with a caller and no tools key gets the messaging tool", .timeLimit(.minutes(1)))
+    func noToolsKeyGivesTheMessagingTool() async throws {
+        let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: [Self.probeStep]))
+        defer { try? harness.delete() }
+
+        let child = try await Self.calledRun(of: Self.testWriter, in: harness, runner: harness.runner)
+
+        #expect(child.tools.map(\.context.grant) == [.messagingOnly])
+        #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [ToolVocabulary.agentsToolName])
+    }
+
+    @Test("a run with a caller whose disallowedTools denies the agents tool gets no tool",
+          .timeLimit(.minutes(1)), arguments: ["Agent", ToolVocabulary.agentsToolName])
+    func disallowedAgentsToolGivesNoTool(entry: String) async throws {
+        let layer = try TemporaryLayer.make(holding: [
+            "agents/\(Self.denier).md": """
+                ---
+                name: \(Self.denier)
+                description: Works alone, with no agents tool.
+                disallowedTools: \(entry)
+                ---
+
+                You work alone.
+                """
+        ])
+        defer { try? layer.delete() }
+        let harness = try await AgentsToolHarness.make(
+            script: Self.leadScript(rootSteps: [Self.probeStep]), registry: AgentRegistry(layers: [layer.layer]))
+        defer { try? harness.delete() }
+
+        let child = try await Self.calledRun(of: Self.denier, in: harness, runner: harness.runner)
+
+        #expect(child.tools.isEmpty)
+        #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [])
+    }
+
+    @Test("a host-started run with no Agent entry gets no tool", .timeLimit(.minutes(1)))
+    func hostStartedRunWithNoGrantGetsNoTool() async throws {
+        let record = MadeToolRecord()
+        let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: []))
+        defer { try? harness.delete() }
+
+        let run = try await harness.runHarness.start(
+            Self.testWriter, prompt: Self.leadPrompt,
+            agentsTool: record.wrapping(AgentRun.agentsTool(of: harness.runner)))
+        _ = await run.finalState()
+
+        #expect(record.tools.isEmpty)
+        #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [])
     }
 
     @Test("the tool of a host-started run has no caller link", .timeLimit(.minutes(1)))
@@ -224,8 +289,16 @@ struct AgentsToolMountTests {
 
     // MARK: - Support of the caller link
 
-    /// The prompt of the lead run. It is also the key of its play.
+    /// The prompt of the run that the probe starts. It is also the key of its
+    /// play.
     private static let leadPrompt = "mount-lead-key: divide the review"
+
+    /// The agent of the fixture library with no `tools` key.
+    private static let testWriter = "test-writer"
+
+    /// The agent of the temporary layer whose `disallowedTools` key denies
+    /// the `agents` tool.
+    private static let denier = "denier"
 
     /// The arguments of the scripted call of the probe tool.
     private static let probeArguments = #"{"text":"start"}"#
@@ -234,6 +307,49 @@ struct AgentsToolMountTests {
     /// tool.
     private static let probeStep =
         ScriptedAgentStep.toolCall(name: AgentStartProbe.toolName, argumentsJSON: probeArguments)
+
+    /// A run that a call of the probe tool in a root session started.
+    private struct CalledRun {
+        /// Each `agents` tool that the maker of the run made.
+        let tools: [AgentsTool]
+
+        /// The context of the probe call that started the run.
+        let call: ToolContext
+
+        /// The id of the root session.
+        let rootID: ULID
+    }
+
+    /// Starts a run of `agent` from a call of the probe tool in a root
+    /// session, and waits until the run ends.
+    ///
+    /// The root session plays ``rootKey``, and the run plays ``leadPrompt``.
+    ///
+    /// - Parameters:
+    ///   - agent: The id of the agent of the run.
+    ///   - harness: The harness of the profile and the registry.
+    ///   - runner: The runner that starts the run. Its environment gives the
+    ///     depth limit.
+    /// - Returns: The tools that the maker of the run made, the probe call,
+    ///   and the id of the root session.
+    /// - Throws: The error of the root session, or a `#require` failure when
+    ///   the probe started no run.
+    private static func calledRun(
+        of agent: String, in harness: AgentsToolHarness, runner: AgentRunner
+    ) async throws -> CalledRun {
+        let record = MadeToolRecord()
+        let maker = record.wrapping(AgentRun.agentsTool(of: runner))
+        let probe = AgentStartProbe { context in
+            await runner.start(
+                try harness.runHarness.request(agent, prompt: leadPrompt, context: context, agentsTool: maker))
+        }
+        let root = harness.runHarness.profile.standard.makeSession(instructions: rootKey, tools: [probe])
+        _ = try await root.respond(to: rootPrompt)
+        let started = try #require(probe.started)
+        _ = await started.run.finalState()
+        await root.close()
+        return CalledRun(tools: record.tools, call: try #require(started.context), rootID: root.id)
+    }
 
     /// Makes the script of a root session and of one lead run.
     ///

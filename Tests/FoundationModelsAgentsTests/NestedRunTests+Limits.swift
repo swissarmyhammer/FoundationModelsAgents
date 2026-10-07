@@ -5,8 +5,8 @@ import Testing
 extension NestedRunTests {
     /// Pins the limits and the slots of nested runs (plan.md §7, §9.3): a
     /// run that waits for its children holds no place in the run limit, a
-    /// run at `maxDepth` has no `agents` tool, a run of an agent with no
-    /// `tools` key has no `agents` tool, a direct start above
+    /// child at `maxDepth` has only the messaging tool, a child of an agent
+    /// with no `tools` key has only the messaging tool, a direct start above
     /// `maxDepth` gives a corrective, and `model: inherit` in a child uses
     /// the slot of the calling run.
     @Suite("Nested run limits")
@@ -202,9 +202,9 @@ extension NestedRunTests {
             #expect(secondResult.contains(Self.secondHelperText))
         }
 
-        @Test("with maxDepth 2, the child at the limit has no agents tool, and its parent has one",
+        @Test("with maxDepth 2, the child at the limit has the messaging tool, and its parent has the full tool",
             .timeLimit(.minutes(1)))
-        func childAtMaxDepthHasNoAgentsTool() async throws {
+        func childAtMaxDepthHasTheMessagingTool() async throws {
             let layer = try Self.makeLayer()
             defer { try? layer.delete() }
             let harness = try await AgentRunHarness.make(
@@ -223,14 +223,14 @@ extension NestedRunTests {
 
             #expect(child.depth == Self.depthLimit)
             #expect(harness.script.toolNames(ofPlay: NestedRunTests.leadKey) == [ToolVocabulary.agentsToolName])
-            #expect(harness.script.toolNames(ofPlay: Self.childPlannerKey) == [])
+            #expect(harness.script.toolNames(ofPlay: Self.childPlannerKey) == [ToolVocabulary.agentsToolName])
             #expect(child.state == .finished(Self.childPlannerText))
             #expect(result.contains(Self.childPlannerText))
         }
 
-        @Test("an agent with no tools key gets no agents tool, and an agent with tools: Agent gets one",
+        @Test("a child with no tools key gets the messaging tool, and an agent with tools: Agent gets the full tool",
             .timeLimit(.minutes(1)))
-        func noToolsKeyGivesNoAgentsTool() async throws {
+        func noToolsKeyGivesTheMessagingTool() async throws {
             let layer = try Self.makeLayer()
             defer { try? layer.delete() }
             let harness = try await AgentRunHarness.make(
@@ -246,7 +246,7 @@ extension NestedRunTests {
             let result = try await parent.result()
 
             #expect(harness.script.toolNames(ofPlay: NestedRunTests.leadKey) == [ToolVocabulary.agentsToolName])
-            #expect(harness.script.toolNames(ofPlay: Self.helperKey) == [])
+            #expect(harness.script.toolNames(ofPlay: Self.helperKey) == [ToolVocabulary.agentsToolName])
             #expect(result.contains(Self.helperText))
         }
 
