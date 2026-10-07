@@ -2,12 +2,13 @@ import Foundation
 import FoundationModelsRouter
 import ULID
 
-/// The shared environment of the four operations of the `agents` tool
+/// The shared environment of the operations of the `agents` tool
 /// (plan.md §9.1).
 ///
 /// `AgentsTool.make(context:catalogCharacterLimit:)` reads the catalog of
 /// `runner` one time. The operations use `runner` to start, check, and cancel
-/// runs.
+/// runs, and to send messages to them. They use `callerLink` to send a
+/// message to the caller of the run.
 public struct AgentsToolContext: Sendable {
     /// The link from the tool of a run to the caller of that run: the
     /// session that started the run.
@@ -200,6 +201,44 @@ public struct AgentsToolContext: Sendable {
         return await body(run)
     }
 
+    /// Tells whether `id` is the id of the session of the caller.
+    ///
+    /// A run id is the id of its session, thus the id of a parent run is
+    /// the id of the caller of its child.
+    ///
+    /// - Parameter id: The id that the model gave. White space at the start
+    ///   or the end, and the case of the letters, do not matter.
+    /// - Returns: `true` when the run has a caller and `id` names its
+    ///   session.
+    func isCaller(_ id: String) -> Bool {
+        guard let callerLink else {
+            return false
+        }
+        return ULID(ulidString: Self.key(of: id)) == callerLink.sessionID
+    }
+
+    /// Sends `message` to the caller of the run (`send caller`).
+    ///
+    /// The message goes out as a `message` event of the `start agent` call
+    /// that started the run. The caller session gets it as mail, and the
+    /// Router starts an answer for it. The run continues, and its final
+    /// message still goes to the caller when it ends.
+    ///
+    /// - Parameter message: The text of the message.
+    /// - Returns: ``AgentsToolText/messageSentToCaller`` when the message was
+    ///   sent. A corrective for a run with no caller, or for a message that
+    ///   holds no text.
+    func messageCaller(_ message: String) async -> AgentsToolAnswer {
+        guard let callerLink else {
+            return .corrective(AgentsToolText.noCaller)
+        }
+        guard AgentDefinitionRules.holdsText(message) else {
+            return .corrective(AgentsToolText.blankMessage)
+        }
+        await callerLink.call.message(message)
+        return .success(AgentsToolText.messageSentToCaller)
+    }
+
     /// Gives the answer of `check agent` with no id: one block for each run
     /// of the caller, and only those runs.
     ///
@@ -224,11 +263,24 @@ public struct AgentsToolContext: Sendable {
     /// - Parameter id: The id that the model gave.
     /// - Returns: The run, or `nil` when `id` names no run.
     private func run(named id: String) async -> AgentRun? {
-        let key = id.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let key = Self.key(of: id)
         await startedRuns.waitForStart(ofCall: key)
         if let runID = ULID(ulidString: key), let run = await runner.run(id: runID) {
             return run
         }
         return startedRuns.run(forCall: key)
+    }
+
+    /// Gives the form of an id that the model gave, in which it is compared
+    /// with the id of a run, of a session, or of a call.
+    ///
+    /// A ULID and a completion token are Crockford base 32, thus the case of
+    /// the letters does not matter.
+    ///
+    /// - Parameter id: The id that the model gave.
+    /// - Returns: `id` with no white space at the start or the end, in upper
+    ///   case.
+    private static func key(of id: String) -> String {
+        id.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
     }
 }

@@ -230,7 +230,8 @@ enum AgentsDemoModes {
         case .textDelta, .textReset, .reasoningDelta, .toolCall, .toolStatus, .toolInvocation,
             .toolCallReport, .entryRecorded, .compaction, .discoveryPrimingFailed, .generationStalled,
             .submissionQueued, .submissionStarted, .submissionEnded, .repetitionStopped,
-            .elicitationRequested, .generationCall:
+            .elicitationRequested, .generationCall, .compactionStarted, .compactionFailed,
+            .reasoningStopped, .runMessage:
             []
         }
     }

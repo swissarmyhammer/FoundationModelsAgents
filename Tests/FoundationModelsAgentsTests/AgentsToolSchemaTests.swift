@@ -16,10 +16,12 @@ struct AgentsToolSchemaTests {
     // MARK: - Constants
 
     /// The op strings of the operations, in tool order.
-    private static let opStrings = ["list agents", "start agent", "check agent", "cancel agent", "send agent"]
+    private static let opStrings = [
+        "list agents", "start agent", "check agent", "cancel agent", "send agent", "send caller"
+    ]
 
     /// The op strings of a tool with the messaging grant, in tool order.
-    private static let messageOpStrings = ["send agent"]
+    private static let messageOpStrings = ["send agent", "send caller"]
 
     /// The name of the field that holds an agent name.
     static let nameFieldName = "name"
@@ -63,7 +65,8 @@ struct AgentsToolSchemaTests {
                 "start agent": ["name", "prompt"],
                 "check agent": ["id?"],
                 "cancel agent": ["id"],
-                "send agent": ["id", "message"]
+                "send agent": ["id", "message"],
+                "send caller": ["message"]
             ])
     }
 

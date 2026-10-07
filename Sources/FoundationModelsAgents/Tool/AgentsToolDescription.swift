@@ -1,3 +1,5 @@
+import ULID
+
 /// Builds the description of the `agents` tool (plan.md §9.1).
 ///
 /// A model reads the description of a tool before it plans, thus the
@@ -19,6 +21,10 @@
 ///
 /// A tool with only the message operations has the short ``messaging``
 /// text in place of the fixed sentences and the list.
+///
+/// The tool of a run that has a caller ends with the caller sentence
+/// (``addingCaller(to:callerID:)``): the id of the caller session, and how
+/// to send a message to it.
 enum AgentsToolDescription {
     /// One agent of the list: its name and its description.
     struct Entry: Sendable {
@@ -78,7 +84,8 @@ enum AgentsToolDescription {
     /// The character at the end of a cut description.
     private static let ellipsis = "…"
 
-    /// The text between the fixed sentences and the list.
+    /// The text between two blocks of the description: between the fixed
+    /// sentences and the list, and before the caller sentence.
     private static let listSeparator = "\n\n"
 
     /// The text between two lines of the list.
@@ -98,6 +105,36 @@ enum AgentsToolDescription {
     static func make(agents: [Entry], characterLimit: Int) -> String {
         let list = agents.isEmpty ? noAgentsLine : list(for: agents, characterLimit: characterLimit)
         return fixedSentences + listSeparator + list
+    }
+
+    /// Adds the caller sentence to `description` when the run has a caller.
+    ///
+    /// The sentence names the id of the session that started the run, and
+    /// tells how to send a message to it with `send caller`.
+    ///
+    /// - Parameters:
+    ///   - description: The description of the tool.
+    ///   - callerID: The id of the session of the caller, or `nil` when the
+    ///     run has no caller.
+    /// - Returns: `description`, then a blank line and the caller sentence.
+    ///   With no caller, `description` with no change.
+    static func addingCaller(to description: String, callerID: ULID?) -> String {
+        guard let callerID else {
+            return description
+        }
+        return description + listSeparator + callerSentence(callerID: callerID)
+    }
+
+    /// Gives the caller sentence: the id of the caller session, and the
+    /// `send caller` call that sends a message to it.
+    ///
+    /// - Parameter callerID: The id of the session of the caller.
+    /// - Returns: The sentence.
+    private static func callerSentence(callerID: ULID) -> String {
+        """
+        The session that started you has the id \(callerID). \
+        Send a message to it with {"op": "send caller", "message": "..."}.
+        """
     }
 
     /// Gives one `- name: description` line for each agent, each description

@@ -26,9 +26,21 @@ enum AgentsToolText {
         The agent catalog is not loaded. The host must call AgentRegistry.load() before it starts an agent.
         """
 
-    /// The corrective of `send agent` with a message that holds no text.
+    /// The corrective of `send agent` and `send caller` with a message that
+    /// holds no text.
     static let blankMessage = """
         The message is blank. Put the full text for the run in the message.
+        """
+
+    /// The corrective of `send caller` in a session that has no caller: a
+    /// host session, or a run that a host started.
+    static let noCaller = "You have no caller."
+
+    /// The answer of `send caller`, and of `send agent` with the id of the
+    /// caller, when the message was sent to the caller.
+    static let messageSentToCaller = """
+        The message was sent to the session that started you. Continue your work. \
+        Your final message goes to that session when you end.
         """
 
     /// The answer of `check agent` with no id for a caller with no run, and

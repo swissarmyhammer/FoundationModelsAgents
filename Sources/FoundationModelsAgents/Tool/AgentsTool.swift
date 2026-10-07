@@ -4,8 +4,8 @@ import FoundationModelsRouter
 import FoundationModelsSkills
 import Operations
 
-/// The `agents` tool: the four operations that let a model delegate a task
-/// to an agent (plan.md §9.1).
+/// The `agents` tool: the operations that let a model delegate a task to an
+/// agent, and send messages to a run and to its caller (plan.md §9.1).
 ///
 /// A model reads the name, the description, and the schema of a tool before
 /// it plans. This tool puts the agents that it can start in two of them:
@@ -28,8 +28,9 @@ import Operations
 /// (``mount(for:)``). `start agent` is a background call: the model gets the
 /// pending envelope of the Router at once, the body waits for the run that
 /// it started, and the final message of that run comes to the caller as mail
-/// when the run ends. `list agents`, `check agent`, `cancel agent`, and
-/// `send agent` are synchronous calls: their real answer comes back in band.
+/// when the run ends. `list agents`, `check agent`, `cancel agent`,
+/// `send agent`, and `send caller` are synchronous calls: their real answer
+/// comes back in band.
 ///
 /// This tool is not a code-mode surface (plan.md §9.5). A host registers it
 /// directly on its session.
@@ -80,6 +81,7 @@ public struct AgentsTool: Tool {
 
     /// The description that the model reads: the fixed sentences and the
     /// agents, or the short text of a tool with only the message operations.
+    /// The tool of a run that has a caller adds the caller sentence.
     public var description: String {
         operationTool.description
     }
@@ -134,9 +136,12 @@ public struct AgentsTool: Tool {
     /// Makes the `agents` tool over `context` with the operations of its
     /// grant (``operations(of:)``).
     ///
+    /// When the run of the tool has a caller, the description ends with the
+    /// caller sentence (``AgentsToolDescription/addingCaller(to:callerID:)``).
+    ///
     /// - Parameters:
     ///   - context: The shared context of the operations.
-    ///   - description: The description that the model reads.
+    ///   - description: The description of the grant.
     ///   - agentNames: The names of the agents that the tool can start, in
     ///     catalog order.
     /// - Returns: The tool.
@@ -144,12 +149,13 @@ public struct AgentsTool: Tool {
     private static func make(
         context: AgentsToolContext, description: String, agentNames: [String]
     ) throws -> AgentsTool {
+        let callerID = context.callerLink?.sessionID
         let operationTool = try OperationTool(
             name: ToolVocabulary.agentsToolName,
-            description: description,
+            description: AgentsToolDescription.addingCaller(to: description, callerID: callerID),
             context: context,
             operations: operations(of: context.grant),
-            resolver: OperationResolver(verbAliases: verbAliases)
+            resolver: OperationResolver(verbAliases: verbAliases, nounAliases: nounAliases)
         )
         return try AgentsTool(operationTool: operationTool, context: context, agentNames: agentNames)
     }
@@ -162,7 +168,7 @@ public struct AgentsTool: Tool {
     ///   ``AgentsToolContext/Grant/full``, the operations that list, start,
     ///   check, and cancel agents, then the message operations.
     private static func operations(of grant: AgentsToolContext.Grant) -> [AnyOperation<AgentsToolContext>] {
-        let messageOperations = [AnyOperation(SendAgent.self)]
+        let messageOperations = [AnyOperation(SendAgent.self), AnyOperation(SendCaller.self)]
         switch grant {
         case .full:
             return [
@@ -184,6 +190,12 @@ public struct AgentsTool: Tool {
         "run": StartAgent.verb,
         "status": CheckAgent.verb,
         "show": ListAgents.verb
+    ]
+
+    /// The noun aliases of the tool: `parent` → `caller`. Thus
+    /// `send parent` gives `send caller`.
+    static let nounAliases: [String: String] = [
+        "parent": SendCaller.noun
     ]
 
     /// Resolves `arguments` to one operation and dispatches it through
@@ -217,7 +229,7 @@ extension AgentsTool: BackgroundTool {
     ///
     /// `start agent` is background, with no timeout, because a run can take
     /// any time. `list agents`, `check agent`, `cancel agent`, `send agent`,
-    /// and an op that names no operation are synchronous.
+    /// `send caller`, and an op that names no operation are synchronous.
     ///
     /// - Parameter arguments: The payload of the model.
     /// - Returns: The mount of the operation that `arguments` names.

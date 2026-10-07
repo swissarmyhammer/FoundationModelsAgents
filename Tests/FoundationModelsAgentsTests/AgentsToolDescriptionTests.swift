@@ -1,4 +1,5 @@
 import Testing
+import ULID
 
 @testable import FoundationModelsAgents
 
@@ -206,6 +207,47 @@ struct AgentsToolDescriptionTests {
         #expect(harness.tool.description == Self.fixedSentences + Self.listSeparator + Self.noAgentsLine)
     }
 
+    // MARK: - The caller sentence
+
+    @Test func aDescriptionWithNoCallerIsNotChanged() {
+        #expect(AgentsToolDescription.addingCaller(to: Self.fixedSentences, callerID: nil) == Self.fixedSentences)
+    }
+
+    @Test func aDescriptionWithACallerEndsWithTheCallerSentence() {
+        let callerID = ULID()
+
+        let description = AgentsToolDescription.addingCaller(to: Self.fixedSentences, callerID: callerID)
+
+        #expect(description == Self.fixedSentences + Self.listSeparator + Self.callerSentence(callerID))
+    }
+
+    @Test("the tool of a run with a caller link names the caller id, with each grant",
+          .timeLimit(.minutes(1)), arguments: [AgentsToolContext.Grant.full, .messagingOnly])
+    func theToolOfARunWithACallerNamesTheCallerID(grant: AgentsToolContext.Grant) async throws {
+        let harness = try await AgentsToolHarness.make(
+            script: ScriptedAgentScript([
+                ScriptedAgentPlay(key: Self.rootKey, steps: [Self.probeStep, .finalText(Self.rootText)]),
+                ScriptedAgentPlay(key: Self.childPrompt, steps: [.finalText(Self.rootText)])
+            ]))
+        defer { try? harness.delete() }
+        let probe = AgentStartProbe { context in
+            try await harness.runHarness.start(AgentRunTests.reviewer, prompt: Self.childPrompt, context: context)
+        }
+        let root = harness.runHarness.profile.standard.makeSession(instructions: Self.rootKey, tools: [probe])
+
+        _ = try await root.respond(to: Self.rootText)
+        let started = try #require(probe.started)
+        _ = await started.run.finalState()
+        await root.close()
+        let call = try #require(started.context)
+        let link = AgentsToolContext.CallerLink(call: call, sessionID: call.sessionID)
+        let tool = try await AgentsTool.make(
+            context: AgentsToolContext(
+                runner: harness.runner, allowedNames: nil, parent: nil, callerLink: link, grant: grant))
+
+        #expect(tool.description.hasSuffix(Self.listSeparator + Self.callerSentence(root.id)))
+    }
+
     @Test func makeBeforeTheFirstLoadThrowsCatalogNotLoaded() async throws {
         let runHarness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
         defer { try? runHarness.delete() }
@@ -220,5 +262,30 @@ struct AgentsToolDescriptionTests {
         let tool = try await AgentsTool.make(context: context)
 
         #expect(tool.description.contains("- code-reviewer: "))
+    }
+
+    // MARK: - Support of the caller sentence
+
+    /// The key of the play of the root session. It is its instructions.
+    private static let rootKey = "description-root-key"
+
+    /// The prompt and the answer of the root session.
+    private static let rootText = "Start the review."
+
+    /// The prompt of the run that the probe starts. It is also the key of its
+    /// play.
+    private static let childPrompt = "description-child-key: review the parser"
+
+    /// The step of the root session that calls the probe tool.
+    private static let probeStep = ScriptedAgentStep.toolCall(
+        name: AgentStartProbe.toolName, argumentsJSON: #"{"text":"start"}"#)
+
+    /// The caller sentence, word for word from the task of `send caller`.
+    ///
+    /// - Parameter callerID: The id of the session of the caller.
+    /// - Returns: The sentence.
+    private static func callerSentence(_ callerID: ULID) -> String {
+        "The session that started you has the id \(callerID). "
+            + #"Send a message to it with {"op": "send caller", "message": "..."}."#
     }
 }

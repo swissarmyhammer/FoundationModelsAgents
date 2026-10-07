@@ -26,10 +26,40 @@ comments:
   id: 01m4c2s0kewamhn4m646kbf84j
   text: 'The Router is on origin/main at 5713abe (aad6ae5 is before it). Extras is on origin/main at 2c37a78. The first step of this task: run `swift package update FoundationModelsRouter FoundationModelsExtras` in the root package and in `IntegrationTests/`. Then build, and confirm that Package.resolved names these SHAs.'
   timestamp: 2026-10-07T21:02:12.590751+00:00
+- actor: claude-code
+  id: 01m4c6458qmm073hqkwmtmm1c6
+  text: |-
+    Picked up. Package update done: root and IntegrationTests Package.resolved name Router 5713abe and Extras 2c37a78 (Package.resolved is in .gitignore, so git shows no diff for it).
+
+    Breaking change from the update: `SessionEvent` has four new cases (`compactionStarted`, `compactionFailed`, `reasoningStopped`, `runMessage`). The exhaustive switch in `Examples/agents-demo/DemoModes.swift` `lines(for:)` did not compile. Fix: these four cases give no line. The demo line for `runMessage` is for the CLI task ^m579cf if a line is necessary.
+
+    Research:
+    - Tests can not make a `ToolContext` easily (it needs a RunPlane and a sink). A test gets a real one from `AgentStartProbe` (as AgentsToolMountTests does).
+    - The scripted model: the `lead` fixture agent has an Agent grant, so a `lead` run that a root session starts has a full tool with a caller link. `.finalTextOfLastPrompt` on the root answers mail with the mail text.
+    - Plan: `AgentsToolContext.messageCaller(_:)` and `isCaller(id:)` shared by `SendCaller` and `SendAgent`; `AgentsToolDescription.addingCaller(to:callerID:)` used in both grant branches of `AgentsTool.make`.
+  timestamp: 2026-10-07T22:00:43.543147+00:00
+- actor: claude-code
+  id: 01m4c6pg4qgq1m39cm2efeths3
+  text: |-
+    Implementation landed.
+
+    - `SendCaller` and the `parent` → `caller` noun alias. `AgentsToolContext.messageCaller(_:)` holds the send logic (no link → "You have no caller.", blank → blankMessage, else `callerLink.call.message`). `SendAgent` calls it when `isCaller(id)` is true (trimmed, case does not matter, compared as ULID). The repeated id normalization in the context is now one `key(of:)` helper.
+    - The caller sentence is added in the shared private `AgentsTool.make`, thus both grants get it.
+
+    What did not work first: in `SendCallerTests` the root session and the `lead` run both used the `standard` slot. The child waits on the gate inside its generation call, and it holds the one generation queue of that slot. The root mail answer then waited behind it, and the test hung until the time limit. Fix: the root session is on the `flash` slot. A later test that holds a child on a gate and expects the caller to answer must put the two on different slots.
+
+    Correction of my first comment: the CLI task is ^x3579cf, not ^m579cf. The demo gives no line for `runMessage` now; a line for it belongs to ^x3579cf if one is necessary.
+
+    The build has one build-system warning, "missing creator for mutated node ... mlx-swift_Cmlx.bundle", that was there before any change of this task.
+
+    ### implement — changed
+    - evidence: 9 files — Examples/agents-demo/DemoModes.swift, Sources/FoundationModelsAgents/Tool/{AgentsTool,AgentsToolContext,AgentsToolDescription,AgentsToolOperations,AgentsToolText}.swift, Tests/FoundationModelsAgentsTests/{SendCallerTests (new),AgentsToolSchemaTests,AgentsToolDescriptionTests}.swift. `swift test`: 462 tests in 66 suites passed. `swift build --build-tests --package-path IntegrationTests`: complete.
+    - next: /review
+  timestamp: 2026-10-07T22:10:44.503402+00:00
 depends_on:
 - 01M4BXTKA17C1EXCN9TZ152P5M
-position_column: todo
-position_ordinal: '8380'
+position_column: doing
+position_ordinal: '80'
 title: 'send caller (alias send parent): a run sends a message to its caller as mail'
 ---
 ## What
@@ -54,21 +84,21 @@ Files:
 - `Sources/FoundationModelsAgents/Tool/AgentsToolText.swift`: the texts above.
 
 ## Acceptance Criteria
-- [ ] A running child that calls `send caller` causes a new answer in the parent session. The message text is in the mail of that answer. The child continues, and it ends later with its final message.
-- [ ] `{"op": "send parent", ...}` resolves to `send caller`.
-- [ ] `send agent` with the id of the parent run delivers to the parent session.
-- [ ] A host-started run with a full tool and no caller gets the "You have no caller." corrective.
-- [ ] The tool description of a run with a caller link names the caller id.
+- [x] A running child that calls `send caller` causes a new answer in the parent session. The message text is in the mail of that answer. The child continues, and it ends later with its final message.
+- [x] `{"op": "send parent", ...}` resolves to `send caller`.
+- [x] `send agent` with the id of the parent run delivers to the parent session.
+- [x] A host-started run with a full tool and no caller gets the "You have no caller." corrective.
+- [x] The tool description of a run with a caller link names the caller id.
 
 ## Tests
-- [ ] New `Tests/FoundationModelsAgentsTests/SendCallerTests.swift` with the scripted model:
+- [x] New `Tests/FoundationModelsAgentsTests/SendCallerTests.swift` with the scripted model:
   - the child posts a message;
   - the parent gets a `.runMessage` and answers the mail;
   - then the child finishes and the parent gets the final message.
   - Hold the child with `ScriptedGate` until the parent has answered the message mail, so that this test does not depend on the parent idle rule of the next task.
-- [ ] Alias test: `send parent` resolves. Parent-id test: `send agent` with the caller id delivers.
-- [ ] Update `AgentsToolSchemaTests.swift` (both op lists) and `AgentsToolDescriptionTests.swift` (the caller sentence).
-- [ ] `swift test` passes.
+- [x] Alias test: `send parent` resolves. Parent-id test: `send agent` with the caller id delivers.
+- [x] Update `AgentsToolSchemaTests.swift` (both op lists) and `AgentsToolDescriptionTests.swift` (the caller sentence).
+- [x] `swift test` passes.
 
 ## Workflow
 - Use `/tdd`: write the failing tests first, then do the implementation until they pass.

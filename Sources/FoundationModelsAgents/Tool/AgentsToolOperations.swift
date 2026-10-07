@@ -4,7 +4,7 @@ import FoundationModelsRouter
 import FoundationModelsSkills
 import Operations
 
-/// The answers of the four operations of the `agents` tool.
+/// The answers of the operations of the `agents` tool.
 ///
 /// Each answer is plain text: `.success` or `.corrective(String)`
 /// (plan.md §9.1). A correction is a text result in the same turn, never a
@@ -222,13 +222,21 @@ extension SendAgent {
     /// run that accepts the message answers it before it ends, and its final
     /// message comes to the caller as mail.
     ///
+    /// When `id` is the id of the session that started the run of this
+    /// tool, the call does the same as `send caller`
+    /// (``AgentsToolContext/messageCaller(_:)``). A run id is the id of its
+    /// session, thus the id of the parent run names the caller.
+    ///
     /// - Parameter context: The shared context of the tool.
-    /// - Returns: The sent text when the run accepted the message. A
-    ///   corrective for a blank message, for a run that ended, or for an id
-    ///   that no run of the caller has.
+    /// - Returns: The sent text when the run or the caller accepted the
+    ///   message. A corrective for a blank message, for a run that ended, or
+    ///   for an id that names no run of the caller and not the caller.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
         guard AgentDefinitionRules.holdsText(message) else {
             return .corrective(AgentsToolText.blankMessage)
+        }
+        guard !context.isCaller(id) else {
+            return await context.messageCaller(message)
         }
         return await context.answer(forRun: id) { run in
             switch await run.deliver(message) {
@@ -238,5 +246,35 @@ extension SendAgent {
                 .corrective(AgentsToolText.runEnded(id: run.id.description, state: state))
             }
         }
+    }
+}
+
+/// Sends a message to the session that started the run (`send caller`).
+///
+/// The noun alias `parent` gives this operation, thus `send parent` is the
+/// same call.
+@Generable
+@Operation(
+    verb: "send", noun: "caller",
+    description: """
+        Send a message to the session that started you. You continue to work. \
+        Your final message still goes to it when you end.
+        """)
+struct SendCaller {
+    /// The text of the message.
+    @Guide(description: "The full text of the message. The session that started you sees only this text.")
+    var message: String
+}
+
+extension SendCaller {
+    /// Sends `message` to the caller of the run
+    /// (``AgentsToolContext/messageCaller(_:)``). The caller gets it as
+    /// mail, and the run continues.
+    ///
+    /// - Parameter context: The shared context of the tool.
+    /// - Returns: The sent text. A corrective for a run with no caller, or
+    ///   for a blank message.
+    func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
+        await context.messageCaller(message)
     }
 }
