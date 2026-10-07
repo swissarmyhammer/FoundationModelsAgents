@@ -95,6 +95,40 @@ comments:
     - evidence: 16 files — Sources/FoundationModelsAgents/Tool/{AgentsToolContext,AgentsToolOperations}.swift; Tests/FoundationModelsAgentsTests/Support/AgentsToolScripting.swift (new); Tests/FoundationModelsAgentsTests/{SendCallerTests,SendAgentTests,AgentSchedulingTests,AgentSchedulingTests+Setup,AgentSchedulingTests+CallingRun,AgentsToolMountTests,FinalMessageTests,NestedRunTests,NestedRunTests+Limits,MaxTurnsTests,CheckAfterStartTests,CheckAgentProgressTests,AgentRunLoggingTests}.swift. `swift test`: 462 tests in 66 suites passed. The one build warning "missing creator for mutated node ... mlx-swift_Cmlx.bundle" was there before this task.
     - next: /review
   timestamp: 2026-10-07T22:23:32.591383+00:00
+- actor: claude-code
+  id: 01m4c7r9natay0td6zvjefwggc
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (91c7cdb); 1 finding (1 confirmed, 6 refuted) — Tests/FoundationModelsAgentsTests/AgentRunLoggingTests.swift:54. All 4 items of the 2026-10-07 17:12 section are checked.
+    - next: Do the item in `## Review Findings (2026-10-07 17:25)`. Then run the review again.
+  timestamp: 2026-10-07T22:29:11.978777+00:00
+- actor: claude-code
+  id: 01m4c7rh8dyhwgn81506wvkbfx
+  text: |-
+    ### finish iteration 2 — findings
+    - implement: changed — 16 files
+    - test: green — swift test, 462 passed in 66 suites; IntegrationTests build complete
+    - commit: 91c7cdb
+    - review: findings — Tests/FoundationModelsAgentsTests/AgentRunLoggingTests.swift:54
+  timestamp: 2026-10-07T22:29:19.757877+00:00
+- actor: claude-code
+  id: 01m4c7wxhfa9c2jz87m2309nqd
+  text: |-
+    Review finding (2026-10-07 17:25) done.
+
+    - `Tests/FoundationModelsAgentsTests/Support/AgentsToolScripting.swift` has two new shared statics: `AgentsToolArguments.listAgents` (the JSON `{"op": "list agents"}`) and `ScriptedAgentStep.listAgents` (the scripted call step of it).
+    - The cause was removed in the whole unit test target. A search of `Tests/` for `"op": "list agents"`, `listStep` and `listArguments` found four copies, not three:
+      - `AgentRunLoggingTests.listStep`, `CheckAgentProgressTests.listStep`, `MaxTurnsTests.listStep`: deleted; the call sites use `.listAgents`.
+      - `MaxTurnsTests.listArguments`: deleted; the `.repeatedToolCall` uses `AgentsToolArguments.listAgents`.
+      - `AgentsToolMountTests.listArguments` (the same step, with a different name, through `.agentsToolCall(Self.listArguments)`): deleted; the step is now `.listAgents`.
+    - After the change, the only `"op": "list agents"` JSON text in `Tests/` is the shared static. `IntegrationTests/` has no copy.
+    - Not changed, on purpose: `harness.call("list agents")` calls the tool directly and is not a scripted step. The `("list agents", .runToCompletion)` mode table and the `DocumentationTests` claim are op names, not a scripted call.
+    - The validator rules file was 750k characters. It was not read in full. The change obeys the rules that apply: a doc comment on each new item, no copy of a block, project naming.
+
+    ### implement — changed
+    - evidence: 5 files — Tests/FoundationModelsAgentsTests/Support/AgentsToolScripting.swift, Tests/FoundationModelsAgentsTests/{AgentRunLoggingTests,CheckAgentProgressTests,MaxTurnsTests,AgentsToolMountTests}.swift. `swift test`: 462 tests in 66 suites passed. The one build warning "missing creator for mutated node ... mlx-swift_Cmlx.bundle" was there before this task.
+    - next: /review
+  timestamp: 2026-10-07T22:31:43.407647+00:00
 depends_on:
 - 01M4BXTKA17C1EXCN9TZ152P5M
 position_column: doing
@@ -153,3 +187,12 @@ Files:
 - [x] `Tests/FoundationModelsAgentsTests/SendCallerTests.swift:72` `reuse/reuse` — The new `sendAgentArguments` helper builds the same `send agent` JSON as an existing helper in `SendAgentTests`. The two differ only in the id and the message source. Reuse the `SendAgentTests` helper, or move one shared helper into a support file that both suites call. Keep the message as an argument so the `SendCaller` test can pass its own text.
 - [x] `Tests/FoundationModelsAgentsTests/SendCallerTests.swift:80` `reuse/reuse` — The new private `toolStep` helper rebuilds a scripted `agents` tool call that already exists as a helper in other test suites. Each copy must be kept in step on its own. Move the shared `toolStep` helper into a test support file (for example beside `ScriptedAgentModel.swift`) and call it from all three suites. Do not add a fourth private copy.
 - [x] `Tests/FoundationModelsAgentsTests/SendCallerTests.swift:108` `reuse/reuse` — The new `rootSession(of:)` helper repeats the root-session setup that several other suites already write as their own private helper. This adds one more copy of the same setup. Move the shared root-session helper into a test support file and call it from each suite, or reuse one of the existing helpers if its profile slot and tools match.
+
+## Review Findings (2026-10-07 17:25)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 16 file(s) reviewed, 2 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+- [x] `Tests/FoundationModelsAgentsTests/AgentRunLoggingTests.swift:54` `reuse/reuse` — The constant listStep is defined the same way in three test suites. Each copy wraps the same list agents call. A shared helper is the reuse target, so one definition can be changed once. Add one shared static, for example ScriptedAgentStep.listAgents, in Tests/FoundationModelsAgentsTests/Support/AgentsToolScripting.swift. Use it in all three suites and delete the per-file listStep constants.

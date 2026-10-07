@@ -45,9 +45,6 @@ struct AgentsToolMountTests {
     /// The JSON arguments of the scripted `start agent` call.
     private static let startArguments = #"{"op": "start agent", "name": "code-reviewer", "prompt": "\#(childPrompt)"}"#
 
-    /// The JSON arguments of the scripted `list agents` call.
-    private static let listArguments = #"{"op": "list agents"}"#
-
     /// A completion token of a `start agent` call.
     private static let completionToken = "01M3N00000000000000000TOKN"
 
@@ -131,7 +128,7 @@ struct AgentsToolMountTests {
         let cancelArguments = ScriptedArguments()
         let rootSteps: [ScriptedAgentStep] = [
             .agentsToolCall(Self.startArguments), .finalText(Self.rootText),
-            .agentsToolCall(Self.listArguments),
+            .listAgents,
             .deferredToolCall(name: ToolVocabulary.agentsToolName, arguments: checkArguments),
             .deferredToolCall(name: ToolVocabulary.agentsToolName, arguments: cancelArguments),
             .finalText(Self.rootText), .finalTextOfLastPrompt

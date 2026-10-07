@@ -15,11 +15,17 @@ extension ScriptedAgentStep {
     static func agentsToolCall(_ argumentsJSON: String) -> ScriptedAgentStep {
         .toolCall(name: ToolVocabulary.agentsToolName, argumentsJSON: argumentsJSON)
     }
+
+    /// A pass that calls `list agents` one time.
+    static let listAgents = agentsToolCall(AgentsToolArguments.listAgents)
 }
 
 /// The JSON arguments of calls of the `agents` tool that more than one suite
 /// scripts.
 enum AgentsToolArguments {
+    /// The JSON arguments of a `list agents` call with no filter.
+    static let listAgents = #"{"op": "list agents"}"#
+
     /// The JSON arguments of a `send agent` call.
     ///
     /// - Parameters:

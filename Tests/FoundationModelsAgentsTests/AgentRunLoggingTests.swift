@@ -50,9 +50,6 @@ struct AgentRunLoggingTests {
     /// may hold it.
     private static let partialText = "partial-secret-9a2c"
 
-    /// A pass that calls `list agents` one time.
-    private static let listStep = ScriptedAgentStep.agentsToolCall(#"{"op": "list agents"}"#)
-
     /// The error type name of each failure of a run.
     private static let runFailureTypeName = "AgentRunFailure"
 
@@ -149,7 +146,7 @@ struct AgentRunLoggingTests {
             try layer.write(Self.limitedFile, at: Self.limitedPath)
             let harness = try await AgentRunHarness.make(
                 script: ScriptedAgentScript([
-                    ScriptedAgentPlay(key: Self.limitedKey, steps: [Self.listStep, .finalText(Self.partialText)])
+                    ScriptedAgentPlay(key: Self.limitedKey, steps: [.listAgents, .finalText(Self.partialText)])
                 ]),
                 registry: AgentRegistry(layers: [layer.layer]), logger: context.logger)
             defer { try? harness.delete() }

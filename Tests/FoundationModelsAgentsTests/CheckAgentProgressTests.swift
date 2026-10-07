@@ -26,9 +26,6 @@ struct CheckAgentProgressTests {
     /// The answer of the child.
     private static let reviewerText = "The parser is correct."
 
-    /// A pass that calls `list agents` one time.
-    private static let listStep = ScriptedAgentStep.agentsToolCall(#"{"op": "list agents"}"#)
-
     /// The count of passes of the task answer at its gate: the tool pass
     /// before the gate counts live, at its generation call.
     private static let taskPassesAtGate = 1
@@ -74,7 +71,7 @@ struct CheckAgentProgressTests {
         let gate = ScriptedGate()
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([
-                ScriptedAgentPlay(key: Self.taskKey, steps: [Self.listStep, .wait(gate), .finalText(Self.answerText)])
+                ScriptedAgentPlay(key: Self.taskKey, steps: [.listAgents, .wait(gate), .finalText(Self.answerText)])
             ]))
         defer { try? harness.delete() }
 
@@ -104,7 +101,7 @@ struct CheckAgentProgressTests {
                     steps: [
                         NestedRunTests.startStep(NestedRunTests.reviewer, prompt: Self.reviewerKey),
                         .finalText(NestedRunTests.startedText),
-                        Self.listStep,
+                        .listAgents,
                         .wait(gate),
                         .finalTextOfLaterPrompts
                     ]),

@@ -105,12 +105,6 @@ struct MaxTurnsTests {
             """
     ]
 
-    /// The arguments of one `list agents` call.
-    private static let listArguments = #"{"op": "list agents"}"#
-
-    /// A pass that calls `list agents` one time.
-    private static let listStep = ScriptedAgentStep.agentsToolCall(listArguments)
-
     /// The key of the play of the task-answer tests.
     private static let taskKey = "max-turns-task-key: count the passes"
 
@@ -215,7 +209,7 @@ struct MaxTurnsTests {
     @Test("a task answer with two tool passes and one answer counts 3, one time each", .timeLimit(.minutes(1)))
     func twoToolPassesAndAnswerCountThree() async throws {
         let ended = try await Self.finishedRun(
-            of: Self.unlimited, playing: [Self.listStep, Self.listStep, .finalText(Self.answerText)])
+            of: Self.unlimited, playing: [.listAgents, .listAgents, .finalText(Self.answerText)])
 
         #expect(ended.final == .finished(Self.answerText))
         #expect(ended.run.turns.count == Self.twoToolsAndAnswer)
@@ -228,7 +222,7 @@ struct MaxTurnsTests {
             of: Self.limited,
             playing: [
                 .repeatedToolCall(
-                    name: ToolVocabulary.agentsToolName, argumentsJSON: Self.listArguments,
+                    name: ToolVocabulary.agentsToolName, argumentsJSON: AgentsToolArguments.listAgents,
                     count: Self.callsInOnePass),
                 .finalText(Self.answerText)
             ])
@@ -241,7 +235,7 @@ struct MaxTurnsTests {
         .timeLimit(.minutes(1)))
     func threePassesAboveLimitFail() async throws {
         let ended = try await Self.finishedRun(
-            of: Self.limited, playing: [Self.listStep, Self.listStep, .finalText(Self.answerText)])
+            of: Self.limited, playing: [.listAgents, .listAgents, .finalText(Self.answerText)])
 
         #expect(ended.final == .failed(.hitMaxTurns(partial: Self.answerText)))
         #expect(ended.run.turns.count == Self.turnLimit + Self.answerPasses)
@@ -269,7 +263,7 @@ struct MaxTurnsTests {
 
     @Test("a run with no maxTurns finishes with any count of passes", .timeLimit(.minutes(1)))
     func noLimitFinishesWithManyPasses() async throws {
-        let steps = [ScriptedAgentStep](repeating: Self.listStep, count: Self.manyToolPasses)
+        let steps = [ScriptedAgentStep](repeating: .listAgents, count: Self.manyToolPasses)
         let ended = try await Self.finishedRun(of: Self.unlimited, playing: steps + [.finalText(Self.answerText)])
 
         #expect(ended.final == .finished(Self.answerText))
@@ -291,7 +285,7 @@ struct MaxTurnsTests {
                     steps: [
                         NestedRunTests.startStep(Self.flashHelper, prompt: Self.helperKey),
                         .wait(leadGate),
-                        Self.listStep,
+                        .listAgents,
                         .finalText(Self.leadText)
                     ]),
                 ScriptedAgentPlay(key: Self.helperKey, steps: [.wait(gate), .finalText(Self.helperText)])
