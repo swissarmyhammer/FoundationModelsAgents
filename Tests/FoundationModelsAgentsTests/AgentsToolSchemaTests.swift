@@ -7,7 +7,7 @@ import Testing
 
 /// Pins the schema of the `agents` tool (plan.md §9.1).
 ///
-/// The schema is the fused schema of the four operations. The `name` field is
+/// The schema is the fused schema of the operations. The `name` field is
 /// an enum of the model-visible agent names at `make`, limited by the allowed
 /// names of the context. Thus the model cannot start an agent that it cannot
 /// see.
@@ -15,8 +15,8 @@ import Testing
 struct AgentsToolSchemaTests {
     // MARK: - Constants
 
-    /// The op strings of the four operations, in tool order.
-    private static let opStrings = ["list agents", "start agent", "check agent", "cancel agent"]
+    /// The op strings of the operations, in tool order.
+    private static let opStrings = ["list agents", "start agent", "check agent", "cancel agent", "send agent"]
 
     /// The name of the field that holds an agent name.
     static let nameFieldName = "name"
@@ -36,7 +36,7 @@ struct AgentsToolSchemaTests {
         #expect(harness.tool.name == "agents")
     }
 
-    @Test func theSchemaHoldsTheFourOperations() async throws {
+    @Test func theSchemaHoldsEachOperation() async throws {
         let harness = try await AgentsToolHarness.make()
         defer { try? harness.delete() }
 
@@ -59,7 +59,8 @@ struct AgentsToolSchemaTests {
                 "list agents": ["filter?"],
                 "start agent": ["name", "prompt"],
                 "check agent": ["id?"],
-                "cancel agent": ["id"]
+                "cancel agent": ["id"],
+                "send agent": ["id", "message"]
             ])
     }
 
@@ -69,7 +70,7 @@ struct AgentsToolSchemaTests {
 
         let properties = try Self.properties(in: harness.tool.parameters)
 
-        #expect(Set(properties.keys) == [OperationKeys.opFieldName, "filter", "name", "prompt", "id"])
+        #expect(Set(properties.keys) == [OperationKeys.opFieldName, "filter", "name", "prompt", "id", "message"])
     }
 
     // MARK: - The name enum

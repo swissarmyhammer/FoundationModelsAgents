@@ -141,24 +141,25 @@ public struct AgentsToolContext: Sendable {
     /// call holds the token. The caller is the session of
     /// `ToolContext.current`, or `nil` outside a Router session. A run of a
     /// different caller gives the same corrective as an id that no run has
-    /// (plan.md §9.1), thus one caller cannot check or cancel the runs of
-    /// another.
+    /// (plan.md §9.1), thus one caller cannot check, cancel, or send a
+    /// message to the runs of another.
     ///
     /// - Parameters:
     ///   - id: The id that the model gave. The case of the letters does not
     ///     matter.
-    ///   - body: Gives the answer for the run.
+    ///   - body: Gives the answer for the run. It can wait, for example for
+    ///     ``AgentRun/deliver(_:)``.
     /// - Returns: The answer of `body`, or a corrective with the ids of the
     ///   runs of the caller when no run of the caller has the id `id`.
     func answer(
-        forRun id: String, _ body: (AgentRun) -> AgentsToolAnswer
+        forRun id: String, _ body: (AgentRun) async -> AgentsToolAnswer
     ) async -> AgentsToolAnswer {
         let caller = ToolContext.current?.sessionID
         guard let run = await run(named: id), run.caller == caller else {
             let callerRuns = await runner.runs(caller: caller)
             return .corrective(AgentsToolText.unknownRun(id, ids: callerRuns.map(\.id.description)))
         }
-        return body(run)
+        return await body(run)
     }
 
     /// Gives the answer of `check agent` with no id: one block for each run

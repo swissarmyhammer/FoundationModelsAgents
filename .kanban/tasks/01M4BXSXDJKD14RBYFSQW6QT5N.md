@@ -55,8 +55,24 @@ comments:
     - evidence: 3 files — Sources/FoundationModelsAgents/Run/AgentRun.swift, Sources/FoundationModelsAgents/Run/AgentRun+Drive.swift, Tests/FoundationModelsAgentsTests/AgentRunMessageTests.swift. RED: `swift test --filter "AgentRunMessageTests/message(Before|RightAfter)Begin"` 2 tests failed (7 issues). GREEN: same filter, 2 passed. Full `swift test`: 441 tests in 64 suites passed. The one build warning ("missing creator for mutated node ... mlx-swift_Cmlx.bundle") comes from the mlx dependency. Finding AgentRun.swift:375 checked.
     - next: /review
   timestamp: 2026-10-07T20:46:20.681474+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m4c26wv2pkphe093wpkwf1h2
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (commit 3443136). 0 findings (7 validator runs, 0 failed). 3 source files reviewed. 2 .kanban/ files excluded. The one prior finding is checked.
+    - next: none. The task moved to done.
+  timestamp: 2026-10-07T20:52:18.914612+00:00
+- actor: claude-code
+  id: 01m4c274gahw8t2ajw2jm993qm
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — 3 files
+    - test: green — swift test, 441 passed in 64 suites (3 runs)
+    - commit: 3443136
+    - review: clean — 0 findings; task moved to done
+  timestamp: 2026-10-07T20:52:26.762949+00:00
+position_column: done
+position_ordinal: c480
 title: AgentRun accepts a message, or tells that it ended
 ---
 ## What

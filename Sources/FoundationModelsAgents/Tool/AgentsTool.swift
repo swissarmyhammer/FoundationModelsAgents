@@ -28,8 +28,8 @@ import Operations
 /// (``mount(for:)``). `start agent` is a background call: the model gets the
 /// pending envelope of the Router at once, the body waits for the run that
 /// it started, and the final message of that run comes to the caller as mail
-/// when the run ends. `list agents`, `check agent`, and `cancel agent` are
-/// synchronous calls: their real answer comes back in band.
+/// when the run ends. `list agents`, `check agent`, `cancel agent`, and
+/// `send agent` are synchronous calls: their real answer comes back in band.
 ///
 /// This tool is not a code-mode surface (plan.md §9.5). A host registers it
 /// directly on its session.
@@ -126,7 +126,8 @@ public struct AgentsTool: Tool {
                 AnyOperation(ListAgents.self),
                 AnyOperation(StartAgent.self),
                 AnyOperation(CheckAgent.self),
-                AnyOperation(CancelAgent.self)
+                AnyOperation(CancelAgent.self),
+                AnyOperation(SendAgent.self)
             ],
             resolver: OperationResolver(verbAliases: verbAliases)
         )
@@ -173,8 +174,8 @@ extension AgentsTool: BackgroundTool {
     /// on its `@Operation`.
     ///
     /// `start agent` is background, with no timeout, because a run can take
-    /// any time. `list agents`, `check agent`, `cancel agent`, and an op that
-    /// names no operation are synchronous.
+    /// any time. `list agents`, `check agent`, `cancel agent`, `send agent`,
+    /// and an op that names no operation are synchronous.
     ///
     /// - Parameter arguments: The payload of the model.
     /// - Returns: The mount of the operation that `arguments` names.
@@ -198,8 +199,9 @@ extension AgentsTool: BackgroundTool {
     /// The Router asks for the canceler of each background call before it
     /// gives the pending envelope to the model, and before the body of the
     /// call runs. Thus this call also opens the call in the record of the
-    /// started runs: from now on, `check agent` and `cancel agent` wait for
-    /// the body to add its run, and do not answer that no run has the token.
+    /// started runs: from now on, `check agent`, `cancel agent`, and
+    /// `send agent` wait for the body to add its run, and do not answer that
+    /// no run has the token.
     ///
     /// - Parameter completionToken: The completion token of the call.
     /// - Returns: The canceler. It reports ``OperationOutcome/cancelled``.

@@ -26,6 +26,11 @@ enum AgentsToolText {
         The agent catalog is not loaded. The host must call AgentRegistry.load() before it starts an agent.
         """
 
+    /// The corrective of `send agent` with a message that holds no text.
+    static let blankMessage = """
+        The message is blank. Put the full text for the run in the message.
+        """
+
     /// The answer of `check agent` with no id for a caller with no run, and
     /// the end of the unknown-id corrective for such a caller.
     static let noRuns = "You have no runs."
@@ -140,8 +145,8 @@ enum AgentsToolText {
         "You cannot start the agent \(name). \(availability(available))"
     }
 
-    /// Gives the corrective of `check agent` or `cancel agent` with an id
-    /// that no run has.
+    /// Gives the corrective of `check agent`, `cancel agent`, or
+    /// `send agent` with an id that no run of the caller has.
     ///
     /// - Parameters:
     ///   - id: The id that the model gave.
@@ -182,6 +187,44 @@ enum AgentsToolText {
             "The run ended before the cancel.\n\n\(final.detail)"
         case .unknownToken:
             noRun(run.id.description)
+        }
+    }
+
+    /// Gives the answer of `send agent` when the run accepted the message.
+    ///
+    /// - Parameter run: The run that got the message.
+    /// - Returns: "The message was sent to Agent `name` (`id`)." and where
+    ///   the final message of the run comes.
+    static func messageSent(to run: AgentRun) -> String {
+        "The message was sent to \(run.subject). Its final message comes to you as mail."
+    }
+
+    /// Gives the corrective of `send agent` for a run that ended, or that
+    /// started to end, before the message.
+    ///
+    /// - Parameters:
+    ///   - id: The id of the run.
+    ///   - state: The final state of the run.
+    /// - Returns: "The run `id` ended (`state`), and it gets no more
+    ///   messages." and what the model can do now.
+    static func runEnded(id: String, state: AgentRunState) -> String {
+        "The run \(id) ended (\(stateName(state))), and it gets no more messages. Start a new run."
+    }
+
+    /// Gives the one word that names `state`.
+    ///
+    /// - Parameter state: A state of a run.
+    /// - Returns: `running`, `finished`, `failed`, or `cancelled`.
+    private static func stateName(_ state: AgentRunState) -> String {
+        switch state {
+        case .running:
+            "running"
+        case .finished:
+            "finished"
+        case .failed:
+            "failed"
+        case .cancelled:
+            "cancelled"
         }
     }
 

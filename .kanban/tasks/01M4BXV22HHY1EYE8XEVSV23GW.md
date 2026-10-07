@@ -12,6 +12,16 @@ comments:
     - A `.message` resets the timeout window of the run, the same as progress.
     - FoundationModelsAgents has no exhaustive switch over `OperationEventKind` (checked with grep). Thus the update of the package needs no change for the new case.
   timestamp: 2026-10-07T19:45:21.574125+00:00
+- actor: claude-code
+  id: 01m4c2b32ydp6tgnj86t7hm05m
+  text: |-
+    Router API is final (Router local main 5713abe, ^v270zf4; it is not pushed yet):
+    - `SessionEvent.runMessage(OperationEvent)`.
+    - The mail render is `[<tool>] <op> (<token>) message, still running: <detail>`.
+    - When only run messages start an answer, the prompt is "Background work you started sent you a message, and it is above. The work is still running, and its result comes later. Act on the message, or say what you did with it." When the mail holds the terminal of a settled run, the settled-run prompt is used.
+    - Router aad6ae5 removes `RoutedEmbedder.dimension`. FoundationModelsAgents does not use `RoutedEmbedder`, `PooledEmbedding` or `.dimension` (checked with grep), so this change needs no work here.
+    - Update `Package.resolved` and `IntegrationTests/Package.resolved` only after the Router change is pushed to origin.
+  timestamp: 2026-10-07T20:54:36.382772+00:00
 depends_on:
 - 01M4BXTKA17C1EXCN9TZ152P5M
 position_column: todo

@@ -42,7 +42,7 @@ extension ListAgents {
 ///
 /// The one background operation of the tool: in a Router session each call
 /// answers at once with the pending envelope, and the final message of the
-/// run comes later as mail. The other three operations keep the default
+/// run comes later as mail. The other operations keep the default
 /// synchronous mount and answer in band.
 @Generable
 @Operation(
@@ -194,6 +194,49 @@ extension CancelAgent {
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
         await context.answer(forRun: id) { run in
             .success(AgentsToolText.cancel(run.requestCancel(), of: run))
+        }
+    }
+}
+
+/// Sends a message to a run that the caller started (`send agent`).
+@Generable
+@Operation(
+    verb: "send", noun: "agent",
+    description: "Send a message to a run that you started. The run answers it before it ends.")
+struct SendAgent {
+    /// The id of the run that gets the message.
+    @Guide(description: "The id of the run that gets the message.")
+    var id: String
+
+    /// The text of the message.
+    @Guide(description: "The full text of the message. The run sees only this text.")
+    var message: String
+}
+
+extension SendAgent {
+    /// Sends `message` to the run `id` of the caller (``AgentRun/deliver(_:)``).
+    ///
+    /// The id is the id of the run, or the completion token of the
+    /// `start agent` call that started it. When that call did not add its
+    /// run yet, the call first waits for it, the same as `check agent`. A
+    /// run that accepts the message answers it before it ends, and its final
+    /// message comes to the caller as mail.
+    ///
+    /// - Parameter context: The shared context of the tool.
+    /// - Returns: The sent text when the run accepted the message. A
+    ///   corrective for a blank message, for a run that ended, or for an id
+    ///   that no run of the caller has.
+    func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
+        guard AgentDefinitionRules.holdsText(message) else {
+            return .corrective(AgentsToolText.blankMessage)
+        }
+        return await context.answer(forRun: id) { run in
+            switch await run.deliver(message) {
+            case .delivered:
+                .success(AgentsToolText.messageSent(to: run))
+            case .ended(let state):
+                .corrective(AgentsToolText.runEnded(id: run.id.description, state: state))
+            }
         }
     }
 }
