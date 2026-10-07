@@ -3,15 +3,19 @@ import OperationsCLI
 
 /// Makes the command line of the agents (plan.md §9.4).
 ///
-/// The command line has four commands, and each has the noun `agent`:
+/// The command line has five commands, and each has the noun `agent`:
 ///
 /// - `agents agent list [--filter <text>]`
 /// - `agents agent start --name <name> --prompt <task>`
 /// - `agents agent check [--id <id>]`
 /// - `agents agent cancel --id <id>`
+/// - `agents agent send --id <id> --message <text>`
 ///
 /// The commands use the same `AgentsToolContext` and the same answer texts
-/// as the four operations of the `agents` tool. Two things are different:
+/// as the `list agents`, `start agent`, `check agent`, `cancel agent`, and
+/// `send agent` operations of the `agents` tool. The tool operation
+/// `send caller` has no command: a host is not a run, thus it has no caller.
+/// Two things are different:
 ///
 /// - `agent start` waits for the run and gives the final text. The command
 ///   has no `ToolContext`, thus the final message of the run goes to no
@@ -22,9 +26,10 @@ import OperationsCLI
 /// - `agent list` gives the agent lines only, with no delegation sentence
 ///   for a model.
 ///
-/// `agent check` and `agent cancel` find only the runs of the runner of the
-/// driver. A process that runs one command and then stops has no run to
-/// check, thus these two commands are for a host process that stays alive.
+/// `agent check`, `agent cancel`, and `agent send` find only the runs of the
+/// runner of the driver. A process that runs one command and then stops has
+/// no run to find, thus these three commands are for a host process that
+/// stays alive.
 ///
 /// The noun of the tool operation `list agents` is `agents`. The command
 /// line uses its own operations, thus each command has the noun `agent`, and
@@ -47,9 +52,9 @@ public enum AgentsCLI {
     public static let executableName = ToolVocabulary.agentsToolName
 
     /// The description of the command line in its help text.
-    static let description = "Start, list, check, and cancel agent runs."
+    static let description = "Start, list, check, and cancel agent runs, and send messages to them."
 
-    /// Makes the driver of the four commands over `runner`.
+    /// Makes the driver of the five commands over `runner`.
     ///
     /// The commands read the catalog of `runner` at each call, thus the host
     /// calls `AgentRegistry.load()` before the first command.
@@ -68,7 +73,8 @@ public enum AgentsCLI {
                 AnyOperation(ListAgentCommand.self),
                 AnyOperation(StartAgentCommand.self),
                 AnyOperation(CheckAgentCommand.self),
-                AnyOperation(CancelAgentCommand.self)
+                AnyOperation(CancelAgentCommand.self),
+                AnyOperation(SendAgentCommand.self)
             ]
         )
         return try OperationCLIDriver(tool: tool, executableName: executableName)

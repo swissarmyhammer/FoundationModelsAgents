@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModelsAgents
+import FoundationModelsExtras
 import FoundationModelsRouter
 import Testing
 
@@ -40,6 +41,19 @@ struct AgentsDemoTests {
 
     /// The text that opens the first line of each reload report.
     private static let reportPrefix = "reload: "
+
+    /// The name of the tool that posts a `runMessage` event.
+    private static let agentsToolName = "agents"
+
+    /// The operation of the call whose run sends a message.
+    private static let startOperation = "start agent"
+
+    /// The correlation id of the run that sends a message: the completion
+    /// token of its `start agent` call.
+    private static let messageRun = "01J0MESSAGERUN0000000000000"
+
+    /// The text of the message of a run. No line may show it.
+    private static let messageText = "demo-message-secret: the parser has a second entry point"
 
     /// The provenance line of each agent of the fixture marketplace.
     private static let marketplaceLines = [
@@ -120,6 +134,20 @@ struct AgentsDemoTests {
 
         #expect(Self.marketplaceLines.allSatisfy { written.contains($0) })
         #expect(written.count == FixtureLibrary.localAgentIDs.count + Self.marketplaceLines.count)
+    }
+
+    // MARK: - The lines of the root session
+
+    @Test("a runMessage event gives one line that names the run and holds no text of the message")
+    func runMessageLineNamesTheRunOnly() {
+        let event = OperationEvent(
+            tool: Self.agentsToolName, op: Self.startOperation, correlationID: Self.messageRun, kind: .message,
+            detail: Self.messageText)
+
+        let lines = AgentsDemoModes.lines(for: .runMessage(event))
+
+        #expect(lines == [AgentsDemoModes.messagePrefix + Self.messageRun])
+        #expect(!lines.joined().contains(Self.messageText))
     }
 
     // MARK: - Helpers

@@ -16,15 +16,6 @@ import Testing
 /// link.
 @Suite("send caller")
 struct SendCallerTests {
-    /// One event of the root session that these tests read.
-    private enum RootEvent {
-        /// A `runMessage` event, with the detail of the event.
-        case runMessage(String)
-
-        /// An answer that mail started, with its reply.
-        case mailAnswer(String)
-    }
-
     /// The agent of each child run.
     private static let lead = NestedRunTests.lead
 
@@ -57,14 +48,6 @@ struct SendCallerTests {
     private static let startArguments =
         #"{"op": "start agent", "name": "\#(lead)", "prompt": "\#(childPrompt)"}"#
 
-    /// The JSON arguments of a `send caller` call.
-    ///
-    /// - Parameter text: The message of the call.
-    /// - Returns: The JSON text.
-    private static func sendCallerArguments(_ text: String) -> String {
-        #"{"op": "send caller", "message": "\#(text)"}"#
-    }
-
     /// The script of the root session and of one child run.
     ///
     /// The root session starts the child, answers, and then answers each
@@ -83,26 +66,6 @@ struct SendCallerTests {
         ])
     }
 
-    /// Gives an iterator over the `runMessage` events and the mail answers
-    /// of `root`.
-    ///
-    /// - Parameter root: The root session. Call this before its first
-    ///   message.
-    /// - Returns: The iterator.
-    private static func rootEvents(
-        of root: any RoutedSession
-    ) async -> AsyncCompactMapSequence<AsyncStream<SessionEvent>, RootEvent>.AsyncIterator {
-        await root.streamSessionEvents().compactMap { event -> RootEvent? in
-            if case .runMessage(let message) = event {
-                return .runMessage(message.detail)
-            }
-            if case .answered(let answer) = event, answer.messageIds.isEmpty {
-                return .mailAnswer(answer.reply)
-            }
-            return nil
-        }.makeAsyncIterator()
-    }
-
     /// Runs the root session with a child whose first step sends a message
     /// to its caller, and that waits on `gate` after it. The root session
     /// gets the message as mail and answers it. Then the test opens the gate,
@@ -117,14 +80,14 @@ struct SendCallerTests {
     ///   `#require` when the events end too soon.
     private static func runWithMessage(
         sendStep: ScriptedAgentStep, setUp: (any RoutedSession) -> Void = { _ in }
-    ) async throws -> (events: [RootEvent], run: AgentRun, toolOutputs: [String]) {
+    ) async throws -> (events: [RootSessionEvent], run: AgentRun, toolOutputs: [String]) {
         let gate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(
             script: script(childSteps: [sendStep, .wait(gate), .finalText(childText)]))
         defer { try? harness.delete() }
         let root = harness.makeRootSession(instructions: rootKey, slot: \.flash)
         setUp(root)
-        var events = await rootEvents(of: root)
+        var events = await RootSessionEvent.iterator(of: root)
 
         _ = try await root.respond(to: rootPrompt)
         let runMessage = try #require(await events.next())
@@ -143,7 +106,7 @@ struct SendCallerTests {
     ///
     /// - Parameter event: An event of the root session.
     /// - Returns: `true` for that event.
-    private static func isMessageEvent(_ event: RootEvent) -> Bool {
+    private static func isMessageEvent(_ event: RootSessionEvent) -> Bool {
         if case .runMessage(let detail) = event { return detail == message }
         return false
     }
@@ -154,7 +117,7 @@ struct SendCallerTests {
     ///   - event: An event of the root session.
     ///   - text: The text that the reply must hold.
     /// - Returns: `true` for that event.
-    private static func isMailAnswer(_ event: RootEvent, holding text: String) -> Bool {
+    private static func isMailAnswer(_ event: RootSessionEvent, holding text: String) -> Bool {
         if case .mailAnswer(let reply) = event { return reply.contains(text) }
         return false
     }
@@ -163,7 +126,7 @@ struct SendCallerTests {
           .timeLimit(.minutes(1)))
     func sendCallerReachesTheCallerAsMail() async throws {
         let (events, run, toolOutputs) = try await Self.runWithMessage(
-            sendStep: .agentsToolCall(Self.sendCallerArguments(Self.message)))
+            sendStep: .agentsToolCall(AgentsToolArguments.sendCaller(message: Self.message)))
 
         #expect(events.count == 3)
         #expect(Self.isMessageEvent(events[0]))
@@ -205,7 +168,7 @@ struct SendCallerTests {
     func hostStartedRunHasNoCaller() async throws {
         let harness = try await AgentsToolHarness.make(
             script: Self.script(childSteps: [
-                .agentsToolCall(Self.sendCallerArguments(Self.message)), .finalText(Self.childText)
+                .agentsToolCall(AgentsToolArguments.sendCaller(message: Self.message)), .finalText(Self.childText)
             ]))
         defer { try? harness.delete() }
 
@@ -221,11 +184,12 @@ struct SendCallerTests {
     func sendCallerWithABlankMessageIsCorrective() async throws {
         let harness = try await AgentsToolHarness.make(
             script: Self.script(childSteps: [
-                .agentsToolCall(Self.sendCallerArguments(Self.blankMessageJSON)), .finalText(Self.childText)
+                .agentsToolCall(AgentsToolArguments.sendCaller(message: Self.blankMessageJSON)),
+                .finalText(Self.childText)
             ]))
         defer { try? harness.delete() }
         let root = harness.makeRootSession(instructions: Self.rootKey, slot: \.flash)
-        var events = await Self.rootEvents(of: root)
+        var events = await RootSessionEvent.iterator(of: root)
 
         _ = try await root.respond(to: Self.rootPrompt)
         let firstEvent = try #require(await events.next())

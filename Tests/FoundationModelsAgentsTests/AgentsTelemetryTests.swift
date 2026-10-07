@@ -20,7 +20,10 @@ struct AgentsTelemetryTests {
         AgentsTelemetry.AttributeKey.callerSessionID,
         AgentsTelemetry.AttributeKey.depth,
         AgentsTelemetry.AttributeKey.outcome,
-        AgentsTelemetry.AttributeKey.failureKind
+        AgentsTelemetry.AttributeKey.failureKind,
+        AgentsTelemetry.AttributeKey.messageDirection,
+        AgentsTelemetry.AttributeKey.messageOutcome,
+        AgentsTelemetry.AttributeKey.messageLength
     ]
 
     /// The log metadata keys, in the same order as ``attributeKeys``.
@@ -31,7 +34,10 @@ struct AgentsTelemetryTests {
         AgentsTelemetry.LogMetadataKey.callerSessionID,
         AgentsTelemetry.LogMetadataKey.depth,
         AgentsTelemetry.LogMetadataKey.outcome,
-        AgentsTelemetry.LogMetadataKey.failureKind
+        AgentsTelemetry.LogMetadataKey.failureKind,
+        AgentsTelemetry.LogMetadataKey.messageDirection,
+        AgentsTelemetry.LogMetadataKey.messageOutcome,
+        AgentsTelemetry.LogMetadataKey.messageLength
     ]
 
     /// The log metadata keys that no span attribute has: the keys of the end
@@ -56,11 +62,12 @@ struct AgentsTelemetryTests {
     ]
 
     /// Each distinct name of the vocabulary. The log metadata keys of
-    /// ``logMetadataKeys`` are the attribute keys, thus the list holds them
-    /// one time.
+    /// ``logMetadataKeys`` are the attribute keys, and the message of a
+    /// message record is the name of its span event, thus the list holds
+    /// each of them one time.
     private static let names =
-        [AgentsTelemetry.SpanName.run, AgentsTelemetry.logLabel] + attributeKeys + logOnlyKeys + metricNames
-            + logMessages
+        [AgentsTelemetry.SpanName.run, AgentsTelemetry.EventName.messageSent, AgentsTelemetry.logLabel]
+            + attributeKeys + logOnlyKeys + metricNames + logMessages
 
     @Test("each name starts with the module prefix")
     func eachNameStartsWithTheModulePrefix() {
@@ -121,5 +128,20 @@ struct AgentsTelemetryTests {
                 "FoundationModelsAgents.run started", "FoundationModelsAgents.run finished",
                 "FoundationModelsAgents.run failed", "FoundationModelsAgents.run cancelled"
             ])
+    }
+
+    @Test("the event and the record of a message are FoundationModelsAgents.agent.message.sent")
+    func theMessageEventAndRecordHaveTheirName() {
+        #expect(AgentsTelemetry.EventName.messageSent == "FoundationModelsAgents.agent.message.sent")
+        #expect(AgentsTelemetry.LogMessage.messageSent == AgentsTelemetry.EventName.messageSent)
+    }
+
+    @Test("the message directions are to_run and to_caller, and the message outcomes are delivered, ended and no_caller")
+    func theMessageValuesAreFixed() {
+        let directions = [AgentsTelemetry.MessageDirection.toRun, .toCaller].map(\.rawValue)
+        let outcomes = [AgentsTelemetry.MessageOutcome.delivered, .ended, .noCaller].map(\.rawValue)
+
+        #expect(directions == ["to_run", "to_caller"])
+        #expect(outcomes == ["delivered", "ended", "no_caller"])
     }
 }

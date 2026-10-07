@@ -129,10 +129,26 @@ comments:
     - evidence: 5 files — Tests/FoundationModelsAgentsTests/Support/AgentsToolScripting.swift, Tests/FoundationModelsAgentsTests/{AgentRunLoggingTests,CheckAgentProgressTests,MaxTurnsTests,AgentsToolMountTests}.swift. `swift test`: 462 tests in 66 suites passed. The one build warning "missing creator for mutated node ... mlx-swift_Cmlx.bundle" was there before this task.
     - next: /review
   timestamp: 2026-10-07T22:31:43.407647+00:00
+- actor: claude-code
+  id: 01m4c833g60rthn6gkmqhc98d8
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (ce47936): 0 findings, 0 confirmed, 0 refuted; 5 files reviewed; .kanban/ excluded. All prior Review Findings items are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-10-07T22:35:06.118400+00:00
+- actor: claude-code
+  id: 01m4c8398wnnw9fnbx46j6rgb5
+  text: |-
+    ### finish iteration 3 — clean
+    - implement: changed — 5 files
+    - test: green — swift test, 462 passed in 66 suites; IntegrationTests build complete
+    - commit: ce47936
+    - review: clean — 0 findings; task moved to done
+  timestamp: 2026-10-07T22:35:12.028296+00:00
 depends_on:
 - 01M4BXTKA17C1EXCN9TZ152P5M
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: c780
 title: 'send caller (alias send parent): a run sends a message to its caller as mail'
 ---
 ## What

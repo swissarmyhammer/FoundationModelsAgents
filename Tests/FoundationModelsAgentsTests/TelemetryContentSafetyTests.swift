@@ -34,6 +34,14 @@ struct TelemetryContentSafetyTests {
     /// The strings that no place of the telemetry may carry.
     private static let forbidden = [taskSecret, answerSecret, argumentSecret]
 
+    /// The secret word of the message test. Both sides of the exchange send
+    /// it as the full text of their message.
+    private static let messageSecret = "message-secret-8b3f"
+
+    /// The count of messages of the message test: one `send caller` call
+    /// and one `send agent` call.
+    private static let messageCount = 2
+
     /// The name of the tool that the child calls. The fixture agent
     /// code-reviewer lists it in its `tools` key.
     private static let readToolName = "Read"
@@ -92,6 +100,22 @@ struct TelemetryContentSafetyTests {
         }
 
         Self.expectMeasuredRuns(in: context)
+    }
+
+    @Test(
+        "a message of send caller and of send agent is in no span, no log record and no metric",
+        .timeLimit(.minutes(1)))
+    func messagesCarryNoContent() async throws {
+        let context = try await TelemetryCapture.run(forbidding: [Self.messageSecret]) { context in
+            _ = try await MessageExchange.run(
+                message: Self.messageSecret,
+                telemetry: HarnessTelemetry(
+                    tracer: context.tracer, logger: context.logger, metricsFactory: context.metricsFactory))
+            return context
+        }
+
+        #expect(CapturedTrace(spans: context.spans).messageEvents.count == Self.messageCount)
+        #expect(CapturedLog(records: context.logRecords).messageRecords.count == Self.messageCount)
     }
 
     /// Expects that the capture measured the runs. A capture that recorded

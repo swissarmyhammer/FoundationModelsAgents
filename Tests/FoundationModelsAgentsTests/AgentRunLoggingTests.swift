@@ -56,6 +56,14 @@ struct AgentRunLoggingTests {
     /// The error type name of a start before the first load.
     private static let runnerErrorTypeName = "AgentRunnerError"
 
+    /// The message of the message test. It is content: no log record may
+    /// hold it.
+    private static let message = "logging-message-6e1a: check the error paths"
+
+    /// The count of calls of the message test: one `send agent` call to an
+    /// ended run, and one `send caller` call with no caller.
+    private static let undeliveredCount = 2
+
     /// The content of the nested test: the task texts and the answers.
     private static let nestedContent = [
         NestedRunTests.leadKey, NestedRunTests.reviewerKey, NestedRunTests.reviewerText
@@ -133,6 +141,36 @@ struct AgentRunLoggingTests {
         #expect(Self.text(Key.outcome, of: end) == Outcome.finished.rawValue)
         #expect(Self.text(Key.failureKind, of: end) == nil)
         Self.expectDuration(of: end)
+    }
+
+    @Test(
+        "send agent to an ended run and send caller with no caller each write one message record with the outcome",
+        .timeLimit(.minutes(1)))
+    func undeliveredMessagesWriteTheirOutcome() async throws {
+        let (run, records) = try await TelemetryCapture.run(forbidding: [Self.message]) { context in
+            let harness = try await AgentsToolHarness.make(
+                script: AgentRunTests.script([.finalText(AgentRunTests.finalText)]),
+                telemetry: HarnessTelemetry(logger: context.logger))
+            defer { try? harness.delete() }
+            let run = try await harness.runner.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
+            _ = try await run.result()
+            _ = try await harness.call("send agent", ["id": run.id.description, "message": Self.message])
+            _ = try await harness.call("send caller", ["message": Self.message])
+            return (run, CapturedLog(records: context.logRecords).messageRecords)
+        }
+
+        #expect(records.count == Self.undeliveredCount)
+        let ended = try #require(records.first)
+        #expect(ended.level == .info)
+        #expect(Self.text(Key.messageDirection, of: ended) == AgentsTelemetry.MessageDirection.toRun.rawValue)
+        #expect(Self.text(Key.messageOutcome, of: ended) == AgentsTelemetry.MessageOutcome.ended.rawValue)
+        #expect(Self.text(Key.agentName, of: ended) == AgentRunTests.reviewer)
+        #expect(Self.text(Key.runID, of: ended) == run.id.description)
+        #expect(Self.text(Key.messageLength, of: ended) == "\(Self.message.count)")
+        let noCaller = try #require(records.last)
+        #expect(Self.text(Key.messageDirection, of: noCaller) == AgentsTelemetry.MessageDirection.toCaller.rawValue)
+        #expect(Self.text(Key.messageOutcome, of: noCaller) == AgentsTelemetry.MessageOutcome.noCaller.rawValue)
+        #expect(Self.text(Key.runID, of: noCaller) == nil)
     }
 
     @Test("a run above maxTurns writes one failed record at error with its kind and its error type only",

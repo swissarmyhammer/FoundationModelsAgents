@@ -177,3 +177,33 @@ extension CancelAgentCommand {
         try await CancelAgent(id: id).execute(in: context).successText()
     }
 }
+
+/// Sends a message to a host-driven run (`agents agent send`).
+///
+/// The command line has no `send caller` command. A host is not a run, thus
+/// it has no caller to send a message to.
+@Generable
+@Operation(
+    verb: "send", noun: "agent",
+    description: "Send a message to a run that you started. The run answers it before it ends.")
+struct SendAgentCommand {
+    /// The id of the run that gets the message.
+    @Guide(description: "The id of the run that gets the message.")
+    var id: String
+
+    /// The text of the message.
+    @Guide(description: "The full text of the message. The run sees only this text.")
+    var message: String
+}
+
+extension SendAgentCommand {
+    /// Gives the answer of the `send agent` operation of the tool.
+    ///
+    /// - Parameter context: The shared context of the commands.
+    /// - Returns: The sent text when the run accepted the message.
+    /// - Throws: ``AgentsCLIFailure`` with the corrective for a blank message,
+    ///   for a run that ended, or for an id that no host-driven run has.
+    func execute(in context: AgentsToolContext) async throws -> String {
+        try await SendAgent(id: id, message: message).execute(in: context).successText()
+    }
+}

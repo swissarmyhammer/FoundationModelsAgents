@@ -227,6 +227,12 @@ extension SendAgent {
     /// (``AgentsToolContext/messageCaller(_:)``). A run id is the id of its
     /// session, thus the id of the parent run names the caller.
     ///
+    /// Each message that goes to a run, or that a run refuses because it
+    /// ended, gives one `agent.message.sent` record with the `to_run`
+    /// direction. A message to the caller gives the `to_caller` record of
+    /// `send caller`. A blank message and an unknown id send nothing and give
+    /// no record.
+    ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The sent text when the run or the caller accepted the
     ///   message. A corrective for a blank message, for a run that ended, or
@@ -238,13 +244,28 @@ extension SendAgent {
         guard !context.isCaller(id) else {
             return await context.messageCaller(message)
         }
-        return await context.answer(forRun: id) { run in
-            switch await run.deliver(message) {
-            case .delivered:
-                .success(AgentsToolText.messageSent(to: run))
-            case .ended(let state):
-                .corrective(AgentsToolText.runEnded(id: run.id.description, state: state))
-            }
+        return await context.answer(forRun: id) { run in await deliver(to: run, in: context) }
+    }
+
+    /// Gives `message` to `run`, and records the message: one
+    /// `agent.message.sent` log record and span event with the `to_run`
+    /// direction (``AgentsToolContext/record(_:)``).
+    ///
+    /// - Parameters:
+    ///   - run: A run of the caller.
+    ///   - context: The shared context of the tool.
+    /// - Returns: The sent text when the run accepted the message, or the
+    ///   corrective for a run that ended.
+    private func deliver(to run: AgentRun, in context: AgentsToolContext) async -> AgentsToolAnswer {
+        let outcome = await run.deliver(message)
+        context.record(
+            AgentMessageRecord(
+                direction: .toRun, run: run, outcome: AgentsTelemetry.MessageOutcome(outcome), length: message.count))
+        switch outcome {
+        case .delivered:
+            return .success(AgentsToolText.messageSent(to: run))
+        case .ended(let state):
+            return .corrective(AgentsToolText.runEnded(id: run.id.description, state: state))
         }
     }
 }
@@ -269,7 +290,9 @@ struct SendCaller {
 extension SendCaller {
     /// Sends `message` to the caller of the run
     /// (``AgentsToolContext/messageCaller(_:)``). The caller gets it as
-    /// mail, and the run continues.
+    /// mail, and the run continues. `messageCaller(_:)` writes the one
+    /// `agent.message.sent` record of the call, with the `to_caller`
+    /// direction, because `send agent` with the id of the caller uses it too.
     ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The sent text. A corrective for a run with no caller, or

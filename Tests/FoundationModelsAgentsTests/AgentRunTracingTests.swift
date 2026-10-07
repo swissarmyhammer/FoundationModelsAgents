@@ -43,6 +43,25 @@ struct AgentRunTracingTests {
         NestedRunTests.leadKey, NestedRunTests.reviewerKey, NestedRunTests.reviewerText
     ]
 
+    /// The message of the message test. It is content: no span may hold it.
+    private static let message = "tracing-message-4d7e: check the second entry point"
+
+    /// Expects that `event` tells of one message of ``message`` that `run`
+    /// sent or got: the name and the id of `run`, the delivered outcome, and
+    /// the count of characters of the message.
+    ///
+    /// - Parameters:
+    ///   - event: An `agent.message.sent` event.
+    ///   - run: The run that sent or got the message.
+    private static func expectDelivered(_ event: SpanEvent, of run: AgentRun) {
+        #expect(CapturedTrace.text(of: event, at: AgentsTelemetry.AttributeKey.agentName) == run.agent.id)
+        #expect(CapturedTrace.text(of: event, at: AgentsTelemetry.AttributeKey.runID) == run.id.description)
+        #expect(
+            CapturedTrace.text(of: event, at: AgentsTelemetry.AttributeKey.messageOutcome)
+                == AgentsTelemetry.MessageOutcome.delivered.rawValue)
+        #expect(event.attributes.get(AgentsTelemetry.AttributeKey.messageLength) == .int64(Int64(message.count)))
+    }
+
     /// Gives the string value of one attribute of `span`.
     ///
     /// - Parameters:
@@ -196,6 +215,25 @@ struct AgentRunTracingTests {
         let submissions = nested.trace.submissionSpans(ofSession: nested.child.id)
         #expect(!submissions.isEmpty)
         #expect(submissions.allSatisfy { $0.parentSpanID == childSpan.spanID })
+    }
+
+    @Test(
+        "each send caller and send agent call adds one message event with the direction, the run, the outcome and the length",
+        .timeLimit(.minutes(1)))
+    func messageCallsAddOneEventEach() async throws {
+        let (exchange, trace) = try await TelemetryCapture.run(forbidding: [Self.message]) { context in
+            let exchange = try await MessageExchange.run(
+                message: Self.message, telemetry: HarnessTelemetry(tracer: context.tracer))
+            return (exchange, CapturedTrace(spans: context.spans))
+        }
+
+        let directions = trace.messageEvents.compactMap { event in
+            CapturedTrace.text(of: event, at: AgentsTelemetry.AttributeKey.messageDirection)
+        }
+        #expect(directions.sorted() == [AgentsTelemetry.MessageDirection.toCaller, .toRun].map(\.rawValue).sorted())
+        for event in trace.messageEvents {
+            Self.expectDelivered(event, of: exchange.lead)
+        }
     }
 
     @Test("each failure of a run gives its failure kind", arguments: [

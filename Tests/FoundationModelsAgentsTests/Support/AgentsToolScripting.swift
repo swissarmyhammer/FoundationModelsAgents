@@ -35,6 +35,43 @@ enum AgentsToolArguments {
     static func sendAgent(id: String, message: String) -> String {
         #"{"op": "send agent", "id": "\#(id)", "message": "\#(message)"}"#
     }
+
+    /// The JSON arguments of a `send caller` call.
+    ///
+    /// - Parameter message: The message of the call.
+    /// - Returns: The JSON text.
+    static func sendCaller(message: String) -> String {
+        #"{"op": "send caller", "message": "\#(message)"}"#
+    }
+}
+
+/// One event of a root session that the message suites read.
+enum RootSessionEvent {
+    /// A `runMessage` event, with the detail of the event.
+    case runMessage(String)
+
+    /// An answer that mail started, with its reply.
+    case mailAnswer(String)
+
+    /// Gives an iterator over the `runMessage` events and the mail answers
+    /// of `root`.
+    ///
+    /// - Parameter root: The root session. Call this before its first
+    ///   message.
+    /// - Returns: The iterator.
+    static func iterator(
+        of root: any RoutedSession
+    ) async -> AsyncCompactMapSequence<AsyncStream<SessionEvent>, RootSessionEvent>.AsyncIterator {
+        await root.streamSessionEvents().compactMap { event -> RootSessionEvent? in
+            if case .runMessage(let message) = event {
+                return .runMessage(message.detail)
+            }
+            if case .answered(let answer) = event, answer.messageIds.isEmpty {
+                return .mailAnswer(answer.reply)
+            }
+            return nil
+        }.makeAsyncIterator()
+    }
 }
 
 extension AgentsToolHarness {

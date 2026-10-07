@@ -29,6 +29,11 @@ struct CapturedLog {
         return records.filter { messages.contains("\($0.message)") }
     }
 
+    /// Gives the record of each call of `send agent` and `send caller`.
+    var messageRecords: [TelemetryCapture.LogRecord] {
+        records(withMessage: AgentsTelemetry.LogMessage.messageSent)
+    }
+
     /// Gives the records whose message is `message`.
     ///
     /// - Parameter message: The message of the records.

@@ -5,7 +5,8 @@ import Testing
 @testable import FoundationModelsAgents
 
 /// Pins the command line of the agents (plan.md §9.4): `agents agent list`,
-/// `agents agent start`, `agents agent check`, and `agents agent cancel`.
+/// `agents agent start`, `agents agent check`, `agents agent cancel`, and
+/// `agents agent send`.
 ///
 /// The tests give the arguments to the driver of `AgentsCLI.makeDriver(runner:)`
 /// and read the `CLIResult`. The driver runs over the runner of the fixture
@@ -28,6 +29,9 @@ struct AgentsCLITests {
 
     /// The final text of the play of a run.
     private static let finalText = "The diff is correct."
+
+    /// The message that `agent send` gives to a run.
+    private static let message = "cli-message: also check the error paths"
 
     /// The model-visible agents of the fixture library, in catalog order.
     private static let visibleAgents = ["code-reviewer", "internal-helper", "lead", "test-writer"]
@@ -95,6 +99,14 @@ struct AgentsCLITests {
     /// - Returns: The arguments.
     private static func startArguments(_ name: String, prompt: String = prompt) -> [String] {
         ["agent", "start", "--name", name, "--prompt", prompt]
+    }
+
+    /// The arguments of `agent send` with ``message`` for `run`.
+    ///
+    /// - Parameter run: The run that gets the message.
+    /// - Returns: The arguments.
+    private static func sendArguments(to run: AgentRun) -> [String] {
+        ["agent", "send", "--id", run.id.description, "--message", message]
     }
 
     @Test("agent list gives one - name: description line for each model-visible agent")
@@ -285,6 +297,38 @@ struct AgentsCLITests {
         #expect(result.exitCode != Self.successStatus)
         #expect(result.output.contains(run.report))
         #expect(await run.finalState() == .cancelled)
+    }
+
+    @Test("agent send delivers the message to a running host-started run, and the run answers it",
+        .timeLimit(.minutes(1)))
+    func sendDeliversToRunningRun() async throws {
+        let gate = ScriptedGate()
+        let (harness, driver) = try await Self.makeDriver(
+            script: Self.script([.wait(gate), .finalText(Self.finalText), .finalTextOfLastPrompt]))
+        defer { try? harness.delete() }
+        let run = try await harness.runner.start(Self.reviewer, prompt: Self.prompt)
+        await gate.waitForArrival()
+
+        let result = await driver.run(arguments: Self.sendArguments(to: run))
+        gate.open()
+        let answer = try await run.result()
+
+        #expect(result.exitCode == Self.successStatus)
+        #expect(try Self.text(of: result) == AgentsToolText.messageSent(to: run))
+        #expect(answer.contains(Self.message))
+    }
+
+    @Test("agent send to a run that ended gives the run-ended text and a non-zero exit status")
+    func sendToEndedRunFails() async throws {
+        let (harness, driver) = try await Self.makeDriver(script: Self.script([.finalText(Self.finalText)]))
+        defer { try? harness.delete() }
+        let run = try await harness.runner.start(Self.reviewer, prompt: Self.prompt)
+        _ = try await run.result()
+
+        let result = await driver.run(arguments: Self.sendArguments(to: run))
+
+        #expect(result.exitCode != Self.successStatus)
+        #expect(result.output.contains(AgentsToolText.runEnded(id: run.id.description, state: run.state)))
     }
 
     @Test("the noun of the command line is agent; agents is not a command")

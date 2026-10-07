@@ -24,6 +24,12 @@ struct CapturedTrace {
         spans.filter { $0.operationName == AgentsTelemetry.SpanName.run }
     }
 
+    /// The `agent.message.sent` event of each span, in the order of the end
+    /// of the spans.
+    var messageEvents: [SpanEvent] {
+        spans.flatMap(\.events).filter { $0.name == AgentsTelemetry.EventName.messageSent }
+    }
+
     /// Gives the one span of `run`: the run span whose run id is the id of
     /// `run`.
     ///
@@ -67,7 +73,29 @@ struct CapturedTrace {
     /// - Returns: The string, or `nil` when the span has no such attribute or
     ///   its value is not a string.
     static func text(of span: FinishedInMemorySpan, at key: String) -> String? {
-        guard case .string(let text) = span.attributes.get(key) else {
+        text(in: span.attributes, at: key)
+    }
+
+    /// Gives the string value of one attribute of `event`.
+    ///
+    /// - Parameters:
+    ///   - event: The span event.
+    ///   - key: The key of the attribute.
+    /// - Returns: The string, or `nil` when the event has no such attribute
+    ///   or its value is not a string.
+    static func text(of event: SpanEvent, at key: String) -> String? {
+        text(in: event.attributes, at: key)
+    }
+
+    /// Gives the string value of one attribute of `attributes`.
+    ///
+    /// - Parameters:
+    ///   - attributes: The attributes of a span or of a span event.
+    ///   - key: The key of the attribute.
+    /// - Returns: The string, or `nil` when there is no such attribute or its
+    ///   value is not a string.
+    private static func text(in attributes: SpanAttributes, at key: String) -> String? {
+        guard case .string(let text) = attributes.get(key) else {
             return nil
         }
         return text

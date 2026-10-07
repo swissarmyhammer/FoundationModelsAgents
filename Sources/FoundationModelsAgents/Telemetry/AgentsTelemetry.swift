@@ -1,7 +1,8 @@
 /// The telemetry vocabulary of the package: the name of the span of a run,
-/// the key of each span attribute and each log metadata value, the label of
-/// the logger, the message of each log record, the name of each metric, and
-/// the values of the outcome of a run.
+/// the name of each span event, the key of each span attribute and each log
+/// metadata value, the label of the logger, the message of each log record,
+/// the name of each metric, the values of the outcome of a run, and the
+/// values of the direction and the outcome of a message.
 ///
 /// Rule 3 of the OpenTelemetry design of 2026-09-28: each package keeps all of
 /// its telemetry names in one vocabulary file. A name is written one time,
@@ -24,7 +25,8 @@
 ///
 /// A span attribute, a log message, a log metadata value and a metric
 /// dimension never carry content: no prompt text, no task text, no response
-/// text, no final message text, no tool arguments and no tool output. Each
+/// text, no final message text, no text of a message that `send agent` or
+/// `send caller` sends, no tool arguments and no tool output. Each
 /// record leaves the process through the backend of the host, and the package
 /// cannot know where that backend sends it. Names, ids, counts, depths,
 /// outcomes and durations are safe. Content is not.
@@ -32,7 +34,9 @@
 /// `TelemetryContentSafetyTests` proves the rule: it runs a scripted parent
 /// and child with a secret word in the task text, in the answer of the child
 /// and in a tool argument, and it fails when a span, a log record or a metric
-/// holds the secret word.
+/// holds the secret word. It also sends a message with a secret word through
+/// `send caller` and `send agent`, and it fails when the telemetry holds that
+/// word.
 enum AgentsTelemetry {
     /// The prefix of each name of the package.
     private static let prefix = "FoundationModelsAgents."
@@ -48,7 +52,17 @@ enum AgentsTelemetry {
         static let run = prefix + "run"
     }
 
-    /// The key of each attribute of the span of a run.
+    /// The name of each span event of the package.
+    enum EventName {
+        /// The event of one call of `send agent` or `send caller` that sent a
+        /// message, or that found no run or no caller to take it. The event
+        /// goes on the active span of the call: the tool span in a Router
+        /// session. The name carries no content.
+        static let messageSent = prefix + "agent.message.sent"
+    }
+
+    /// The key of each attribute of the span of a run and of the span event
+    /// of a message.
     ///
     /// A key names an identifier, a name, a count or an outcome. The value of
     /// a key never holds content.
@@ -84,9 +98,22 @@ enum AgentsTelemetry {
         /// this key. The value is a kind, not the text of the failure, thus
         /// it carries no content.
         static let failureKind = prefix + "run.failure_kind"
+
+        /// Where a message went. See ``AgentsTelemetry/MessageDirection``.
+        /// The value is a direction, not content.
+        static let messageDirection = prefix + "message.direction"
+
+        /// What became of a message. See ``AgentsTelemetry/MessageOutcome``.
+        /// The value is an outcome, not content.
+        static let messageOutcome = prefix + "message.outcome"
+
+        /// The count of characters of a message. The value is a count, never
+        /// the text of the message, thus it carries no content.
+        static let messageLength = prefix + "message.length"
     }
 
-    /// The key of each metadata value of the log records of a run.
+    /// The key of each metadata value of the log records of a run and of a
+    /// message.
     ///
     /// A key with the meaning of a span attribute is the key of that
     /// attribute, thus a log record and a span of one run use the same keys.
@@ -127,14 +154,25 @@ enum AgentsTelemetry {
         /// a type name, never the text of the error, thus it carries no
         /// content.
         static let errorType = prefix + "run.error_type"
+
+        /// Where a message went. The value is a direction, not content.
+        static let messageDirection = AttributeKey.messageDirection
+
+        /// What became of a message. The value is an outcome, not content.
+        static let messageOutcome = AttributeKey.messageOutcome
+
+        /// The count of characters of a message. The value is a count, not
+        /// content.
+        static let messageLength = AttributeKey.messageLength
     }
 
     /// The message of each log record of a run, other than the "enter" record
-    /// of its span.
+    /// of its span, and of each message record.
     ///
-    /// Each message starts with the name of the span of a run, thus a query
-    /// can find all the records of the runs from one name. A message never
-    /// holds content.
+    /// Each message of a run record starts with the name of the span of a
+    /// run, thus a query can find all the records of the runs from one name.
+    /// The message of a message record is the name of its span event. A
+    /// message never holds content.
     enum LogMessage {
         /// The message of the record that a run writes when it starts.
         static let runStarted = SpanName.run + " started"
@@ -148,6 +186,11 @@ enum AgentsTelemetry {
         static func runEnded(_ outcome: Outcome) -> String {
             SpanName.run + " " + outcome.rawValue
         }
+
+        /// The message of the record that one call of `send agent` or
+        /// `send caller` writes. It is the name of the span event of the
+        /// call.
+        static let messageSent = EventName.messageSent
     }
 
     /// The name of each metric of the package.
@@ -224,5 +267,28 @@ enum AgentsTelemetry {
         /// The host started a run before the first load of the registry, and
         /// the runner started no run.
         case catalogNotLoaded
+    }
+
+    /// The value that ``AttributeKey/messageDirection`` carries: where a
+    /// message went. A value is a direction, not content.
+    enum MessageDirection: String {
+        /// `send agent`: from a caller to a run that it started.
+        case toRun = "to_run"
+
+        /// `send caller`: from a run to the session that started it.
+        case toCaller = "to_caller"
+    }
+
+    /// The value that ``AttributeKey/messageOutcome`` carries: what became of
+    /// a message. A value is an outcome, not content.
+    enum MessageOutcome: String {
+        /// The run or the caller got the message.
+        case delivered
+
+        /// The run had ended, and it got no message.
+        case ended
+
+        /// The run that sent the message has no caller, and nobody got it.
+        case noCaller = "no_caller"
     }
 }

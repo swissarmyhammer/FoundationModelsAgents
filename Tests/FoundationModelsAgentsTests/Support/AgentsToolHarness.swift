@@ -1,6 +1,9 @@
 import FoundationModels
 import FoundationModelsRouter
 import FoundationModelsSkills
+import Logging
+import Metrics
+import Tracing
 
 @testable import FoundationModelsAgents
 
@@ -36,6 +39,8 @@ struct AgentsToolHarness {
     ///     `AgentEnvironment.defaultMaxConcurrentAgents`.
     ///   - grant: The operations that the tool gives. The default is
     ///     `.full`.
+    ///   - telemetry: The tracer, the logger and the metrics factory of the
+    ///     router and of each run. The default has none of them.
     /// - Returns: The harness.
     /// - Throws: The error of the run harness, or of `AgentsTool.make`.
     static func make(
@@ -44,9 +49,12 @@ struct AgentsToolHarness {
         allowedNames: [String]? = nil,
         catalogCharacterLimit: Int = SkillsTool.defaultCatalogCharacterLimit,
         maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents,
-        grant: AgentsToolContext.Grant = .full
+        grant: AgentsToolContext.Grant = .full,
+        telemetry: HarnessTelemetry = HarnessTelemetry()
     ) async throws -> AgentsToolHarness {
-        let runHarness = try await AgentRunHarness.make(script: script, registry: registry)
+        let runHarness = try await AgentRunHarness.make(
+            script: script, registry: registry, tracer: telemetry.tracer, logger: telemetry.logger,
+            metricsFactory: telemetry.metricsFactory)
         let runner = runHarness.makeRunner(maxConcurrentAgents: maxConcurrentAgents)
         let context = AgentsToolContext(
             runner: runner, allowedNames: allowedNames, parent: nil, callerLink: nil, grant: grant)
@@ -94,4 +102,21 @@ struct AgentsToolHarness {
     func delete() throws {
         try runHarness.delete()
     }
+}
+
+/// The telemetry that a test gives to ``AgentsToolHarness/make(script:registry:allowedNames:catalogCharacterLimit:maxConcurrentAgents:grant:telemetry:)``.
+///
+/// A test that reads the telemetry of a root session or of a child run gives
+/// the telemetry of its capture here. The pump of a session is a detached
+/// task, which does not inherit the task-local values of the capture.
+struct HarnessTelemetry {
+    /// The tracer of the router and of each run, or `nil` for
+    /// `InstrumentationSystem.tracer` at call time.
+    var tracer: (any Tracer)?
+
+    /// The logger of each run, or `nil` for a new logger for each run.
+    var logger: Logger?
+
+    /// The metrics factory of each run, or `nil` for `MetricsSystem.factory`.
+    var metricsFactory: (any MetricsFactory)?
 }

@@ -224,18 +224,25 @@ public struct AgentsToolContext: Sendable {
     /// Router starts an answer for it. The run continues, and its final
     /// message still goes to the caller when it ends.
     ///
+    /// A sent message gives one `agent.message.sent` record with the
+    /// `delivered` outcome, and a run with no caller gives one with the
+    /// `no_caller` outcome (``recordMessageToCaller(_:outcome:)``). A blank
+    /// message sends nothing and gives no record.
+    ///
     /// - Parameter message: The text of the message.
     /// - Returns: ``AgentsToolText/messageSentToCaller`` when the message was
     ///   sent. A corrective for a run with no caller, or for a message that
     ///   holds no text.
     func messageCaller(_ message: String) async -> AgentsToolAnswer {
         guard let callerLink else {
+            await recordMessageToCaller(message, outcome: .noCaller)
             return .corrective(AgentsToolText.noCaller)
         }
         if let corrective = Self.blankMessageCorrective(message) {
             return corrective
         }
         await callerLink.call.message(message)
+        await recordMessageToCaller(message, outcome: .delivered)
         return .success(AgentsToolText.messageSentToCaller)
     }
 

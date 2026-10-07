@@ -72,6 +72,10 @@ enum AgentsDemoModes {
     /// The text that opens each `runSettled` line.
     static let settledPrefix = "settled: "
 
+    /// The text that opens each `runMessage` line. The line then names the
+    /// run that sent the message, and never shows the text of the message.
+    static let messagePrefix = "message from run: "
+
     /// The text that opens each `mailDeliveryPaused` line.
     static let pausedPrefix = "paused: "
 
@@ -215,6 +219,8 @@ enum AgentsDemoModes {
     /// - Parameter event: The event.
     /// - Returns: A ``rootLine(_:)`` for `answered`, a ``failedPrefix`` line
     ///   for `answerFailed`, a ``settledPrefix`` line for `runSettled`, a
+    ///   ``messagePrefix`` line with the completion token of the run for
+    ///   `runMessage` (the line never shows the text of the message), a
     ///   ``pausedPrefix`` line and ``sendMessageHint`` for
     ///   `mailDeliveryPaused`, and no line for each other event.
     static func lines(for event: SessionEvent) -> [String] {
@@ -225,13 +231,15 @@ enum AgentsDemoModes {
             [failedPrefix + text(of: failure.reason)]
         case .runSettled(let terminal):
             [settledPrefix + terminal.detail]
+        case .runMessage(let message):
+            [messagePrefix + message.correlationID]
         case .mailDeliveryPaused(let pause):
             [pausedPrefix + pause.description, sendMessageHint]
         case .textDelta, .textReset, .reasoningDelta, .toolCall, .toolStatus, .toolInvocation,
             .toolCallReport, .entryRecorded, .compaction, .discoveryPrimingFailed, .generationStalled,
             .submissionQueued, .submissionStarted, .submissionEnded, .repetitionStopped,
             .elicitationRequested, .generationCall, .compactionStarted, .compactionFailed,
-            .reasoningStopped, .runMessage:
+            .reasoningStopped:
             []
         }
     }
