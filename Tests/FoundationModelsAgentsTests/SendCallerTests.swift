@@ -82,23 +82,19 @@ struct SendCallerTests {
         sendStep: ScriptedAgentStep, setUp: (any RoutedSession) -> Void = { _ in }
     ) async throws -> (events: [RootSessionEvent], run: AgentRun, toolOutputs: [String]) {
         let gate = ScriptedGate()
-        let harness = try await AgentsToolHarness.make(
-            script: script(childSteps: [sendStep, .wait(gate), .finalText(childText)]))
-        defer { try? harness.delete() }
-        let root = harness.makeRootSession(instructions: rootKey, slot: \.flash)
-        setUp(root)
-        var events = await RootSessionEvent.iterator(of: root)
-
-        _ = try await root.respond(to: rootPrompt)
-        let runMessage = try #require(await events.next())
-        let messageAnswer = try #require(await events.next())
-        gate.open()
-        let finalAnswer = try #require(await events.next())
-        await harness.tool.context.startedRuns.waitForStarts()
-        let run = try await NestedRunTests.onlyRun(of: harness.runner, caller: root.id)
-        await root.close()
-
-        return ([runMessage, messageAnswer, finalAnswer], run, harness.runHarness.script.toolOutputs)
+        return try await AgentsToolHarness.withStartedRun(
+            script: script(childSteps: [sendStep, .wait(gate), .finalText(childText)]),
+            rootKey: rootKey, rootPrompt: rootPrompt, setUp: setUp
+        ) { started in
+            let runMessage = try await started.nextEvent()
+            let messageAnswer = try await started.nextEvent()
+            gate.open()
+            let finalAnswer = try await started.nextEvent()
+            return (
+                [runMessage, messageAnswer, finalAnswer], started.run,
+                started.harness.runHarness.script.toolOutputs
+            )
+        }
     }
 
     /// `true` when `event` is a `runMessage` event whose detail is
@@ -182,22 +178,17 @@ struct SendCallerTests {
 
     @Test("send caller with a blank message is a corrective", .timeLimit(.minutes(1)))
     func sendCallerWithABlankMessageIsCorrective() async throws {
-        let harness = try await AgentsToolHarness.make(
-            script: Self.script(childSteps: [
-                .agentsToolCall(AgentsToolArguments.sendCaller(message: Self.blankMessageJSON)),
-                .finalText(Self.childText)
-            ]))
-        defer { try? harness.delete() }
-        let root = harness.makeRootSession(instructions: Self.rootKey, slot: \.flash)
-        var events = await RootSessionEvent.iterator(of: root)
-
-        _ = try await root.respond(to: Self.rootPrompt)
-        let firstEvent = try #require(await events.next())
-        await harness.tool.context.startedRuns.waitForStarts()
-        let run = try await NestedRunTests.onlyRun(of: harness.runner, caller: root.id)
-        await root.close()
+        let script = Self.script(childSteps: [
+            .agentsToolCall(AgentsToolArguments.sendCaller(message: Self.blankMessageJSON)),
+            .finalText(Self.childText)
+        ])
+        let (firstEvent, run, toolOutputs) = try await AgentsToolHarness.withStartedRun(
+            script: script, rootKey: Self.rootKey, rootPrompt: Self.rootPrompt
+        ) { started in
+            (try await started.nextEvent(), started.run, started.harness.runHarness.script.toolOutputs)
+        }
 
         #expect(Self.isMailAnswer(firstEvent, holding: run.report))
-        #expect(harness.runHarness.script.toolOutputs.contains(AgentsToolText.blankMessage))
+        #expect(toolOutputs.contains(AgentsToolText.blankMessage))
     }
 }

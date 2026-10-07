@@ -1,5 +1,6 @@
 import FoundationModels
 import FoundationModelsRouter
+import Testing
 
 @testable import FoundationModelsAgents
 
@@ -53,15 +54,16 @@ enum RootSessionEvent {
     /// An answer that mail started, with its reply.
     case mailAnswer(String)
 
+    /// The iterator over the events of a root session.
+    typealias Iterator = AsyncCompactMapSequence<AsyncStream<SessionEvent>, RootSessionEvent>.AsyncIterator
+
     /// Gives an iterator over the `runMessage` events and the mail answers
     /// of `root`.
     ///
     /// - Parameter root: The root session. Call this before its first
     ///   message.
     /// - Returns: The iterator.
-    static func iterator(
-        of root: any RoutedSession
-    ) async -> AsyncCompactMapSequence<AsyncStream<SessionEvent>, RootSessionEvent>.AsyncIterator {
+    static func iterator(of root: any RoutedSession) async -> Iterator {
         await root.streamSessionEvents().compactMap { event -> RootSessionEvent? in
             if case .runMessage(let message) = event {
                 return .runMessage(message.detail)
@@ -91,5 +93,79 @@ extension AgentsToolHarness {
         adding extraTools: [any Tool] = []
     ) -> any RoutedSession {
         runHarness.profile[keyPath: slot].makeSession(instructions: key, tools: [tool] + extraTools)
+    }
+
+    /// Makes a harness and a root session on the `flash` slot, sends the
+    /// first prompt, finds the one run that the root session started, and
+    /// gives them to `body`. Then it closes the root session and deletes the
+    /// harness.
+    ///
+    /// The run of the root session is on the `standard` slot. Thus the root
+    /// session can answer while its run waits on a gate.
+    ///
+    /// - Parameters:
+    ///   - script: The script of the root session and of its run.
+    ///   - telemetry: The telemetry of the router and of each run. The
+    ///     default has none of them.
+    ///   - rootKey: The instructions of the root session. It is also the key
+    ///     of its play.
+    ///   - rootPrompt: The first prompt of the root session. Its answer
+    ///     starts the run.
+    ///   - setUp: Receives the root session before its first message. The
+    ///     default does nothing.
+    ///   - body: Reads the events of the root session and the run.
+    /// - Returns: The value of `body`.
+    /// - Throws: The error of the harness, of the root session, of
+    ///   `#require` when the root session started no run, or of `body`.
+    static func withStartedRun<Value>(
+        script: ScriptedAgentScript,
+        telemetry: HarnessTelemetry = HarnessTelemetry(),
+        rootKey: String,
+        rootPrompt: String,
+        setUp: (any RoutedSession) -> Void = { _ in },
+        body: (inout StartedRootRun) async throws -> Value
+    ) async throws -> Value {
+        let harness = try await make(script: script, telemetry: telemetry)
+        defer { try? harness.delete() }
+        let root = harness.makeRootSession(instructions: rootKey, slot: \.flash)
+        setUp(root)
+        let events = await RootSessionEvent.iterator(of: root)
+        _ = try await root.respond(to: rootPrompt)
+        await harness.tool.context.startedRuns.waitForStarts()
+        let run = try await NestedRunTests.onlyRun(of: harness.runner, caller: root.id)
+        var started = StartedRootRun(harness: harness, root: root, run: run, events: events)
+        do {
+            let value = try await body(&started)
+            await root.close()
+            return value
+        } catch {
+            await root.close()
+            throw error
+        }
+    }
+}
+
+/// A root session that started one run, which
+/// ``AgentsToolHarness/withStartedRun(script:telemetry:rootKey:rootPrompt:setUp:body:)``
+/// gives to its body.
+struct StartedRootRun {
+    /// The harness that holds the tool of the root session.
+    let harness: AgentsToolHarness
+
+    /// The root session.
+    let root: any RoutedSession
+
+    /// The one run that the root session started.
+    let run: AgentRun
+
+    /// The events of the root session that the body did not read yet.
+    var events: RootSessionEvent.Iterator
+
+    /// Gives the next event of the root session.
+    ///
+    /// - Returns: The event.
+    /// - Throws: The error of `#require` when the events end.
+    mutating func nextEvent() async throws -> RootSessionEvent {
+        try #require(await events.next())
     }
 }

@@ -1,5 +1,4 @@
 import FoundationModelsRouter
-import Testing
 
 @testable import FoundationModelsAgents
 
@@ -54,24 +53,19 @@ struct MessageExchange {
     static func run(message: String, telemetry: HarnessTelemetry) async throws -> MessageExchange {
         let gate = ScriptedGate()
         let send = ScriptedArguments()
-        let harness = try await AgentsToolHarness.make(
-            script: script(message: message, gate: gate, send: send), telemetry: telemetry)
-        defer { try? harness.delete() }
-        let root = harness.makeRootSession(instructions: rootKey, slot: \.flash)
-        var events = await RootSessionEvent.iterator(of: root)
-
-        _ = try await root.respond(to: rootPrompt)
-        _ = try #require(await events.next())
-        _ = try #require(await events.next())
-        await harness.tool.context.startedRuns.waitForStarts()
-        let lead = try await NestedRunTests.onlyRun(of: harness.runner, caller: root.id)
-        send.set(AgentsToolArguments.sendAgent(id: lead.id.description, message: message))
-        _ = try await root.respond(to: followUpPrompt)
-        gate.open()
-        _ = try #require(await events.next())
-        _ = await lead.finalState()
-        await root.close()
-        return MessageExchange(lead: lead)
+        return try await AgentsToolHarness.withStartedRun(
+            script: script(message: message, gate: gate, send: send), telemetry: telemetry,
+            rootKey: rootKey, rootPrompt: rootPrompt
+        ) { started in
+            _ = try await started.nextEvent()
+            _ = try await started.nextEvent()
+            send.set(AgentsToolArguments.sendAgent(id: started.run.id.description, message: message))
+            _ = try await started.root.respond(to: followUpPrompt)
+            gate.open()
+            _ = try await started.nextEvent()
+            _ = await started.run.finalState()
+            return MessageExchange(lead: started.run)
+        }
     }
 
     /// The script of the root session and of `lead`.

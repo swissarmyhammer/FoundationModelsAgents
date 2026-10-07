@@ -34,6 +34,39 @@ comments:
     - evidence: `swift test` — 470 tests in 66 suites passed, 0 failures. One build-system line `warning: missing creator for mutated node ... mlx-swift_Cmlx.bundle` comes from the mlx-swift dependency build, not from a source file of this package. Files: Sources/FoundationModelsAgents/CLI/AgentsCLI.swift, CLI/AgentsCLIOperations.swift, Telemetry/AgentsTelemetry.swift, Tool/AgentsToolContext.swift, Tool/AgentsToolContext+Telemetry.swift (new), Tool/AgentsToolOperations.swift, Examples/agents-demo/DemoModes.swift; tests AgentsCLITests, AgentRunTracingTests, TelemetryContentSafetyTests, AgentRunLoggingTests, AgentsTelemetryTests, AgentsDemoTests, SendCallerTests, Support/AgentsToolHarness.swift, Support/AgentsToolScripting.swift, Support/CapturedLog.swift, Support/CapturedTrace.swift, Support/MessageExchange.swift (new).
     - next: /review. Not committed. Task stays in doing.
   timestamp: 2026-10-07T22:49:17.810555+00:00
+- actor: claude-code
+  id: 01m4c94jp5bk03pj8nqgeyxs68
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (6c80e3d); 1 finding (1 confirmed, 0 refuted) — Tests/FoundationModelsAgentsTests/Support/MessageExchange.swift:54 (reuse/reuse). No finding was about the grant selection (^m6x4er6) or the "four operations" doc wording (^125tp66).
+    - next: Move the shared harness sequence of MessageExchange.run and SendCallerTests.runWithMessage into one helper, then commit and review again.
+  timestamp: 2026-10-07T22:53:23.013759+00:00
+- actor: claude-code
+  id: 01m4c94sdzbt0pe83fqv16j2rh
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 19 files
+    - test: green — swift test, 470 passed in 66 suites; IntegrationTests build complete
+    - commit: 6c80e3d
+    - review: findings — Tests/FoundationModelsAgentsTests/Support/MessageExchange.swift:54
+  timestamp: 2026-10-07T22:53:29.919767+00:00
+- actor: claude-code
+  id: 01m4c99xq5h4475spa1nk68bns
+  text: |-
+    Finding MessageExchange.swift:54 (reuse/reuse) is done.
+    - New shared helper `AgentsToolHarness.withStartedRun(script:telemetry:rootKey:rootPrompt:setUp:body:)` in Support/AgentsToolScripting.swift. It makes the harness, makes the root session on the `flash` slot, calls `setUp`, makes the event iterator, sends the first prompt, waits for the open start calls, finds the one run (`NestedRunTests.onlyRun`), calls `body`, and then closes the root session (also when `body` throws) and deletes the harness.
+    - `body` gets a `StartedRootRun` (harness, root, run, events) with `nextEvent()`, which does the `#require` on the next event. New typealias `RootSessionEvent.Iterator`.
+    - Callers: `MessageExchange.run`, `SendCallerTests.runWithMessage`, and one more copy of the same sequence in `SendCallerTests.sendCallerWithABlankMessageIsCorrective`. A search of the test target for `RootSessionEvent.iterator` found no other copy. The other suites use `streamSessionEvents()` with different steps, thus they are not the same sequence.
+    - Order change: the helper finds the run directly after the first prompt, before the body reads events. This is the pattern of AgentSchedulingTests and AgentsToolMountTests (waitForStarts directly after respond). `runner.runs(caller:)` keeps ended runs, thus the blank-message test also finds its ended run.
+    - The rule dump file (754K characters, many languages) was too large to read in one call. I read the generic rules and the Swift, duplication, reuse and test-integrity sections.
+  timestamp: 2026-10-07T22:56:18.149163+00:00
+- actor: claude-code
+  id: 01m4c9a00pfc47bgq0xw84ye1e
+  text: |-
+    ### implement — changed
+    - evidence: `swift test` — 470 tests in 66 suites passed, 0 failures. The only warning is the build-system line `missing creator for mutated node ... mlx-swift_Cmlx.bundle` from the mlx-swift dependency. Files: Tests/FoundationModelsAgentsTests/Support/AgentsToolScripting.swift, Tests/FoundationModelsAgentsTests/Support/MessageExchange.swift, Tests/FoundationModelsAgentsTests/SendCallerTests.swift.
+    - next: /review. Not committed. Task stays in doing.
+  timestamp: 2026-10-07T22:56:20.502499+00:00
 depends_on:
 - 01M4BXV22HHY1EYE8XEVSV23GW
 position_column: doing
@@ -70,3 +103,12 @@ Files:
 
 ## Workflow
 - Use `/tdd`: write the failing tests first, then do the implementation until they pass.
+
+## Review Findings (2026-10-07 17:50)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 19 file(s) reviewed, 4 not reviewed.
+
+> 4 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 4 file(s)
+
+- [x] `Tests/FoundationModelsAgentsTests/Support/MessageExchange.swift:54` `reuse/reuse` — MessageExchange.run repeats the harness setup, root-session iterator, respond, waitForStarts, onlyRun, and close sequence of SendCallerTests.runWithMessage. The two helpers differ only in their scripts and in the setUp closure, so the second helper is a parallel copy of the first. Both should share one helper that takes the script and the root-session hook as parameters. Move the shared sequence into one internal helper, for example in AgentsToolHarness or AgentsToolScripting, that takes the script, the telemetry, and an optional setUp closure. Have runWithMessage and MessageExchange.run both call it, and keep only their per-test scripts and assertions in their own files.
