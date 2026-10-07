@@ -109,8 +109,7 @@ struct MaxTurnsTests {
     private static let listArguments = #"{"op": "list agents"}"#
 
     /// A pass that calls `list agents` one time.
-    private static let listStep = ScriptedAgentStep.toolCall(
-        name: ToolVocabulary.agentsToolName, argumentsJSON: listArguments)
+    private static let listStep = ScriptedAgentStep.agentsToolCall(listArguments)
 
     /// The key of the play of the task-answer tests.
     private static let taskKey = "max-turns-task-key: count the passes"
@@ -299,7 +298,7 @@ struct MaxTurnsTests {
             ]),
             registry: AgentRegistry(layers: [layer.layer]))
         defer { try? harness.delete() }
-        let root = NestedRunTests.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: NestedRunTests.rootKey)
         let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: NestedRunTests.rootPrompt) == NestedRunTests.rootText)

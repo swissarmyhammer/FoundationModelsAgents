@@ -62,21 +62,12 @@ struct FinalMessageTests {
     ) -> ScriptedAgentScript {
         let gateSteps = rootGate.map { [ScriptedAgentStep.wait($0)] } ?? []
         let rootSteps =
-            [ScriptedAgentStep.toolCall(name: ToolVocabulary.agentsToolName, argumentsJSON: startArguments)]
+            [ScriptedAgentStep.agentsToolCall(startArguments)]
             + gateSteps + [.finalText(rootText), .finalTextOfLastPrompt]
         return ScriptedAgentScript([
             ScriptedAgentPlay(key: rootKey, steps: rootSteps),
             ScriptedAgentPlay(key: childPrompt, steps: childSteps)
         ])
-    }
-
-    /// Makes the root session over the `standard` slot, with the `agents`
-    /// tool of the harness.
-    ///
-    /// - Parameter harness: The harness of the tool.
-    /// - Returns: The root session.
-    private static func rootSession(of harness: AgentsToolHarness) -> any RoutedSession {
-        harness.runHarness.profile.standard.makeSession(instructions: rootKey, tools: [harness.tool])
     }
 
     /// Gives the one run that the root session started.
@@ -129,7 +120,7 @@ struct FinalMessageTests {
         let harness = try await AgentsToolHarness.make(
             script: Self.script(child: [.wait(childGate), .finalText(Self.childText)]))
         defer { try? harness.delete() }
-        let root = Self.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootKey)
         let events = await root.streamSessionEvents()
 
         let answer = try await root.respond(to: Self.rootPrompt)
@@ -158,7 +149,7 @@ struct FinalMessageTests {
     func fastChildOfRootSessionComesAsMail() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.script(child: [.finalText(Self.childText)]))
         defer { try? harness.delete() }
-        let root = Self.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootKey)
         let events = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
@@ -183,7 +174,7 @@ struct FinalMessageTests {
         let harness = try await AgentsToolHarness.make(
             script: Self.script(child: [.finalText(longText)]))
         defer { try? harness.delete() }
-        let root = Self.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootKey)
         let events = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
@@ -207,7 +198,7 @@ struct FinalMessageTests {
         let harness = try await AgentsToolHarness.make(
             script: Self.script(child: [.fail(ScriptedFailure.broken)]))
         defer { try? harness.delete() }
-        let root = Self.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootKey)
         let events = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
@@ -226,7 +217,7 @@ struct FinalMessageTests {
         let harness = try await AgentsToolHarness.make(
             script: Self.script(child: [.wait(childGate), .finalText(Self.childText)]))
         defer { try? harness.delete() }
-        let root = Self.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootKey)
         let events = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
@@ -250,7 +241,7 @@ struct FinalMessageTests {
         let harness = try await AgentsToolHarness.make(
             script: Self.script(child: [.wait(childGate), .finalText(Self.childText)], rootGate: rootGate))
         defer { try? harness.delete() }
-        let root = Self.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootKey)
         let events = await root.streamSessionEvents()
 
         let firstAnswer = Task { try await root.respond(to: Self.rootPrompt) }

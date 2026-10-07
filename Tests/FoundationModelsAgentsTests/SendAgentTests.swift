@@ -67,14 +67,6 @@ struct SendAgentTests {
         [.wait(gate), .finalText(taskReply), .finalTextOfLastPrompt]
     }
 
-    /// The JSON arguments of a `send agent` call.
-    ///
-    /// - Parameter id: The id that the call names.
-    /// - Returns: The JSON text.
-    private static func sendArguments(id: String) -> String {
-        #"{"op": "send agent", "id": "\#(id)", "message": "\#(message)"}"#
-    }
-
     /// The fields of a `send agent` payload.
     ///
     /// - Parameters:
@@ -123,17 +115,6 @@ struct SendAgentTests {
         return try #require(await harness.runner.runs(caller: nil).first)
     }
 
-    /// Makes a root session over the `standard` slot, with the `agents` tool
-    /// of the harness.
-    ///
-    /// - Parameters:
-    ///   - key: The key of the play of the session. It is the instructions.
-    ///   - harness: The harness of the tool.
-    /// - Returns: The root session.
-    private static func rootSession(_ key: String, of harness: AgentsToolHarness) -> any RoutedSession {
-        harness.runHarness.profile.standard.makeSession(instructions: key, tools: [harness.tool])
-    }
-
     /// Gives the one run that a root session started, after the body of each
     /// open `start agent` call added its run.
     ///
@@ -177,7 +158,7 @@ struct SendAgentTests {
             ScriptedAgentPlay(
                 key: Self.rootAKey,
                 steps: [
-                    .toolCall(name: ToolVocabulary.agentsToolName, argumentsJSON: Self.startArguments),
+                    .agentsToolCall(Self.startArguments),
                     .wait(rootGate),
                     .deferredToolCall(name: ToolVocabulary.agentsToolName, arguments: send),
                     .finalText(Self.rootText),
@@ -187,13 +168,13 @@ struct SendAgentTests {
         ])
         let harness = try await AgentsToolHarness.make(script: script)
         defer { try? harness.delete() }
-        let root = Self.rootSession(Self.rootAKey, of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootAKey)
 
         async let rootAnswer = root.respond(to: Self.rootPrompt)
         await rootGate.waitForArrival()
         let envelope = try #require(harness.runHarness.script.toolOutputs.first)
         let token = try #require(ScriptedTranscriptText.completionToken(in: envelope))
-        send.set(Self.sendArguments(id: token))
+        send.set(AgentsToolArguments.sendAgent(id: token, message: Self.message))
         rootGate.open()
         _ = try await rootAnswer
         let answer = harness.runHarness.script.toolOutputs.last
@@ -255,7 +236,7 @@ struct SendAgentTests {
             ScriptedAgentPlay(
                 key: Self.rootAKey,
                 steps: [
-                    .toolCall(name: ToolVocabulary.agentsToolName, argumentsJSON: Self.startArguments),
+                    .agentsToolCall(Self.startArguments),
                     .finalText(Self.rootText),
                     .finalTextOfLastPrompt
                 ]),
@@ -269,13 +250,13 @@ struct SendAgentTests {
         ])
         let harness = try await AgentsToolHarness.make(script: script)
         defer { try? harness.delete() }
-        let rootA = Self.rootSession(Self.rootAKey, of: harness)
-        let rootB = Self.rootSession(Self.rootBKey, of: harness)
+        let rootA = harness.makeRootSession(instructions: Self.rootAKey)
+        let rootB = harness.makeRootSession(instructions: Self.rootBKey)
 
         _ = try await rootA.respond(to: Self.rootPrompt)
         await gate.waitForArrival()
         let run = try await Self.onlyRun(in: harness, of: rootA)
-        send.set(Self.sendArguments(id: run.id.description))
+        send.set(AgentsToolArguments.sendAgent(id: run.id.description, message: Self.message))
         _ = try await rootB.respond(to: Self.rootPrompt)
         let answerOfB = harness.runHarness.script.toolOutputs.last
         gate.open()

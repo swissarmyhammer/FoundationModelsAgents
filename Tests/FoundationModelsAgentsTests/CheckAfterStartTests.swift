@@ -48,9 +48,8 @@ struct CheckAfterStartTests {
     private static let childText = "The parser is correct."
 
     /// The step of the root session that starts the child.
-    private static let startStep = ScriptedAgentStep.toolCall(
-        name: ToolVocabulary.agentsToolName,
-        argumentsJSON: #"{"op": "start agent", "name": "\#(reviewer)", "prompt": "\#(childKey)"}"#)
+    private static let startStep = ScriptedAgentStep.agentsToolCall(
+        #"{"op": "start agent", "name": "\#(reviewer)", "prompt": "\#(childKey)"}"#)
 
     /// Plays a root session that starts the child, then makes `followUp` in
     /// the next pass, and gives the answer of `followUp`.
@@ -69,7 +68,7 @@ struct CheckAfterStartTests {
         ])
         let harness = try await AgentsToolHarness.make(script: script)
         defer { try? harness.delete() }
-        let root = harness.runHarness.profile.standard.makeSession(instructions: rootKey, tools: [harness.tool])
+        let root = harness.makeRootSession(instructions: rootKey)
 
         _ = try await root.respond(to: rootPrompt)
         let answer = harness.runHarness.script.toolOutputs.last
@@ -96,8 +95,7 @@ struct CheckAfterStartTests {
     @Test("check agent with no id in the next pass gives the report of the run",
         .timeLimit(.minutes(1)))
     func checkWithNoIDInNextPassGivesReport() async throws {
-        let followUp = ScriptedAgentStep.toolCall(
-            name: ToolVocabulary.agentsToolName, argumentsJSON: #"{"op": "check agent"}"#)
+        let followUp = ScriptedAgentStep.agentsToolCall(#"{"op": "check agent"}"#)
 
         let played = try await Self.answer(of: followUp)
 
@@ -115,16 +113,14 @@ struct CheckAfterStartTests {
             ScriptedAgentPlay(
                 key: Self.rootKey,
                 steps: [
-                    .toolCall(
-                        name: ToolVocabulary.agentsToolName,
-                        argumentsJSON: #"{"op": "start agent", "name": "no-such-agent", "prompt": "Do it."}"#),
+                    .agentsToolCall(#"{"op": "start agent", "name": "no-such-agent", "prompt": "Do it."}"#),
                     .toolCallWithLastToken(name: ToolVocabulary.agentsToolName, operation: "check agent"),
                     .finalText(Self.rootText), .finalTextOfLastPrompt
                 ])
         ])
         let harness = try await AgentsToolHarness.make(script: script)
         defer { try? harness.delete() }
-        let root = harness.runHarness.profile.standard.makeSession(instructions: Self.rootKey, tools: [harness.tool])
+        let root = harness.makeRootSession(instructions: Self.rootKey)
 
         _ = try await root.respond(to: Self.rootPrompt)
         let outputs = harness.runHarness.script.toolOutputs

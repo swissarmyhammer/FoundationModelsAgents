@@ -109,14 +109,6 @@ struct AgentSchedulingTests {
         #"{"op": "\#(operation)", "id": "\#(run.id)"}"#
     }
 
-    /// A scripted call of the `agents` tool.
-    ///
-    /// - Parameter argumentsJSON: The JSON arguments of the call.
-    /// - Returns: The step.
-    private static func toolStep(_ argumentsJSON: String) -> ScriptedAgentStep {
-        .toolCall(name: ToolVocabulary.agentsToolName, argumentsJSON: argumentsJSON)
-    }
-
     /// A root play that starts one child with `start agent`, then answers.
     ///
     /// - Parameters:
@@ -125,18 +117,8 @@ struct AgentSchedulingTests {
     ///   - prompt: The prompt of the child. It is the key of its play.
     /// - Returns: The play.
     private static func startingPlay(_ key: String, agent: String, prompt: String) -> ScriptedAgentPlay {
-        ScriptedAgentPlay(key: key, steps: [toolStep(startArguments(agent, prompt: prompt)), .finalText(rootText)])
-    }
-
-    /// Makes a root session over the `standard` slot, with the `agents` tool
-    /// of the harness.
-    ///
-    /// - Parameters:
-    ///   - key: The key of the play of the session. It is the instructions.
-    ///   - harness: The harness of the tool.
-    /// - Returns: The root session.
-    private static func rootSession(_ key: String, of harness: AgentsToolHarness) -> any RoutedSession {
-        harness.runHarness.profile.standard.makeSession(instructions: key, tools: [harness.tool])
+        ScriptedAgentPlay(
+            key: key, steps: [.agentsToolCall(startArguments(agent, prompt: prompt)), .finalText(rootText)])
     }
 
     /// Gives the one run that a root session started.
@@ -236,8 +218,8 @@ struct AgentSchedulingTests {
         ])
         let harness = try await AgentsToolHarness.make(script: script)
         defer { try? harness.delete() }
-        let rootA = Self.rootSession(Self.rootAKey, of: harness)
-        let rootB = Self.rootSession(Self.rootBKey, of: harness)
+        let rootA = harness.makeRootSession(instructions: Self.rootAKey)
+        let rootB = harness.makeRootSession(instructions: Self.rootBKey)
 
         _ = try await rootA.respond(to: Self.rootPrompt)
         await gate.waitForArrival()
@@ -262,8 +244,8 @@ struct AgentSchedulingTests {
         .timeLimit(.minutes(1)))
     func checkWithNoIDListsOnlyRunsOfCaller() async throws {
         let gate = ScriptedGate()
-        let checkAll = Self.toolStep(#"{"op": "check agent"}"#)
-        let startChild = Self.toolStep(Self.startArguments(Self.reviewer, prompt: Self.childAKey))
+        let checkAll = ScriptedAgentStep.agentsToolCall(#"{"op": "check agent"}"#)
+        let startChild = ScriptedAgentStep.agentsToolCall(Self.startArguments(Self.reviewer, prompt: Self.childAKey))
         let script = ScriptedAgentScript([
             ScriptedAgentPlay(
                 key: Self.rootAKey,
@@ -275,8 +257,8 @@ struct AgentSchedulingTests {
         ])
         let harness = try await AgentsToolHarness.make(script: script)
         defer { try? harness.delete() }
-        let rootA = Self.rootSession(Self.rootAKey, of: harness)
-        let rootB = Self.rootSession(Self.rootBKey, of: harness)
+        let rootA = harness.makeRootSession(instructions: Self.rootAKey)
+        let rootB = harness.makeRootSession(instructions: Self.rootBKey)
 
         _ = try await rootA.respond(to: Self.rootPrompt)
         _ = try await rootB.respond(to: Self.rootPrompt)
@@ -314,8 +296,8 @@ struct AgentSchedulingTests {
         ])
         let harness = try await AgentsToolHarness.make(script: script)
         defer { try? harness.delete() }
-        let rootA = Self.rootSession(Self.rootAKey, of: harness)
-        let rootB = Self.rootSession(Self.rootBKey, of: harness)
+        let rootA = harness.makeRootSession(instructions: Self.rootAKey)
+        let rootB = harness.makeRootSession(instructions: Self.rootBKey)
 
         _ = try await rootA.respond(to: Self.rootPrompt)
         _ = try await rootB.respond(to: Self.rootPrompt)
@@ -346,7 +328,7 @@ struct AgentSchedulingTests {
         ])
         let harness = try await AgentsToolHarness.make(script: script)
         defer { try? harness.delete() }
-        let rootA = Self.rootSession(Self.rootAKey, of: harness)
+        let rootA = harness.makeRootSession(instructions: Self.rootAKey)
 
         _ = try await rootA.respond(to: Self.rootPrompt)
         await gate.waitForArrival()

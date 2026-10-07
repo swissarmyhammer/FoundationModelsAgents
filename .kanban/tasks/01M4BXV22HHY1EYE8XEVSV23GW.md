@@ -56,6 +56,45 @@ comments:
     - evidence: 9 files — Examples/agents-demo/DemoModes.swift, Sources/FoundationModelsAgents/Tool/{AgentsTool,AgentsToolContext,AgentsToolDescription,AgentsToolOperations,AgentsToolText}.swift, Tests/FoundationModelsAgentsTests/{SendCallerTests (new),AgentsToolSchemaTests,AgentsToolDescriptionTests}.swift. `swift test`: 462 tests in 66 suites passed. `swift build --build-tests --package-path IntegrationTests`: complete.
     - next: /review
   timestamp: 2026-10-07T22:10:44.503402+00:00
+- actor: claude-code
+  id: 01m4c71cwjtv2177rr02f80g3a
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (29ad1d1); 4 findings (4 confirmed, 0 refuted) — Sources/FoundationModelsAgents/Tool/AgentsToolContext.swift:235, Tests/FoundationModelsAgentsTests/SendCallerTests.swift:72, Tests/FoundationModelsAgentsTests/SendCallerTests.swift:80, Tests/FoundationModelsAgentsTests/SendCallerTests.swift:108. No finding is about the grant selection (task ^m6x4er6), thus no finding was dropped.
+    - next: implement the 4 open items in the 2026-10-07 17:12 Review Findings section. The task stays in review.
+  timestamp: 2026-10-07T22:16:41.618719+00:00
+- actor: claude-code
+  id: 01m4c71qnptmf287yvg3jeg7x8
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 9 files (packages updated to Router 5713abe, Extras 2c37a78)
+    - test: green — swift test, 462 passed in 66 suites (2 runs); IntegrationTests build complete
+    - commit: 29ad1d1
+    - review: findings — Sources/FoundationModelsAgents/Tool/AgentsToolContext.swift:235, Tests/FoundationModelsAgentsTests/SendCallerTests.swift:72, :80, :108
+  timestamp: 2026-10-07T22:16:52.662809+00:00
+- actor: claude-code
+  id: 01m4c7dv1q6670pj0knzkmm42n
+  text: |-
+    Review findings (2026-10-07 17:12) done.
+
+    - Finding 1: the new static helper `AgentsToolContext.blankMessageCorrective(_:)` holds the one blank-message check. Both `SendAgent.execute` and `messageCaller(_:)` call it. `messageCaller` keeps its order: no caller first, then blank message.
+    - Findings 2-4: the new file `Tests/FoundationModelsAgentsTests/Support/AgentsToolScripting.swift` holds one shared helper of each:
+      - `ScriptedAgentStep.agentsToolCall(_:)` (it replaces `toolStep`),
+      - `AgentsToolArguments.sendAgent(id:message:)` (it replaces `sendArguments` and `sendAgentArguments`),
+      - `AgentsToolHarness.makeRootSession(instructions:slot:adding:)` (it replaces `rootSession`; the default slot is `standard`, SendCallerTests and the defaultSlot test give `\.flash`).
+    - The cause was removed in the whole unit test target, not only in SendCallerTests. The private copies in SendAgentTests, AgentSchedulingTests, AgentsToolMountTests, FinalMessageTests and the internal `NestedRunTests.rootSession(of:)` are removed. The inline copies of the same code (`.toolCall(name: ToolVocabulary.agentsToolName, argumentsJSON:)` and `profile.<slot>.makeSession(instructions:, tools: [harness.tool ...])`) in NestedRunTests, NestedRunTests+Limits, MaxTurnsTests, CheckAfterStartTests, CheckAgentProgressTests, AgentRunLoggingTests, AgentSchedulingTests+Setup and AgentSchedulingTests+CallingRun now call the shared helpers.
+    - Not changed, on purpose: `.deferredToolCall`, `.repeatedToolCall` and `.toolCallWithLastToken` are different step kinds; root sessions that hold only a probe tool (not `harness.tool`) are a different setup.
+    - Each test keeps its slot and its tool list, thus the test behavior is the same.
+
+    Tool note: the `files` `edit file` op with `replace_all: true` replaced only one match per call in this session. Do each edit with a unique context.
+  timestamp: 2026-10-07T22:23:29.335453+00:00
+- actor: claude-code
+  id: 01m4c7dy7f3fpvxfn0tvrj7y8s
+  text: |-
+    ### implement — changed
+    - evidence: 16 files — Sources/FoundationModelsAgents/Tool/{AgentsToolContext,AgentsToolOperations}.swift; Tests/FoundationModelsAgentsTests/Support/AgentsToolScripting.swift (new); Tests/FoundationModelsAgentsTests/{SendCallerTests,SendAgentTests,AgentSchedulingTests,AgentSchedulingTests+Setup,AgentSchedulingTests+CallingRun,AgentsToolMountTests,FinalMessageTests,NestedRunTests,NestedRunTests+Limits,MaxTurnsTests,CheckAfterStartTests,CheckAgentProgressTests,AgentRunLoggingTests}.swift. `swift test`: 462 tests in 66 suites passed. The one build warning "missing creator for mutated node ... mlx-swift_Cmlx.bundle" was there before this task.
+    - next: /review
+  timestamp: 2026-10-07T22:23:32.591383+00:00
 depends_on:
 - 01M4BXTKA17C1EXCN9TZ152P5M
 position_column: doing
@@ -102,3 +141,15 @@ Files:
 
 ## Workflow
 - Use `/tdd`: write the failing tests first, then do the implementation until they pass.
+
+## Review Findings (2026-10-07 17:12)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 9 file(s) reviewed, 4 not reviewed.
+
+> 4 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 4 file(s)
+
+- [x] `Sources/FoundationModelsAgents/Tool/AgentsToolContext.swift:235` `duplication/duplication` — The blank-message guard in messageCaller repeats the guard that SendAgent.execute already runs before it calls messageCaller. The same check and the same corrective are written in two places, so a change to one can drift from the other. Keep one blank-message check for the caller path. Either move the check so that SendAgent calls messageCaller only after its own guard, or add one helper that returns the blank-message corrective or nil, and call it from both SendAgent.execute and messageCaller. Do not change the pre-existing SendAgent guard in place, since it is outside this change; instead remove the new copy from messageCaller or route both through the helper.
+- [x] `Tests/FoundationModelsAgentsTests/SendCallerTests.swift:72` `reuse/reuse` — The new `sendAgentArguments` helper builds the same `send agent` JSON as an existing helper in `SendAgentTests`. The two differ only in the id and the message source. Reuse the `SendAgentTests` helper, or move one shared helper into a support file that both suites call. Keep the message as an argument so the `SendCaller` test can pass its own text.
+- [x] `Tests/FoundationModelsAgentsTests/SendCallerTests.swift:80` `reuse/reuse` — The new private `toolStep` helper rebuilds a scripted `agents` tool call that already exists as a helper in other test suites. Each copy must be kept in step on its own. Move the shared `toolStep` helper into a test support file (for example beside `ScriptedAgentModel.swift`) and call it from all three suites. Do not add a fourth private copy.
+- [x] `Tests/FoundationModelsAgentsTests/SendCallerTests.swift:108` `reuse/reuse` — The new `rootSession(of:)` helper repeats the root-session setup that several other suites already write as their own private helper. This adds one more copy of the same setup. Move the shared root-session helper into a test support file and call it from each suite, or reuse one of the existing helpers if its profile slot and tools match.

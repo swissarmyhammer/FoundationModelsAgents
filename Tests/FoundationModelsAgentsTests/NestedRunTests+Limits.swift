@@ -173,7 +173,7 @@ extension NestedRunTests {
                 registry: AgentRegistry(layers: [layer.layer]),
                 maxConcurrentAgents: Self.siblingLimit)
             defer { try? harness.delete() }
-            let root = NestedRunTests.rootSession(of: harness)
+            let root = harness.makeRootSession(instructions: NestedRunTests.rootKey)
 
             #expect(try await root.respond(to: NestedRunTests.rootPrompt) == NestedRunTests.rootText)
             await secondSiblingGate.waitForArrival()
@@ -307,8 +307,7 @@ extension NestedRunTests {
                 ]),
                 registry: AgentRegistry(layers: [layer.layer]))
             defer { try? harness.delete() }
-            let root = harness.runHarness.profile.flash.makeSession(
-                instructions: NestedRunTests.rootKey, tools: [harness.tool])
+            let root = harness.makeRootSession(instructions: NestedRunTests.rootKey, slot: \.flash)
             let events = await root.streamSessionEvents()
 
             #expect(try await root.respond(to: NestedRunTests.rootPrompt) == NestedRunTests.rootText)

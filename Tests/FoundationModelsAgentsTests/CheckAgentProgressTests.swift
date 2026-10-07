@@ -27,8 +27,7 @@ struct CheckAgentProgressTests {
     private static let reviewerText = "The parser is correct."
 
     /// A pass that calls `list agents` one time.
-    private static let listStep = ScriptedAgentStep.toolCall(
-        name: ToolVocabulary.agentsToolName, argumentsJSON: #"{"op": "list agents"}"#)
+    private static let listStep = ScriptedAgentStep.agentsToolCall(#"{"op": "list agents"}"#)
 
     /// The count of passes of the task answer at its gate: the tool pass
     /// before the gate counts live, at its generation call.

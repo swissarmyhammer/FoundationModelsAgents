@@ -232,8 +232,8 @@ extension SendAgent {
     ///   message. A corrective for a blank message, for a run that ended, or
     ///   for an id that names no run of the caller and not the caller.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
-        guard AgentDefinitionRules.holdsText(message) else {
-            return .corrective(AgentsToolText.blankMessage)
+        if let corrective = AgentsToolContext.blankMessageCorrective(message) {
+            return corrective
         }
         guard !context.isCaller(id) else {
             return await context.messageCaller(message)

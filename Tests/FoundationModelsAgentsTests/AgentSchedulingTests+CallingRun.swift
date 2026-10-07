@@ -47,9 +47,8 @@ extension AgentSchedulingTests {
             """
 
         /// The scripted `start agent` call of the parent run.
-        private static let startStep = ScriptedAgentStep.toolCall(
-            name: ToolVocabulary.agentsToolName,
-            argumentsJSON: #"{"op": "start agent", "name": "\#(reviewer)", "prompt": "\#(childKey)"}"#)
+        private static let startStep = ScriptedAgentStep.agentsToolCall(
+            #"{"op": "start agent", "name": "\#(reviewer)", "prompt": "\#(childKey)"}"#)
 
         /// Makes the script of the test.
         ///

@@ -71,8 +71,7 @@ extension AgentSchedulingTests {
 
         /// The step of the root session that starts the code-reviewer with
         /// `start agent`.
-        private static let startStep =
-            ScriptedAgentStep.toolCall(name: ToolVocabulary.agentsToolName, argumentsJSON: startArguments)
+        private static let startStep = ScriptedAgentStep.agentsToolCall(startArguments)
 
         /// The step of the root session that starts the lead with the probe
         /// tool.
@@ -142,8 +141,7 @@ extension AgentSchedulingTests {
             let probe = AgentStartProbe { context in
                 await harness.runner.start(try Self.leadRequest(in: harness, context: context, gate: gates.setup))
             }
-            let root = harness.runHarness.profile.standard.makeSession(
-                instructions: Self.rootKey, tools: [harness.tool, probe])
+            let root = harness.makeRootSession(instructions: Self.rootKey, adding: [probe])
 
             async let rootAnswer = root.respond(to: Self.rootPrompt)
             await gates.reviewer.waitForArrival()
@@ -170,8 +168,7 @@ extension AgentSchedulingTests {
             let gates = SetupGates()
             let harness = try await AgentsToolHarness.make(script: Self.script(gates, rootCalls: [Self.startStep]))
             defer { try? harness.delete() }
-            let root = harness.runHarness.profile.standard.makeSession(
-                instructions: Self.rootKey, tools: [harness.tool])
+            let root = harness.makeRootSession(instructions: Self.rootKey)
             let hostRequest = try Self.leadRequest(in: harness, context: nil, gate: gates.setup)
 
             _ = try await root.respond(to: Self.rootPrompt)

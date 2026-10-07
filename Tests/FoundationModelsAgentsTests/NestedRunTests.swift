@@ -72,9 +72,7 @@ struct NestedRunTests {
     ///   - prompt: The prompt of the run. It is the key of its play.
     /// - Returns: The step.
     static func startStep(_ name: String, prompt: String) -> ScriptedAgentStep {
-        .toolCall(
-            name: ToolVocabulary.agentsToolName,
-            argumentsJSON: #"{"op": "start agent", "name": "\#(name)", "prompt": "\#(prompt)"}"#)
+        .agentsToolCall(#"{"op": "start agent", "name": "\#(name)", "prompt": "\#(prompt)"}"#)
     }
 
     /// The play of a parent run: it starts one run for each entry of
@@ -117,15 +115,6 @@ struct NestedRunTests {
     static func rootPlay(starting name: String, prompt: String) -> ScriptedAgentPlay {
         ScriptedAgentPlay(
             key: rootKey, steps: [startStep(name, prompt: prompt), .finalText(rootText), .finalTextOfLastPrompt])
-    }
-
-    /// Makes a root session over the `standard` slot, with the `agents` tool
-    /// of the harness.
-    ///
-    /// - Parameter harness: The harness of the tool.
-    /// - Returns: The root session.
-    static func rootSession(of harness: AgentsToolHarness) -> any RoutedSession {
-        harness.runHarness.profile.standard.makeSession(instructions: rootKey, tools: [harness.tool])
     }
 
     /// Gives the one run that `caller` started.
@@ -284,7 +273,7 @@ struct NestedRunTests {
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.wait(gate), .finalText(Self.reviewerText)])
             ]))
         defer { try? harness.delete() }
-        let root = Self.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootKey)
         let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
@@ -317,7 +306,7 @@ struct NestedRunTests {
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.wait(gate), .finalText(Self.reviewerText)])
             ]))
         defer { try? harness.delete() }
-        let root = Self.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootKey)
         let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
@@ -348,7 +337,7 @@ struct NestedRunTests {
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)])
             ]))
         defer { try? harness.delete() }
-        let root = Self.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootKey)
         let rootEvents = await root.streamSessionEvents()
         var mailAnswers = rootEvents.compactMap { event -> SessionAnswer? in
             if case .answered(let answer) = event, answer.messageIds.isEmpty { answer } else { nil }
@@ -374,7 +363,7 @@ struct NestedRunTests {
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)])
             ]))
         defer { try? harness.delete() }
-        let root = Self.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootKey)
         let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)

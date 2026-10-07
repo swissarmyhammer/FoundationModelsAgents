@@ -51,8 +51,7 @@ struct AgentRunLoggingTests {
     private static let partialText = "partial-secret-9a2c"
 
     /// A pass that calls `list agents` one time.
-    private static let listStep = ScriptedAgentStep.toolCall(
-        name: ToolVocabulary.agentsToolName, argumentsJSON: #"{"op": "list agents"}"#)
+    private static let listStep = ScriptedAgentStep.agentsToolCall(#"{"op": "list agents"}"#)
 
     /// The error type name of each failure of a run.
     private static let runFailureTypeName = "AgentRunFailure"

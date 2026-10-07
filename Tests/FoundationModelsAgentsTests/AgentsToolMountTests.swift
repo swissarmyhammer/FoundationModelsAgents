@@ -82,14 +82,6 @@ struct AgentsToolMountTests {
         #"{"op": "\#(operation)", "id": "\#(run.id)"}"#
     }
 
-    /// A scripted call of the `agents` tool.
-    ///
-    /// - Parameter argumentsJSON: The JSON arguments of the call.
-    /// - Returns: The step.
-    private static func toolStep(_ argumentsJSON: String) -> ScriptedAgentStep {
-        .toolCall(name: ToolVocabulary.agentsToolName, argumentsJSON: argumentsJSON)
-    }
-
     @Test("start agent is background, and list, check, and cancel agent are synchronous", arguments: modes)
     func mountOfEachOperation(_ call: (op: String, mode: ToolMount.Mode)) async throws {
         let harness = try await AgentsToolHarness.make()
@@ -138,8 +130,8 @@ struct AgentsToolMountTests {
         let checkArguments = ScriptedArguments()
         let cancelArguments = ScriptedArguments()
         let rootSteps: [ScriptedAgentStep] = [
-            Self.toolStep(Self.startArguments), .finalText(Self.rootText),
-            Self.toolStep(Self.listArguments),
+            .agentsToolCall(Self.startArguments), .finalText(Self.rootText),
+            .agentsToolCall(Self.listArguments),
             .deferredToolCall(name: ToolVocabulary.agentsToolName, arguments: checkArguments),
             .deferredToolCall(name: ToolVocabulary.agentsToolName, arguments: cancelArguments),
             .finalText(Self.rootText), .finalTextOfLastPrompt
@@ -150,7 +142,7 @@ struct AgentsToolMountTests {
                 ScriptedAgentPlay(key: Self.childPrompt, steps: [.wait(gate), .finalText(Self.childText)])
             ]))
         defer { try? harness.delete() }
-        let root = harness.runHarness.profile.standard.makeSession(instructions: Self.rootKey, tools: [harness.tool])
+        let root = harness.makeRootSession(instructions: Self.rootKey)
         let events = await root.streamSessionEvents()
 
         _ = try await root.respond(to: Self.rootPrompt)

@@ -232,11 +232,25 @@ public struct AgentsToolContext: Sendable {
         guard let callerLink else {
             return .corrective(AgentsToolText.noCaller)
         }
-        guard AgentDefinitionRules.holdsText(message) else {
-            return .corrective(AgentsToolText.blankMessage)
+        if let corrective = Self.blankMessageCorrective(message) {
+            return corrective
         }
         await callerLink.call.message(message)
         return .success(AgentsToolText.messageSentToCaller)
+    }
+
+    /// Gives the corrective of `send agent` and `send caller` for a message
+    /// that holds no text. This is the one blank-message check of the two
+    /// operations.
+    ///
+    /// - Parameter message: The text of the message.
+    /// - Returns: ``AgentsToolText/blankMessage`` as a corrective when
+    ///   `message` holds no text, or `nil` when it holds text.
+    static func blankMessageCorrective(_ message: String) -> AgentsToolAnswer? {
+        guard AgentDefinitionRules.holdsText(message) else {
+            return .corrective(AgentsToolText.blankMessage)
+        }
+        return nil
     }
 
     /// Gives the answer of `check agent` with no id: one block for each run

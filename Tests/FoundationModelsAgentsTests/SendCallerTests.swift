@@ -65,22 +65,6 @@ struct SendCallerTests {
         #"{"op": "send caller", "message": "\#(text)"}"#
     }
 
-    /// The JSON arguments of a `send agent` call.
-    ///
-    /// - Parameter id: The id that the call names.
-    /// - Returns: The JSON text.
-    private static func sendAgentArguments(id: String) -> String {
-        #"{"op": "send agent", "id": "\#(id)", "message": "\#(message)"}"#
-    }
-
-    /// A scripted call of the `agents` tool.
-    ///
-    /// - Parameter argumentsJSON: The JSON arguments of the call.
-    /// - Returns: The step.
-    private static func toolStep(_ argumentsJSON: String) -> ScriptedAgentStep {
-        .toolCall(name: ToolVocabulary.agentsToolName, argumentsJSON: argumentsJSON)
-    }
-
     /// The script of the root session and of one child run.
     ///
     /// The root session starts the child, answers, and then answers each
@@ -93,20 +77,10 @@ struct SendCallerTests {
             ScriptedAgentPlay(
                 key: rootKey,
                 steps: [
-                    toolStep(startArguments), .finalText(rootText), .finalTextOfLastPrompt, .finalTextOfLastPrompt
+                    .agentsToolCall(startArguments), .finalText(rootText), .finalTextOfLastPrompt, .finalTextOfLastPrompt
                 ]),
             ScriptedAgentPlay(key: childPrompt, steps: childSteps)
         ])
-    }
-
-    /// Makes a root session over the `flash` slot, with the `agents` tool of
-    /// the harness. The child runs on the `standard` slot, thus the two do
-    /// not wait for one generation queue.
-    ///
-    /// - Parameter harness: The harness of the tool.
-    /// - Returns: The root session.
-    private static func rootSession(of harness: AgentsToolHarness) -> any RoutedSession {
-        harness.runHarness.profile.flash.makeSession(instructions: rootKey, tools: [harness.tool])
     }
 
     /// Gives an iterator over the `runMessage` events and the mail answers
@@ -148,7 +122,7 @@ struct SendCallerTests {
         let harness = try await AgentsToolHarness.make(
             script: script(childSteps: [sendStep, .wait(gate), .finalText(childText)]))
         defer { try? harness.delete() }
-        let root = rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: rootKey, slot: \.flash)
         setUp(root)
         var events = await rootEvents(of: root)
 
@@ -189,7 +163,7 @@ struct SendCallerTests {
           .timeLimit(.minutes(1)))
     func sendCallerReachesTheCallerAsMail() async throws {
         let (events, run, toolOutputs) = try await Self.runWithMessage(
-            sendStep: Self.toolStep(Self.sendCallerArguments(Self.message)))
+            sendStep: .agentsToolCall(Self.sendCallerArguments(Self.message)))
 
         #expect(events.count == 3)
         #expect(Self.isMessageEvent(events[0]))
@@ -206,7 +180,9 @@ struct SendCallerTests {
         let (events, run, _) = try await Self.runWithMessage(
             sendStep: .deferredToolCall(name: ToolVocabulary.agentsToolName, arguments: send),
             setUp: { root in
-                send.set(Self.sendAgentArguments(id: " \(root.id.description.lowercased()) "))
+                send.set(
+                    AgentsToolArguments.sendAgent(
+                        id: " \(root.id.description.lowercased()) ", message: Self.message))
             })
 
         #expect(events.count == 3)
@@ -229,7 +205,7 @@ struct SendCallerTests {
     func hostStartedRunHasNoCaller() async throws {
         let harness = try await AgentsToolHarness.make(
             script: Self.script(childSteps: [
-                Self.toolStep(Self.sendCallerArguments(Self.message)), .finalText(Self.childText)
+                .agentsToolCall(Self.sendCallerArguments(Self.message)), .finalText(Self.childText)
             ]))
         defer { try? harness.delete() }
 
@@ -245,10 +221,10 @@ struct SendCallerTests {
     func sendCallerWithABlankMessageIsCorrective() async throws {
         let harness = try await AgentsToolHarness.make(
             script: Self.script(childSteps: [
-                Self.toolStep(Self.sendCallerArguments(Self.blankMessageJSON)), .finalText(Self.childText)
+                .agentsToolCall(Self.sendCallerArguments(Self.blankMessageJSON)), .finalText(Self.childText)
             ]))
         defer { try? harness.delete() }
-        let root = Self.rootSession(of: harness)
+        let root = harness.makeRootSession(instructions: Self.rootKey, slot: \.flash)
         var events = await Self.rootEvents(of: root)
 
         _ = try await root.respond(to: Self.rootPrompt)
