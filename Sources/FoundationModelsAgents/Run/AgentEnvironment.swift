@@ -104,6 +104,15 @@ public struct AgentEnvironment: Sendable {
     /// runs too, to one factory.
     public let metricsFactory: (any MetricsFactory)?
 
+    /// The most answers in a row that mail alone starts in the session of a
+    /// run, with no caller message between them. Message mail and final
+    /// messages both count. When the Router holds the mail at this limit,
+    /// the run fails with ``AgentRunFailure/mailDeliveryPaused(_:)``.
+    ///
+    /// The default is the default of the Router,
+    /// `SessionConfiguration.defaultMailOnlyAnswerLimit`.
+    var mailOnlyAnswerLimit = SessionConfiguration.defaultMailOnlyAnswerLimit
+
     /// Makes an environment.
     ///
     /// A value out of its range is a programmer error and stops the process.

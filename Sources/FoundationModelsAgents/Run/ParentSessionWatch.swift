@@ -1,3 +1,4 @@
+import Foundation
 import FoundationModelsRouter
 import Synchronization
 
@@ -19,15 +20,30 @@ import Synchronization
 /// ``SessionEvent/runSettled(_:)`` with that token as the `correlationID` of
 /// the terminal.
 ///
+/// The watch also keeps each message that a running child sent
+/// (``SessionEvent/runMessage(_:)``), in order, for each token. One child can
+/// send many messages with one token, thus the watch keeps a list for each
+/// token and not one message. The idle rule reads them
+/// (``isEachMessageDelivered(inAnsweredPrompts:)``): the session is idle only
+/// when the answered prompts hold the mail line of each message.
+///
 /// A class, because the follower of the run and the close of the run share
 /// one watch. A `Mutex` guards the state, thus the `Sendable` conformance is
 /// compiler-checked.
 final class ParentSessionWatch: Sendable {
+    /// The words of the Router for the state of a message in its mail line
+    /// (`OperationEventSegment.renderedLine(for:)` of the Router).
+    static let messageState = "message, still running"
+
     /// The state that the lock guards.
     private struct State {
         /// The detail of each terminal that the Router recorded, by the
         /// token of its call.
         var settledDetails: [String: String] = [:]
+
+        /// The messages that each running child sent, in event order, by
+        /// the token of its call.
+        var messages: [String: [OperationEvent]] = [:]
 
         /// The waits for the settlement of a call, by token.
         var settlementWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
@@ -51,6 +67,49 @@ final class ParentSessionWatch: Sendable {
         if case .runSettled(let terminal) = event {
             resume(takingSettlementWaiters(of: terminal))
         }
+        if case .runMessage(let message) = event {
+            state.withLock { $0.messages[message.correlationID, default: []].append(message) }
+        }
+    }
+
+    /// Gives the line that the Router puts in a prompt for the mail of
+    /// `message`: "[tool] op (token) message, still running: text".
+    ///
+    /// - Parameter message: A message of a running child.
+    /// - Returns: The mail line.
+    static func mailLine(of message: OperationEvent) -> String {
+        "[\(message.tool)] \(message.op) (\(message.correlationID)) \(messageState): \(message.detail)"
+    }
+
+    /// Tells if the session delivered each message that a child sent.
+    ///
+    /// A message is delivered when an answered prompt holds its mail line
+    /// (``mailLine(of:)``). Two messages with the same mail line need two
+    /// such lines, thus the rule counts the lines and does not only look for
+    /// one.
+    ///
+    /// - Parameter prompts: The text of each prompt that an answer that the
+    ///   run processed answered
+    ///   (``AgentRunAnswers/answeredPromptTexts(in:)``).
+    /// - Returns: `true` when the prompts hold the mail line of each message
+    ///   one time for each message.
+    func isEachMessageDelivered(inAnsweredPrompts prompts: [String]) -> Bool {
+        let messages = state.withLock { Array($0.messages.values.joined()) }
+        let needed = Dictionary(messages.map { (Self.mailLine(of: $0), 1) }, uniquingKeysWith: +)
+        return needed.allSatisfy { line, count in
+            prompts.reduce(0) { total, prompt in total + Self.count(of: line, in: prompt) } >= count
+        }
+    }
+
+    /// Gives the count of the places where `line` stands in `text`, with no
+    /// overlap.
+    ///
+    /// - Parameters:
+    ///   - line: The text to find.
+    ///   - text: The text to look in.
+    /// - Returns: The count.
+    private static func count(of line: String, in text: String) -> Int {
+        text.components(separatedBy: line).count - 1
     }
 
     /// Gives the detail of the terminal of the call `token`.

@@ -18,8 +18,9 @@ enum AgentRunPhase: Sendable, Equatable {
     /// run that is not idle after an answer waits for mail in each case.
     case waitingForChildren
 
-    /// The run is in an answer to the final message of a run that it
-    /// started.
+    /// The run is in an answer after the answer of its task prompt: an
+    /// answer to the final message or to a message of a run that it
+    /// started, or to a message from its caller.
     case answeringMail
 
     /// Gives the phase of a run after one session event.

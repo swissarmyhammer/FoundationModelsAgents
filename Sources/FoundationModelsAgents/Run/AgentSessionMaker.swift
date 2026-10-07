@@ -59,12 +59,15 @@ struct AgentSessionMaker: Sendable {
             for: request, as: ParentRun(depth: request.depth, slot: slot, family: family))
         let model = ModelMatch.model(of: slot, in: environment.profile)
         let session = model.makeSession(
-            instructions: instructions,
-            workingDirectory: environment.workingDirectory,
-            tools: tools,
-            budget: environment.budget(model.contextTokens),
-            compactionPrompt: definition.compactionPrompt ?? .default,
-            agentSpawn: request.agentSpawn)
+            configuration: SessionConfiguration(
+                instructions: instructions,
+                workingDirectory: environment.workingDirectory,
+                tools: tools,
+                compaction: CompactionSettings(
+                    budget: environment.budget(model.contextTokens),
+                    prompt: definition.compactionPrompt ?? .default),
+                agentSpawn: request.agentSpawn,
+                mailOnlyAnswerLimit: environment.mailOnlyAnswerLimit))
         return Made(session: session, slot: slot)
     }
 

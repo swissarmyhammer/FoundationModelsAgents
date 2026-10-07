@@ -136,6 +136,20 @@ struct AgentRunAnswersTests {
     }
 
     @Test(
+        "the answered prompt texts are the prompts that the processed answers answered, and none while an answer is open",
+        .timeLimit(.minutes(1)))
+    func answeredPromptTextsFollowTheProcessedEvents() async throws {
+        let recording = try await Self.recordTwoAnswers()
+        let first = Self.answers(applying: recording.firstAnswerEvents)
+        let open = Self.answers(applying: recording.openSecondAnswerEvents)
+        let both = Self.answers(applying: recording.events)
+
+        #expect(first.answeredPromptTexts(in: recording.transcript) == [Self.taskPrompt])
+        #expect(open.answeredPromptTexts(in: recording.transcript).isEmpty)
+        #expect(both.answeredPromptTexts(in: recording.transcript) == [Self.taskPrompt, Self.finalMessage])
+    }
+
+    @Test(
         "a transcript without the newest recorded entry, for example after a compaction, answers no prompt",
         .timeLimit(.minutes(1)))
     func transcriptWithoutRecordedEntryAnswersNoPrompt() async throws {

@@ -39,6 +39,34 @@ struct AgentRunProgressTests {
     /// The session of each tool-invocation record.
     private static let sessionID = ULID()
 
+    /// The completion token of the `start agent` call of the child in the
+    /// message tests.
+    private static let childToken = "progress-child-token"
+
+    /// The first line of the newest message of the child.
+    private static let messageFirstLine = "Half of the files are done."
+
+    /// The newest message of the child: two lines.
+    private static let messageText = "\(messageFirstLine)\nThe other files come next."
+
+    /// An earlier message of the child.
+    private static let earlierMessage = "progress-earlier-message: I started."
+
+    /// The final message of the child.
+    private static let finalMessage = "Agent helper (progress-child) finished."
+
+    /// Gives an event of the agents tool for the child.
+    ///
+    /// - Parameters:
+    ///   - kind: The kind of the event.
+    ///   - detail: The detail of the event.
+    /// - Returns: The event.
+    private static func childEvent(_ kind: OperationEventKind, detail: String) -> OperationEvent {
+        OperationEvent(
+            tool: ToolVocabulary.agentsToolName, op: StartAgent.opString, correlationID: childToken, kind: kind,
+            detail: detail)
+    }
+
     /// Gives the open live record of a call of the tool `name`.
     ///
     /// - Parameter name: The name of the tool.
@@ -152,6 +180,28 @@ struct AgentRunProgressTests {
         #expect(written.textTail == Self.answer)
         #expect(written.text.hasSuffix("\nText so far: \(Self.answer)"))
         #expect(reset.textTail == Self.answer)
+    }
+
+    @Test("the newest message of a running child is the last event of that child: the first line of its text")
+    func childMessageIsLastEventOfChild() {
+        let progress = Self.record(applying: [
+            .runMessage(Self.childEvent(.message, detail: Self.earlierMessage)),
+            .runMessage(Self.childEvent(.message, detail: Self.messageText))
+        ])
+
+        #expect(progress.text.contains("\nLast event of \(Self.childToken): message: \(Self.messageFirstLine)\n"))
+        #expect(!progress.text.contains(Self.earlierMessage))
+        #expect(progress.text.hasSuffix("\nText so far: none."))
+    }
+
+    @Test("a child that settled is not running: the text has no message line for it")
+    func settledChildHasNoMessageLine() {
+        let progress = Self.record(applying: [
+            .runMessage(Self.childEvent(.message, detail: Self.messageText)),
+            .runSettled(Self.childEvent(.completed, detail: Self.finalMessage))
+        ])
+
+        #expect(!progress.text.contains(Self.childToken))
     }
 
     @Test("the text of an answer to a final message replaces the tail")

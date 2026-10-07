@@ -31,6 +31,21 @@ struct TemporaryLayer {
         return TemporaryLayer(container: container, root: root)
     }
 
+    /// Makes a layer root that holds `files`.
+    ///
+    /// - Parameter files: The text of each file, by its path relative to the
+    ///   root, for example `agents/helper.md`.
+    /// - Returns: The new layer.
+    /// - Throws: The error of the file system when it cannot make the folder
+    ///   or write a file.
+    static func make(holding files: [String: String]) throws -> TemporaryLayer {
+        let layer = try makeEmpty()
+        for (path, text) in files {
+            try layer.write(text, at: path)
+        }
+        return layer
+    }
+
     /// Makes a copy of the layer root at `source`.
     ///
     /// - Parameter source: The layer root to copy, for example

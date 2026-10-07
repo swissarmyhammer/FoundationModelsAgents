@@ -102,11 +102,7 @@ extension NestedRunTests {
         /// - Returns: The layer. The test deletes it.
         /// - Throws: The error of the file system.
         private static func makeLayer() throws -> TemporaryLayer {
-            let layer = try TemporaryLayer.makeEmpty()
-            for (path, text) in agentFiles {
-                try layer.write(text, at: path)
-            }
-            return layer
+            try TemporaryLayer.make(holding: agentFiles)
         }
 
         /// The script of the sibling test.

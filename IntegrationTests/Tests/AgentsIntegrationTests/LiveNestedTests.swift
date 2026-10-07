@@ -19,6 +19,11 @@ extension LiveSuites {
     /// that gave the final message of `leaf` before that final answer. Thus
     /// the test proves that `lead` waited for `leaf` and read its result.
     ///
+    /// In the message test, the child ``messenger`` sends one progress
+    /// message to its caller with `send caller`, and then finishes. The
+    /// transcript of the parent records the message as a post and as mail in
+    /// a prompt, and the parent finishes.
+    ///
     /// The test reads the transcripts only after `result()` of each run and
     /// `close()` of the root session, thus each transcript is complete
     /// (``LiveRecording``).
@@ -38,6 +43,28 @@ extension LiveSuites {
 
         /// The word that ``leaf`` answers with.
         private static let leafWord = "PAPAYA"
+
+        /// The agent that the root starts in the message test. It starts
+        /// ``messenger``.
+        private static let messageLead = "message-lead"
+
+        /// The agent that ``messageLead`` starts. It sends one progress
+        /// message to its caller, and then finishes.
+        private static let messenger = "messenger"
+
+        /// The task that ``messageLead`` gives to ``messenger``.
+        private static let messengerTask = "Do your part now."
+
+        /// The progress message that the body of ``messenger`` tells it to
+        /// send. A small model can change the text, thus the test asserts
+        /// that a message came, and not its words.
+        private static let progressMessage = "PROGRESS: half of the part is done"
+
+        /// The word that ``messenger`` answers with after its message.
+        private static let messengerWord = "MANGO"
+
+        /// The op of `send caller`.
+        private static let sendCallerOperation = "send caller"
 
         @Test("agentSpawn links three sessions, parentToolCallId joins to the start agent call, lead reads leaf")
         func agentSpawnLinksThreeSessions() async throws {
@@ -87,6 +114,65 @@ extension LiveSuites {
                     "The final answer of lead was: \(leadText)")
                 #expect(try LiveRecording.readsPost(leafSpawn.parentToolCallId, beforeFinalAnswerIn: leadDirectory))
             }
+        }
+
+        @Test("a child sends one progress message to its caller: the parent reads it as mail, and finishes")
+        func childMessageReachesTheParent() async throws {
+            let agents = try Self.messageAgentFiles()
+
+            try await LiveHarness.withHarness(agents: agents) { harness in
+                let root = harness.makeRootSession(tools: [try await harness.makeAgentsTool()])
+                _ = try await root.respond(
+                    to: try LiveHarness.agentsCallText([
+                        "op": LiveHarness.startOperation, "name": Self.messageLead, "prompt": Self.leadTask
+                    ]))
+                let lead = try LiveHarness.run(of: Self.messageLead, in: await harness.runner.runs(caller: root.id))
+                let leadText = try await lead.result()
+                let child = try LiveHarness.run(of: Self.messenger, in: await harness.runner.runs(caller: lead.id))
+                await root.close()
+
+                let token = try #require(try LiveRecording.session(of: child).agentSpawn).parentToolCallId
+                let leadDirectory = try #require(lead.recordingDirectory)
+                let posted = try LiveRecording.operationEvents(of: .toolOutput, in: leadDirectory)
+                    .filter { $0.kind == .message && $0.correlationID == token }
+                let read = try LiveRecording.operationEvents(of: .prompt, in: leadDirectory)
+                    .filter { $0.kind == .message && $0.correlationID == token }
+
+                #expect(!posted.isEmpty, "The child posted no message to the lead")
+                #expect(read.map(\.detail) == posted.map(\.detail), "The posted: \(posted). The read: \(read)")
+                #expect(lead.state == .finished(leadText))
+            }
+        }
+
+        /// Gives the files of ``messageLead`` and ``messenger``.
+        ///
+        /// `messageLead` inherits the `standard` slot of the root and may
+        /// start only `messenger`. `messenger` runs on the `flash` slot, and
+        /// its `Agent` key gives it the agents tool with `send caller`. Its
+        /// body gives it the exact call of `send caller`, and then one word to
+        /// answer with.
+        ///
+        /// - Returns: The text of each file, by its path.
+        /// - Throws: The error of ``LiveHarness/agentsCallText(_:)``.
+        private static func messageAgentFiles() throws -> [String: String] {
+            let leadCall = try LiveHarness.agentsCallText([
+                "op": LiveHarness.startOperation, "name": messenger, "prompt": messengerTask
+            ])
+            let sendCall = try LiveHarness.agentsCallText([
+                "op": sendCallerOperation, "message": progressMessage
+            ])
+            return [
+                LiveAgentFile.path(of: messageLead): LiveAgentFile.text(
+                    id: messageLead,
+                    description: "Starts the messenger agent.",
+                    fields: ["tools: Agent(\(messenger))"],
+                    body: "\(leadCall) \(LiveHarness.waitInstruction)"),
+                LiveAgentFile.path(of: messenger): LiveAgentFile.text(
+                    id: messenger,
+                    description: "Sends one progress message to its caller, then answers with one word.",
+                    fields: ["model: flash", "tools: Agent"],
+                    body: "\(sendCall) After the call, \(LiveAgentFile.answerBody(word: messengerWord))")
+            ]
         }
 
         /// Gives the files of ``lead`` and ``leaf``.

@@ -78,14 +78,28 @@ struct AgentRunAnswers: Sendable, Equatable {
     ///   `transcript` does not hold that entry, for example after a
     ///   compaction: the end of the next answer then checks again.
     internal func hasAnswered(promptHolding text: String, in transcript: Transcript) -> Bool {
+        answeredPromptTexts(in: transcript).contains { $0.contains(text) }
+    }
+
+    /// Gives the text of each prompt of `transcript` that an answer that the
+    /// processed events ended answered.
+    ///
+    /// The rule of ``hasAnswered(promptHolding:in:)`` decides which prompts
+    /// are answered: each prompt before the newest entry that a processed
+    /// `entryRecorded` named, when no answer is open.
+    ///
+    /// - Parameter transcript: A transcript of the session.
+    /// - Returns: The text of each answered prompt, in transcript order. No
+    ///   text while an answer is open, or when `transcript` does not hold the
+    ///   newest recorded entry.
+    internal func answeredPromptTexts(in transcript: Transcript) -> [String] {
         guard !isAnswerOpen,
             let lastRecordedEntryID,
             let end = transcript.firstIndex(where: { $0.id == lastRecordedEntryID })
         else {
-            return false
+            return []
         }
-        let answered = Transcript(entries: transcript[transcript.startIndex..<end])
-        return AgentRun.promptTexts(in: answered).contains { $0.contains(text) }
+        return AgentRun.promptTexts(in: Transcript(entries: transcript[transcript.startIndex..<end]))
     }
 
     /// Ends the open answer with `reply`.

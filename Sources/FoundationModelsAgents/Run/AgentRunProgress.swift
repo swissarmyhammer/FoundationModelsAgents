@@ -15,6 +15,22 @@ import FoundationModelsRouter
 /// The record never reads the transcript. Thus a read of the record never
 /// waits for the turn.
 struct AgentRunProgress: Sendable, Equatable {
+    /// The last message of one running child, as the last event of that
+    /// child.
+    struct ChildMessage: Sendable, Equatable {
+        /// The completion token of the `start agent` call of the child.
+        let token: String
+
+        /// The first line of the text of the message.
+        let firstLine: String
+
+        /// The line of the text of the record: "Last event of `token`:
+        /// message: `firstLine`".
+        var line: String {
+            "Last event of \(token): message: \(firstLine)"
+        }
+    }
+
     /// The most tool names that the record keeps.
     static let toolNameLimit = 5
 
@@ -46,17 +62,19 @@ struct AgentRunProgress: Sendable, Equatable {
     /// ``textTail``.
     private var isCut = false
 
+    /// The last message of each running child that sent a message, in the
+    /// order of the first message of each child.
+    private(set) var childMessages: [ChildMessage] = []
+
     /// The lines that tell the record: the phase, the pass count, the last
-    /// tool names, and the text so far.
+    /// tool names, the last message of each running child, and the text so
+    /// far.
     var text: String {
         let tools = toolNames.isEmpty ? Self.none : toolNames.joined(separator: ", ")
         let tail = textTail.isEmpty ? "\(Self.none)." : (isCut ? Self.cutMark : "") + textTail
-        return """
-            Phase: \(phaseName).
-            Passes: \(passes).
-            Last tools: \(tools).
-            Text so far: \(tail)
-            """
+        let lines = ["Phase: \(phaseName).", "Passes: \(passes).", "Last tools: \(tools)."]
+            + childMessages.map(\.line) + ["Text so far: \(tail)"]
+        return lines.joined(separator: "\n")
     }
 
     /// The name of ``phase`` in the text.
@@ -78,9 +96,12 @@ struct AgentRunProgress: Sendable, Equatable {
     /// runs. The `toolCall` event of the same call comes from the transcript
     /// diff when the submission ends, thus it adds no name a second time. A
     /// text delta adds to the tail, and a text reset clears it. The end of an
-    /// answer puts its reply in the tail. `SessionEvent` has no library
-    /// evolution, thus each other event changes nothing. A pass entry also
-    /// changes nothing: ``AgentRunTurns`` counts the passes.
+    /// answer puts its reply in the tail. A message of a child is the last
+    /// event of that child (``record(childMessage:)``), and the settlement of
+    /// a child removes that event: the child does not run now.
+    /// `SessionEvent` has no library evolution, thus each other event
+    /// changes nothing. A pass entry also changes nothing: ``AgentRunTurns``
+    /// counts the passes.
     ///
     /// - Parameter event: The event.
     mutating func apply(_ event: SessionEvent) {
@@ -95,6 +116,26 @@ struct AgentRunProgress: Sendable, Equatable {
         }
         if case .answered(let answer) = event {
             replaceText(with: answer.reply)
+        }
+        if case .runMessage(let message) = event {
+            record(childMessage: message)
+        }
+        if case .runSettled(let terminal) = event {
+            childMessages.removeAll { $0.token == terminal.correlationID }
+        }
+    }
+
+    /// Keeps the first line of `message` as the last event of its child. A
+    /// child that sent a message before keeps its place in the list.
+    ///
+    /// - Parameter message: The message of a child.
+    private mutating func record(childMessage message: OperationEvent) {
+        let firstLine = message.detail.prefix { !$0.isNewline }
+        let line = ChildMessage(token: message.correlationID, firstLine: String(firstLine))
+        if let index = childMessages.firstIndex(where: { $0.token == line.token }) {
+            childMessages[index] = line
+        } else {
+            childMessages.append(line)
         }
     }
 

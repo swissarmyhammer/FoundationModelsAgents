@@ -208,9 +208,9 @@ extension AgentRun {
     ///   after the count went above the limit. Else an answer gives
     ///   ``AgentRunSignal/idle(_:acceptedMessages:)`` when the session is
     ///   idle.
-    /// - A settled background run gives
-    ///   ``AgentRunSignal/idle(_:acceptedMessages:)`` when the
-    ///   session is idle after it (``idleSignalAfterSettlement(on:)``).
+    /// - A settled background run, and a message of a running child, give
+    ///   ``AgentRunSignal/idle(_:acceptedMessages:)`` when the session is
+    ///   idle after them (``idleSignalAfterRunEvent(on:)``).
     /// - A failed answer to mail alone gives
     ///   ``AgentRunSignal/mailAnswerFailed(_:)``. A failed answer of the task
     ///   prompt gives nothing here: its error comes from its own stream.
@@ -228,7 +228,10 @@ extension AgentRun {
             return await idleSignal(reply: answer.reply, on: session)
         }
         if case .runSettled = event {
-            return await idleSignalAfterSettlement(on: session)
+            return await idleSignalAfterRunEvent(on: session)
+        }
+        if case .runMessage = event {
+            return await idleSignalAfterRunEvent(on: session)
         }
         if case .answerFailed(let failure) = event {
             if turns.isLimitHit {
@@ -243,19 +246,21 @@ extension AgentRun {
     }
 
     /// Gives ``AgentRunSignal/idle(_:acceptedMessages:)`` when the session is
-    /// idle after a background run settled, with the reply of the last
-    /// answer.
+    /// idle after a background run settled or a running child sent a
+    /// message, with the reply of the last answer.
     ///
     /// The Router stages the final message of a run before it sends its
     /// ``SessionEvent/runSettled(_:)``, thus the answer to that final message
-    /// can end before the event. The idle check of that answer then fails,
+    /// can end before the event. The mail of a message
+    /// (``SessionEvent/runMessage(_:)``) can also start its answer before
+    /// the run reads the event. The idle check of that answer then fails,
     /// and this check after the event is the one that ends the run.
     ///
     /// - Parameter session: The session of the run.
     /// - Returns: The signal, or `nil` when no answer ended yet, when an
     ///   answer is open, when the count of passes is above the limit, or when
     ///   the session is not idle.
-    private func idleSignalAfterSettlement(on session: any RoutedSession) async -> AgentRunSignal? {
+    private func idleSignalAfterRunEvent(on session: any RoutedSession) async -> AgentRunSignal? {
         let answers = answers
         guard answers.hasAnswered, !answers.isAnswerOpen, !turns.isLimitHit else {
             return nil
@@ -298,6 +303,13 @@ extension AgentRun {
     /// when an answer ends. The envelope is in the transcript already, and
     /// its terminal is not settled, so the session is not idle.
     ///
+    /// Each message that a running child sent keeps the session from idle
+    /// in the same way, until an answered prompt holds its mail
+    /// (``ParentSessionWatch/isEachMessageDelivered(inAnsweredPrompts:)``).
+    /// The Router can give the message and the final message of one child
+    /// in one submission or in two. Each order passes this check only after
+    /// the answer to each of them.
+    ///
     /// A message from the caller also keeps the session from idle, from the
     /// time that ``deliver(_:)`` accepts it to the end of its answer. While
     /// the run holds the message, and while the message goes to the queue,
@@ -331,7 +343,9 @@ extension AgentRun {
             }
             return answers.hasAnswered(promptHolding: finalMessage, in: transcript)
         }
-        return isDelivered ? acceptedMessages : nil
+        let isEachMessageDelivered = sessionWatch.isEachMessageDelivered(
+            inAnsweredPrompts: answers.answeredPromptTexts(in: transcript))
+        return isDelivered && isEachMessageDelivered ? acceptedMessages : nil
     }
 
     /// Gives the completion token of each pending envelope that a tool

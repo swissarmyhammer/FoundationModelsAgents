@@ -81,7 +81,8 @@ struct AgentRunHarness {
     }
 
     /// Makes the environment of each run with a count of retained records,
-    /// a run limit, and a depth limit.
+    /// a run limit, a depth limit, and a limit of answers that mail alone
+    /// starts.
     ///
     /// - Parameters:
     ///   - maxRetainedRuns: The count of finished run records that a runner
@@ -91,16 +92,22 @@ struct AgentRunHarness {
     ///     `AgentEnvironment.defaultMaxConcurrentAgents`.
     ///   - maxDepth: The depth limit of the runs. The default is
     ///     `AgentEnvironment.defaultMaxDepth`.
+    ///   - mailOnlyAnswerLimit: The most answers in a row that mail alone
+    ///     starts in the session of a run. The default is
+    ///     `SessionConfiguration.defaultMailOnlyAnswerLimit`.
     /// - Returns: The environment.
     func environment(
         maxRetainedRuns: Int,
         maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents,
-        maxDepth: Int = AgentEnvironment.defaultMaxDepth
+        maxDepth: Int = AgentEnvironment.defaultMaxDepth,
+        mailOnlyAnswerLimit: Int = SessionConfiguration.defaultMailOnlyAnswerLimit
     ) -> AgentEnvironment {
-        AgentEnvironment(
+        var environment = AgentEnvironment(
             profile: profile, skills: skills, workingDirectory: workingDirectory, tools: tools,
             maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth, maxRetainedRuns: maxRetainedRuns,
             budget: budget, tracer: tracer, logger: logger, metricsFactory: metricsFactory)
+        environment.mailOnlyAnswerLimit = mailOnlyAnswerLimit
+        return environment
     }
 
     /// Makes a runner over the registry and the environment of the harness.
@@ -114,16 +121,21 @@ struct AgentRunHarness {
     ///     `AgentEnvironment.defaultMaxConcurrentAgents`.
     ///   - maxDepth: The depth limit of the runs. The default is
     ///     `AgentEnvironment.defaultMaxDepth`.
+    ///   - mailOnlyAnswerLimit: The most answers in a row that mail alone
+    ///     starts in the session of a run. The default is
+    ///     `SessionConfiguration.defaultMailOnlyAnswerLimit`.
     /// - Returns: The runner.
     func makeRunner(
         maxRetainedRuns: Int = AgentEnvironment.defaultMaxRetainedRuns,
         maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents,
-        maxDepth: Int = AgentEnvironment.defaultMaxDepth
+        maxDepth: Int = AgentEnvironment.defaultMaxDepth,
+        mailOnlyAnswerLimit: Int = SessionConfiguration.defaultMailOnlyAnswerLimit
     ) -> AgentRunner {
         AgentRunner(
             registry: registry,
             environment: environment(
-                maxRetainedRuns: maxRetainedRuns, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth))
+                maxRetainedRuns: maxRetainedRuns, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
+                mailOnlyAnswerLimit: mailOnlyAnswerLimit))
     }
 
     /// Makes a harness.

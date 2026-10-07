@@ -67,10 +67,26 @@ comments:
     - evidence: `swift test` — 470 tests in 66 suites passed, 0 failures. The only warning is the build-system line `missing creator for mutated node ... mlx-swift_Cmlx.bundle` from the mlx-swift dependency. Files: Tests/FoundationModelsAgentsTests/Support/AgentsToolScripting.swift, Tests/FoundationModelsAgentsTests/Support/MessageExchange.swift, Tests/FoundationModelsAgentsTests/SendCallerTests.swift.
     - next: /review. Not committed. Task stays in doing.
   timestamp: 2026-10-07T22:56:20.502499+00:00
+- actor: claude-code
+  id: 01m4c9ed4et2y5qedgwdh57nxs
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (d997ee2): 0 findings, 0 confirmed, 0 refuted; 7 attempted, 0 failed. 3 files reviewed; 2 .kanban/ files excluded. All prior Review Findings items are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-10-07T22:58:45.006807+00:00
+- actor: claude-code
+  id: 01m4c9emwe67a4ja3yjpwtns14
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — 3 files
+    - test: green — swift test, 470 passed in 66 suites (2 runs); IntegrationTests build complete
+    - commit: d997ee2
+    - review: clean — 0 findings; task moved to done
+  timestamp: 2026-10-07T22:58:52.942044+00:00
 depends_on:
 - 01M4BXV22HHY1EYE8XEVSV23GW
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: c880
 title: CLI and telemetry for send agent and send caller
 ---
 ## What
