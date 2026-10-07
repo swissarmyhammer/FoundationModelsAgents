@@ -79,7 +79,7 @@ public struct AgentsTool: Tool {
     }
 
     /// The description that the model reads: the fixed sentences and the
-    /// agents.
+    /// agents, or the short text of a tool with only the message operations.
     public var description: String {
         operationTool.description
     }
@@ -92,10 +92,14 @@ public struct AgentsTool: Tool {
 
     /// Makes the `agents` tool over `context`.
     ///
-    /// The tool reads the catalog of `context.runner` one time, here. It
-    /// keeps the model-visible agents that `context.allowedNames` permits, in
-    /// catalog order. These agents go into the description and into the
-    /// `name` enum of the schema.
+    /// The grant of `context` selects the operations of the tool:
+    ///
+    /// - `full`: each operation. The tool reads the catalog of
+    ///   `context.runner` one time, here. It keeps the model-visible agents
+    ///   that `context.allowedNames` permits, in catalog order. These agents
+    ///   go into the description and into the `name` enum of the schema.
+    /// - `messagingOnly`: only the message operations. The tool does not
+    ///   read the catalog, and its short description names no agent.
     ///
     /// - Parameters:
     ///   - context: The shared context of the operations.
@@ -103,35 +107,73 @@ public struct AgentsTool: Tool {
     ///     the description can have. The default is
     ///     `SkillsTool.defaultCatalogCharacterLimit`. See
     ///     `AgentsToolDescription` for the forms that make a large catalog
-    ///     fit.
+    ///     fit. A tool with only the message operations has no agent list.
     /// - Returns: The tool, ready to register on a session.
-    /// - Throws: ``AgentRunnerError/catalogNotLoaded`` before the first
-    ///   `AgentRegistry.load()` of the registry of `context.runner`, or the
-    ///   error of `OperationTool.init` or of the schema builder.
+    /// - Throws: ``AgentRunnerError/catalogNotLoaded`` for each operation
+    ///   before the first `AgentRegistry.load()` of the registry of
+    ///   `context.runner`, or the error of `OperationTool.init` or of the
+    ///   schema builder.
     public static func make(
         context: AgentsToolContext,
         catalogCharacterLimit: Int = SkillsTool.defaultCatalogCharacterLimit
     ) async throws -> AgentsTool {
-        guard context.runner.registry.isLoaded else {
-            throw AgentRunnerError.catalogNotLoaded
+        switch context.grant {
+        case .full:
+            guard context.runner.registry.isLoaded else {
+                throw AgentRunnerError.catalogNotLoaded
+            }
+            let agents = context.startableAgents()
+            let description = AgentsToolDescription.make(
+                agents: agents.map(AgentsToolDescription.Entry.init), characterLimit: catalogCharacterLimit)
+            return try make(context: context, description: description, agentNames: agents.map(\.id))
+        case .messagingOnly:
+            return try make(context: context, description: AgentsToolDescription.messaging, agentNames: [])
         }
-        let agents = context.startableAgents()
+    }
+
+    /// Makes the `agents` tool over `context` with the operations of its
+    /// grant (``operations(of:)``).
+    ///
+    /// - Parameters:
+    ///   - context: The shared context of the operations.
+    ///   - description: The description that the model reads.
+    ///   - agentNames: The names of the agents that the tool can start, in
+    ///     catalog order.
+    /// - Returns: The tool.
+    /// - Throws: The error of `OperationTool.init` or of the schema builder.
+    private static func make(
+        context: AgentsToolContext, description: String, agentNames: [String]
+    ) throws -> AgentsTool {
         let operationTool = try OperationTool(
             name: ToolVocabulary.agentsToolName,
-            description: AgentsToolDescription.make(
-                agents: agents.map(AgentsToolDescription.Entry.init),
-                characterLimit: catalogCharacterLimit),
+            description: description,
             context: context,
-            operations: [
+            operations: operations(of: context.grant),
+            resolver: OperationResolver(verbAliases: verbAliases)
+        )
+        return try AgentsTool(operationTool: operationTool, context: context, agentNames: agentNames)
+    }
+
+    /// Gives the operations of a tool with `grant`, in tool order.
+    ///
+    /// - Parameter grant: The grant of the tool.
+    /// - Returns: The message operations for
+    ///   ``AgentsToolContext/Grant/messagingOnly``. For
+    ///   ``AgentsToolContext/Grant/full``, the operations that list, start,
+    ///   check, and cancel agents, then the message operations.
+    private static func operations(of grant: AgentsToolContext.Grant) -> [AnyOperation<AgentsToolContext>] {
+        let messageOperations = [AnyOperation(SendAgent.self)]
+        switch grant {
+        case .full:
+            return [
                 AnyOperation(ListAgents.self),
                 AnyOperation(StartAgent.self),
                 AnyOperation(CheckAgent.self),
-                AnyOperation(CancelAgent.self),
-                AnyOperation(SendAgent.self)
-            ],
-            resolver: OperationResolver(verbAliases: verbAliases)
-        )
-        return try AgentsTool(operationTool: operationTool, context: context, agentNames: agents.map(\.id))
+                AnyOperation(CancelAgent.self)
+            ] + messageOperations
+        case .messagingOnly:
+            return messageOperations
+        }
     }
 
     /// The verb aliases of plan.md §9.1: `stop` → `cancel`, `run` → `start`,

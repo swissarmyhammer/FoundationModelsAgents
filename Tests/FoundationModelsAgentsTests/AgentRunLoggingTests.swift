@@ -201,7 +201,8 @@ struct AgentRunLoggingTests {
                 script: AgentRunTests.script([.finalText(AgentRunTests.finalText)]), logger: context.logger)
             defer { try? harness.delete() }
             let run = try await harness.start(
-                NestedRunTests.lead, prompt: AgentRunTests.prompt, agentsTool: { _, _ in throw CancellationError() })
+                NestedRunTests.lead, prompt: AgentRunTests.prompt,
+                agentsTool: { _, _, _, _ in throw CancellationError() })
             return (run, CapturedLog(records: context.logRecords))
         }
 

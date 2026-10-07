@@ -1,5 +1,6 @@
 import FoundationModels
 import FoundationModelsRouter
+import Synchronization
 import Testing
 
 @testable import FoundationModelsAgents
@@ -10,6 +11,10 @@ import Testing
 /// answers at once with the pending envelope, and the final message of the
 /// run comes later as mail. `list agents`, `check agent`, and `cancel agent`
 /// are synchronous: they give their real answer in band, with no envelope.
+///
+/// The suite also pins the caller link of the tool: the tool of a run that a
+/// call started knows the session and the call of its caller. The tool of a
+/// host session and of a host-started run has no caller link.
 @Suite("Agents tool mount")
 struct AgentsToolMountTests {
     /// The key of the play of the root session. It is its instructions.
@@ -170,5 +175,111 @@ struct AgentsToolMountTests {
         #expect(inBand.dropLast() == [listText, checkText])
         #expect(inBand.last?.hasPrefix("The cancel of \(run.subject) was sent") == true)
         #expect(!inBand.contains { $0.contains(Self.envelopeMark) })
+    }
+
+    // MARK: - The caller link
+
+    @Test("the tool of a child run with an Agent grant knows the caller session and the start call",
+          .timeLimit(.minutes(1)))
+    func childToolKnowsItsCaller() async throws {
+        let record = MadeToolRecord()
+        let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: [Self.probeStep]))
+        defer { try? harness.delete() }
+        let maker = record.wrapping(AgentRun.agentsTool(of: harness.runner))
+        let probe = AgentStartProbe { context in
+            await harness.runner.start(
+                try harness.runHarness.request(
+                    NestedRunTests.lead, prompt: Self.leadPrompt, context: context, agentsTool: maker))
+        }
+        let root = harness.runHarness.profile.standard.makeSession(instructions: Self.rootKey, tools: [probe])
+
+        _ = try await root.respond(to: Self.rootPrompt)
+        let started = try #require(probe.started)
+        _ = await started.run.finalState()
+        await root.close()
+        let call = try #require(started.context)
+        let context = try #require(record.tools.first).context
+        let link = try #require(context.callerLink)
+
+        #expect(record.tools.count == 1)
+        #expect(link.sessionID == root.id)
+        #expect(link.call.completionToken == call.completionToken)
+        #expect(context.grant == .full)
+    }
+
+    @Test("the tool of a host-started run has no caller link", .timeLimit(.minutes(1)))
+    func hostStartedRunToolHasNoCallerLink() async throws {
+        let record = MadeToolRecord()
+        let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: []))
+        defer { try? harness.delete() }
+
+        let run = try await harness.runHarness.start(
+            NestedRunTests.lead, prompt: Self.leadPrompt,
+            agentsTool: record.wrapping(AgentRun.agentsTool(of: harness.runner)))
+        _ = await run.finalState()
+        let context = try #require(record.tools.first).context
+
+        #expect(record.tools.count == 1)
+        #expect(context.callerLink == nil)
+        #expect(context.grant == .full)
+    }
+
+    @Test("the tool of a host session has no caller link")
+    func hostSessionToolHasNoCallerLink() async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+
+        #expect(harness.tool.context.callerLink == nil)
+        #expect(harness.tool.context.grant == .full)
+    }
+
+    // MARK: - Support of the caller link
+
+    /// The prompt of the lead run. It is also the key of its play.
+    private static let leadPrompt = "mount-lead-key: divide the review"
+
+    /// The arguments of the scripted call of the probe tool.
+    private static let probeArguments = #"{"text":"start"}"#
+
+    /// The step of the root session that starts the lead run with the probe
+    /// tool.
+    private static let probeStep =
+        ScriptedAgentStep.toolCall(name: AgentStartProbe.toolName, argumentsJSON: probeArguments)
+
+    /// Makes the script of a root session and of one lead run.
+    ///
+    /// - Parameter rootSteps: The tool calls of the root session before its
+    ///   answer.
+    /// - Returns: The script. The lead run gives its final text at once.
+    private static func leadScript(rootSteps: [ScriptedAgentStep]) -> ScriptedAgentScript {
+        ScriptedAgentScript([
+            ScriptedAgentPlay(key: rootKey, steps: rootSteps + [.finalText(rootText)]),
+            ScriptedAgentPlay(key: leadPrompt, steps: [.finalText(childText)])
+        ])
+    }
+}
+
+/// Keeps each `agents` tool that a wrapped maker made, in the order of the
+/// calls.
+private final class MadeToolRecord: Sendable {
+    /// The tools that the maker made.
+    private let made = Mutex<[any Tool]>([])
+
+    /// The tools that the maker made, each as an `AgentsTool`. A tool of a
+    /// different type is not in the list.
+    var tools: [AgentsTool] {
+        made.withLock { $0 }.compactMap { $0 as? AgentsTool }
+    }
+
+    /// Wraps `maker`: the new maker gives the tool of `maker` and keeps it.
+    ///
+    /// - Parameter maker: The maker of the `agents` tool of a run.
+    /// - Returns: The maker that keeps each tool.
+    func wrapping(_ maker: @escaping AgentRunRequest.AgentsToolMaker) -> AgentRunRequest.AgentsToolMaker {
+        { parent, callerLink, grant, allowedNames in
+            let tool = try await maker(parent, callerLink, grant, allowedNames)
+            self.made.withLock { $0.append(tool) }
+            return tool
+        }
     }
 }

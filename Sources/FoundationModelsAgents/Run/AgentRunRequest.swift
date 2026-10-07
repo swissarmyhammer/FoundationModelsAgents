@@ -4,9 +4,13 @@ import FoundationModelsRouter
 /// The inputs of one agent run: what to run, for which caller, and where in
 /// the tree of runs (plan.md §8, §8.2).
 struct AgentRunRequest: Sendable {
-    /// Makes the `agents` tool of a run. It gets the run as a ``ParentRun``
-    /// and the names of `Agent(a, b)`, or `nil` for each agent.
-    typealias AgentsToolMaker = @Sendable (ParentRun, [String]?) async throws -> any Tool
+    /// Makes the `agents` tool of a run. It gets the run as a ``ParentRun``,
+    /// the link to the caller of the run (`nil` when the run has no caller),
+    /// the operations that the tool gives, and the names of `Agent(a, b)`, or
+    /// `nil` for each agent.
+    typealias AgentsToolMaker = @Sendable (
+        ParentRun, AgentsToolContext.CallerLink?, AgentsToolContext.Grant, [String]?
+    ) async throws -> any Tool
 
     /// The resolved agent. The run keeps it for its whole life.
     let definition: AgentDefinition

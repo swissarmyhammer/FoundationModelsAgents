@@ -30,10 +30,26 @@ comments:
     - evidence: 6 files — Sources/FoundationModelsAgents/Tool/AgentsToolOperations.swift, Tool/AgentsToolContext.swift, Tool/AgentsTool.swift, Tool/AgentsToolText.swift, Tests/FoundationModelsAgentsTests/SendAgentTests.swift (new, 7 tests), Tests/FoundationModelsAgentsTests/AgentsToolSchemaTests.swift; `swift test`: 448 tests in 65 suites passed, 0 failures
     - next: /review
   timestamp: 2026-10-07T20:58:55.887219+00:00
+- actor: claude-code
+  id: 01m4c2sztdvqvpt65n6e5sykgn
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (4580a04): 0 findings, 0 confirmed, 3 refuted, 7 attempted, 0 failed. 6 .kanban/ files are excluded by .reviewignore. No prior Review Findings sections.
+    - next: none. The task moved to done.
+  timestamp: 2026-10-07T21:02:44.557845+00:00
+- actor: claude-code
+  id: 01m4c2t5e5xfbfq2rshhsxvc6t
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 6 files
+    - test: green — swift test, 448 passed in 65 suites
+    - commit: 4580a04
+    - review: clean — 0 findings; task moved to done
+  timestamp: 2026-10-07T21:02:50.309779+00:00
 depends_on:
 - 01M4BXSXDJKD14RBYFSQW6QT5N
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: c580
 title: 'send agent: a caller sends a message to a run that it started'
 ---
 ## What

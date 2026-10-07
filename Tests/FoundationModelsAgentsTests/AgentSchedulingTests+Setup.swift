@@ -111,9 +111,9 @@ extension AgentSchedulingTests {
             return AgentRunRequest(
                 definition: definition, prompt: leadKey, context: context,
                 inheritedSlot: .flash, depth: AgentRunner.hostDepth, parent: nil,
-                agentsTool: { parent, allowedNames in
+                agentsTool: { parent, callerLink, grant, allowedNames in
                     try await gate.wait()
-                    return try await makeTool(parent, allowedNames)
+                    return try await makeTool(parent, callerLink, grant, allowedNames)
                 })
         }
 

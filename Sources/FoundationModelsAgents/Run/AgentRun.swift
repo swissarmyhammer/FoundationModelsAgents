@@ -248,15 +248,17 @@ public final class AgentRun: Sendable {
     /// run. `Agent(a, b)` limits it to the names `a` and `b`. The tool
     /// knows the run as its ``ParentRun``, thus each run that it starts has
     /// this run as its caller, the depth of this run plus one, and the slot
-    /// of this run for `model: inherit`.
+    /// of this run for `model: inherit`. The tool also keeps the link to the
+    /// caller of this run, and gives the operations of its grant.
     ///
     /// - Parameter runner: The runner that owns each run that the tool
     ///   starts.
     /// - Returns: The maker.
     static func agentsTool(of runner: AgentRunner) -> AgentRunRequest.AgentsToolMaker {
-        { parent, allowedNames in
+        { parent, callerLink, grant, allowedNames in
             try await AgentsTool.make(
-                context: AgentsToolContext(runner: runner, allowedNames: allowedNames, parent: parent))
+                context: AgentsToolContext(
+                    runner: runner, allowedNames: allowedNames, parent: parent, callerLink: callerLink, grant: grant))
         }
     }
 

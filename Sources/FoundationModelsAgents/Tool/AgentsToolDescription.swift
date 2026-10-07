@@ -16,6 +16,9 @@
 ///    not listed and the tip to see them with `list agents`.
 ///
 /// An empty catalog gives the no-agents line in place of the list.
+///
+/// A tool with only the message operations has the short ``messaging``
+/// text in place of the fixed sentences and the list.
 enum AgentsToolDescription {
     /// One agent of the list: its name and its description.
     struct Entry: Sendable {
@@ -29,6 +32,9 @@ enum AgentsToolDescription {
     /// The words that name the `agents` tool in the delegation sentence.
     private static let toolReference = #"the tool "\#(ToolVocabulary.agentsToolName)""#
 
+    /// The sentence that tells that the value of `op` is not a tool name.
+    private static let opSentence = #"The value of "op" is an operation of \#(toolReference), not the name of a tool."#
+
     /// The delegation sentence: how to give a task to an agent. The fixed
     /// sentences hold it, and the answer of `list agents` ends with it.
     ///
@@ -38,8 +44,7 @@ enum AgentsToolDescription {
     /// rejected that call as `undeclared_tool`.
     static let delegationSentence = """
         To give a task to an agent, call \(toolReference) with the arguments {"op": "start agent", \
-        "name": "<name>", "prompt": "<the full task>"}. The value of "op" is an operation of \
-        \(toolReference), not the name of a tool.
+        "name": "<name>", "prompt": "<the full task>"}. \(opSentence)
         """
 
     /// The fixed sentences: what an agent is and how to delegate to one.
@@ -50,6 +55,14 @@ enum AgentsToolDescription {
         message comes to you as a new message after you end your answer. Your answer is the text of \
         your last turn, so give your final answer after you have the results of the agents that you \
         started. You can ask about a run with {"op": "check agent", "id": "<id>"}.
+        """
+
+    /// The description of a tool with only the message operations. It names
+    /// no agent and no `start agent`, because that tool cannot start a run.
+    static let messaging = """
+        This tool sends messages. To send a message to a run, call \(toolReference) with the arguments \
+        {"op": "send agent", "id": "<id>", "message": "<the message>"}. \(opSentence) \
+        You continue to work after the message is sent.
         """
 
     /// The line that replaces the list when no agent is visible.

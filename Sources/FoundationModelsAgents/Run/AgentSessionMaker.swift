@@ -123,6 +123,11 @@ struct AgentSessionMaker: Sendable {
     /// does not see a tool that can only give a corrective. An `Agent`
     /// entry of its `tools` key then matches no tool, and the run skips it.
     ///
+    /// The tool gives each operation. It keeps the link to the caller of the
+    /// run: the context of the call that started the run, and the session of
+    /// that call. A host-started run has no context, thus its tool has no
+    /// link.
+    ///
     /// - Parameters:
     ///   - request: The run.
     ///   - parent: The new run as the `agents` tool sees it.
@@ -133,6 +138,9 @@ struct AgentSessionMaker: Sendable {
         guard request.depth < environment.maxDepth, let maker = request.agentsTool else {
             return nil
         }
-        return { allowedNames in try await maker(parent, allowedNames) }
+        let callerLink = request.context.map { call in
+            AgentsToolContext.CallerLink(call: call, sessionID: call.sessionID)
+        }
+        return { allowedNames in try await maker(parent, callerLink, .full, allowedNames) }
     }
 }

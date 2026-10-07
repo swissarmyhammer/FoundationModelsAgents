@@ -264,7 +264,8 @@ extension NestedRunTests {
             let runner = runHarness.makeRunner(maxDepth: Self.depthLimit)
             let atLimit = ParentRun(depth: Self.depthLimit, slot: .standard, family: ParentRun.Family())
             let tool = try await AgentsTool.make(
-                context: AgentsToolContext(runner: runner, allowedNames: nil, parent: atLimit))
+                context: AgentsToolContext(
+                    runner: runner, allowedNames: nil, parent: atLimit, callerLink: nil, grant: .full))
             let harness = AgentsToolHarness(runHarness: runHarness, runner: runner, tool: tool)
 
             let answer = try await harness.call("start agent", ["name": Self.helper, "prompt": Self.helperKey])

@@ -9,6 +9,29 @@ import ULID
 /// `runner` one time. The operations use `runner` to start, check, and cancel
 /// runs.
 public struct AgentsToolContext: Sendable {
+    /// The link from the tool of a run to the caller of that run: the
+    /// session that started the run.
+    struct CallerLink: Sendable {
+        /// The context of the `start agent` call in the session of the
+        /// caller. It is the ``AgentRun/context`` of the run.
+        let call: ToolContext
+
+        /// The id of the session of the caller. It is the
+        /// ``AgentRun/caller`` of the run.
+        let sessionID: ULID
+    }
+
+    /// The operations that the tool gives.
+    enum Grant: Sendable {
+        /// Each operation: list, start, check, and cancel agents, and the
+        /// message operations.
+        case full
+
+        /// Only the message operations. The tool does not read the catalog,
+        /// and its description names no agent.
+        case messagingOnly
+    }
+
     /// The runner that owns each run that the tool starts.
     public let runner: AgentRunner
 
@@ -20,19 +43,27 @@ public struct AgentsToolContext: Sendable {
     /// not a run, for example the root session of a host.
     let parent: ParentRun?
 
+    /// The link to the caller of the run whose session holds the tool, or
+    /// `nil` when the run has no caller. A host session and a host-started
+    /// run have no caller.
+    let callerLink: CallerLink?
+
+    /// The operations that the tool gives.
+    let grant: Grant
+
     /// The runs that the `start agent` calls of the tool started, by the
     /// completion token of each call.
     let startedRuns = StartedRuns()
 
     /// Makes a context for a session that is not a run, for example the
-    /// root session of a host.
+    /// root session of a host. The tool gives each operation.
     ///
     /// - Parameters:
     ///   - runner: The runner that owns each run that the tool starts.
     ///   - allowedNames: The names of `Agent(a, b)`, or `nil` for each
     ///     model-visible agent. The default is `nil`.
     public init(runner: AgentRunner, allowedNames: [String]? = nil) {
-        self.init(runner: runner, allowedNames: allowedNames, parent: nil)
+        self.init(runner: runner, allowedNames: allowedNames, parent: nil, callerLink: nil, grant: .full)
     }
 
     /// Makes a context.
@@ -43,10 +74,17 @@ public struct AgentsToolContext: Sendable {
     ///     model-visible agent.
     ///   - parent: The run whose session holds the tool, or `nil` when the
     ///     session is not a run.
-    init(runner: AgentRunner, allowedNames: [String]?, parent: ParentRun?) {
+    ///   - callerLink: The link to the caller of that run, or `nil` when the
+    ///     run has no caller.
+    ///   - grant: The operations that the tool gives.
+    init(
+        runner: AgentRunner, allowedNames: [String]?, parent: ParentRun?, callerLink: CallerLink?, grant: Grant
+    ) {
         self.runner = runner
         self.allowedNames = allowedNames
         self.parent = parent
+        self.callerLink = callerLink
+        self.grant = grant
     }
 
     /// The depth of a run that the tool starts (plan.md §9.3, depth): the

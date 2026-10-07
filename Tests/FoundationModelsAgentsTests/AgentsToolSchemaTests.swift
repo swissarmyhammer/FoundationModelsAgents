@@ -18,6 +18,9 @@ struct AgentsToolSchemaTests {
     /// The op strings of the operations, in tool order.
     private static let opStrings = ["list agents", "start agent", "check agent", "cancel agent", "send agent"]
 
+    /// The op strings of a tool with the messaging grant, in tool order.
+    private static let messageOpStrings = ["send agent"]
+
     /// The name of the field that holds an agent name.
     static let nameFieldName = "name"
 
@@ -108,6 +111,46 @@ struct AgentsToolSchemaTests {
 
         #expect(nameProperty["enum"] == nil, "an empty enum accepts no value, thus the name stays a plain string")
         #expect(nameProperty["type"] as? String == "string")
+    }
+
+    // MARK: - The messaging grant
+
+    @Test func theMessagingSchemaHoldsOnlyTheMessageOps() async throws {
+        let harness = try await AgentsToolHarness.make(grant: .messagingOnly)
+        defer { try? harness.delete() }
+
+        let opProperty = try Self.property(named: OperationKeys.opFieldName, in: harness.tool.parameters)
+        let properties = try Self.properties(in: harness.tool.parameters)
+
+        #expect(opProperty["enum"] as? [String] == Self.messageOpStrings)
+        #expect(Set(properties.keys) == [OperationKeys.opFieldName, "id", "message"])
+        #expect(harness.tool.agentNames.isEmpty)
+    }
+
+    @Test func theMessagingDescriptionNamesNoAgentAndNoStart() async throws {
+        let harness = try await AgentsToolHarness.make(grant: .messagingOnly)
+        defer { try? harness.delete() }
+
+        let description = harness.tool.description
+
+        #expect(!description.isEmpty)
+        #expect(!description.contains("start agent"))
+        for name in Self.visibleNames + [Self.modelHiddenName] {
+            #expect(!description.contains(name), "the description names the agent \(name)")
+        }
+    }
+
+    @Test func theMessagingToolNeedsNoLoadedCatalog() async throws {
+        let runHarness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
+        defer { try? runHarness.delete() }
+        let runner = AgentRunner(
+            registry: AgentRegistry(stack: FixtureLibrary.stack()), environment: runHarness.environment)
+        let context = AgentsToolContext(
+            runner: runner, allowedNames: nil, parent: nil, callerLink: nil, grant: .messagingOnly)
+
+        let tool = try await AgentsTool.make(context: context)
+
+        #expect(tool.operationTool.operations.map(\.opString) == Self.messageOpStrings)
     }
 
     // MARK: - Support

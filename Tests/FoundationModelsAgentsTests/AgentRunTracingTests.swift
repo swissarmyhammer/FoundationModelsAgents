@@ -154,7 +154,8 @@ struct AgentRunTracingTests {
                 script: AgentRunTests.script([.finalText(AgentRunTests.finalText)]), tracer: context.tracer)
             defer { try? harness.delete() }
             let run = try await harness.start(
-                NestedRunTests.lead, prompt: AgentRunTests.prompt, agentsTool: { _, _ in throw CancellationError() })
+                NestedRunTests.lead, prompt: AgentRunTests.prompt,
+                agentsTool: { _, _, _, _ in throw CancellationError() })
             return (run, CapturedTrace(spans: context.spans))
         }
 

@@ -40,4 +40,4 @@ Rules:
 - [ ] `swift test` passes. The integration package `swift test` passes.
 
 ## Workflow
-- Use `/tdd`: write the failing tests first, then do the implementation until they pass. #waits-on-router
+- Use `/tdd`: write the failing tests first, then do the implementation until they pass.

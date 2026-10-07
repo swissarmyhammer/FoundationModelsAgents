@@ -22,6 +22,10 @@ comments:
     - Router aad6ae5 removes `RoutedEmbedder.dimension`. FoundationModelsAgents does not use `RoutedEmbedder`, `PooledEmbedding` or `.dimension` (checked with grep), so this change needs no work here.
     - Update `Package.resolved` and `IntegrationTests/Package.resolved` only after the Router change is pushed to origin.
   timestamp: 2026-10-07T20:54:36.382772+00:00
+- actor: claude-code
+  id: 01m4c2s0kewamhn4m646kbf84j
+  text: 'The Router is on origin/main at 5713abe (aad6ae5 is before it). Extras is on origin/main at 2c37a78. The first step of this task: run `swift package update FoundationModelsRouter FoundationModelsExtras` in the root package and in `IntegrationTests/`. Then build, and confirm that Package.resolved names these SHAs.'
+  timestamp: 2026-10-07T21:02:12.590751+00:00
 depends_on:
 - 01M4BXTKA17C1EXCN9TZ152P5M
 position_column: todo
@@ -67,4 +71,4 @@ Files:
 - [ ] `swift test` passes.
 
 ## Workflow
-- Use `/tdd`: write the failing tests first, then do the implementation until they pass. #waits-on-router
+- Use `/tdd`: write the failing tests first, then do the implementation until they pass.
