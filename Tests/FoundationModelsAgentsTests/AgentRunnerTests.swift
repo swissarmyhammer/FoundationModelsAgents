@@ -48,6 +48,10 @@ struct AgentRunnerTests {
     /// The tool name of ``unknownToolAgent`` that matches no tool.
     private static let unknownToolName = "NoSuchTool"
 
+    /// The agent of the fixture library whose `tools` key has an `Agent`
+    /// entry.
+    private static let lead = NestedRunTests.lead
+
     /// The key of the play of the parent session of the tool-start test.
     private static let parentKey = "runner-parent-play-key"
 
@@ -241,6 +245,20 @@ struct AgentRunnerTests {
         #expect(Self.warnings(in: registryCatalog, about: Self.unknownToolAgent).isEmpty)
         #expect(catalog.definitions.map(\.id) == registryCatalog.definitions.map(\.id))
         #expect(Array(catalog.diagnostics.prefix(registryCatalog.diagnostics.count)) == registryCatalog.diagnostics)
+    }
+
+    @Test("with maxDepth at the host depth, catalog() warns that a host-started run of an Agent entry gets no agents tool")
+    func catalogAtHostDepthWarnsAboutTheHostStartedRun() async throws {
+        let harness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
+        defer { try? harness.delete() }
+        let runner = harness.makeRunner(maxDepth: AgentRunner.hostDepth)
+
+        let leadWarnings = Self.warnings(in: runner.catalog(), about: Self.lead)
+        let warning = try #require(leadWarnings.first)
+
+        #expect(leadWarnings.count == 1)
+        #expect(warning.contains(ToolResolverTests.hostStartedMaxDepthPhrase))
+        #expect(warning.contains(ToolResolverTests.callerRunMaxDepthPhrase))
     }
 
     @Test("stop() cancels two gated runs, and both reach .cancelled", .timeLimit(.minutes(1)))

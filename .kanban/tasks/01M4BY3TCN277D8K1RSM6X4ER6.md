@@ -37,6 +37,40 @@ comments:
     - Row tests: Agent entry below maxDepth `childToolKnowsItsCaller` (.full); at maxDepth `agentEntryAtMaxDepthGivesTheMessagingTool`; tools key with no Agent entry `toolsKeyWithNoAgentEntryGivesTheMessagingTool`; no tools key `noToolsKeyGivesTheMessagingTool`; deny `disallowedAgentsToolGivesNoTool` (Agent, agents); host-started with no grant `hostStartedRunWithNoGrantGetsNoTool`. Messaging description: existing `AgentsToolSchemaTests.theMessagingDescriptionNamesNoAgentAndNoStart`.
     - next: /review
   timestamp: 2026-10-07T23:32:37.330669+00:00
+- actor: claude-code
+  id: 01m4cbpjway44626d19xejwkbb
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (6ef23cd); 3 findings (3 confirmed, 1 refuted) — Sources/FoundationModelsAgents/Run/AgentRunner.swift:339, Sources/FoundationModelsAgents/Tools/ToolResolver.swift:17, Tests/FoundationModelsAgentsTests/ToolResolverTests.swift:392. No finding asks for a change to plan.md, DocC or README (that work is for ^125tp66), so no finding was dropped.
+    - next: correct the 3 open items in the dated Review Findings section, then review again.
+  timestamp: 2026-10-07T23:38:10.186377+00:00
+- actor: claude-code
+  id: 01m4cbpwtjvgegnyjgr74102z1
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 8 files
+    - test: green — swift test, 494 passed in 68 suites; IntegrationTests build complete; live suite 13 passed
+    - commit: 6ef23cd
+    - review: findings — Sources/FoundationModelsAgents/Run/AgentRunner.swift:339, Sources/FoundationModelsAgents/Tools/ToolResolver.swift:17, Tests/FoundationModelsAgentsTests/ToolResolverTests.swift:392
+  timestamp: 2026-10-07T23:38:20.370181+00:00
+- actor: claude-code
+  id: 01m4cby2q9jpqwxp5ew4n64prx
+  text: |-
+    Review findings (2026-10-07 18:35) corrected with TDD.
+
+    - One text, one source: `ToolResolver.maxDepthAgentEntryMessage` now tells both cases: "each run of this agent is at maxDepth, thus its 'Agent' entry cannot start agents: a run with a caller gets only the message ops (send caller, send agent), and a host-started run gets no agents tool". `AgentRunner.catalog()` and `ToolResolver.diagnostics` doc comments state the same two cases. No second copy of the text.
+    - Why both cases are real at maxDepth 1: a host session with the agents tool starts a run at depth 1 with a caller (messaging tool); `runner.start` starts a run at depth 1 with no caller (no tool).
+    - Tests: `ToolResolverTests.agentEntryAtMaxDepthIsWarned` now checks both phrases (`callerRunMaxDepthPhrase` keeps "only the message ops"). New catalog test `AgentRunnerTests.catalogAtHostDepthWarnsAboutTheHostStartedRun` (fixture `lead`, maxDepth = hostDepth). New `AgentsToolMountTests.hostStartedRunAtMaxDepthGetsNoTool` proves the host-started claim of the text (the run finishes, and its play has no tool).
+    - RED: the two message tests failed on the old text (8 issues). GREEN after the text change.
+    - Empty-collection check: `incorrectToolKeyResolvesToLessAccess` now asserts `calls.grants == [nil]` (each of the 4 cases calls the factory one time, because a broken `disallowedTools` gives `tools: []`, not a deny). Other new assertions of this task: `calls.grants.isEmpty` in the deny tests is paired with an exact `tools` list; `child.tools.isEmpty` / `record.tools.isEmpty` are paired with `toolNames(ofPlay:) == []`, which is `nil` (so false) when the play did not run; `child.tools.map(...) == [.messagingOnly]` is exact. No other empty-collection weakness.
+  timestamp: 2026-10-07T23:42:15.785844+00:00
+- actor: claude-code
+  id: 01m4cby4zj61d9pf1kc4fqse35
+  text: |-
+    ### implement — changed
+    - evidence: `swift test` — 496 tests in 68 suites passed, 0 failures, no compiler warning (only the known SwiftPM mlx-swift bundle line). Files: Sources/FoundationModelsAgents/Tools/ToolResolver.swift, Sources/FoundationModelsAgents/Run/AgentRunner.swift, Tests/FoundationModelsAgentsTests/ToolResolverTests.swift, Tests/FoundationModelsAgentsTests/AgentRunnerTests.swift, Tests/FoundationModelsAgentsTests/AgentsToolMountTests.swift. 3 of 3 findings checked.
+    - next: /review
+  timestamp: 2026-10-07T23:42:18.098418+00:00
 depends_on:
 - 01M4BXV22HHY1EYE8XEVSV23GW
 position_column: doing
@@ -76,3 +110,14 @@ Files:
 
 ## Workflow
 - Use `/tdd`: write the failing tests first, then do the implementation until they pass.
+
+## Review Findings (2026-10-07 18:35)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 8 file(s) reviewed, 4 not reviewed.
+
+> 4 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 4 file(s)
+
+- [x] `Sources/FoundationModelsAgents/Run/AgentRunner.swift:339` `completeness/public-output-contract` — The catalog warning for an Agent entry says the run gives only the message ops. This is true only for a run with a caller. Here atMaxDepth is true when maxDepth equals hostDepth, which is the host-started case. A host-started run at maxDepth has no caller, so AgentSessionMaker gives it no messaging tool. The warning then names a tool the run never gets. Make the warning text match both cases, or word it for a run with a caller only. For example: 'at maxDepth, a run with a caller gets only the message ops; a host-started run gets no agents tool.' Add a catalog test for the host-started case.
+- [x] `Sources/FoundationModelsAgents/Tools/ToolResolver.swift:17` `completeness/public-output-contract` — The maxDepth warning text is the only text that tells the author the Agent entry gives only the message ops. It does not say what happens for a host-started run at maxDepth, where the entry gives nothing. The text is therefore incomplete for one of the two cases the diff creates. Extend the message to cover both cases, and check that the existing test at ToolResolverTests 'at maxDepth, an Agent entry gives a warning' still matches the text it asserts ('only the message ops').
+- [x] `Tests/FoundationModelsAgentsTests/ToolResolverTests.swift:392` `test-integrity/no-test-cheating` — The assertion `await calls.grants.allSatisfy { $0 == nil }` is true for an empty array. If the resolver stopped calling the agents tool factory, this test would still pass, so it cannot prove that the factory got a nil grant. It is a weakened assertion. It should check the exact recorded value, as the other tests in this change do. Replace the assertion with `#expect(await calls.grants == [nil])`, or add `#expect(await calls.grants.count == 1)` before the `allSatisfy` check.

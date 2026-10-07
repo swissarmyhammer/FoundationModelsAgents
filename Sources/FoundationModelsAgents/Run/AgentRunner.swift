@@ -237,7 +237,8 @@ public actor AgentRunner {
     /// run whose `tools` key lists it, thus an `Agent` entry matches a tool
     /// and gives no unknown-entry warning. When ``AgentEnvironment/maxDepth``
     /// is the depth of a host-started run, each run is at `maxDepth`. An
-    /// `Agent` entry then gives a warning: it gives only the message ops.
+    /// `Agent` entry then gives a warning: a run with a caller gets only the
+    /// message ops, and a host-started run gets no `agents` tool.
     ///
     /// - Returns: The catalog. It is empty before `registry.load()`.
     public nonisolated func catalog() -> AgentCatalog {

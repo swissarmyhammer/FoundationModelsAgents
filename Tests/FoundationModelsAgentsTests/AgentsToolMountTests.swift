@@ -261,6 +261,18 @@ struct AgentsToolMountTests {
         #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [])
     }
 
+    @Test("a host-started run with an Agent entry at maxDepth gets no tool", .timeLimit(.minutes(1)))
+    func hostStartedRunAtMaxDepthGetsNoTool() async throws {
+        let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: []))
+        defer { try? harness.delete() }
+        let runner = harness.runHarness.makeRunner(maxDepth: AgentRunner.hostDepth)
+
+        let run = try await runner.start(NestedRunTests.lead, prompt: Self.leadPrompt)
+
+        #expect(try await run.result() == Self.childText)
+        #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [])
+    }
+
     @Test("the tool of a host-started run has no caller link", .timeLimit(.minutes(1)))
     func hostStartedRunToolHasNoCallerLink() async throws {
         let record = MadeToolRecord()

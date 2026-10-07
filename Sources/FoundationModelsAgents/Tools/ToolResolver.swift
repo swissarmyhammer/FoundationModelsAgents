@@ -14,9 +14,13 @@ struct ToolResolver: Sendable {
 
     /// The warning of an `Agent` entry when each run of the agent is at
     /// ``AgentEnvironment/maxDepth``.
+    ///
+    /// The text tells both cases: a run with a caller gets the messaging
+    /// tool, and a host-started run gets no `agents` tool.
     static let maxDepthAgentEntryMessage = """
-        each run of this agent is at maxDepth, thus its 'Agent' entry gives only the message ops \
-        (send caller, send agent); the run cannot start agents
+        each run of this agent is at maxDepth, thus its 'Agent' entry cannot start agents: \
+        a run with a caller gets only the message ops (send caller, send agent), \
+        and a host-started run gets no agents tool
         """
 
     /// The id of the agent, or `nil` when it is not known.
@@ -37,8 +41,9 @@ struct ToolResolver: Sendable {
     ///   - hasAgentsTool: `true` when the runner can make the `agents` tool
     ///     for a run whose `tools` key lists it.
     ///   - atMaxDepth: `true` when each run of the agent is at
-    ///     ``AgentEnvironment/maxDepth``. An `Agent` entry then gives only
-    ///     the message ops, and the agent gets a warning.
+    ///     ``AgentEnvironment/maxDepth``. An `Agent` entry then gives a run
+    ///     with a caller only the message ops, and a host-started run no
+    ///     `agents` tool. The agent gets a warning.
     /// - Returns: The warnings, in order.
     static func diagnostics(
         of definition: AgentDefinition, catalog: ToolCatalog, hasAgentsTool: Bool, atMaxDepth: Bool

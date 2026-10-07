@@ -75,6 +75,12 @@ struct ToolResolverTests {
     /// The id of the agent that the resolver reports on.
     static let agentID = "probe-agent"
 
+    /// The part of the maxDepth warning about a run with a caller.
+    static let callerRunMaxDepthPhrase = "a run with a caller gets only the message ops"
+
+    /// The part of the maxDepth warning about a host-started run.
+    static let hostStartedMaxDepthPhrase = "a host-started run gets no agents tool"
+
     /// The resolver of the tests.
     static let resolver = ToolResolver(agent: agentID, provenance: AgentDefinitionAttempt.inlineProvenance)
 
@@ -389,7 +395,7 @@ struct ToolResolverTests {
             agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
         #expect(resolved.tools.map(\.name) == expected)
-        #expect(await calls.grants.allSatisfy { $0 == nil })
+        #expect(await calls.grants == [nil])
     }
 
     @Test("the warnings of a definition put the disallowedTools warnings first")
@@ -408,7 +414,7 @@ struct ToolResolverTests {
         #expect(diagnostics.last?.message.contains("OtherMissingTool") == true)
     }
 
-    @Test("at maxDepth, an Agent entry gives a warning that it gives only the message ops",
+    @Test("at maxDepth, an Agent entry gives one warning for a run with a caller and for a host-started run",
           arguments: ["Agent", agentsName, "Agent(\(firstAgent))"])
     func agentEntryAtMaxDepthIsWarned(entry: String) throws {
         let definition = try #require(
@@ -420,7 +426,8 @@ struct ToolResolverTests {
         #expect(diagnostics.count == 1)
         #expect(diagnostic.severity == .warning)
         #expect(diagnostic.agent == definition.id)
-        #expect(diagnostic.message.contains("only the message ops"))
+        #expect(diagnostic.message.contains(Self.callerRunMaxDepthPhrase))
+        #expect(diagnostic.message.contains(Self.hostStartedMaxDepthPhrase))
     }
 
     @Test("below maxDepth, an Agent entry gives no warning")
