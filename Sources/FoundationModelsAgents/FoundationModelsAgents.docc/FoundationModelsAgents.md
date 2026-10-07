@@ -23,7 +23,8 @@ You are a code reviewer. Analyze the code and give specific feedback.
 
 An agent run is a new Router session in the same process. The run gets a task,
 works in the background with its own context and its own tools, and gives back
-one final text. The caller keeps its own context.
+one final text when it ends. While the run works, it and its caller can send
+messages to each other. The caller keeps its own context.
 
 The package has three layers:
 
@@ -31,8 +32,9 @@ The package has three layers:
 - **``AgentRegistry``** keeps the catalog of the agent files over the local
   layers and the marketplace layers.
 - **``AgentRunner``**, **``AgentRun``**, and **``AgentsTool``** start the runs,
-  drive each Router session, and give a model one tool, `agents`, to delegate
-  a task.
+  drive each Router session, and give a model one tool, `agents`, with six
+  operations to delegate a task and to send messages between a run and its
+  caller.
 
 The host makes the dependencies: the `DotfolderStack`, the `MarketplaceStore`,
 the `Router` and its resolved `LanguageModelProfile`, and the `SkillsRegistry`.

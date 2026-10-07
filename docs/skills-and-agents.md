@@ -3,7 +3,8 @@
 This document tells how the agents of this package relate to the skills of
 FoundationModelsSkills. It gives the decisions that transfer from skills to
 agents, it tells how one marketplace plugin gives skills and agents, and it
-gives the rule for partials. The full design is in [plan.md](../plan.md).
+gives the access rule of the `agents` tool and the rule for partials. The full
+design is in [plan.md](../plan.md).
 
 ## Skills and agents are separate
 
@@ -21,8 +22,9 @@ An agent uses skills through its `skills:` preload and through the `skills` tool
   tool can find a skill and use it while the run works.
 
 To run a skill in its own context, a prompt tells an agent that has the `skills` tool to use the named skill.
-The skill then works in the context of that agent, and the caller gets only the
-final text of the run.
+The skill then works in the context of that agent. The caller gets the
+messages that the run sends with `send caller` while it works, and the final
+text of the run when it ends.
 
 The agent
 [security-reviewer.md](../Examples/agent-library/marketplace/plugins/code-tools/agents/security-reviewer.md)
@@ -31,6 +33,17 @@ The same plugin gives a skill with that name:
 [review/SKILL.md](../Examples/agent-library/marketplace/plugins/code-tools/skills/review/SKILL.md).
 The `SkillsRegistry` finds the skill by its id, thus a higher skill layer can
 give a different copy.
+
+## The access rule
+
+An agent gets the operations of the `agents` tool that start agents only from
+an explicit `tools` entry: `Agent`, `Agent(a, b)`, or `agents`. Each run with
+a caller can send messages to that caller. A run that a `start agent` call
+started has a caller, thus it gets an `agents` tool with `send agent` and
+`send caller` also when its `tools` key does not list `Agent`. A host-started
+run has no caller, and with no `Agent` entry it gets no `agents` tool.
+`disallowedTools: Agent` removes the tool in each case. The mount table is in
+[plan.md](../plan.md) §9.3.
 
 ## What transfers from skills to agents
 

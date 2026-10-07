@@ -98,12 +98,24 @@ struct DocumentationTests {
     /// documents under `docs/` to the same list.
     static let speedWords = ["slow", "slower", "fast", "faster", "speed", "cheap", "expensive"]
 
-    /// The rule that gives the `agents` tool to a run (plan.md §5). A page
-    /// wraps its lines, thus each rule text fits on one line of the page.
-    private static let agentsToolRule = "Only an explicit `tools` entry gives the `agents` tool."
+    /// The rule of the mount table that gives the full `agents` tool to a run
+    /// (plan.md §5, §9.3). A page wraps its lines, thus each rule text fits
+    /// on one line of the page.
+    private static let agentsToolRule = "Only an explicit `tools` entry gives the operations that start agents."
 
-    /// The rule for an agent with no `tools` key (plan.md §5).
-    private static let noToolsKeyRule = "An agent with no `tools` key gets no `agents` tool."
+    /// The rule of the mount table for an agent with no `tools` key
+    /// (plan.md §5, §9.3): a run with a caller gets only the message
+    /// operations, and a host-started run gets no `agents` tool.
+    private static let noToolsKeyRule =
+        "An agent with no `tools` key gets only the message operations, and only in a run with a caller."
+
+    /// The rule of the noun synonym of `send caller` (plan.md §9.1).
+    private static let parentSynonymRule = "`send parent` is the same call as `send caller`."
+
+    /// The operations of the `agents` tool (plan.md §9.1), in tool order.
+    private static let toolOperations = [
+        "list agents", "start agent", "check agent", "cancel agent", "send agent", "send caller"
+    ]
 
     /// The rule of the mount of `start agent` (plan.md §9.1).
     private static let backgroundRunRule = "`start agent` is a background run."
@@ -120,6 +132,7 @@ struct DocumentationTests {
     /// Every claim that a page must make.
     private static let claims: [Claim] =
         articles.map { Claim(page: landingPage, text: "<doc:\($0)>") }
+        + toolOperations.map { Claim(page: toolArticle, text: "`\($0)`") }
         + [
             Claim(page: landingPage, text: "Skills and agents are separate things."),
             Claim(page: landingPage, text: "uses skills through its `skills:` preload and through the `skills` tool"),
@@ -135,10 +148,7 @@ struct DocumentationTests {
             Claim(page: runArticle, text: agentsToolRule),
             Claim(page: toolArticle, text: agentsToolRule),
             Claim(page: toolArticle, text: noToolsKeyRule),
-            Claim(page: toolArticle, text: "`list agents`"),
-            Claim(page: toolArticle, text: "`start agent`"),
-            Claim(page: toolArticle, text: "`check agent`"),
-            Claim(page: toolArticle, text: "`cancel agent`"),
+            Claim(page: toolArticle, text: parentSynonymRule),
             Claim(page: toolArticle, text: "To run a skill in its own context"),
             Claim(page: finalMessageArticle, text: "`.completed` `OperationEvent`"),
             Claim(page: runArticle, text: idleRule),
@@ -241,6 +251,69 @@ struct DocumentationTests {
             \(row.page)\(Self.pageSuffix) must not say "\(row.text)": the registry reads its files in \
             load() so that the I/O shows at the call site
             """)
+    }
+
+    // MARK: - The count of the operations
+
+    @Test func noSourceOrDocumentStatesFourOperations() throws {
+        let offenders = try Self.textFiles().filter { url in
+            Self.holdsFourOperations(try String(contentsOf: url, encoding: .utf8))
+        }
+
+        #expect(
+            offenders.isEmpty,
+            """
+            The `agents` tool has \(Self.toolOperations.count) operations, thus no file may say \
+            "\(Self.fourOperationsText)": \(offenders.map(\.path).joined(separator: ", "))
+            """)
+    }
+
+    @Test func aCountThatALineBreakSplitsIsFound() {
+        #expect(Self.holdsFourOperations("with the name `agents` and Four\n   operations:"))
+    }
+
+    @Test func aTextWithNoCountIsNotReported() {
+        #expect(!Self.holdsFourOperations("the four forms of the description, and six operations"))
+    }
+
+    /// The count of the operations that no file may state. The tool has the
+    /// operations of ``toolOperations``.
+    private static let fourOperationsText = "four operations"
+
+    /// The folders of the files that the count check reads, relative to the
+    /// package root: the source with the DocC catalog, and the documents.
+    private static let textDirectories = [sourceDirectory, "docs"]
+
+    /// The files at the package root that the count check reads.
+    private static let rootTextFiles = ["README.md", "plan.md"]
+
+    /// The extensions of the files that the count check reads.
+    private static let textExtensions: Set = ["swift", "md"]
+
+    /// Tells whether `text` states the count ``fourOperationsText``. A page
+    /// can wrap the two words over two lines, thus the check reads each run
+    /// of white space as one space. The case of the letters does not matter.
+    ///
+    /// - Parameter text: The text of one file.
+    /// - Returns: `true` when the text holds the count.
+    private static func holdsFourOperations(_ text: String) -> Bool {
+        text.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            .contains(fourOperationsText)
+    }
+
+    /// Gives each file that the count check reads: each Swift and Markdown
+    /// file under ``textDirectories``, and ``rootTextFiles``.
+    ///
+    /// - Returns: The URLs of the files.
+    /// - Throws: An error when a folder cannot be read.
+    private static func textFiles() throws -> [URL] {
+        let root = PackageRoot.directory
+        let folderFiles = try textDirectories.flatMap { directory in
+            let folder = root.appendingPathComponent(directory, isDirectory: true)
+            let files = try #require(FileManager.default.enumerator(at: folder, includingPropertiesForKeys: nil))
+            return files.compactMap { $0 as? URL }.filter { textExtensions.contains($0.pathExtension) }
+        }
+        return folderFiles + rootTextFiles.map { root.appendingPathComponent($0) }
     }
 
     /// Reads one page of the DocC catalog.

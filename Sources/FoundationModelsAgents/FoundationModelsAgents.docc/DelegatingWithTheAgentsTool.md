@@ -1,11 +1,11 @@
 # Delegating with the agents tool
 
 Give a model the `agents` tool, so that the model can start agents, ask about
-them, and cancel them.
+them, cancel them, and send messages to them.
 
 ## Overview
 
-``AgentsTool`` is one `OperationTool` with the name `agents` and four
+``AgentsTool`` is one `OperationTool` with the name `agents` and six
 operations:
 
 | Operation | Parameters | Answer |
@@ -14,9 +14,52 @@ operations:
 | `start agent` | `name`, `prompt` | At once: in a Router session, the pending envelope of the Router; outside one, "Agent `name` started with the id `id`." |
 | `check agent` | `id?` | At once: the state of the run. With no `id`, one block for each run of the caller. |
 | `cancel agent` | `id` | What the cancel did. |
+| `send agent` | `id`, `message` | At once: "The message was sent to Agent `name` (`id`)." The run answers the message before it ends. |
+| `send caller` | `message` | At once: the message was sent to the session that started the run. The run continues. |
 
 The verb aliases are `stop` for `cancel`, `run` for `start`, `status` for
-`check`, and `show` for `list`.
+`check`, and `show` for `list`. The noun alias is `parent` for `caller`.
+`send parent` is the same call as `send caller`.
+
+### Messages between a run and its caller
+
+A caller can send a message to a run that it started while the run works.
+The `id` is the id of the run, or the completion token of the `start agent`
+call:
+
+```json
+{"op": "send agent", "id": "<id>", "message": "Also check the error paths."}
+```
+
+The run holds a message that comes before its task prompt starts. Then the
+session of the run gets the message after the task prompt. The run answers
+each message that it accepted before it ends, and its final message still
+comes to the caller as mail. A run that ended gets no message: the call gives
+the corrective "The run `id` ended (`state`), and it gets no more messages.
+Start a new run." An id of a run of a different caller gives the corrective of
+an unknown id.
+
+A run with a caller can send a message to that caller while it works:
+
+```json
+{"op": "send caller", "message": "I found two errors. I continue with the tests."}
+```
+
+The message comes to the session of the caller as mail
+(`SessionEvent.runMessage(_:)`), and the pump of the Router starts an answer
+to it. The run continues to work. A run that started agents answers each
+message of a child before it ends. The answers to messages count toward
+`mailOnlyAnswerLimit` in the same way as the answers to final messages. When
+the Router holds that mail and starts no answer for it, the run fails with
+``AgentRunFailure/mailDeliveryPaused(_:)``. A session that has no caller, for
+example a host session or a host-started run, gets the corrective "You have
+no caller."
+
+A `send agent` call to a run of the caller, and a `send caller` call with a
+message, write one `agent.message.sent` log record and span event. The record
+holds the direction (`to_run` or `to_caller`), the outcome (`delivered`,
+`ended`, or `no_caller`), and the length of the message. It never holds the
+text of the message.
 
 ### The mount of each operation
 
@@ -28,9 +71,10 @@ never to guess the result, and to end its answer. It also gives the
 `check agent` call for the completion token of the call.
 The final message comes to the calling session as mail.
 The pump of the Router delivers it after the answer of the model ends (see
-<doc:TheFinalMessage>). `list agents`, `check agent`, and `cancel agent` are
-synchronous: each call gives its real answer in the same answer of the model.
-No call waits for a time before it answers.
+<doc:TheFinalMessage>). `list agents`, `check agent`, `cancel agent`,
+`send agent`, and `send caller` are synchronous: each call gives its real
+answer in the same answer of the model. No call waits for a time before it
+answers.
 
 ### Make the tool
 
@@ -83,22 +127,37 @@ wrong and what it can do now:
 
 ### Agents that start agents
 
-Only an explicit `tools` entry gives the `agents` tool.
+Only an explicit `tools` entry gives the operations that start agents.
 The entries are `Agent`, `Agent(a, b)`, and `agents`.
-An agent with no `tools` key gets no `agents` tool.
+An agent with no `tools` key gets only the message operations, and only in a run with a caller.
 It gets the other tools of the ``ToolCatalog``, thus it cannot start agents.
-`disallowedTools: Agent` removes the tool. A run with one of these entries gets
-its own `agents` tool when its depth is less than ``AgentEnvironment/maxDepth``.
-A run at the depth limit gets no `agents` tool.
+Each run gets its own instance of the tool. This table gives the operations
+of the tool of a run:
+
+| The run | The operations of its `agents` tool |
+|---|---|
+| An `Agent` entry, and a depth less than ``AgentEnvironment/maxDepth`` | Each operation |
+| An `Agent` entry at the depth limit, and a caller | `send agent` and `send caller` |
+| No `Agent` entry, and a caller | `send agent` and `send caller` |
+| Each other case, for example a host-started run with no `Agent` entry | No `agents` tool |
+
+A run has a caller when a `start agent` call started it. A host-started run
+has no caller. `disallowedTools: Agent` removes the tool in each case. The
+tool with only the message operations does not read the catalog, and its
+description names no agent. The description of the tool of a run with a
+caller ends with the id of the caller session and the `send caller` call.
+When each run of an agent is at the depth limit, `runner.catalog()` gives a
+warning for its `Agent` entry: a run with a caller gets only the message
+operations, and a host-started run gets no `agents` tool.
 
 A run that starts agents finishes only after each of them ends. While it
 waits, it holds no place in the run limit. The final message of each child
 comes to the session of the parent as mail, and the pump of the Router starts
 an answer of the parent to it. The parent can start more agents in that
 answer. The parent ends when its session is idle: no child is open, the
-parent answered each final message, and no message waits. The reply of its
-last answer is its result. A cancel, or a failure of the parent, cancels its
-children first.
+parent answered each final message and each message of a child, and no
+message waits. The reply of its last answer is its result. A cancel, or a
+failure of the parent, cancels its children first.
 
 ### Skills through an agent
 
@@ -119,5 +178,6 @@ each user-invocable agent. A command starts a host-driven run with the text
 after the name as the prompt, waits for it, and gives the final text.
 
 ``AgentsCLI/makeDriver(runner:)`` gives an `OperationCLIDriver` with the
-commands `agents agent list`, `agents agent start`, `agents agent check`, and
-`agents agent cancel`.
+commands `agents agent list`, `agents agent start`, `agents agent check`,
+`agents agent cancel`, and `agents agent send`. `send caller` has no command:
+a host is not a run, thus it has no caller.

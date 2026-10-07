@@ -61,12 +61,27 @@ enum ReadmeExample {
     ///   line of `source`, and the other lines of `block` are the lines
     ///   between one pair of markers of `source`.
     static func hasCopy(of block: [String], in source: String) -> Bool {
-        let sourceLines = trimmedLines(of: source)
-        let sourceImports = Set(sourceLines.filter(isImportOrBlank))
+        let sourceImports = Set(trimmedLines(of: source).filter(isImportOrBlank))
         let blockImports = block.prefix(while: isImportOrBlank)
-        let code = Array(block.dropFirst(blockImports.count))
-        let copies = sections(of: sourceLines, openedBy: startMarker, closedBy: endMarker)
-        return sourceImports.isSuperset(of: blockImports) && copies.contains(code)
+        return sourceImports.isSuperset(of: blockImports) && copies(in: source).contains(code(of: block))
+    }
+
+    /// Gives the compiled copies of a source text: the lines between each
+    /// pair of markers.
+    ///
+    /// - Parameter source: The text of the Swift source file.
+    /// - Returns: The trimmed lines of each copy, in text order.
+    static func copies(in source: String) -> [[String]] {
+        sections(of: trimmedLines(of: source), openedBy: startMarker, closedBy: endMarker)
+    }
+
+    /// Gives the code of a README block: its lines after the leading import
+    /// lines and blank lines.
+    ///
+    /// - Parameter block: The trimmed lines of one README block.
+    /// - Returns: The lines that a compiled copy must hold.
+    static func code(of block: [String]) -> [String] {
+        Array(block.drop(while: isImportOrBlank))
     }
 
     /// Gives the lines between each opening line and the next closing line.

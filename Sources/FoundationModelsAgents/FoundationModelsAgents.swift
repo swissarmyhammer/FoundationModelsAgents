@@ -14,9 +14,13 @@
 ///   local layers and the marketplace layers. The file name is the id. The
 ///   registry makes the catalog again after a watch event or an update.
 /// - **Layer 3, the FM adapter:** `AgentsTool` is one `OperationTool` with the
-///   name "agents", four operations, and one noun. `AgentRunner` is an actor
-///   that keeps the run limit, the run index, and the child runs. `AgentRun`
-///   drives one `RoutedSession` and keeps its state and its result.
+///   name "agents" and six operations: `list agents`, `start agent`,
+///   `check agent`, `cancel agent`, `send agent`, and `send caller`.
+///   `AgentRunner` is an actor that keeps the run limit, the run index, and
+///   the child runs. `AgentRun` drives one `RoutedSession` and keeps its
+///   state and its result. A run and its caller can send messages to each
+///   other while the run works, and the run gives one final message when it
+///   ends.
 ///
 /// Layers 1 and 2 use no model. They keep the `model` key as text, and the
 /// runner matches it to a slot.

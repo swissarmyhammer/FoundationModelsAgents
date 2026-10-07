@@ -71,10 +71,26 @@ comments:
     - evidence: `swift test` — 496 tests in 68 suites passed, 0 failures, no compiler warning (only the known SwiftPM mlx-swift bundle line). Files: Sources/FoundationModelsAgents/Tools/ToolResolver.swift, Sources/FoundationModelsAgents/Run/AgentRunner.swift, Tests/FoundationModelsAgentsTests/ToolResolverTests.swift, Tests/FoundationModelsAgentsTests/AgentRunnerTests.swift, Tests/FoundationModelsAgentsTests/AgentsToolMountTests.swift. 3 of 3 findings checked.
     - next: /review
   timestamp: 2026-10-07T23:42:18.098418+00:00
+- actor: claude-code
+  id: 01m4cc2mp3qb6apgphyxwqye8g
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (51c7da0): 0 findings (5 files reviewed, 2 .kanban/ files excluded). All 3 prior Review Findings items are checked.
+    - next: task moved to done.
+  timestamp: 2026-10-07T23:44:45.251227+00:00
+- actor: claude-code
+  id: 01m4cc2tapepvqgetj1sx74d80
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — 5 files
+    - test: green — swift test, 496 passed in 68 suites; IntegrationTests build complete
+    - commit: 51c7da0
+    - review: clean — 0 findings; task moved to done
+  timestamp: 2026-10-07T23:44:51.030345+00:00
 depends_on:
 - 01M4BXV22HHY1EYE8XEVSV23GW
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: ca80
 title: Each run with a caller gets the messaging tool
 ---
 ## What

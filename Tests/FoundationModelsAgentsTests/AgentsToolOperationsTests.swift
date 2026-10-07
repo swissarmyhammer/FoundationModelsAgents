@@ -2,7 +2,7 @@
 import FoundationModelsRouter
 import Testing
 
-/// Pins the four operations of the `agents` tool (plan.md §9.1): the success
+/// Pins the operations of the `agents` tool (plan.md §9.1): the success
 /// texts, the corrective texts, the verb aliases, and the plain-text answer.
 ///
 /// The tests call the tool outside a Router session, as a command line does,

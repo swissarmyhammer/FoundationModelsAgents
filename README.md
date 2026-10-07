@@ -12,10 +12,13 @@ session.
 
 An agent run is a new Router session in the same process. The run gets a task,
 works in the background with its own context and its own tools, and gives back
-one final text. The caller keeps its own context. A model starts agents through
-one tool, `agents`, with four operations: `list agents`, `start agent`,
-`check agent`, and `cancel agent`. An agent whose `tools` key lists `Agent` has
-this tool too, thus agents can start agents.
+one final text when it ends. While the run works, it and its caller can send
+messages to each other. The caller keeps its own context. A model starts
+agents through one tool, `agents`, with six operations: `list agents`,
+`start agent`, `check agent`, `cancel agent`, `send agent`, and `send caller`
+(`send parent` is the same call). An agent whose `tools` key lists `Agent`
+gets each operation, thus agents can start agents. Each other run that a
+`start agent` call started gets only `send agent` and `send caller`.
 
 ## The agent file
 
@@ -40,11 +43,12 @@ You are a code reviewer. Read the code and give specific feedback.
   The file loads, because the file name is the id.
 - An agent with no valid `description` is not visible to the model.
 - `tools` is the list of tools of the run. With no `tools` key, the run gets
-  each tool of the `ToolCatalog`, but not the `agents` tool. Only an explicit
-  `Agent`, `Agent(a, b)`, or `agents` entry gives the `agents` tool.
-  `Agent(a, b)` lets the run start only the agents `a` and `b`.
-  `disallowedTools` removes tools from the list, and `disallowedTools: Agent`
-  removes the `agents` tool.
+  each tool of the `ToolCatalog`, but not the operations that start agents.
+  Only an explicit `Agent`, `Agent(a, b)`, or `agents` entry gives those
+  operations. `Agent(a, b)` lets the run start only the agents `a` and `b`. A
+  run with a caller and with no such entry gets an `agents` tool with only
+  `send agent` and `send caller`. `disallowedTools` removes tools from the
+  list, and `disallowedTools: Agent` removes the `agents` tool.
 - `model` is a Router slot (`standard` or `flash`) or a model reference of the
   profile. With no `model` key, a run that an agent starts uses the slot of
   that agent, and a run that the host starts uses the default slot of the
@@ -161,9 +165,33 @@ of the host. `AgentRunner` is also a
 `SlashCommandProviding`: each agent that the user can start is one slash
 command.
 
+### Messages to a run
+
+A caller can send a message to a run that is still running. A model calls
+`{"op": "send agent", "id": "<id>", "message": "<text>"}`. A host uses the
+`agent send` command of `AgentsCLI` for a run that it started:
+
+```swift
+// A host sends a message to a run that it started, while the run works.
+let driver = try AgentsCLI.makeDriver(runner: runner)
+let sent = await driver.run(arguments: [
+    "agent", "send", "--id", run.id.description, "--message", "Also check the error paths."
+])
+// The run answers the message before it ends, thus `result()` gives that answer.
+```
+
+The run holds a message that comes before its task prompt starts, and the
+session of the run gets it after the task prompt. A run that ended gets no
+message, and the call gives a corrective: "The run `id` ended (`state`), and
+it gets no more messages. Start a new run." A run with a caller sends a
+message to that caller with `send caller`. The message comes to the caller as
+mail, and the run continues to work. A run that has no caller gets the
+corrective "You have no caller." Each message gives one `agent.message.sent`
+log record and span event. The record never holds the text of the message.
+
 [`Tests/FoundationModelsAgentsTests/ReadmeExampleSource.swift`](Tests/FoundationModelsAgentsTests/ReadmeExampleSource.swift)
-holds a copy of this example. `ReadmeExampleTests` compares the two texts, and
-runs the copy with a scripted profile over the fixture library. Thus this
+holds a copy of each example. `ReadmeExampleTests` compares the texts, and
+runs each copy with a scripted profile over the fixture library. Thus each
 example compiles and runs.
 
 ## Install

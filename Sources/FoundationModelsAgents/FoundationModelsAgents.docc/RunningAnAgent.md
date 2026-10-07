@@ -63,11 +63,14 @@ An unknown name throws ``AgentRunnerError/unknownAgent(name:available:)``.
    `skills:` key.
 3. It resolves the tools. `disallowedTools` applies first, then `tools`. With
    no `tools` key, the run gets each tool of the ``ToolCatalog``.
-   An agent with no `tools` key gets no `agents` tool.
-   Only an explicit `tools` entry gives the `agents` tool.
+   An agent with no `tools` key gets only the message operations, and only in a run with a caller.
+   Only an explicit `tools` entry gives the operations that start agents.
    The entries are `Agent`, `Agent(a, b)`, and `agents`. A run with one of
-   these entries gets its own instance of the tool. `disallowedTools: Agent`
-   removes the tool.
+   these entries, and with a depth less than ``AgentEnvironment/maxDepth``,
+   gets its own instance of the tool with each operation. A run with a caller
+   and no such tool gets a tool with only `send agent` and `send caller`.
+   `disallowedTools: Agent` removes the tool (see
+   <doc:DelegatingWithTheAgentsTool>).
 4. It matches the `model` key to a slot of the profile. An absent key or
    `inherit` gives the slot of the caller. For a host-started run, that is
    ``AgentEnvironment/defaultSlot``. `standard` and `flash` give that slot. A
@@ -80,20 +83,25 @@ setup fails has no session: it gets a new ULID, no recording directory, and
 the state ``AgentRunState/failed(_:)``.
 
 Then the run sends the prompt as the first message of its session, and the
-session answers it in the background. Nothing goes to the caller during the
-answer. A run that started no agents ends when this answer ends, and the
-reply of this answer is its result.
+session answers it in the background. A run with a caller can send messages
+to that caller with `send caller` while it works. A caller can send messages
+to the run with `send agent`: the run holds a message that comes before the
+answer of the task prompt starts, and the session gets the message after the
+task prompt. The run answers each message that it accepted before it ends. A
+run that started no agents and got no message ends when this answer ends,
+and the reply of this answer is its result.
 
 A run that started agents waits for them. `start agent` is a background run
 of the Router, thus the final message of each agent comes to the session of
-the run as mail. The pump of the Router delivers the mail and starts an
-answer to it, with no call of the run. An answer to mail can start more
-agents.
+the run as mail. Each message that an agent sends with `send caller` also
+comes as mail. The pump of the Router delivers the mail and starts an answer
+to it, with no call of the run. An answer to mail can start more agents.
 
 A run ends when its session is idle.
 The session is idle when each agent that the run started ended, when the
-session answered the final message of each of those agents, when no pending
-envelope waits for its final message, and when no message waits in the queue.
+session answered the final message and each message of each of those agents,
+when no pending envelope waits for its final message, and when no message
+waits in the queue.
 The reply of the last answer is the result of the run. When the Router holds
 the mail and starts no answer for it, the run fails with
 ``AgentRunFailure/mailDeliveryPaused(_:)``.
