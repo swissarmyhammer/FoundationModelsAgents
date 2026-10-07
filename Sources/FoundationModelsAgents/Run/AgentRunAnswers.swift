@@ -104,8 +104,10 @@ struct AgentRunAnswers: Sendable, Equatable {
 enum AgentRunSignal: Sendable {
     /// The session of the run is idle: no run that it started is open, each
     /// final message of those runs was delivered and answered, and no
-    /// message waits. The text is the reply of the last answer.
-    case idle(String)
+    /// message waits. The text is the reply of the last answer. The count is
+    /// the count of messages from the caller that the run accepted before
+    /// the idle check (``AgentRun/deliver(_:)``).
+    case idle(String, acceptedMessages: Int)
 
     /// The count of passes went above the `maxTurns` limit, and the open
     /// answer ended. The text is the text so far.

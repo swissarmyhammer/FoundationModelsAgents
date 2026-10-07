@@ -48,6 +48,20 @@ public final class AgentRun: Sendable {
         /// ``AgentRunState/running`` until the run cancels its children and
         /// closes its session. A cancel reads this value.
         var settled: AgentRunState?
+
+        /// The count of messages from the caller that ``AgentRun/deliver(_:)``
+        /// accepted and did not yet put in the message queue of the session.
+        var inboundMessages = 0
+
+        /// The count of all messages from the caller that
+        /// ``AgentRun/deliver(_:)`` accepted. It only goes up. An idle check
+        /// records it, and the run ends on that check only when the count
+        /// did not change after it (``AgentRun/settle(idle:acceptedMessages:)``).
+        var acceptedMessages = 0
+
+        /// The test hooks of the idle rule. They do nothing in a run that no
+        /// test changes.
+        var idleHooks = AgentRunIdleHooks()
     }
 
     /// The id of the run. It is the session id and the name of the
@@ -149,6 +163,11 @@ public final class AgentRun: Sendable {
     /// `true` after a caller cancelled the run.
     var isCancelRequested: Bool {
         storage.withLock { $0.isCancelRequested }
+    }
+
+    /// The test hooks of the idle rule of the run.
+    var idleHooks: AgentRunIdleHooks {
+        storage.withLock { $0.idleHooks }
     }
 
     /// `true` when the run holds a place in the run limit: it is in
@@ -326,6 +345,56 @@ public final class AgentRun: Sendable {
         return .alreadySettled(finalMessage)
     }
 
+    /// Sends a message from the caller to the session of the run, or tells
+    /// that the run ended.
+    ///
+    /// The run accepts the message while it is in operation: in the turn of
+    /// its task prompt, and while it waits for its children. The session
+    /// then answers the message before the run ends, because a message that
+    /// the run accepted keeps it from the idle end
+    /// (``acceptedMessagesIfIdle(on:)``, ``settle(idle:acceptedMessages:)``). The
+    /// prompt of the message is ``AgentsToolText/callerMessage(_:)``.
+    ///
+    /// The answer of a message to a run that waits for its children starts
+    /// with no check against ``AgentEnvironment/maxConcurrentAgents``. An
+    /// answer to the final message of a child does the same.
+    ///
+    /// - Parameter message: The text of the caller.
+    /// - Returns: ``AgentRunMessageOutcome/delivered`` when the session got
+    ///   the message. ``AgentRunMessageOutcome/ended(_:)`` with the final
+    ///   state when the run started to end before the message: its answers
+    ///   ended, a caller cancelled it, or its setup failed.
+    func deliver(_ message: String) async -> AgentRunMessageOutcome {
+        let admission = storage.withLock { storage -> (session: (any RoutedSession)?, ended: AgentRunState) in
+            if let settled = storage.settled {
+                return (nil, settled)
+            }
+            if storage.isCancelRequested {
+                return (nil, .cancelled)
+            }
+            guard let session = storage.session else {
+                return (nil, storage.state)
+            }
+            storage.inboundMessages += 1
+            storage.acceptedMessages += 1
+            return (session, storage.state)
+        }
+        guard let session = admission.session else {
+            return .ended(admission.ended)
+        }
+        await session.send(AgentsToolText.callerMessage(message))
+        storage.withLock { $0.inboundMessages -= 1 }
+        return .delivered
+    }
+
+    /// Sets the test hooks of the idle rule of the run. Call it before
+    /// ``begin(_:environment:)``.
+    ///
+    /// - Parameter hooks: The hooks.
+    func install(_ hooks: AgentRunIdleHooks) {
+        storage.withLock { $0.idleHooks = hooks }
+    }
+
     /// Starts the background task that holds the span and the log records of
     /// the run (``traced(in:_:)``), and in it the task that drives the session
     /// of the run (``drive(_:prompt:)``).
@@ -381,6 +450,36 @@ public final class AgentRun: Sendable {
     func settle(_ final: AgentRunState) -> AgentRunState {
         storage.withLock { $0.settled = final }
         return final
+    }
+
+    /// The count of messages that ``deliver(_:)`` accepted, for the start of
+    /// an idle check, or `nil` while a message is on its way to the message
+    /// queue of the session. The session is not idle then.
+    var acceptedMessagesWhenNoneInbound: Int? {
+        storage.withLock { storage in
+            storage.inboundMessages == 0 ? storage.acceptedMessages : nil
+        }
+    }
+
+    /// Records the final state of an idle run, when no message from the
+    /// caller arrived after the idle check. One lock holds the check and the
+    /// record, thus ``deliver(_:)`` accepts each message before this call,
+    /// and the run then answers it, or refuses it after this call.
+    ///
+    /// - Parameters:
+    ///   - final: The final state that the idle signal gave.
+    ///   - acceptedMessages: The count of accepted messages that the idle
+    ///     check read.
+    /// - Returns: `final`, or `nil` when ``deliver(_:)`` accepted a message
+    ///   after the idle check. The run then waits for its answer.
+    func settle(idle final: AgentRunState, acceptedMessages: Int) -> AgentRunState? {
+        storage.withLock { storage in
+            guard storage.inboundMessages == 0, storage.acceptedMessages == acceptedMessages else {
+                return nil
+            }
+            storage.settled = final
+            return final
+        }
     }
 
     /// Records the final state, and lets go of the session.

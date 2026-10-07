@@ -30,6 +30,19 @@ enum AgentsToolText {
     /// the end of the unknown-id corrective for such a caller.
     static let noRuns = "You have no runs."
 
+    /// The start of each message that a caller sends to a run that it
+    /// started. It tells the model of the run where the message came from.
+    static let callerMessagePrefix = "Message from your caller:"
+
+    /// Gives the prompt of a message that a caller sends to a run that it
+    /// started.
+    ///
+    /// - Parameter message: The text of the caller.
+    /// - Returns: ``callerMessagePrefix``, a space, and `message`.
+    static func callerMessage(_ message: String) -> String {
+        "\(callerMessagePrefix) \(message)"
+    }
+
     /// The text between two names or two ids of a list.
     private static let listSeparator = ", "
 

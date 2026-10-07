@@ -16,6 +16,20 @@ struct AgentRunSignals: Sendable {
     }
 }
 
+/// Two points in the idle rule of a run where a test can hold the run
+/// (``AgentRun/install(_:)``). A test uses them to put a message at an
+/// exact point of the idle rule, with no dependency on timing. A run that
+/// no test changes has hooks that do nothing.
+struct AgentRunIdleHooks: Sendable {
+    /// Runs at the start of each idle check, before the run reads the
+    /// message queue of its session.
+    var beforeIdleCheck: @Sendable () async -> Void = {}
+
+    /// Runs after the run got an idle signal, before the run decides to end
+    /// on it.
+    var beforeIdleSettle: @Sendable () async -> Void = {}
+}
+
 extension AgentRun {
     /// Drives the session of the run on the pump of the Router, and gives the
     /// final state of the run (plan.md §8 steps 6 to 8).
@@ -27,10 +41,12 @@ extension AgentRun {
     /// run started: each final message is mail, and mail starts an answer
     /// with no call of this run.
     ///
-    /// The run ends when its session is idle (``isIdle(on:)``), and the reply
-    /// of the last answer is its result. It also ends when the count of
-    /// passes goes above the `maxTurns` limit, when an answer fails, when the
-    /// Router holds the mail, or when a caller cancels it.
+    /// The run ends when its session is idle (``acceptedMessagesIfIdle(on:)``)
+    /// and no message from the caller arrived after the idle check
+    /// (``settle(idle:acceptedMessages:)``). The reply of the last answer is
+    /// then its result. The run also ends when the count of passes goes above
+    /// the `maxTurns` limit, when an answer fails, when the Router holds the
+    /// mail, or when a caller cancels it.
     ///
     /// When the answers end, the run records its final state (``settle(_:)``)
     /// at once. It then cancels its open children and waits for them, waits
@@ -107,8 +123,9 @@ extension AgentRun {
     /// - Returns: The final state, or `nil`.
     private func endState(after signal: AgentRunSignal, on session: any RoutedSession) async -> AgentRunState? {
         switch signal {
-        case .idle(let text):
-            return .finished(text)
+        case .idle(let text, let acceptedMessages):
+            await idleHooks.beforeIdleSettle()
+            return settle(idle: .finished(text), acceptedMessages: acceptedMessages)
         case .limitHit(let partial):
             return .failed(.hitMaxTurns(partial: partial))
         case .cancelRequested:
@@ -182,8 +199,10 @@ extension AgentRun {
     ///
     /// - The end of an answer gives ``AgentRunSignal/limitHit(partial:)``
     ///   after the count went above the limit. Else an answer gives
-    ///   ``AgentRunSignal/idle(_:)`` when the session is idle.
-    /// - A settled background run gives ``AgentRunSignal/idle(_:)`` when the
+    ///   ``AgentRunSignal/idle(_:acceptedMessages:)`` when the session is
+    ///   idle.
+    /// - A settled background run gives
+    ///   ``AgentRunSignal/idle(_:acceptedMessages:)`` when the
     ///   session is idle after it (``idleSignalAfterSettlement(on:)``).
     /// - A failed answer to mail alone gives
     ///   ``AgentRunSignal/mailAnswerFailed(_:)``. A failed answer of the task
@@ -199,7 +218,7 @@ extension AgentRun {
             if turns.isLimitHit {
                 return .limitHit(partial: answer.reply)
             }
-            return await isIdle(on: session) ? .idle(answer.reply) : nil
+            return await idleSignal(reply: answer.reply, on: session)
         }
         if case .runSettled = event {
             return await idleSignalAfterSettlement(on: session)
@@ -216,8 +235,9 @@ extension AgentRun {
         return nil
     }
 
-    /// Gives ``AgentRunSignal/idle(_:)`` when the session is idle after a
-    /// background run settled, with the reply of the last answer.
+    /// Gives ``AgentRunSignal/idle(_:acceptedMessages:)`` when the session is
+    /// idle after a background run settled, with the reply of the last
+    /// answer.
     ///
     /// The Router stages the final message of a run before it sends its
     /// ``SessionEvent/runSettled(_:)``, thus the answer to that final message
@@ -233,10 +253,25 @@ extension AgentRun {
         guard answers.hasAnswered, !answers.isAnswerOpen, !turns.isLimitHit else {
             return nil
         }
-        return await isIdle(on: session) ? .idle(answers.lastReply) : nil
+        return await idleSignal(reply: answers.lastReply, on: session)
     }
 
-    /// Tells if the session of the run is idle after an answer.
+    /// Gives ``AgentRunSignal/idle(_:acceptedMessages:)`` with `reply` when
+    /// the session is idle (``acceptedMessagesIfIdle(on:)``).
+    ///
+    /// - Parameters:
+    ///   - reply: The reply of the last answer.
+    ///   - session: The session of the run.
+    /// - Returns: The signal, or `nil` when the session is not idle.
+    private func idleSignal(reply: String, on session: any RoutedSession) async -> AgentRunSignal? {
+        guard let acceptedMessages = await acceptedMessagesIfIdle(on: session) else {
+            return nil
+        }
+        return .idle(reply, acceptedMessages: acceptedMessages)
+    }
+
+    /// Tells if the session of the run is idle after an answer, and gives the
+    /// count of accepted messages from the caller for an idle session.
     ///
     /// The session is idle when each run that this run started ended, when
     /// no message waits, and when the session delivered the final message of
@@ -256,24 +291,39 @@ extension AgentRun {
     /// when an answer ends. The envelope is in the transcript already, and
     /// its terminal is not settled, so the session is not idle.
     ///
+    /// A message from the caller also keeps the session from idle, from the
+    /// time that ``deliver(_:)`` accepts it to the end of its answer. While
+    /// the message goes to the queue, ``acceptedMessagesWhenNoneInbound`` is
+    /// `nil`. In the queue, the message waits. The pump then moves it to the
+    /// running messages before the run reads the start of its answer, thus a
+    /// running message also keeps the session from idle. The check gives the
+    /// count of accepted messages that it read first. A message that the run
+    /// accepts after that read changes the count, and the run does not end
+    /// on this check (``settle(idle:acceptedMessages:)``).
+    ///
     /// - Parameter session: The session of the run.
-    /// - Returns: `true` when the session is idle.
-    private func isIdle(on session: any RoutedSession) async -> Bool {
-        guard children.runs.allSatisfy({ $0.state != .running }) else {
-            return false
+    /// - Returns: The count of accepted messages when the session is idle, or
+    ///   `nil` when it is not idle.
+    private func acceptedMessagesIfIdle(on session: any RoutedSession) async -> Int? {
+        await idleHooks.beforeIdleCheck()
+        guard let acceptedMessages = acceptedMessagesWhenNoneInbound,
+            children.runs.allSatisfy({ $0.state != .running })
+        else {
+            return nil
         }
         let depth = await session.messageQueueDepth()
-        guard depth.waiting == 0 else {
-            return false
+        guard depth.waiting == 0, depth.running.isEmpty else {
+            return nil
         }
         let transcript = await session.transcript
         let answers = answers
-        return Self.pendingRunTokens(in: transcript).allSatisfy { token in
+        let isDelivered = Self.pendingRunTokens(in: transcript).allSatisfy { token in
             guard let finalMessage = sessionWatch.detail(ofSettledCall: token) else {
                 return false
             }
             return answers.hasAnswered(promptHolding: finalMessage, in: transcript)
         }
+        return isDelivered ? acceptedMessages : nil
     }
 
     /// Gives the completion token of each pending envelope that a tool
