@@ -77,14 +77,11 @@ extension LiveSuites {
                 let agentsTool = try await harness.makeAgentsTool()
                 let probe = LiveAgentsToolProbe(wrapping: agentsTool)
                 let root = harness.makeRootSession(tools: [probe])
-                let rootEvents = await root.streamSessionEvents()
-                var mailReplies = rootEvents.compactMap { event -> String? in
-                    if case .answered(let answer) = event, answer.messageIds.isEmpty { answer.reply } else { nil }
-                }.makeAsyncIterator()
+                var finalMailReplies = await Self.finalMailReplies(of: root).makeAsyncIterator()
                 _ = try await root.respond(to: rootPrompt)
                 let finderRun = try LiveHarness.run(of: finder, in: await harness.runner.runs(caller: root.id))
                 let text = try await finderRun.result()
-                let reply = await mailReplies.next()
+                let reply = await finalMailReplies.next()
                 await root.close()
                 let spawn = try #require(try LiveRecording.session(of: finderRun).agentSpawn)
                 let startContext = try #require(
@@ -111,6 +108,47 @@ extension LiveSuites {
                 #expect(
                     reply?.localizedCaseInsensitiveContains(LiveWordTool.word) == true,
                     "The reply of the root was: \(String(describing: reply))")
+            }
+        }
+
+        /// Gives the reply of each answer of `root` that reads the final
+        /// message of a run.
+        ///
+        /// A sub-agent can also send messages to the root with `send caller`.
+        /// The root answers each message mail, and that reply comes before
+        /// the final message. Thus the first answer to mail is not always the
+        /// answer to the final message.
+        ///
+        /// The Router posts the final message as a `.runSettled` event. The
+        /// next submission start after that event takes the final message.
+        /// That submission starts a new answer, or continues an answer that is
+        /// in progress. Thus the first answer to mail that has a submission
+        /// start after the `.runSettled` event reads the final message.
+        ///
+        /// - Parameter root: The root session.
+        /// - Returns: The replies, in the order of the answers.
+        private static func finalMailReplies(of root: any RoutedSession) async -> AsyncStream<String> {
+            let events = await root.streamSessionEvents()
+            return AsyncStream { continuation in
+                let task = Task {
+                    var isSettled = false
+                    var readsFinalMessage = false
+                    for await event in events {
+                        switch event {
+                        case .runSettled:
+                            isSettled = true
+                        case .submissionStarted where isSettled:
+                            readsFinalMessage = true
+                        case .answered(let answer) where answer.messageIds.isEmpty && readsFinalMessage:
+                            readsFinalMessage = false
+                            continuation.yield(answer.reply)
+                        default:
+                            break
+                        }
+                    }
+                    continuation.finish()
+                }
+                continuation.onTermination = { _ in task.cancel() }
             }
         }
     }
