@@ -3,13 +3,14 @@ import Synchronization
 /// The runs that the `start agent` calls of one `agents` tool started, by
 /// the completion token of each call (plan.md §9.1, §9.2).
 ///
-/// The Router gives the model the pending envelope of a `start agent` call.
-/// The envelope holds the completion token of the call, not the id of the
+/// The Router gives the model the pending envelope of a `start agent` call
+/// whose run continues past the settle period of the session. The envelope
+/// holds the completion token of the call, not the id of the
 /// run. Thus `check agent` and `cancel agent` find a run by that token too.
 /// The Router cancels a background call through the canceler of the tool,
 /// and the canceler finds the run by the same token.
 ///
-/// The Router gives the envelope before the body of the call starts the
+/// The Router can give the envelope before the body of the call starts the
 /// run. Thus the record knows each call from the time that the Router asks
 /// for its canceler (``open(call:)``) to the time that its body adds a run
 /// (``add(_:forCall:)``) or ends with no run (``close(call:)``). While a call

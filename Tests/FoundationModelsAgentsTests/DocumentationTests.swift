@@ -89,7 +89,7 @@ struct DocumentationTests {
     /// The four articles of the catalog.
     private static let articles = [catalogArticle, runArticle, toolArticle, finalMessageArticle]
 
-    /// Each page of the catalog. `RunModelWordingTests` reads each page too.
+    /// Each page of the catalog.
     static let pages = [landingPage] + articles
 
     /// The words that give speed as the reason of a design. The reason that

@@ -5,9 +5,12 @@ Read the result of a run that a model started with `start agent`.
 ## Overview
 
 `start agent` is a background run.
-In a Router session, the call answers the model at once with the pending
-envelope of the Router. The run works in the background. All its work is in
-its own transcript.
+In a Router session, the call waits for the run up to the settle period of
+the session (`SessionConfiguration.inlineSettleGrace`). A run that ends in
+that time gives its final message to the model as the answer of the call, and
+no mail comes. A run that continues gives the pending envelope of the Router,
+and works in the background. All its work is in its own transcript. The rest
+of this article is about a run that continues.
 
 ### Messages before the final message
 

@@ -1,4 +1,5 @@
 import Foundation
+import FoundationModels
 @testable import FoundationModelsAgents
 import FoundationModelsRouter
 import FoundationModelsSkills
@@ -22,6 +23,15 @@ struct AgentRunHarness {
 
     /// The name of the recordings folder in the scratch container.
     static let recordingsFolderName = "recordings"
+
+    /// The settle period of the session of each run and of each root session
+    /// of a test, in seconds.
+    ///
+    /// The tests drive the mail flow of `start agent`: `0` gives the pending
+    /// envelope at once, also for a run that ends fast, and no test waits for
+    /// `ToolMount.defaultInlineSettleGrace`. A test of the own output of a
+    /// call that settles gives its own value.
+    static let settleGrace: TimeInterval = 0
 
     /// The router of the scripted profile.
     let router: Router
@@ -95,17 +105,21 @@ struct AgentRunHarness {
     ///   - mailOnlyAnswerLimit: The most answers in a row that mail alone
     ///     starts in the session of a run. The default is
     ///     `SessionConfiguration.defaultMailOnlyAnswerLimit`.
+    ///   - inlineSettleGrace: The settle period of the session of each run.
+    ///     The default is ``settleGrace``.
     /// - Returns: The environment.
     func environment(
         maxRetainedRuns: Int,
         maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents,
         maxDepth: Int = AgentEnvironment.defaultMaxDepth,
-        mailOnlyAnswerLimit: Int = SessionConfiguration.defaultMailOnlyAnswerLimit
+        mailOnlyAnswerLimit: Int = SessionConfiguration.defaultMailOnlyAnswerLimit,
+        inlineSettleGrace: TimeInterval = settleGrace
     ) -> AgentEnvironment {
         var environment = AgentEnvironment(
             profile: profile, skills: skills, workingDirectory: workingDirectory, tools: tools,
             maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth, maxRetainedRuns: maxRetainedRuns,
-            budget: budget, tracer: tracer, logger: logger, metricsFactory: metricsFactory)
+            budget: budget, tracer: tracer, logger: logger, metricsFactory: metricsFactory,
+            inlineSettleGrace: inlineSettleGrace)
         environment.mailOnlyAnswerLimit = mailOnlyAnswerLimit
         return environment
     }
@@ -124,18 +138,41 @@ struct AgentRunHarness {
     ///   - mailOnlyAnswerLimit: The most answers in a row that mail alone
     ///     starts in the session of a run. The default is
     ///     `SessionConfiguration.defaultMailOnlyAnswerLimit`.
+    ///   - inlineSettleGrace: The settle period of the session of each run.
+    ///     The default is ``settleGrace``.
     /// - Returns: The runner.
     func makeRunner(
         maxRetainedRuns: Int = AgentEnvironment.defaultMaxRetainedRuns,
         maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents,
         maxDepth: Int = AgentEnvironment.defaultMaxDepth,
-        mailOnlyAnswerLimit: Int = SessionConfiguration.defaultMailOnlyAnswerLimit
+        mailOnlyAnswerLimit: Int = SessionConfiguration.defaultMailOnlyAnswerLimit,
+        inlineSettleGrace: TimeInterval = settleGrace
     ) -> AgentRunner {
         AgentRunner(
             registry: registry,
             environment: environment(
                 maxRetainedRuns: maxRetainedRuns, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
-                mailOnlyAnswerLimit: mailOnlyAnswerLimit))
+                mailOnlyAnswerLimit: mailOnlyAnswerLimit, inlineSettleGrace: inlineSettleGrace))
+    }
+
+    /// Makes a root session of a host on `model`, with ``settleGrace`` as its
+    /// settle period.
+    ///
+    /// - Parameters:
+    ///   - model: The slot model of the profile.
+    ///   - instructions: The instructions of the session. It is also the key
+    ///     of the play of the session in the script.
+    ///   - tools: The tools of the session.
+    ///   - inlineSettleGrace: The settle period of the session. The default
+    ///     is ``settleGrace``.
+    /// - Returns: The session.
+    static func makeRootSession(
+        on model: RoutedLLM, instructions: String, tools: [any Tool],
+        inlineSettleGrace: TimeInterval = settleGrace
+    ) -> any RoutedSession {
+        model.makeSession(
+            configuration: SessionConfiguration(
+                instructions: instructions, tools: tools, inlineSettleGrace: inlineSettleGrace))
     }
 
     /// Makes a harness.

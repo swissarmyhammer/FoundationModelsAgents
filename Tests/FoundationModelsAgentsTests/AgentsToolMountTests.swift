@@ -8,8 +8,10 @@ import Testing
 /// Pins the mount of each call of the `agents` tool (plan.md §9.1, §9.2).
 ///
 /// `start agent` is the one background operation: in a Router session it
-/// answers at once with the pending envelope, and the final message of the
-/// run comes later as mail. `list agents`, `check agent`, and `cancel agent`
+/// waits for the run up to the settle period of the session. A run that
+/// continues gives the pending envelope, and the final message of the run
+/// comes later as mail. The harness sets the settle period to `0`, thus each
+/// call gives the envelope at once. `list agents`, `check agent`, and `cancel agent`
 /// are synchronous: they give their real answer in band, with no envelope.
 ///
 /// The suite also pins the caller link of the tool: the tool of a run that a
@@ -36,7 +38,7 @@ struct AgentsToolMountTests {
     private static let childText = "The parser is correct."
 
     /// The key of the `pending` field of a `PendingRunEnvelope`. Each
-    /// envelope has it, pending or settled.
+    /// envelope has it.
     private static let envelopeMark = #""pending":"#
 
     /// The mark of a pending envelope.
@@ -100,15 +102,17 @@ struct AgentsToolMountTests {
         #expect(harness.tool.mount(for: arguments) == ToolMount(mode: call.mode, timeout: nil))
     }
 
-    /// With no inline settle grace, no call of the tool waits for a time and
-    /// then answers with an envelope: a synchronous op waits for its real
-    /// answer, and `start agent` answers with the envelope at once.
-    @Test("the tool has no inline settle grace")
-    func toolHasNoInlineSettleGrace() async throws {
+    /// The tool states no settle period of its own. Thus `start agent` uses
+    /// the settle period that the session configured: a run that ends in that
+    /// time gives its final message in band, and a run that continues gives
+    /// the pending envelope. Read outside a mount, the default of the
+    /// protocol gives `ToolMount.defaultInlineSettleGrace`.
+    @Test("the tool uses the configured settle period, and states none of its own")
+    func toolUsesTheConfiguredSettleGrace() async throws {
         let harness = try await AgentsToolHarness.make()
         defer { try? harness.delete() }
 
-        #expect(harness.tool.inlineSettleGrace == nil)
+        #expect(harness.tool.inlineSettleGrace == ToolMount.defaultInlineSettleGrace)
     }
 
     @Test("the pending envelope tells the model to end its answer to get the final message as mail")
@@ -355,7 +359,8 @@ struct AgentsToolMountTests {
             await runner.start(
                 try harness.runHarness.request(agent, prompt: leadPrompt, context: context, agentsTool: maker))
         }
-        let root = harness.runHarness.profile.standard.makeSession(instructions: rootKey, tools: [probe])
+        let root = AgentRunHarness.makeRootSession(
+            on: harness.runHarness.profile.standard, instructions: rootKey, tools: [probe])
         _ = try await root.respond(to: rootPrompt)
         let started = try #require(probe.started)
         _ = await started.run.finalState()

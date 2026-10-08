@@ -51,15 +51,18 @@ struct AgentsDemoProfileModeTests {
             output: @escaping AgentsDemoOutput
         ) async throws {
             let registry = AgentRegistry(stack: FixtureLibrary.stack())
+            // The cases read the mail flow, thus each run goes to the background at once.
             switch self {
             case .chat:
                 try await AgentsDemoModes.chat(
                     profile: profile, registry: registry, workingDirectory: workingDirectory,
-                    input: input, output: output)
+                    input: input, output: output,
+                    inlineSettleGrace: AgentRunHarness.settleGrace)
             case .fanOut:
                 try await AgentsDemoModes.fanOut(
                     profile: profile, registry: registry, workingDirectory: workingDirectory,
-                    input: input, output: output)
+                    input: input, output: output,
+                    inlineSettleGrace: AgentRunHarness.settleGrace)
             }
         }
     }

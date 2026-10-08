@@ -110,14 +110,19 @@ enum ReadmeExampleSource {
 
         // Model-driven: a root Router session gets the agents tool.
         let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
+        // A `start agent` call waits for the run up to `inlineSettleGrace` seconds. A run that
+        // ends in that time gives its final message as the output of the call. With 0, each
+        // run goes to the background at once.
         let root = profile.standard.makeSession(
-            instructions: "You give work to agents with the agents tool.",
-            workingDirectory: projectDirectory,
-            tools: [agentsTool])
+            configuration: SessionConfiguration(
+                instructions: "You give work to agents with the agents tool.",
+                workingDirectory: projectDirectory,
+                tools: [agentsTool],
+                inlineSettleGrace: 0))
         let events = await root.streamSessionEvents()   // subscribe before the first message
         _ = try await root.respond(to: "Ask code-reviewer to review Sources/Parser.swift.")
 
-        // `start agent` returns at once. When the run ends, the Router gives its
+        // The run works in the background. When it ends, the Router gives its
         // final message to the root session as mail, and the root answers it.
         var mailAnswers = events.compactMap { event -> String? in
             guard case .answered(let answer) = event, answer.messageIds.isEmpty else { return nil }

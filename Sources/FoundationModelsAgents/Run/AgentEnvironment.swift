@@ -1,4 +1,5 @@
 import Foundation
+import FoundationModelsExtras
 import FoundationModelsRouter
 import FoundationModelsSkills
 import Logging
@@ -104,6 +105,16 @@ public struct AgentEnvironment: Sendable {
     /// runs too, to one factory.
     public let metricsFactory: (any MetricsFactory)?
 
+    /// The settle period of the session of each run, in seconds: how long a
+    /// background call of the run, for example `start agent`, waits for its
+    /// own work. Never negative.
+    ///
+    /// Work that ends in this time gives its own output to the call. Work
+    /// that continues gives the pending envelope, and its result comes later
+    /// as mail. `0` gives the pending envelope at once. The session of each
+    /// run gets this value as `SessionConfiguration.inlineSettleGrace`.
+    public let inlineSettleGrace: TimeInterval
+
     /// The most answers in a row that mail alone starts in the session of a
     /// run, with no caller message between them. Message mail and final
     /// messages both count. When the Router holds the mail at this limit,
@@ -139,6 +150,9 @@ public struct AgentEnvironment: Sendable {
     ///   - metricsFactory: The metrics factory of the metrics of each run, or
     ///     `nil` (the default) to read `MetricsSystem.factory` when each run
     ///     ends.
+    ///   - inlineSettleGrace: The settle period of the session of each run,
+    ///     in seconds. The default is `ToolMount.defaultInlineSettleGrace`. A
+    ///     negative value acts as `0`.
     public init(
         profile: LanguageModelProfile,
         skills: SkillsRegistry,
@@ -151,7 +165,8 @@ public struct AgentEnvironment: Sendable {
         budget: @escaping BudgetFactory = defaultBudget,
         tracer: (any Tracer)? = nil,
         logger: Logger? = nil,
-        metricsFactory: (any MetricsFactory)? = nil
+        metricsFactory: (any MetricsFactory)? = nil,
+        inlineSettleGrace: TimeInterval = ToolMount.defaultInlineSettleGrace
     ) {
         precondition(
             ModelMatch.generationSlots.contains { $0.slot == defaultSlot },
@@ -171,5 +186,6 @@ public struct AgentEnvironment: Sendable {
         self.tracer = tracer
         self.logger = logger
         self.metricsFactory = metricsFactory
+        self.inlineSettleGrace = max(0, inlineSettleGrace)
     }
 }

@@ -11,7 +11,7 @@ operations:
 | Operation | Parameters | Answer |
 |---|---|---|
 | `list agents` | `filter?` | One `- name: description` line for each model-visible agent that matches. |
-| `start agent` | `name`, `prompt` | At once: in a Router session, the pending envelope of the Router; outside one, "Agent `name` started with the id `id`." |
+| `start agent` | `name`, `prompt` | In a Router session: the final message when the run ends in the settle period of the session, else the pending envelope of the Router. Outside one, at once: "Agent `name` started with the id `id`." |
 | `check agent` | `id?` | At once: the state of the run. With no `id`, one block for each run of the caller. |
 | `cancel agent` | `id` | What the cancel did. |
 | `send agent` | `id`, `message` | At once: "The message was sent to Agent `name` (`id`)." The run answers the message before it ends. |
@@ -65,16 +65,19 @@ text of the message.
 
 `start agent` is a background run.
 Its `@Operation` declares `ToolMount(mode: .background)`, thus in a Router
-session the call answers at once with the pending envelope, and the run works
-behind it. The `next` sentence of the envelope tells the model not to wait,
+session the call waits for the run up to the settle period of the session. A
+run that ends in that time gives its final message as the answer of the call.
+A run that continues gives the pending envelope, and works behind it. The
+tool states no settle period of its own: the host sets it with
+`SessionConfiguration.inlineSettleGrace`, and for the sessions of the runs
+with `AgentEnvironment(inlineSettleGrace:)`. The `next` sentence of the envelope tells the model not to wait,
 never to guess the result, and to end its answer. It also gives the
 `check agent` call for the completion token of the call.
 The final message comes to the calling session as mail.
 The pump of the Router delivers it after the answer of the model ends (see
 <doc:TheFinalMessage>). `list agents`, `check agent`, `cancel agent`,
 `send agent`, and `send caller` are synchronous: each call gives its real
-answer in the same answer of the model. No call waits for a time before it
-answers.
+answer in the same answer of the model.
 
 ### Make the tool
 

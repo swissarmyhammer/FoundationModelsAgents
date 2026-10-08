@@ -57,8 +57,9 @@ enum AgentsToolDescription {
     private static let fixedSentences = """
         An agent is a model session that works in the background. Each agent starts with an empty context \
         and sees only the prompt that you give it, so put all that the agent needs in the prompt. \
-        \(delegationSentence) The call returns at once. When the agent finishes, its final \
-        message comes to you as a new message after you end your answer. Your answer is the text of \
+        \(delegationSentence) When the agent finishes in a few seconds, the call gives its final \
+        message. Else the agent works in the background, and its final message comes to you as a new \
+        message after you end your answer. Your answer is the text of \
         your last turn, so give your final answer after you have the results of the agents that you \
         started. You can ask about a run with {"op": "check agent", "id": "<id>"}.
         """

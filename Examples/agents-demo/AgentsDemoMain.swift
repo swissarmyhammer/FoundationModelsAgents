@@ -52,9 +52,13 @@ enum AgentsDemoMain {
                 marketplaces: store, stack: AgentsDemoLibrary.stack(libraryRoot: AgentsDemoLibrary.root))
             try await AgentsDemoModes.marketplace(registry: registry, output: standardOutput)
         case .chat:
-            try await withResolvedProfile(AgentsDemoModes.chat)
+            try await withResolvedProfile {
+                try await AgentsDemoModes.chat(profile: $0, registry: $1, workingDirectory: $2, input: $3, output: $4)
+            }
         case .fanOut:
-            try await withResolvedProfile(AgentsDemoModes.fanOut)
+            try await withResolvedProfile {
+                try await AgentsDemoModes.fanOut(profile: $0, registry: $1, workingDirectory: $2, input: $3, output: $4)
+            }
         case .unknown(let flag):
             StandardStream.error.write(line: "agents-demo: unknown mode \(flag)")
             StandardStream.error.write(line: AgentsDemoUsage.text)

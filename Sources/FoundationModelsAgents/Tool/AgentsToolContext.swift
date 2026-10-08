@@ -154,8 +154,10 @@ public struct AgentsToolContext: Sendable {
     /// call, thus each `check agent` and `cancel agent` that waits for the
     /// call continues. A cancel of the task of the body cancels the run.
     ///
-    /// The Router answers the call with the pending envelope before the body
-    /// ends, for each caller, thus the final message always comes as mail.
+    /// When the run ends in the settle period of the session, the Router
+    /// gives this text to the model as the answer of the call. Else the
+    /// Router answers the call with the pending envelope before the body
+    /// ends, and the final message comes as mail.
     ///
     /// - Parameters:
     ///   - run: The run that the call started.

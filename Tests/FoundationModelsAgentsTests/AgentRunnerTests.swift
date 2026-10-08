@@ -307,7 +307,8 @@ struct AgentRunnerTests {
                     definition: definition, prompt: Self.firstPrompt, context: context,
                     inheritedSlot: .standard, depth: AgentRunner.hostDepth, parent: nil, agentsTool: nil))
         }
-        let parent = harness.profile.standard.makeSession(instructions: Self.parentKey, tools: [probe])
+        let parent = AgentRunHarness.makeRootSession(
+            on: harness.profile.standard, instructions: Self.parentKey, tools: [probe])
 
         #expect(try await parent.respond(to: Self.parentPrompt) == Self.parentText)
         let started = try #require(probe.started)

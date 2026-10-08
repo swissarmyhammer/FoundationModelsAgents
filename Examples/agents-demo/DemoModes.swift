@@ -144,11 +144,12 @@ enum AgentsDemoModes {
     /// A root session on the `standard` slot gets the `agents` tool. The mode
     /// sends ``chatPrompt`` with `send(_:)`, then each line of `input`. The
     /// model starts ``leadAgent``, and `lead` starts ``reviewerAgent`` and
-    /// ``testWriterAgent``. `start agent` is a background run: when `lead`
-    /// ends, the Router pump gives its final message to the root session as
-    /// mail, and starts the answer to it. The mode writes each answer from
-    /// the session events, the answers that mail starts too, with no user
-    /// input and no driver call. See ``lines(for:)``.
+    /// ``testWriterAgent``. `start agent` is a background call: a run that
+    /// ends in the settle period gives its final message as the output of
+    /// the call. When a longer `lead` run ends, the Router pump gives its
+    /// final message to the root session as mail, and starts the answer to
+    /// it. The mode writes each answer from the session events, the answers
+    /// that mail starts too, with no user input and no driver call. See ``lines(for:)``.
     ///
     /// The mode does not wait for the runs. When `input` ends, it cancels the
     /// runs of the root session, closes the session, and writes the run tree:
@@ -160,29 +161,35 @@ enum AgentsDemoModes {
     ///   - workingDirectory: The working directory of each session.
     ///   - input: The lines of the user. The mode ends when they end.
     ///   - output: The receiver of each line.
+    ///   - inlineSettleGrace: The settle period of the root session and of
+    ///     the session of each run, in seconds. The default is
+    ///     `ToolMount.defaultInlineSettleGrace`.
     /// - Throws: The error of `load()`, or of the `agents` tool.
     static func chat(
         profile: LanguageModelProfile, registry: AgentRegistry, workingDirectory: URL,
-        input: AgentsDemoInput, output: @escaping AgentsDemoOutput
+        input: AgentsDemoInput, output: @escaping AgentsDemoOutput,
+        inlineSettleGrace: TimeInterval = ToolMount.defaultInlineSettleGrace
     ) async throws {
-        let runner = try await makeRunner(profile: profile, registry: registry, workingDirectory: workingDirectory)
+        let runner = try await makeRunner(
+            profile: profile, registry: registry, workingDirectory: workingDirectory,
+            inlineSettleGrace: inlineSettleGrace)
         let conversation = Conversation(
             instructions: chatInstructions, firstPrompt: chatPrompt, profile: profile,
-            workingDirectory: workingDirectory)
+            workingDirectory: workingDirectory, inlineSettleGrace: inlineSettleGrace)
         let root = try await converse(conversation, runner: runner, input: input, output: output)
         await writeRuns(of: root, runner: runner, level: 0, output: output)
     }
 
     /// Runs the fan-out mode (plan.md §12, model-driven, two runs at once).
     ///
-    /// The flow is the flow of ``chat(profile:registry:workingDirectory:input:output:)``
+    /// The flow is the flow of ``chat(profile:registry:workingDirectory:input:output:inlineSettleGrace:)``
     /// with ``fanOutInstructions`` and ``fanOutPrompt``. The model starts
     /// ``reviewerAgent`` on the `flash` slot and ``testWriterAgent`` on the
     /// `standard` slot at the same time. The two slots have two generation
     /// queues, thus neither run waits for the other. The final message of
-    /// each run comes to the root session as mail, and the mode writes the
-    /// answer to it. When `input` ends, the mode writes one line for each
-    /// run of the root session.
+    /// each run that continues past the settle period comes to the root
+    /// session as mail, and the mode writes the answer to it. When `input`
+    /// ends, the mode writes one line for each run of the root session.
     ///
     /// - Parameters:
     ///   - profile: The resolved profile of the runs and of the root session.
@@ -190,15 +197,21 @@ enum AgentsDemoModes {
     ///   - workingDirectory: The working directory of each session.
     ///   - input: The lines of the user. The mode ends when they end.
     ///   - output: The receiver of each line.
+    ///   - inlineSettleGrace: The settle period of the root session and of
+    ///     the session of each run, in seconds. The default is
+    ///     `ToolMount.defaultInlineSettleGrace`.
     /// - Throws: The error of `load()`, or of the `agents` tool.
     static func fanOut(
         profile: LanguageModelProfile, registry: AgentRegistry, workingDirectory: URL,
-        input: AgentsDemoInput, output: @escaping AgentsDemoOutput
+        input: AgentsDemoInput, output: @escaping AgentsDemoOutput,
+        inlineSettleGrace: TimeInterval = ToolMount.defaultInlineSettleGrace
     ) async throws {
-        let runner = try await makeRunner(profile: profile, registry: registry, workingDirectory: workingDirectory)
+        let runner = try await makeRunner(
+            profile: profile, registry: registry, workingDirectory: workingDirectory,
+            inlineSettleGrace: inlineSettleGrace)
         let conversation = Conversation(
             instructions: fanOutInstructions, firstPrompt: fanOutPrompt, profile: profile,
-            workingDirectory: workingDirectory)
+            workingDirectory: workingDirectory, inlineSettleGrace: inlineSettleGrace)
         let root = try await converse(conversation, runner: runner, input: input, output: output)
         for run in await runner.runs(caller: root) {
             let model = run.agent.model ?? inheritedModel
@@ -239,7 +252,7 @@ enum AgentsDemoModes {
             .toolCallReport, .entryRecorded, .compaction, .discoveryPrimingFailed, .generationStalled,
             .submissionQueued, .submissionStarted, .submissionEnded, .repetitionStopped,
             .elicitationRequested, .generationCall, .compactionStarted, .compactionFailed,
-            .reasoningStopped:
+            .reasoningStopped, .runProgress:
             []
         }
     }
@@ -312,14 +325,17 @@ enum AgentsDemoModes {
     ///   - profile: The resolved profile of the runs.
     ///   - registry: The registry of the agents.
     ///   - workingDirectory: The working directory of each run.
+    ///   - inlineSettleGrace: The settle period of the session of each run.
     /// - Returns: The runner.
     /// - Throws: The error of `load()`.
     private static func makeRunner(
-        profile: LanguageModelProfile, registry: AgentRegistry, workingDirectory: URL
+        profile: LanguageModelProfile, registry: AgentRegistry, workingDirectory: URL,
+        inlineSettleGrace: TimeInterval
     ) async throws -> AgentRunner {
         try await registry.load()
         let environment = AgentEnvironment(
-            profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory)
+            profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory,
+            inlineSettleGrace: inlineSettleGrace)
         return AgentRunner(registry: registry, environment: environment)
     }
 
@@ -336,6 +352,9 @@ enum AgentsDemoModes {
 
         /// The working directory of the root session.
         let workingDirectory: URL
+
+        /// The settle period of the root session, in seconds.
+        let inlineSettleGrace: TimeInterval
     }
 
     /// Runs the root session of one conversation mode until `input` ends.
@@ -362,8 +381,9 @@ enum AgentsDemoModes {
     ) async throws -> ULID {
         let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
         let root = conversation.profile.standard.makeSession(
-            instructions: conversation.instructions, workingDirectory: conversation.workingDirectory,
-            tools: [agentsTool])
+            configuration: SessionConfiguration(
+                instructions: conversation.instructions, workingDirectory: conversation.workingDirectory,
+                tools: [agentsTool], inlineSettleGrace: conversation.inlineSettleGrace))
         let events = await root.streamSessionEvents()
         let writer = Task {
             await write(events, to: output)

@@ -92,7 +92,8 @@ extension AgentsToolHarness {
         slot: KeyPath<LanguageModelProfile, RoutedLLM> = \.standard,
         adding extraTools: [any Tool] = []
     ) -> any RoutedSession {
-        runHarness.profile[keyPath: slot].makeSession(instructions: key, tools: [tool] + extraTools)
+        AgentRunHarness.makeRootSession(
+            on: runHarness.profile[keyPath: slot], instructions: key, tools: [tool] + extraTools)
     }
 
     /// Makes a harness and a root session on the `flash` slot, sends the

@@ -41,13 +41,14 @@ extension ListAgents {
 /// Starts an agent on a task (`start agent`).
 ///
 /// The one background operation of the tool: in a Router session each call
-/// answers at once with the pending envelope, and the final message of the
-/// run comes later as mail. The other operations keep the default
+/// waits for its run up to the settle period of the session. A run that ends
+/// in that time gives its final message as the answer. A run that continues
+/// gives the pending envelope, and its final message comes later as mail. The other operations keep the default
 /// synchronous mount and answer in band.
 @Generable
 @Operation(
     verb: "start", noun: "agent",
-    description: "Start an agent on a task. The call returns at once with the id of the run.",
+    description: "Start an agent on a task. A run that ends fast gives its final message; a longer run works in the background.",
     mount: ToolMount(mode: .background))
 struct StartAgent {
     /// The name of the agent to start.
@@ -65,10 +66,10 @@ extension StartAgent {
     /// The run gets `ToolContext.current`, the context of this call. In a
     /// Router session this call is the background body of the call: it waits
     /// for the run, and gives the final message text of the run as its
-    /// answer (``AgentsToolContext/finalMessage(of:startedBy:)``). The Router
-    /// answers the model at once with the pending envelope, also when the run
-    /// ends at once, and delivers the final message later as mail
-    /// (plan.md §9.2). Outside a Router session there is no context: the call
+    /// answer (``AgentsToolContext/finalMessage(of:startedBy:)``). When the
+    /// run ends in the settle period of the session, the model gets this
+    /// answer. Else the Router answers the model with the pending envelope,
+    /// and delivers the final message later as mail (plan.md §9.2). Outside a Router session there is no context: the call
     /// returns at once with the id of the run, and the model uses
     /// `check agent`.
     ///

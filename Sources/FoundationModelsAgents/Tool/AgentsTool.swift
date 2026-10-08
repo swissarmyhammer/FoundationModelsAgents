@@ -25,10 +25,12 @@ import Operations
 /// retry cap.
 ///
 /// In a Router session each call runs with the mount of its operation
-/// (``mount(for:)``). `start agent` is a background call: the model gets the
-/// pending envelope of the Router at once, the body waits for the run that
-/// it started, and the final message of that run comes to the caller as mail
-/// when the run ends. `list agents`, `check agent`, `cancel agent`,
+/// (``mount(for:)``). `start agent` is a background call: the body waits for
+/// the run that it started. A run that ends in the settle period of the
+/// session gives its final message to the model as the answer of the call. A
+/// run that continues gives the pending envelope of the Router, and its
+/// final message comes to the caller as mail when the run ends. The tool
+/// states no `inlineSettleGrace` of its own. `list agents`, `check agent`, `cancel agent`,
 /// `send agent`, and `send caller` are synchronous calls: their real answer
 /// comes back in band.
 ///
@@ -250,9 +252,8 @@ extension AgentsTool: BackgroundTool {
     /// Gives the canceler of the call `completionToken`: it cancels the run
     /// that the call started, or the run that the call starts later.
     ///
-    /// The Router asks for the canceler of each background call before it
-    /// gives the pending envelope to the model, and before the body of the
-    /// call runs. Thus this call also opens the call in the record of the
+    /// The Router asks for the canceler of each background call before the
+    /// body of the call runs. Thus this call also opens the call in the record of the
     /// started runs: from now on, `check agent`, `cancel agent`, and
     /// `send agent` wait for the body to add its run, and do not answer that
     /// no run has the token.

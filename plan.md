@@ -38,11 +38,15 @@ catalog, the delegation rules, and the tool.
 - **One session system, one recorder, one display: the Router's.** No
   session type, no tool loop, no compaction, no recorder, no display types.
 - **A run can send messages to its caller while it works, and it gives one
-  final message when it ends, as mail.** `start agent` is a background run:
-  the call returns at once with the pending envelope of the Router. A message
-  of `send caller` comes to the calling session as mail, and the run
-  continues. When the run ends, its final message is the detail of the Router
-  run, and it comes to the calling session as mail. The pump of the Router
+  final message when it ends.** `start agent` is a background call: it waits
+  for the run up to the settle period of the session
+  (`SessionConfiguration.inlineSettleGrace`, default
+  `ToolMount.defaultInlineSettleGrace`). A run that ends in that time gives
+  its final message as the output of the call. A run that continues gives the
+  pending envelope of the Router. A message of `send caller` comes to the
+  calling session as mail, and the run continues. When a run that continued
+  ends, its final message is the detail of the Router run, and it comes to
+  the calling session as mail. The pump of the Router
   delivers the mail and starts an answer to it. This package starts no answer
   in a calling session.
 - **`check agent` is a plain tool call.** It answers at once.
@@ -458,9 +462,10 @@ the catalog one time; a new tool for each session and for each run.
 > put all that the agent needs in the prompt. To give a task to an agent,
 > call the tool "agents" with the arguments {"op": "start agent", "name":
 > "<name>", "prompt": "<the full task>"}. The value of "op" is an operation
-> of the tool "agents", not the name of a tool. The call returns at once.
-> When the agent finishes, its final message comes to you as a new message
-> after you end your answer. Your answer is the text of your last turn, so
+> of the tool "agents", not the name of a tool. When the agent finishes in
+> a few seconds, the call gives its final message. Else the agent works in
+> the background, and its final message comes to you as a new message after
+> you end your answer. Your answer is the text of your last turn, so
 > give your final answer after you have the results of the agents that you
 > started. You can ask about a run with {"op": "check agent", "id": "<id>"}.
 
@@ -478,13 +483,14 @@ agent is in `list agents` and in the next tool, not in this schema.
 **The mount of each operation.** `AgentsTool` conforms to `BackgroundTool`,
 and each operation declares its own mount on its `@Operation`.
 `start agent` declares `mount: ToolMount(mode: .background)`, with no
-timeout: in a Router session the call is a background run of the Router, and
-the call answers at once with the pending envelope. The body of the call
-waits for the run and gives its final message (§9.2). `list agents`,
+timeout: in a Router session the call is a background run of the Router. The
+body of the call waits for the run and gives its final message (§9.2). `list agents`,
 `check agent`, `cancel agent`, `send agent`, and `send caller` keep the
-synchronous mount: each call gives its real answer in band. The tool has no settle grace, thus no call waits
-for a time before it answers, and a `start agent` call always answers with
-the pending envelope. The `next` sentence of that envelope agrees with the
+synchronous mount: each call gives its real answer in band. The tool states
+no settle period of its own, thus a `start agent` call waits for the settle
+period of the session. A run that ends in that time gives its final message
+in band. A run that continues gives the pending envelope. `0` gives the
+envelope at once. The `next` sentence of that envelope agrees with the
 pump of the Router, which delivers mail only after the answer of the model
 ends:
 
@@ -500,7 +506,7 @@ never a thrown error, never mail.
 | op | parameters | success | corrective |
 |---|---|---|---|
 | `list agents` | `filter?` | One `- name: description` line for each model-visible match, then the delegation sentence. "No agents are available." is a success. | none |
-| `start agent` | `name`, `prompt` | At once. In a Router session: the pending envelope, with the `next` sentence above; the final message comes later as mail (§9.2). Outside a Router session: "Agent `name` started with the id `id`. Ask about it with {"op": "check agent", "id": "`id`"}." | Unknown or removed name, with the available names. A name outside `Agent(a, b)`. Depth above `maxDepth`. The run limit (§9.3). A blank prompt. |
+| `start agent` | `name`, `prompt` | In a Router session: the final message when the run ends in the settle period of the session; else the pending envelope, with the `next` sentence above, and the final message comes later as mail (§9.2). Outside a Router session: "Agent `name` started with the id `id`. Ask about it with {"op": "check agent", "id": "`id`"}." | Unknown or removed name, with the available names. A name outside `Agent(a, b)`. Depth above `maxDepth`. The run limit (§9.3). A blank prompt. |
 | `check agent` | `id?` | At once, never waits. Finished: "Agent `name` (`id`) finished.", a blank line, and the full text. Failed: "Agent `name` (`id`) failed: reason." Cancelled: "Agent `name` (`id`) was cancelled." Running: "Agent `name` (`id`) is running." and, after the answer of its task prompt, "It waits for `N` agents that it started." Then four lines of progress from the live events of the run, never from its transcript: "Phase: " the task turn, the wait for the agents that it started, or an answer to a final message; "Passes: " the count of passes of all answers; "Last tools: " the names of the last five tool calls, or none; "Text so far: " the last 240 characters of the text of the current answer, after "..." when the text is longer, or none. The `id` is the id of a run, or the completion token of the `start agent` call from its pending envelope. No `id`: one block for each run of this caller. | Unknown id, or an id of a different caller, with this caller's ids. |
 | `cancel agent` | `id` | The `CancelOutcome`. A run in operation: "The cancel of Agent `name` (`id`) was sent (`outcome`). The run stops when its turn ends." A run that ended: "The run ended before the cancel.", a blank line, and the `check agent` text of the run. | As `check agent`. |
 | `send agent` | `id`, `message` | At once: "The message was sent to Agent `name` (`id`). Its final message comes to you as mail." The `id` is the id of a run of this caller, or the completion token of its `start agent` call. The run holds a message that comes before the answer of its task prompt starts, and its session gets the message after the task prompt. The run answers each message that it accepted before it ends. The prompt of the message is "Message from your caller: " and the text. The `id` of the session of the caller does the same as `send caller`. | A blank message. A run that ended: "The run `id` ended (`state`), and it gets no more messages. Start a new run." As `check agent` for an unknown id. |
@@ -520,7 +526,8 @@ message.
 ### 9.2 The final message
 
 - **A background run.** `start agent` is a background run of the Router
-  (§9.1). The Router answers the call at once with the pending envelope. The
+  (§9.1). A run that continues past the settle period gives the pending
+  envelope; a run that ends in it gives its final message in band. The
   body of the call reads `ToolContext.current`, gives it to the run, and adds
   the run under the completion token of the call. Thus `check agent`,
   `cancel agent`, and the canceler of the call find the run by that token.
@@ -770,7 +777,7 @@ let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: ru
 let root = profile.standard.makeSession(instructions: "…", workingDirectory: projectURL,
                                         tools: [agentsTool] + otherTools)
 let events = await root.streamSessionEvents()        // subscribe before the first message
-_ = try await root.respond(to: userPrompt)           // start agent answers with the pending envelope
+_ = try await root.respond(to: userPrompt)           // a long run gives the pending envelope
 for await case .answered(let answer) in events where answer.messageIds.isEmpty {
   print(answer.reply)                                // the pump answered a final message (mail)
 }
@@ -893,8 +900,8 @@ Router test-support sessions; no real model:
 - Tool: the four description forms; the fixed sentences never cut;
   `disable-model-invocation` and `user-invocable`; each corrective answer;
   the mount of each op (`start agent` background, the other five
-  synchronous, no timeout, no settle grace); `start agent` answers with the
-  pending envelope, and its `next` sentence tells the model to end its
+  synchronous, no timeout, no settle period of its own); with a settle period
+  of 0, `start agent` answers with the pending envelope, and its `next` sentence tells the model to end its
   answer; the final message is the one terminal of the call, names the agent
   and the run, and holds the full text, also when long; a failed or
   cancelled run gives a `.completed` terminal; `check agent` never waits;

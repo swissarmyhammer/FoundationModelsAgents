@@ -67,7 +67,8 @@ struct AgentSessionMaker: Sendable {
                     budget: environment.budget(model.contextTokens),
                     prompt: definition.compactionPrompt ?? .default),
                 agentSpawn: request.agentSpawn,
-                mailOnlyAnswerLimit: environment.mailOnlyAnswerLimit))
+                mailOnlyAnswerLimit: environment.mailOnlyAnswerLimit,
+                inlineSettleGrace: environment.inlineSettleGrace))
         return Made(session: session, slot: slot)
     }
 

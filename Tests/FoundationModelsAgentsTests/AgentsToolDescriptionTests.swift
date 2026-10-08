@@ -20,8 +20,9 @@ struct AgentsToolDescriptionTests {
         + "and sees only the prompt that you give it, so put all that the agent needs in the prompt. "
         + #"To give a task to an agent, call the tool "agents" with the arguments {"op": "start agent", "#
         + #""name": "<name>", "prompt": "<the full task>"}. The value of "op" is an operation of the tool "#
-        + #""agents", not the name of a tool. The call returns at once. When the agent finishes, its final "#
-        + "message comes to you as a new message after you end your answer. Your answer is the text of "
+        + #""agents", not the name of a tool. When the agent finishes in a few seconds, the call gives its "#
+        + "final message. Else the agent works in the background, and its final message comes to you as a "
+        + "new message after you end your answer. Your answer is the text of "
         + "your last turn, so give your final answer after you have the results of the agents that you "
         + "started. You can ask about a run "
         + #"with {"op": "check agent", "id": "<id>"}."#
@@ -233,7 +234,8 @@ struct AgentsToolDescriptionTests {
         let probe = AgentStartProbe { context in
             try await harness.runHarness.start(AgentRunTests.reviewer, prompt: Self.childPrompt, context: context)
         }
-        let root = harness.runHarness.profile.standard.makeSession(instructions: Self.rootKey, tools: [probe])
+        let root = AgentRunHarness.makeRootSession(
+            on: harness.runHarness.profile.standard, instructions: Self.rootKey, tools: [probe])
 
         _ = try await root.respond(to: Self.rootText)
         let started = try #require(probe.started)

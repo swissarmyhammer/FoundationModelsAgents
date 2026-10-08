@@ -3,8 +3,10 @@ import FoundationModelsRouter
 import Testing
 
 /// Pins the final message of a run (plan.md §9.2, §16): a scripted root
-/// session calls `start agent`, and the call answers at once with the pending
-/// envelope of the Router. The background body of the call waits for the
+/// session calls `start agent`. With the settle period 0 of the harness, the
+/// call answers at once with the pending envelope of the Router. With the
+/// default settle period, a run that ends fast gives its final message in
+/// band. The background body of the call waits for the
 /// run, and gives the final message text of the run as the detail of the
 /// Router run. The Router records the terminal, emits `runSettled`, and
 /// gives the final message to the root session as mail. The pump of the
@@ -144,11 +146,12 @@ struct FinalMessageTests {
     }
 
     @Test(
-        "in a host root session, a child that ends at once gives its final message as mail, not in the start answer",
+        "with a settle period of 0, a child that ends at once gives its final message as mail, not in the start answer",
         .timeLimit(.minutes(1)))
     func fastChildOfRootSessionComesAsMail() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.script(child: [.finalText(Self.childText)]))
         defer { try? harness.delete() }
+        // The harness gives the root session a settle period of 0, thus the fast child goes to the background.
         let root = harness.makeRootSession(instructions: Self.rootKey)
         let events = await root.streamSessionEvents()
 
@@ -164,6 +167,41 @@ struct FinalMessageTests {
         #expect(terminal.correlationID == run.context?.completionToken)
         #expect(!startAnswer.contains(Self.childText))
         #expect(mailPrompt.contains(Self.finishedDetail(of: run, text: Self.childText)))
+    }
+
+    @Test(
+        "with the default settle period, a child that ends fast gives its final message in the start answer, and no mail",
+        .timeLimit(.minutes(1)))
+    func fastChildInTheSettlePeriodAnswersInBand() async throws {
+        let harness = try await AgentsToolHarness.make(script: Self.script(child: [.finalText(Self.childText)]))
+        defer { try? harness.delete() }
+        let root = AgentRunHarness.makeRootSession(
+            on: harness.runHarness.profile.standard, instructions: Self.rootKey, tools: [harness.tool],
+            inlineSettleGrace: ToolMount.defaultInlineSettleGrace)
+        let events = await root.streamSessionEvents()
+
+        let answer = try await root.respond(to: Self.rootPrompt)
+        let startAnswer = try #require(harness.runHarness.script.toolOutputs.first)
+        let run = try await Self.childRun(in: harness, of: root)
+        await root.close()
+        var settledEvents = 0
+        var mailAnswers = 0
+        // close() ends the event stream, thus this loop reads each event of the session.
+        for await event in events {
+            if case .runSettled = event {
+                settledEvents += 1
+            }
+            if case .answered(let mailAnswer) = event, mailAnswer.messageIds.isEmpty {
+                mailAnswers += 1
+            }
+        }
+
+        #expect(answer == Self.rootText)
+        #expect(!startAnswer.contains(Self.pendingMark))
+        #expect(startAnswer.contains(Self.finishedDetail(of: run, text: Self.childText)))
+        // The Router still tells the host with one runSettled event, but it gives no mail for an in-band result.
+        #expect(settledEvents == 1)
+        #expect(mailAnswers == 0)
     }
 
     @Test(
