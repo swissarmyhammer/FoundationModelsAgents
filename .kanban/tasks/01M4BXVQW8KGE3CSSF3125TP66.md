@@ -37,12 +37,28 @@ comments:
     - note: the time dependence of a send in the main README example comes from a reading of the code. No test run showed it.
     - next: /review
   timestamp: 2026-10-07T23:55:40.734630+00:00
+- actor: claude-code
+  id: 01m4ccw2x3y5x5yztk72wsv8g5
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (6d65f27): 0 findings, 0 confirmed, 0 refuted. 6 files reviewed. The .kanban/ files are excluded. 7 Markdown files have no matching validator and were not reviewed.
+    - next: none. The task is in done.
+  timestamp: 2026-10-07T23:58:39.011407+00:00
+- actor: claude-code
+  id: 01m4ccw8zma62pmwpy6vq617cb
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 13 files
+    - test: green — swift test, 501 passed in 68 suites; IntegrationTests build complete
+    - commit: 6d65f27
+    - review: clean — 0 findings; task moved to done. The engine has no validator for Markdown, so it did not review the 7 .md files.
+  timestamp: 2026-10-07T23:58:45.236022+00:00
 depends_on:
 - 01M4BXVEFR6J7MM3HRQFQX1D6K
 - 01M4BY3TCN277D8K1RSM6X4ER6
 - 01M4BY4BFX7BAHYQM55X3579CF
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: cb80
 title: 'Documents: messages between a run and its caller'
 ---
 ## What
