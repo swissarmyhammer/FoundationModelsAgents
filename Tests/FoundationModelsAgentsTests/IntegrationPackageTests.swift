@@ -75,7 +75,7 @@ struct IntegrationPackageTests {
     @Test(arguments: [
         "// No test reads ProcessInfo.processInfo.environment.",
         "/// The suite never calls getenv.",
-        "let environment = AgentEnvironment(profile: profile, skills: skills)",
+        "let environment = try await AgentEnvironment.make(profile: profile, skills: skills)",
         "let fixture = try MarketplaceStoreFixture(sources: sources)"
     ])
     func aLineThatReadsNoEnvironmentVariableIsNotReported(line: String) {

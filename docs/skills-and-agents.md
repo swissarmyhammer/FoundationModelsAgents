@@ -16,9 +16,18 @@ An agent uses skills through its `skills:` preload and through the `skills` tool
 - The `skills:` key of the `AGENT.md` file names skills. At run start, the run
   gets the rendered body of each named skill from the `SkillsRegistry`, and
   adds the body to the instructions of the new session. An unknown skill or a
-  skill that is not visible gives a warning, and the run does not use it.
+  skill that the `skills` tool hides gives a warning, and the run does not use
+  it.
 - The `skills` tool is one entry of the `ToolCatalog`. A run that has this
   tool can find a skill and use it while the run works.
+
+The host gives one `SkillsRegistry` to `AgentEnvironment.make`. The
+environment makes the `skills` tool from that registry, and puts it in its
+`ToolCatalog` under the name `skills`. The preload reads the same registry,
+with the visibility rule of the tool. Thus an agent cannot preload a skill
+that its `skills` tool hides, and the tool cannot show a skill of a different
+registry. The host gives `environment.skillsTool` to its root session. A
+`skills` entry in the tool catalog of the host is a programmer error.
 
 To run a skill in its own context, a prompt tells an agent that has the `skills` tool to use the named skill.
 The skill then works in the context of that agent. The caller gets the

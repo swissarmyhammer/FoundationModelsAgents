@@ -95,7 +95,7 @@ struct LiveHarness {
             stack: DotfolderStack(layers: [.init(source: .project, root: layerRoot)]), watch: watch)
         try await registry.load()
         let live = try await LiveProfile.shared.value
-        let runner = live.makeRunner(
+        let runner = try await live.makeRunner(
             registry: registry, workingDirectory: workingDirectory, tools: .holding(tools))
         let harness = LiveHarness(
             live: live, layerRoot: layerRoot, registry: registry, runner: runner, workingDirectory: workingDirectory)

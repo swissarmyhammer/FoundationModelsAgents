@@ -47,7 +47,8 @@ Skills and agents are separate things. A skill is text that a model reads in
 its current context. An agent is a new context with its own system prompt. An
 agent uses skills through its `skills:` preload and through the `skills` tool.
 The `skills:` key puts the body of each named skill into the instructions of
-the run. The `skills` tool is one entry of the ``ToolCatalog``. To run a skill
+the run. ``AgentEnvironment`` makes the `skills` tool from the same
+`SkillsRegistry`, and puts it in the ``ToolCatalog``. To run a skill
 in its own context, prompt an agent that has the `skills` tool to use the named
 skill.
 

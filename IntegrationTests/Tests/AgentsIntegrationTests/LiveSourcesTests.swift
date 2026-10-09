@@ -139,7 +139,7 @@ extension LiveSuites {
             let live = try await LiveProfile.shared.value
             let workingDirectory = try LiveSourceTree.makeTemporaryFolder()
             defer { try? FileManager.default.removeItem(at: workingDirectory) }
-            let runner = live.makeRunner(registry: registry, workingDirectory: workingDirectory)
+            let runner = try await live.makeRunner(registry: registry, workingDirectory: workingDirectory)
             let run = try await runner.start(id, prompt: LiveSourceTree.prompt)
             let text = try await run.result()
             await runner.stop()

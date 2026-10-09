@@ -17,15 +17,20 @@ the ``ToolCatalog``, the default slot, ``AgentEnvironment/maxConcurrentAgents``,
 ``AgentEnvironment/maxDepth``, and ``AgentEnvironment/maxRetainedRuns``.
 
 ```swift
-let skillsTool = try await SkillsTool.make(registry: skills)
-var tools = ToolCatalog()
-tools.register("skills") { skillsTool }
-
-let env = AgentEnvironment(profile: profile, skills: skills,
-                           workingDirectory: projectURL, tools: tools)
+let env = try await AgentEnvironment.make(profile: profile, skills: skills,
+                                          workingDirectory: projectURL, tools: tools)
 try await agents.load()
 let runner = AgentRunner(registry: agents, environment: env)
 ```
+
+The `SkillsRegistry` is the one source of the skills.
+``AgentEnvironment/make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:)``
+makes the `skills` tool from it, and adds the tool to the ``ToolCatalog``
+under the name `skills`. The `skills:` preload of each run reads the same
+registry, with the visibility rule of the tool. Give
+``AgentEnvironment/skillsTool`` to the root session of the host, thus the
+host and the runs read one registry. A `skills` entry in the tool catalog of
+the host is a programmer error, and it stops the process.
 
 The init of ``AgentRunner`` stores its inputs and does no I/O. The runner reads
 the catalog of the registry at each start, thus call

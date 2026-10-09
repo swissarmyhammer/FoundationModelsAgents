@@ -231,7 +231,7 @@ public actor AgentRunner {
     /// `model` value that matches no slot of the profile, then the warnings
     /// of the `tools` and `disallowedTools` entries that match no tool, then
     /// the warnings of the `skills` entries that name no skill or a skill
-    /// that is not model-visible. The diagnostics of the registry come
+    /// that the `skills` tool hides. The diagnostics of the registry come
     /// first. This runner can make the `agents` tool for each run whose
     /// `tools` key lists it, thus an `Agent` entry matches a tool and gives
     /// no unknown-entry warning. When ``AgentEnvironment/maxDepth``
@@ -337,7 +337,7 @@ public actor AgentRunner {
             + ToolResolver.diagnostics(
                 of: definition, catalog: environment.tools, hasAgentsTool: true,
                 atMaxDepth: environment.maxDepth <= Self.hostDepth)
-            + AgentSkillsPreload(skills: environment.skills).diagnostics(of: definition)
+            + environment.skillsPreload.diagnostics(of: definition)
     }
 
     /// Moves each ended run from the runs in operation to the records, in

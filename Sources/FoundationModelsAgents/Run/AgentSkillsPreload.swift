@@ -6,11 +6,13 @@ import FoundationModelsSkills
 /// `skills` key to its instructions, after the body of the agent, in the
 /// order of the key. `SkillsRegistry.call(id:)` renders each body.
 ///
-/// Only a model-visible skill can load. A name that no skill of the registry
-/// has, and a skill that is not model-visible (for example
-/// `disable-model-invocation: true`), is a warning and is skipped.
-/// `runner.catalog()` gives these warnings. The preload does not add the
-/// `skills` tool: that tool is one entry of the `ToolCatalog`.
+/// Only a skill that the `skills` tool shows can load: the preload uses the
+/// visibility rule of that tool (``AgentEnvironment/skillsVisibility``). A
+/// name that no skill of the registry has, and a skill that the rule hides
+/// (by default, a skill with `disable-model-invocation: true`), is a warning
+/// and is skipped. `runner.catalog()` gives these warnings. The preload does
+/// not add the `skills` tool: the environment puts that tool in its
+/// `ToolCatalog`.
 struct AgentSkillsPreload: Sendable {
     /// The names of the `skills` key that the run loads, and a finding for
     /// each name that the run skips.
@@ -29,6 +31,10 @@ struct AgentSkillsPreload: Sendable {
     /// The skills registry that gives the skills.
     let skills: SkillsRegistry
 
+    /// Tells if the `skills` tool shows a skill. The preload skips each
+    /// skill that this rule hides.
+    let isVisible: AgentEnvironment.SkillsVisibility
+
     /// The warning for a name that no skill of the registry has.
     ///
     /// - Parameter name: The entry of the `skills` key.
@@ -39,7 +45,7 @@ struct AgentSkillsPreload: Sendable {
             message: "the 'skills' entry '\(name)' matches no skill of the skills registry; the entry is skipped")
     }
 
-    /// The warning for a skill that the model cannot see.
+    /// The warning for a skill that the `skills` tool hides.
     ///
     /// - Parameter name: The entry of the `skills` key.
     /// - Returns: The finding.
@@ -56,7 +62,7 @@ struct AgentSkillsPreload: Sendable {
     /// - Returns: The selection.
     func selection(of names: [String]) -> Selection {
         let visibility = Dictionary(
-            skills.metadata().lazy.map { metadata in (metadata.id, metadata.isModelVisible) },
+            skills.metadata().lazy.map { metadata in (metadata.id, isVisible(metadata)) },
             uniquingKeysWith: { _, last in last })
         return Selection(
             loaded: names.filter { name in visibility[name] == true },
@@ -134,5 +140,13 @@ struct AgentSkillsPreload: Sendable {
         case .some(true):
             nil
         }
+    }
+}
+
+extension AgentEnvironment {
+    /// The `skills:` preload of each run: the skills registry of the
+    /// environment, with the visibility rule of its `skills` tool.
+    var skillsPreload: AgentSkillsPreload {
+        AgentSkillsPreload(skills: skills, isVisible: skillsVisibility)
     }
 }

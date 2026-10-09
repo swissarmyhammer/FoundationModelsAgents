@@ -78,9 +78,10 @@ load.
 Skills and agents are separate things. A skill is text that a model reads in
 its current context. An agent is a new context with its own system prompt. An
 agent uses skills in two ways: the `skills:` key preloads the body of each
-named skill into the instructions of the run, and the `skills` tool of the
-`ToolCatalog` lets the run find and use a skill. To run a skill in its own
-context, prompt an agent that has the `skills` tool to use the named skill.
+named skill into the instructions of the run, and the `skills` tool lets the
+run find and use a skill. Both read the one skills registry of the
+`AgentEnvironment`. To run a skill in its own context, prompt an agent that
+has the `skills` tool to use the named skill.
 
 ## Usage
 
@@ -115,21 +116,18 @@ try await registry.load()
 let listing = registry.catalog().listing   // [AgentListing], one for each agent
 
 // Skills are separate from agents. An agent uses skills through its
-// `skills:` preload and through the `skills` tool.
+// `skills:` preload and through the `skills` tool. The environment makes the
+// `skills` tool from this one registry, and adds it to its tool catalog.
 let skills = SkillsRegistry(marketplaces: market, stack: skillStack, watch: true)
-let skillsTool = try await SkillsTool.make(registry: skills)
-var tools = ToolCatalog()
-tools.register("skills") { skillsTool }
-
-let environment = AgentEnvironment(
-    profile: profile, skills: skills, workingDirectory: projectDirectory, tools: tools)
+let environment = try await AgentEnvironment.make(
+    profile: profile, skills: skills, workingDirectory: projectDirectory)
 let runner = AgentRunner(registry: registry, environment: environment)
 
 // Host-driven: start a run, then wait for its final text.
 let run = try await runner.start("security-reviewer", prompt: "Review Sources/Parser.swift.")
 let review = try await run.result()
 
-// Model-driven: a root Router session gets the agents tool.
+// Model-driven: a root Router session gets the agents tool, and the same skills tool as the runs.
 let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
 // A `start agent` call waits for the run up to `inlineSettleGrace` seconds. A run that
 // ends in that time gives its final message as the output of the call. With 0, each
@@ -138,7 +136,7 @@ let root = profile.standard.makeSession(
     configuration: SessionConfiguration(
         instructions: "You give work to agents with the agents tool.",
         workingDirectory: projectDirectory,
-        tools: [agentsTool],
+        tools: [agentsTool, environment.skillsTool],
         inlineSettleGrace: 0))
 let events = await root.streamSessionEvents()   // subscribe before the first message
 _ = try await root.respond(to: "Ask code-reviewer to review Sources/Parser.swift.")
@@ -161,6 +159,17 @@ runs and the root session use the same profile, thus the same models. The
 registry, the skills registry, and the store are the same instances for the
 host session and for each run.
 
+The skills registry is the one source of the skills. `AgentEnvironment.make`
+makes the `skills` tool from it, and adds the tool to its tool catalog under
+the name `skills`. The `skills:` preload reads the same registry, with the
+same visibility rule, thus an agent cannot preload a skill that its `skills`
+tool hides. Give `environment.skillsTool` to the root session. Do not
+register a `skills` tool in the `ToolCatalog` of the host: that is a
+programmer error, and it stops the process. `AgentEnvironment.make` is
+`async throws` because it builds the search index of the tool. Its
+`skillsSelectionModel`, `skillsCatalogCharacterLimit`, and
+`skillsVisibility` parameters go to `SkillsTool.make`.
+
 The registry reads the files in `load()`, not in its init. Call `load()` after
 `market.start()`, thus the catalog holds the agents of the marketplace. With
 `watch: true`, the registry builds the catalog again when a file changes, and
@@ -180,7 +189,7 @@ A run that continues gives the pending envelope of the Router, and works in
 the background. When it ends, the Router records the final message, sends a
 `runSettled` event, and gives the message to the session as mail. The
 session answers the mail with no call of the host. `0` sends each run to the
-background at once. `AgentEnvironment(inlineSettleGrace:)` sets the settle
+background at once. `AgentEnvironment.make(inlineSettleGrace:)` sets the settle
 period of the session of each run, thus of the runs that a run starts.
 
 `AgentRunner` is also a `SlashCommandProviding`: each agent that the user can

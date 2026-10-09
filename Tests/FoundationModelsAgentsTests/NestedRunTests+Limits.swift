@@ -246,7 +246,9 @@ extension NestedRunTests {
             let result = try await parent.result()
 
             #expect(harness.script.toolNames(ofPlay: NestedRunTests.leadKey) == [ToolVocabulary.agentsToolName])
-            #expect(harness.script.toolNames(ofPlay: Self.helperKey) == [ToolVocabulary.agentsToolName])
+            #expect(
+                harness.script.toolNames(ofPlay: Self.helperKey)
+                    == [harness.skillsTool.name, ToolVocabulary.agentsToolName])
             #expect(result.contains(Self.helperText))
         }
 

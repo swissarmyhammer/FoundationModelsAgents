@@ -319,7 +319,8 @@ enum AgentsDemoModes {
     }
 
     /// Loads the registry, and makes a runner over it with an environment of
-    /// `profile`. The runs get no skills.
+    /// `profile`. The skills registry of the runs is empty, thus their
+    /// `skills` tool shows no skill.
     ///
     /// - Parameters:
     ///   - profile: The resolved profile of the runs.
@@ -327,13 +328,13 @@ enum AgentsDemoModes {
     ///   - workingDirectory: The working directory of each run.
     ///   - inlineSettleGrace: The settle period of the session of each run.
     /// - Returns: The runner.
-    /// - Throws: The error of `load()`.
+    /// - Throws: The error of `load()`, or of `AgentEnvironment.make`.
     private static func makeRunner(
         profile: LanguageModelProfile, registry: AgentRegistry, workingDirectory: URL,
         inlineSettleGrace: TimeInterval
     ) async throws -> AgentRunner {
         try await registry.load()
-        let environment = AgentEnvironment(
+        let environment = try await AgentEnvironment.make(
             profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory,
             inlineSettleGrace: inlineSettleGrace)
         return AgentRunner(registry: registry, environment: environment)

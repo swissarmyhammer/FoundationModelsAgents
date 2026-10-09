@@ -56,7 +56,8 @@ enum ReadmeExampleSource {
     ///   - folders: The folders that the example reads.
     /// - Returns: The listing, the result of the host-driven run, and the
     ///   answer of the root session after the model-driven run.
-    /// - Throws: The error of `load()`, of a tool, of a run, or of a turn.
+    /// - Throws: The error of `load()`, of `AgentEnvironment.make`, of a tool,
+    ///   of a run, or of a turn.
     static func run(profile: LanguageModelProfile, folders: Folders) async throws -> Outcome {
         let projectDirectory = folders.projectDirectory
         let shippedAgentsURL = folders.shippedAgentsURL
@@ -90,21 +91,18 @@ enum ReadmeExampleSource {
         let listing = registry.catalog().listing   // [AgentListing], one for each agent
 
         // Skills are separate from agents. An agent uses skills through its
-        // `skills:` preload and through the `skills` tool.
+        // `skills:` preload and through the `skills` tool. The environment makes the
+        // `skills` tool from this one registry, and adds it to its tool catalog.
         let skills = SkillsRegistry(marketplaces: market, stack: skillStack, watch: true)
-        let skillsTool = try await SkillsTool.make(registry: skills)
-        var tools = ToolCatalog()
-        tools.register("skills") { skillsTool }
-
-        let environment = AgentEnvironment(
-            profile: profile, skills: skills, workingDirectory: projectDirectory, tools: tools)
+        let environment = try await AgentEnvironment.make(
+            profile: profile, skills: skills, workingDirectory: projectDirectory)
         let runner = AgentRunner(registry: registry, environment: environment)
 
         // Host-driven: start a run, then wait for its final text.
         let run = try await runner.start("security-reviewer", prompt: "Review Sources/Parser.swift.")
         let review = try await run.result()
 
-        // Model-driven: a root Router session gets the agents tool.
+        // Model-driven: a root Router session gets the agents tool, and the same skills tool as the runs.
         let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
         // A `start agent` call waits for the run up to `inlineSettleGrace` seconds. A run that
         // ends in that time gives its final message as the output of the call. With 0, each
@@ -113,7 +111,7 @@ enum ReadmeExampleSource {
             configuration: SessionConfiguration(
                 instructions: "You give work to agents with the agents tool.",
                 workingDirectory: projectDirectory,
-                tools: [agentsTool],
+                tools: [agentsTool, environment.skillsTool],
                 inlineSettleGrace: 0))
         let events = await root.streamSessionEvents()   // subscribe before the first message
         _ = try await root.respond(to: "Ask code-reviewer to review Sources/Parser.swift.")

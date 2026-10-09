@@ -45,8 +45,12 @@ struct AgentRunHarness {
     /// The registry that gives the definitions. It is loaded.
     let registry: AgentRegistry
 
-    /// The skills registry of each run. The `skills:` preload reads it.
+    /// The skills registry of each run. The `skills` tool and the `skills:`
+    /// preload read it.
     let skills: SkillsRegistry
+
+    /// The `skills` tool of each run, made one time from ``skills``.
+    let skillsTool: SkillsCatalogTool
 
     /// Makes the budget of each run.
     let budget: AgentEnvironment.BudgetFactory
@@ -116,10 +120,11 @@ struct AgentRunHarness {
         inlineSettleGrace: TimeInterval = settleGrace
     ) -> AgentEnvironment {
         var environment = AgentEnvironment(
-            profile: profile, skills: skills, workingDirectory: workingDirectory, tools: tools,
-            maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth, maxRetainedRuns: maxRetainedRuns,
-            budget: budget, tracer: tracer, logger: logger, metricsFactory: metricsFactory,
-            inlineSettleGrace: inlineSettleGrace)
+            profile: profile, skills: skills, skillsTool: skillsTool,
+            skillsVisibility: AgentEnvironment.defaultSkillsVisibility, workingDirectory: workingDirectory,
+            tools: tools, defaultSlot: .standard, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
+            maxRetainedRuns: maxRetainedRuns, budget: budget, tracer: tracer, logger: logger,
+            metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace)
         environment.mailOnlyAnswerLimit = mailOnlyAnswerLimit
         return environment
     }
@@ -222,9 +227,13 @@ struct AgentRunHarness {
             recordingsDir: scratch.container.appendingPathComponent(recordingsFolderName, isDirectory: true),
             tracer: tracer)
         try await registry.load()
+        let skillsTool = try await AgentEnvironment.makeSkillsTool(
+            skills: skills, selectionModel: nil, catalogCharacterLimit: SkillsTool.defaultCatalogCharacterLimit,
+            visibility: AgentEnvironment.defaultSkillsVisibility)
         return AgentRunHarness(
-            router: router, profile: profile, script: script, registry: registry, skills: skills, budget: budget,
-            tools: tools, tracer: tracer, logger: logger, metricsFactory: metricsFactory, scratch: scratch)
+            router: router, profile: profile, script: script, registry: registry, skills: skills,
+            skillsTool: skillsTool, budget: budget, tools: tools, tracer: tracer, logger: logger,
+            metricsFactory: metricsFactory, scratch: scratch)
     }
 
     /// Makes the request of a host-started run of `agent` with `prompt`.

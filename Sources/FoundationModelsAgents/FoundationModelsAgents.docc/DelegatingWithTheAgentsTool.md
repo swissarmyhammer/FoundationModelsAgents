@@ -70,7 +70,7 @@ run that ends in that time gives its final message as the answer of the call.
 A run that continues gives the pending envelope, and works behind it. The
 tool states no settle period of its own: the host sets it with
 `SessionConfiguration.inlineSettleGrace`, and for the sessions of the runs
-with `AgentEnvironment(inlineSettleGrace:)`. The `next` sentence of the envelope tells the model not to wait,
+with `AgentEnvironment.make(inlineSettleGrace:)`. The `next` sentence of the envelope tells the model not to wait,
 never to guess the result, and to end its answer. It also gives the
 `check agent` call for the completion token of the call.
 The final message comes to the calling session as mail.
@@ -165,8 +165,9 @@ failure of the parent, cancels its children first.
 ### Skills through an agent
 
 An agent uses skills through its `skills:` preload and through the `skills`
-tool of the ``ToolCatalog``. To run a skill in its own context, start an agent
-that has the `skills` tool, and tell it in the prompt to use the named skill.
+tool that ``AgentEnvironment`` puts in the ``ToolCatalog``.
+To run a skill in its own context, start an agent that has the `skills` tool,
+and tell it in the prompt to use the named skill.
 
 ### Not a code-mode surface
 

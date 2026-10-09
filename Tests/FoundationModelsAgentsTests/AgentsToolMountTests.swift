@@ -221,10 +221,12 @@ struct AgentsToolMountTests {
         let child = try await Self.calledRun(of: Self.testWriter, in: harness, runner: harness.runner)
 
         #expect(child.tools.map(\.context.grant) == [.messagingOnly])
-        #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [ToolVocabulary.agentsToolName])
+        #expect(
+            harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt)
+                == [harness.runHarness.skillsTool.name, ToolVocabulary.agentsToolName])
     }
 
-    @Test("a run with a caller whose disallowedTools denies the agents tool gets no tool",
+    @Test("a run with a caller whose disallowedTools denies the agents tool gets no agents tool",
           .timeLimit(.minutes(1)), arguments: ["Agent", ToolVocabulary.agentsToolName])
     func disallowedAgentsToolGivesNoTool(entry: String) async throws {
         let layer = try TemporaryLayer.make(holding: [
@@ -246,10 +248,10 @@ struct AgentsToolMountTests {
         let child = try await Self.calledRun(of: Self.denier, in: harness, runner: harness.runner)
 
         #expect(child.tools.isEmpty)
-        #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [])
+        #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [harness.runHarness.skillsTool.name])
     }
 
-    @Test("a host-started run with no Agent entry gets no tool", .timeLimit(.minutes(1)))
+    @Test("a host-started run with no Agent entry gets no agents tool", .timeLimit(.minutes(1)))
     func hostStartedRunWithNoGrantGetsNoTool() async throws {
         let record = MadeToolRecord()
         let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: []))
@@ -261,7 +263,7 @@ struct AgentsToolMountTests {
         _ = await run.finalState()
 
         #expect(record.tools.isEmpty)
-        #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [])
+        #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [harness.runHarness.skillsTool.name])
     }
 
     @Test("a host-started run with an Agent entry at maxDepth gets no tool", .timeLimit(.minutes(1)))

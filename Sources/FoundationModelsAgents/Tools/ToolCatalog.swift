@@ -8,8 +8,11 @@ import FoundationModels
 ///
 /// ```swift
 /// var tools = ToolCatalog()
-/// tools.register("skills") { skillsTool }
+/// tools.register("Read") { ReadTool(root: projectURL) }
 /// ```
+///
+/// The host does not register `skills`: `AgentEnvironment.make` adds the
+/// `skills` tool that it makes from the skills registry of the host.
 public struct ToolCatalog: Sendable {
     /// Makes one new instance of a tool.
     public typealias Factory = @Sendable () -> any Tool

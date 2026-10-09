@@ -22,6 +22,10 @@ struct AgentEnvironmentTests {
     /// The name of the one tool of the custom tool catalog.
     static let probeToolName = "Read"
 
+    /// The name of the `skills` tool that the environment adds to its tool
+    /// catalog.
+    static let skillsToolName = "skills"
+
     /// Makes a skills registry with no layers.
     ///
     /// - Returns: A registry that holds no skill.
@@ -44,11 +48,11 @@ struct AgentEnvironmentTests {
     func defaultsHaveTheirStatedValues() async throws {
         let profile = try await Self.makeProfile()
 
-        let environment = AgentEnvironment(profile: profile, skills: Self.makeEmptySkills())
+        let environment = try await AgentEnvironment.make(profile: profile, skills: Self.makeEmptySkills())
 
         #expect(environment.profile === profile)
         #expect(environment.workingDirectory == URL.currentDirectory())
-        #expect(environment.tools.names.isEmpty)
+        #expect(environment.tools.names == [Self.skillsToolName])
         #expect(environment.defaultSlot == .standard)
         #expect(environment.maxConcurrentAgents == AgentEnvironment.defaultMaxConcurrentAgents)
         #expect(environment.maxDepth == AgentEnvironment.defaultMaxDepth)
@@ -65,14 +69,14 @@ struct AgentEnvironmentTests {
         var tools = ToolCatalog()
         tools.register(Self.probeToolName) { ProbeTool(name: Self.probeToolName) }
 
-        let environment = AgentEnvironment(
+        let environment = try await AgentEnvironment.make(
             profile: profile, skills: Self.makeEmptySkills(), workingDirectory: directory,
             tools: tools, defaultSlot: .flash, maxConcurrentAgents: Self.customLimit,
             maxDepth: Self.customLimit, maxRetainedRuns: Self.customLimit,
             budget: { _ in nil })
 
         #expect(environment.workingDirectory == directory)
-        #expect(environment.tools.names == [Self.probeToolName])
+        #expect(environment.tools.names == [Self.probeToolName, Self.skillsToolName])
         #expect(environment.defaultSlot == .flash)
         #expect(environment.maxConcurrentAgents == Self.customLimit)
         #expect(environment.maxDepth == Self.customLimit)
@@ -86,7 +90,7 @@ struct AgentEnvironmentTests {
     func lowestValidLimitsMakeAnEnvironment() async throws {
         let profile = try await Self.makeProfile()
 
-        let environment = AgentEnvironment(
+        let environment = try await AgentEnvironment.make(
             profile: profile, skills: Self.makeEmptySkills(), maxConcurrentAgents: 1,
             maxDepth: 1, maxRetainedRuns: 0)
 
@@ -100,7 +104,7 @@ struct AgentEnvironmentTests {
     func embeddingDefaultSlotStopsTheProcess() async {
         await #expect(processExitsWith: .failure) {
             let profile = try await Self.makeProfile()
-            _ = AgentEnvironment(
+            _ = try await AgentEnvironment.make(
                 profile: profile, skills: Self.makeEmptySkills(), defaultSlot: .embedding)
         }
     }
@@ -110,7 +114,7 @@ struct AgentEnvironmentTests {
     func zeroConcurrentAgentsStopsTheProcess() async {
         await #expect(processExitsWith: .failure) {
             let profile = try await Self.makeProfile()
-            _ = AgentEnvironment(
+            _ = try await AgentEnvironment.make(
                 profile: profile, skills: Self.makeEmptySkills(), maxConcurrentAgents: 0)
         }
     }
@@ -120,7 +124,7 @@ struct AgentEnvironmentTests {
     func zeroDepthStopsTheProcess() async {
         await #expect(processExitsWith: .failure) {
             let profile = try await Self.makeProfile()
-            _ = AgentEnvironment(profile: profile, skills: Self.makeEmptySkills(), maxDepth: 0)
+            _ = try await AgentEnvironment.make(profile: profile, skills: Self.makeEmptySkills(), maxDepth: 0)
         }
     }
 
@@ -129,7 +133,7 @@ struct AgentEnvironmentTests {
     func negativeRetainedRunsStopsTheProcess() async {
         await #expect(processExitsWith: .failure) {
             let profile = try await Self.makeProfile()
-            _ = AgentEnvironment(
+            _ = try await AgentEnvironment.make(
                 profile: profile, skills: Self.makeEmptySkills(),
                 maxRetainedRuns: Self.limitBelowRange)
         }

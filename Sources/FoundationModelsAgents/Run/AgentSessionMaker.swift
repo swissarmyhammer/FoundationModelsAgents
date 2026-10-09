@@ -50,7 +50,7 @@ struct AgentSessionMaker: Sendable {
     ) async throws(AgentRunFailure) -> Made {
         let definition = request.definition
         let body = try renderer.render(definition, prompt: request.prompt)
-        let skillBodies = try await AgentSkillsPreload(skills: environment.skills).bodies(of: definition)
+        let skillBodies = try await environment.skillsPreload.bodies(of: definition)
         let instructions = try instructions(parts: [body] + skillBodies)
         let slot = ModelMatch.match(
             definition.model, profile: environment.profile, inherited: request.inheritedSlot
