@@ -3,7 +3,7 @@ import ULID
 
 @testable import FoundationModelsAgents
 
-/// Pins the description of the `agents` tool (plan.md §9.1).
+/// Pins the description of the `agents` tool.
 ///
 /// The description has the fixed sentences, which are never cut, then the
 /// model-visible agents in the first form that fits the character limit:
@@ -14,7 +14,7 @@ import ULID
 struct AgentsToolDescriptionTests {
     // MARK: - Constants
 
-    /// The fixed sentences, word for word from plan.md §9.1.
+    /// The fixed sentences, word for word.
     private static let fixedSentences =
         "An agent is a model session that works in the background. Each agent starts with an empty context "
         + "and sees only the prompt that you give it, so put all that the agent needs in the prompt. "

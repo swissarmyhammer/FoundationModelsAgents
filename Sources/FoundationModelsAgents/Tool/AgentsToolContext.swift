@@ -2,8 +2,7 @@ import Foundation
 import FoundationModelsRouter
 import ULID
 
-/// The shared environment of the operations of the `agents` tool
-/// (plan.md §9.1).
+/// The shared environment of the operations of the `agents` tool.
 ///
 /// `AgentsTool.make(context:catalogCharacterLimit:)` reads the catalog of
 /// `runner` one time. The operations use `runner` to start, check, and cancel
@@ -88,15 +87,14 @@ public struct AgentsToolContext: Sendable {
         self.grant = grant
     }
 
-    /// The depth of a run that the tool starts (plan.md §9.3, depth): the
-    /// depth of the calling run plus one, or ``AgentRunner/hostDepth`` when
-    /// the session is not a run.
+    /// The depth of a run that the tool starts: the depth of the calling run
+    /// plus one, or ``AgentRunner/hostDepth`` when the session is not a run.
     var childDepth: Int {
         parent.map { $0.depth + 1 } ?? AgentRunner.hostDepth
     }
 
     /// The slot that `model: inherit`, or an absent `model`, selects for a
-    /// run that the tool starts (plan.md §7).
+    /// run that the tool starts.
     ///
     /// The rule: a child of a run uses the slot of the calling run. A run
     /// that a session starts, and the session is not a run (for example the
@@ -129,8 +127,7 @@ public struct AgentsToolContext: Sendable {
 
     /// Gives the agents that the tool can start now and that match `filter`.
     ///
-    /// The `list agents` operation of the tool and the `agent list` command
-    /// of `AgentsCLI` use this function.
+    /// The `list agents` operation of the tool uses this function.
     ///
     /// - Parameter filter: Text that the name or the description of an agent
     ///   must hold. The case of the letters does not matter. A `nil` or blank
@@ -145,7 +142,7 @@ public struct AgentsToolContext: Sendable {
         }
     }
 
-    /// Waits for `run`, and gives its final message text (plan.md §9.2).
+    /// Waits for `run`, and gives its final message text.
     ///
     /// This is the background body of a `start agent` call in a Router
     /// session. The call adds the run to ``startedRuns`` under the completion
@@ -181,9 +178,9 @@ public struct AgentsToolContext: Sendable {
     /// `start agent` call that started the run: the pending envelope of that
     /// call holds the token. The caller is the session of
     /// `ToolContext.current`, or `nil` outside a Router session. A run of a
-    /// different caller gives the same corrective as an id that no run has
-    /// (plan.md §9.1), thus one caller cannot check, cancel, or send a
-    /// message to the runs of another.
+    /// different caller gives the same corrective as an id that no run has,
+    /// thus one caller cannot check, cancel, or send a message to the runs
+    /// of another.
     ///
     /// - Parameters:
     ///   - id: The id that the model gave. The case of the letters does not

@@ -2,14 +2,14 @@
 import FoundationModelsRouter
 import Testing
 
-/// Pins `send agent` (plan.md §9.1): a caller sends a message to a run that it
-/// started. A run in operation gets the message and answers it before it
-/// ends. A run that ended gets no message, and the call gives a corrective.
+/// Pins `send agent`: a caller sends a message to a run that it started. A
+/// run in operation gets the message and answers it before it ends. A run
+/// that ended gets no message, and the call gives a corrective.
 ///
 /// The tests with no root session call the tool outside a Router session, as
-/// a command line does: the caller is `nil`, the same as the caller of the
-/// run. The token test and the caller test use root sessions on the
-/// `standard` slot. The child run of code-reviewer runs on the `flash` slot.
+/// a host does: the caller is `nil`, the same as the caller of the run. The
+/// token test and the caller test use root sessions on the `standard` slot.
+/// The child run of code-reviewer runs on the `flash` slot.
 @Suite("send agent")
 struct SendAgentTests {
     /// A failure that a scripted step throws.

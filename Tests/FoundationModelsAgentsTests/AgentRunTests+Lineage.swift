@@ -3,9 +3,9 @@ import FoundationModelsRouter
 import Testing
 
 extension AgentRunTests {
-    /// Pins the lineage of a run (plan.md §8.2, §16): a run started inside a
-    /// tool call of a Router session records `agentSpawn`, and a host-driven
-    /// run records none.
+    /// Pins the lineage of a run: a run started inside a tool call of a
+    /// Router session records `agentSpawn`, and a host-driven run records
+    /// none.
     @Suite("Agent run lineage")
     struct Lineage {
         /// The key of the play of the parent session.

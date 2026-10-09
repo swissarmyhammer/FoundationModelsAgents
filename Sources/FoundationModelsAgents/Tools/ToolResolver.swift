@@ -1,7 +1,7 @@
 import FoundationModels
 
 /// Resolves the `tools` and `disallowedTools` entries of one agent to new
-/// tool instances, with the Claude semantics of plan.md §5.
+/// tool instances, with the Claude semantics.
 ///
 /// The resolver holds the agent and the file that its diagnostics are
 /// about. `ToolSelection` holds the rules.

@@ -2,7 +2,7 @@ import Foundation
 import FoundationModelsExtras
 import Testing
 
-/// Pins the fixture library at `Examples/agent-library` (plan.md §13).
+/// Pins the fixture library at `Examples/agent-library`.
 ///
 /// The suite makes sure that each fixture file exists, that
 /// `FixtureLibrary.stack()` gives the three local layers in order, that the

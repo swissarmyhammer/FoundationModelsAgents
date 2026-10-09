@@ -5,7 +5,7 @@ import FoundationModelsSkills
 import Operations
 
 /// The `agents` tool: the operations that let a model delegate a task to an
-/// agent, and send messages to a run and to its caller (plan.md §9.1).
+/// agent, and send messages to a run and to its caller.
 ///
 /// A model reads the name, the description, and the schema of a tool before
 /// it plans. This tool puts the agents that it can start in two of them:
@@ -34,8 +34,8 @@ import Operations
 /// `send agent`, and `send caller` are synchronous calls: their real answer
 /// comes back in band.
 ///
-/// This tool is not a code-mode surface (plan.md §9.5). A host registers it
-/// directly on its session.
+/// This tool is not a code-mode surface. A host registers it directly on
+/// its session.
 public struct AgentsTool: Tool {
     /// The raw payload: an `op` and the fields of one operation.
     public typealias Arguments = GeneratedContent
@@ -184,7 +184,7 @@ public struct AgentsTool: Tool {
         }
     }
 
-    /// The verb aliases of plan.md §9.1: `stop` → `cancel`, `run` → `start`,
+    /// The verb aliases of the tool: `stop` → `cancel`, `run` → `start`,
     /// `status` → `check`, `show` → `list`. The resolver puts them over its
     /// default aliases, thus `show` gives `list`, not the default `get`.
     static let verbAliases: [String: String] = [
@@ -205,8 +205,8 @@ public struct AgentsTool: Tool {
     ///
     /// Each operation gives plain text, and `OperationTool` encodes it as a
     /// JSON string. This call decodes that string, thus the model reads the
-    /// text itself (plan.md §16). A corrective of the resolver is plain text
-    /// already, and the call gives it as it is.
+    /// text itself. A corrective of the resolver is plain text already, and
+    /// the call gives it as it is.
     ///
     /// - Parameter arguments: The payload of the model.
     /// - Returns: The plain-text answer of the operation, or a corrective

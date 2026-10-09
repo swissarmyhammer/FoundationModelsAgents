@@ -1,7 +1,7 @@
 import FoundationModelsRouter
 import ULID
 
-/// The actor that owns each agent run of one host (plan.md §8.1, §9.3).
+/// The actor that owns each agent run of one host.
 ///
 /// The runner starts runs, keeps the index of the runs, and keeps the records
 /// of the finished runs. It is not a session system, a tool loop, a recorder,
@@ -51,7 +51,7 @@ public actor AgentRunner {
         case stopped
     }
 
-    /// The depth of a host-started run (plan.md §9.3).
+    /// The depth of a host-started run.
     static let hostDepth = 1
 
     /// The registry that gives the definitions.
@@ -101,7 +101,7 @@ public actor AgentRunner {
         return openRuns.values.sorted { $0.id < $1.id }
     }
 
-    /// Starts a host-driven run of the agent `name` (plan.md §9.3).
+    /// Starts a host-driven run of the agent `name`.
     ///
     /// The run has no caller and depth one. An agent with no `model`, or
     /// with `model: inherit`, runs on ``AgentEnvironment/defaultSlot``. The
@@ -164,8 +164,7 @@ public actor AgentRunner {
     }
 
     /// Starts the run of `request` when fewer than
-    /// ``AgentEnvironment/maxConcurrentAgents`` runs are working
-    /// (plan.md §9.3, the limit).
+    /// ``AgentEnvironment/maxConcurrentAgents`` runs are working.
     ///
     /// Only `start agent` calls it. A host-driven ``start(_:prompt:)`` and an
     /// answer to a final message do not check the limit. There is no queue:
@@ -174,8 +173,8 @@ public actor AgentRunner {
     /// The count holds each run in operation that does not wait for its
     /// children (``AgentRun/isWorking``), and not the calling run: after its
     /// answer the calling run waits for the new child, and a run that waits
-    /// holds no place (plan.md §9.3). Thus a fan-out of siblings does not
-    /// block their children.
+    /// holds no place. Thus a fan-out of siblings does not block their
+    /// children.
     ///
     /// - Parameter request: The inputs of the run.
     /// - Returns: ``LimitedStart/started(_:)`` with the run,
@@ -187,10 +186,10 @@ public actor AgentRunner {
         }
         retireEndedRuns()
         let callerID = request.context?.sessionID
-        // The limit does not count the calling run (plan.md §9.3, Decision B):
-        // the calling run is the run whose session is the caller session. Do
-        // not compare with `caller`, because that removes the children of the
-        // caller and counts the calling run.
+        // The limit does not count the calling run: the calling run is the
+        // run whose session is the caller session. Do not compare with
+        // `caller`, because that removes the children of the caller and
+        // counts the calling run.
         let working = openRuns.values.count(where: { $0.isWorking && $0.sessionID != callerID })
             + limitedStartsInSetup
         guard working < environment.maxConcurrentAgents else {
@@ -226,16 +225,16 @@ public actor AgentRunner {
     }
 
     /// Gives the catalog of the registry with the warnings that need the
-    /// environment (plan.md §7, §10).
+    /// environment.
     ///
     /// The catalog adds, for each agent in id order, the warning of a
     /// `model` value that matches no slot of the profile, then the warnings
     /// of the `tools` and `disallowedTools` entries that match no tool, then
     /// the warnings of the `skills` entries that name no skill or a skill
-    /// that is not model-visible (plan.md §5). The diagnostics of the
-    /// registry come first. This runner can make the `agents` tool for each
-    /// run whose `tools` key lists it, thus an `Agent` entry matches a tool
-    /// and gives no unknown-entry warning. When ``AgentEnvironment/maxDepth``
+    /// that is not model-visible. The diagnostics of the registry come
+    /// first. This runner can make the `agents` tool for each run whose
+    /// `tools` key lists it, thus an `Agent` entry matches a tool and gives
+    /// no unknown-entry warning. When ``AgentEnvironment/maxDepth``
     /// is the depth of a host-started run, each run is at `maxDepth`. An
     /// `Agent` entry then gives a warning: a run with a caller gets only the
     /// message ops, and a host-started run gets no `agents` tool.
@@ -262,7 +261,7 @@ public actor AgentRunner {
     }
 
     /// Cancels each run of one caller, and waits for each to close its
-    /// session (plan.md §9.2, a closed caller).
+    /// session.
     ///
     /// `RoutedSession.close()` does not know the runs that the session
     /// started. Thus the host calls this before it closes a session that has

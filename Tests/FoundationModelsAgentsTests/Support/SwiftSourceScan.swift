@@ -3,7 +3,7 @@ import Foundation
 /// Reads the Swift source of this package for a suite that guards a rule of
 /// the code.
 ///
-/// Each guard suite of plan.md §15 gives this reader a test of a line, and
+/// Each guard suite of the package gives this reader a test of a line, and
 /// this file does the steps under it: it counts the lines of a text, it walks
 /// the Swift files of a directory, it finds a comment line, and it finds a
 /// full token in a line. Thus no guard suite keeps a copy of those steps.

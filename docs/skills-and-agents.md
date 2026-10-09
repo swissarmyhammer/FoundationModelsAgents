@@ -3,8 +3,7 @@
 This document tells how the agents of this package relate to the skills of
 FoundationModelsSkills. It gives the decisions that transfer from skills to
 agents, it tells how one marketplace plugin gives skills and agents, and it
-gives the access rule of the `agents` tool and the rule for partials. The full
-design is in [plan.md](../plan.md).
+gives the access rule of the `agents` tool and the rule for partials.
 
 ## Skills and agents are separate
 
@@ -42,8 +41,9 @@ a caller can send messages to that caller. A run that a `start agent` call
 started has a caller, thus it gets an `agents` tool with `send agent` and
 `send caller` also when its `tools` key does not list `Agent`. A host-started
 run has no caller, and with no `Agent` entry it gets no `agents` tool.
-`disallowedTools: Agent` removes the tool in each case. The mount table is in
-[plan.md](../plan.md) §9.3.
+`disallowedTools: Agent` removes the tool in each case. The table of the
+operations of the tool of a run is in
+[DelegatingWithTheAgentsTool.md](../Sources/FoundationModelsAgents/FoundationModelsAgents.docc/DelegatingWithTheAgentsTool.md).
 
 ## What transfers from skills to agents
 
@@ -51,33 +51,31 @@ A skill body goes into the current context. An agent body is the system
 prompt of a new context. Decisions about the file, the catalog, and the tool
 surface transfer. Decisions about text in the current context do not.
 
-The section numbers in the table are the sections of
-[plan.md](../plan.md).
-
 | Skills decision | Agents |
 |---|---|
-| Extras stack; marketplace layers below local layers; cached catalog; `DotfolderWatcher`, `layerUpdates`, `onReload` | Same (§4) |
-| A plugin gives `skills/` in the layer | Same: the plugin gives `agents/` in the same layer (§6) |
-| Split and decode raw frontmatter; render the body later; trust by layer | Same (§4) |
-| Lenient retry for a `description:` with an unquoted `:` | Same (§4) |
-| The folder name is the id; a `name` mismatch is a warning | Same: the file name is the id (§4.1). Claude takes the id from `name`; a Claude file whose `name` is its file name loads with no warning. |
-| One marketplace layer; the later plugin wins a name | Same: one flat `agents/` folder (§6) |
-| Name rules, length limits, severities, diagnostics with provenance | Same (§4, §10) |
-| `disable-model-invocation`, `user-invocable` | Same (§4, §9.4) |
-| Description built from the catalog, with a limit and four forms | Same (§9.1) |
-| The schema pins the ids at `make`; an unknown id is a corrective answer | Same (§9.1) |
-| Plain-text answers; `CorrectiveOutcome` | Same (§9.1) |
-| CLI from `OperationCLIDriver`; demo; example library with broken files | Same (§9.4, §13) |
-| Guard tests on the source | Same (§15) |
+| Extras stack; marketplace layers below local layers; cached catalog; `DotfolderWatcher`, `layerUpdates`, `onReload` | Same |
+| A plugin gives `skills/` in the layer | Same: the plugin gives `agents/` in the same layer |
+| Split and decode raw frontmatter; render the body later; trust by layer | Same |
+| Lenient retry for a `description:` with an unquoted `:` | Same |
+| The folder name is the id; a `name` mismatch is a warning | Same: the file name is the id. Claude takes the id from `name`; a Claude file whose `name` is its file name loads with no warning. |
+| One marketplace layer; the later plugin wins a name | Same: one flat `agents/` folder |
+| Name rules, length limits, severities, diagnostics with provenance | Same |
+| `disable-model-invocation`, `user-invocable` | Same |
+| Description built from the catalog, with a limit and four forms | Same |
+| The schema pins the ids at `make`; an unknown id is a corrective answer | Same |
+| Plain-text answers; `CorrectiveOutcome` | Same |
+| CLI from `OperationCLIDriver` | Not copied. The package has no command line. |
+| Demo; example library with broken files | Same |
+| Guard tests on the source | Same |
 | `use skill` gives the body to the caller | Not copied. `start agent` gives the body to a new session. |
-| Argument substitution and quarantine | `$ARGUMENTS` only: this package puts the prompt into the body as a quarantined span (§4.3). |
+| Argument substitution and quarantine | `$ARGUMENTS` only: this package puts the prompt into the body as a quarantined span. |
 | Shell injection; `RenderPolicy` | Not copied. A system prompt is static. |
-| `preload: true` into the host's instructions | Not copied. The `skills:` key preloads into the agent's own context (§5). |
+| `preload: true` into the host's instructions | Not copied. The `skills:` key preloads into the agent's own context. |
 | Resources and `run script` under the skill folder | Not copied. An agent is one file. |
 | `search skill` | Not copied. `list agents` gives the full catalog. |
-| `OperationDescribing`, `ForkableTool` | Not copied (§9.5). |
-| A slash command delivers the raw body as a prompt | Different: a slash command starts a run (§9.4). |
-| Skills and agents | Separate things. An agent uses skills: the `skills:` preload (§5) and the `skills` tool. To run a skill in its own context, prompt an agent that has the `skills` tool to use the named skill. |
+| `OperationDescribing`, `ForkableTool` | Not copied. |
+| A slash command delivers the raw body as a prompt | Different: a slash command starts a run. |
+| Skills and agents | Separate things. An agent uses skills: the `skills:` preload and the `skills` tool. To run a skill in its own context, prompt an agent that has the `skills` tool to use the named skill. |
 
 ## One plugin gives skills and agents
 

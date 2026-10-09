@@ -3,7 +3,7 @@ import FoundationModelsRouter
 import Testing
 
 extension LiveSuites {
-    /// The slots of the live profile (plan.md §7, §15).
+    /// The slots of the live profile.
     ///
     /// - An agent whose `model` is the model reference of the `flash` slot
     ///   runs on the `flash` slot. The `session.json` of its session records

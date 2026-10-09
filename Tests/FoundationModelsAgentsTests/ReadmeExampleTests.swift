@@ -1,19 +1,16 @@
 import Foundation
 import MarketplaceFixtures
-import OperationsCLI
 import Testing
 
 @testable import FoundationModelsAgents
 
-/// The contract of the Swift examples of `README.md` (plan.md §12, §15).
+/// The contract of the Swift examples of `README.md`.
 ///
 /// Each Swift block of the README must have a compiled copy in
 /// `ReadmeExampleSource.swift`, between the two marker comments of
-/// ``ReadmeExample``. The run case runs the copy of the main example with a
+/// ``ReadmeExample``. The run case runs the copy of the example with a
 /// scripted profile over the fixture library and a git repository of the
-/// fixture marketplace. The send case runs the copy of the `agent send`
-/// example on a run that waits at a gate, thus the run is in operation when
-/// the message comes. Thus each README example compiles, runs, and gives a
+/// fixture marketplace. Thus each README example compiles, runs, and gives a
 /// result.
 @Suite("README example")
 struct ReadmeExampleTests {
@@ -50,16 +47,6 @@ struct ReadmeExampleTests {
     /// An import line that the example source does not have.
     private static let unknownImport = "import NoSuchModule"
 
-    /// The prompt of the run that gets the message of the send example. It
-    /// is also the key of the play of that run.
-    private static let sendKey = "readme-send-key: review the parser"
-
-    /// The text of the message of the send example, as the README writes it.
-    private static let sentMessage = "Also check the error paths."
-
-    /// The exit status of a command that worked.
-    private static let successStatus: Int32 = 0
-
     @Test("the README example runs with the scripted profile and gives a result", .timeLimit(.minutes(1)))
     func readmeExampleRunsWithTheScriptedProfile() async throws {
         let script = ScriptedAgentScript([
@@ -95,30 +82,6 @@ struct ReadmeExampleTests {
         #expect(Set(outcome.listing.map(\.id)).isSuperset(of: Self.usedAgents))
         #expect(outcome.review == Self.reviewText)
         #expect(try #require(outcome.answer).contains(try Self.finishedChildDetail()))
-    }
-
-    @Test(
-        "the README send example gives the message to a run in operation, and the run answers it",
-        .timeLimit(.minutes(1)))
-    func readmeSendExampleDeliversTheMessage() async throws {
-        let gate = ScriptedGate()
-        let script = ScriptedAgentScript([
-            ScriptedAgentPlay(
-                key: Self.sendKey, steps: [.wait(gate), .finalText(Self.childText), .finalTextOfLastPrompt])
-        ])
-        let harness = try await AgentsToolHarness.make(script: script)
-        defer { try? harness.delete() }
-        let run = try await harness.runner.start(Self.childAgent, prompt: Self.sendKey)
-        await gate.waitForArrival()
-
-        let sent = try await ReadmeExampleSource.send(runner: harness.runner, run: run)
-        gate.open()
-        let answer = try await run.result()
-        let sentText = try JSONDecoder().decode(String.self, from: Data(sent.output.utf8))
-
-        #expect(sent.exitCode == Self.successStatus)
-        #expect(sentText == AgentsToolText.messageSent(to: run))
-        #expect(answer.contains(Self.sentMessage))
     }
 
     @Test("each Swift block of the README has a compiled copy in the example source")

@@ -4,11 +4,10 @@ import Testing
 
 extension NestedRunTests {
     /// Pins the messages that a running child sends to its parent run with
-    /// `send caller` (plan.md §9.1, §9.2): the Router gives each message to
-    /// the parent as mail, the parent answers each message before it ends,
-    /// `check agent` on the parent tells the last message of the child, and
-    /// mail that reaches `mailOnlyAnswerLimit` ends the parent with the
-    /// paused outcome.
+    /// `send caller`: the Router gives each message to the parent as mail,
+    /// the parent answers each message before it ends, `check agent` on the
+    /// parent tells the last message of the child, and mail that reaches
+    /// `mailOnlyAnswerLimit` ends the parent with the paused outcome.
     ///
     /// The parent runs on the `standard` slot, and the child on the `flash`
     /// slot. A slot has one generation queue, and a run that waits on a gate

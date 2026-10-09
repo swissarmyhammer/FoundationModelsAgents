@@ -2,10 +2,10 @@
 import FoundationModelsRouter
 import Testing
 
-/// Pins the live progress that `check agent` gives for a run in operation
-/// (plan.md §9.1): the answer of the task prompt and an answer to mail feed
-/// the tool names and the passes while the submission holds the model, and
-/// the text tail of an answer to mail updates when that answer ends.
+/// Pins the live progress that `check agent` gives for a run in operation:
+/// the answer of the task prompt and an answer to mail feed the tool names
+/// and the passes while the submission holds the model, and the text tail of
+/// an answer to mail updates when that answer ends.
 ///
 /// Each run is `lead` on the `standard` slot. Its child code-reviewer is on
 /// the `flash` slot.

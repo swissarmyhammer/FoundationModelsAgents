@@ -5,7 +5,7 @@ import Testing
 
 @testable import FoundationModelsAgents
 
-/// Pins the schema of the `agents` tool (plan.md §9.1).
+/// Pins the schema of the `agents` tool.
 ///
 /// The schema is the fused schema of the operations. The `name` field is
 /// an enum of the model-visible agent names at `make`, limited by the allowed

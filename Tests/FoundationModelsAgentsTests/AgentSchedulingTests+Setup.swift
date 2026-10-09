@@ -15,9 +15,9 @@ private struct SetupGates {
 }
 
 extension AgentSchedulingTests {
-    /// Pins the cancel of the starts whose setup is in operation (plan.md
-    /// §9.2, §9.3): `cancelRuns(caller:)` and `stop()` wait until the setup of
-    /// each start of the target ends, then cancel the run and wait for its
+    /// Pins the cancel of the starts whose setup is in operation:
+    /// `cancelRuns(caller:)` and `stop()` wait until the setup of each start
+    /// of the target ends, then cancel the run and wait for its
     /// final state. `cancelRuns(caller:)` does not wait for a start of a
     /// different caller.
     ///

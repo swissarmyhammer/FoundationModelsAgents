@@ -71,8 +71,8 @@ extension AgentsToolContext {
     /// The active span is the span of `ServiceContext.current` in the tracer
     /// of the environment, or in `InstrumentationSystem.tracer` when the
     /// environment has no tracer. In a Router session it is the tool span of
-    /// the call. A call outside a span, for example a command of
-    /// ``AgentsCLI``, writes only the log record.
+    /// the call. A call outside a span, for example a call outside a Router
+    /// session, writes only the log record.
     ///
     /// - Parameter message: The record of the message.
     func record(_ message: AgentMessageRecord) {

@@ -2,8 +2,8 @@
 import FoundationModelsExtras
 import Testing
 
-/// Pins `AgentReloadReport` (plan.md §10) on the fixture library and the
-/// fixture marketplace.
+/// Pins `AgentReloadReport` on the fixture library and the fixture
+/// marketplace.
 @Suite("Agent reload report")
 struct AgentReloadReportTests {
     /// The agents of the fixture library that the model cannot see:

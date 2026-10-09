@@ -2,11 +2,11 @@
 import FoundationModelsRouter
 import Testing
 
-/// Pins the `maxTurns` count (plan.md §5, §9.3): one turn is one pass of
-/// the control loop. Each pass records one `.toolCalls` or `.response`
-/// entry, and the count holds the passes of the answer of the task prompt
-/// and of each answer to the final message of a child. Above the limit the
-/// run fails with `hitMaxTurns` and the text so far.
+/// Pins the `maxTurns` count: one turn is one pass of the control loop. Each
+/// pass records one `.toolCalls` or `.response` entry, and the count holds the
+/// passes of the answer of the task prompt and of each answer to the final
+/// message of a child. Above the limit the run fails with `hitMaxTurns` and
+/// the text so far.
 @Suite("maxTurns")
 struct MaxTurnsTests {
     /// The `maxTurns` limit of ``limited`` and ``limitedLead``.

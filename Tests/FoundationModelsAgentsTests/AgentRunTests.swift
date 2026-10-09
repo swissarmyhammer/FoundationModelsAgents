@@ -5,7 +5,7 @@ import FoundationModelsRouter
 import Synchronization
 import Testing
 
-/// Pins one agent run from `start` to its result (plan.md §8, §8.1).
+/// Pins one agent run from `start` to its result.
 ///
 /// Each test resolves its own scripted profile, which records to its own
 /// temporary folder. A play matches by a key in the prompt of the run. The

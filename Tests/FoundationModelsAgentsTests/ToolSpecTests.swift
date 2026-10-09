@@ -1,7 +1,7 @@
 @testable import FoundationModelsAgents
 import Testing
 
-/// Pins `ToolSpec.parse(_:)` (plan.md §5).
+/// Pins `ToolSpec.parse(_:)`.
 ///
 /// Each row gives one entry of `tools` or `disallowedTools` and the value
 /// that the parse must give for it.
@@ -21,7 +21,7 @@ struct ToolSpecTests {
         }
     }
 
-    /// The entries of each form in plan.md §5, with their values.
+    /// The entries of each form, with their values.
     static let rows: [Row] = [
         Row(entry: "Read", expected: .name("Read")),
         Row(entry: "agents", expected: .name("agents")),

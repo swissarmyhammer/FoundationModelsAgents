@@ -1,7 +1,7 @@
 import Foundation
 
 /// Finds the relative links of a Markdown text for a suite that checks a
-/// document of the package (plan.md §14, M8).
+/// document of the package.
 ///
 /// A link target is the text in the parentheses directly after `]`. A
 /// relative link has no URL scheme and does not start with `#`. The part

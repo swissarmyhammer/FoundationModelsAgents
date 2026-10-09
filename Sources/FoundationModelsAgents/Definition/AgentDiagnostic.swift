@@ -1,7 +1,7 @@
 import Foundation
 import Marketplace
 
-/// One finding of the agent load (plan.md §4.3, §10).
+/// One finding of the agent load.
 ///
 /// The shape is the shape of `SkillDiagnostic` of FoundationModelsSkills: a
 /// severity, the agent name when it is known, the provenance of the file,

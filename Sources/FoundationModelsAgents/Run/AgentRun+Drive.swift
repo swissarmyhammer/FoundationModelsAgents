@@ -32,7 +32,7 @@ struct AgentRunIdleHooks: Sendable {
 
 extension AgentRun {
     /// Drives the session of the run on the pump of the Router, and gives the
-    /// final state of the run (plan.md §8 steps 6 to 8).
+    /// final state of the run.
     ///
     /// The run subscribes to the session events first, and follows that one
     /// subscription for its whole life (``follow(_:on:)``). It then sends the

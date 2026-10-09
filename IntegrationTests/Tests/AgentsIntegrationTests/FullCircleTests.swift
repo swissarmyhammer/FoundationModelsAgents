@@ -4,7 +4,7 @@ import FoundationModelsRouter
 import Testing
 
 extension LiveSuites {
-    /// The full circle of one delegation on real models (plan.md §9, §15).
+    /// The full circle of one delegation on real models.
     ///
     /// A root session on the `standard` slot has the `agents` tool. Its model
     /// calls `start agent`, and the call answers at once. The sub-agent runs

@@ -3,10 +3,9 @@
 
 import PackageDescription
 
-// The integration suites of plan.md §15 are in this nested package, as in the
-// peer packages (FoundationModelsRouter, FoundationModelsMultitool). The
-// package boundary is the split between the unit tests and the integration
-// tests:
+// The integration suites are in this nested package, as in the peer packages
+// (FoundationModelsRouter, FoundationModelsMultitool). The package boundary is
+// the split between the unit tests and the integration tests:
 //
 // - `swift test` at the repository root runs only the unit tests. The root
 //   manifest names no target of this package, thus the root build cannot see

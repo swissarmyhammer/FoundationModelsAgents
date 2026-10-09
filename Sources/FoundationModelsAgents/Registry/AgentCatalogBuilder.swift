@@ -4,7 +4,7 @@ import Marketplace
 import Synchronization
 
 /// Builds one `AgentCatalog` from the marketplace layers and the local
-/// layers (plan.md §4.1, §4.3 step 1, §6.1).
+/// layers.
 ///
 /// The stack of Extras does each read, and `FrontmatterDocumentStack` does
 /// each split. `AgentFrontmatter.decode` decodes the frontmatter, and
@@ -16,14 +16,13 @@ enum AgentCatalogBuilder {
 
     /// Builds the catalog of the marketplace layers and the local layers.
     ///
-    /// The layers are `marketplace[0] < … < marketplace[n] < local layers`
-    /// (plan.md §4.1). An agent file is a `.md` file directly in `agents/`
-    /// of the combined view: a file in a child folder of `agents/` is not
-    /// read. The file name is the id. The highest layer that holds a path
-    /// wins it, and each lower copy gives one advisory on the diagnostics of
-    /// the winner. A bad file does not stop a good file next to it. A
-    /// definition from a marketplace layer keeps that layer and its
-    /// provenance.
+    /// The layers are `marketplace[0] < … < marketplace[n] < local layers`.
+    /// An agent file is a `.md` file directly in `agents/` of the combined
+    /// view: a file in a child folder of `agents/` is not read. The file name
+    /// is the id. The highest layer that holds a path wins it, and each lower
+    /// copy gives one advisory on the diagnostics of the winner. A bad file
+    /// does not stop a good file next to it. A definition from a marketplace
+    /// layer keeps that layer and its provenance.
     ///
     /// - Parameters:
     ///   - marketplaceLayers: The marketplace layers, lowest precedence

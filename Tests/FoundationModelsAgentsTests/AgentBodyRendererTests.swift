@@ -3,7 +3,7 @@ import Foundation
 import FoundationModelsExtras
 import Testing
 
-/// Pins the render of a body at run start (plan.md §4.3 step 3, §16).
+/// Pins the render of a body at run start.
 ///
 /// Pass 1 puts the prompt in place of each `$ARGUMENTS` as a quarantined
 /// span. Pass 2 renders the text with Stencil as the document

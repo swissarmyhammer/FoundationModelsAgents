@@ -5,9 +5,9 @@ import Testing
 import ULID
 
 extension MaxTurnsTests {
-    /// Pins the one pass counter of a run (plan.md §5): the live count from
-    /// the generation calls and the tool opens of the submission in
-    /// operation, the correction from the recorded entries at the end of each
+    /// Pins the one pass counter of a run: the live count from the generation
+    /// calls and the tool opens of the submission in operation, the
+    /// correction from the recorded entries at the end of each
     /// submission, and the one limit signal.
     ///
     /// The tests give the counter synthetic events, thus they need no

@@ -83,4 +83,3 @@ skill.
 
 - ``AgentsTool``
 - ``AgentsToolContext``
-- ``AgentsCLI``

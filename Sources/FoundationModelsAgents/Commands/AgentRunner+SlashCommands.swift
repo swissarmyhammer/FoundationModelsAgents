@@ -1,8 +1,7 @@
 import Foundation
 import FoundationModelsExtras
 
-/// The conformance of `AgentRunner` to the slash-command channel of Extras
-/// (plan.md §9.4).
+/// The conformance of `AgentRunner` to the slash-command channel of Extras.
 ///
 /// Each user-invocable agent gives one command. The name of the command is
 /// the id of the agent. When the user runs `/name text`, the `.action` body
@@ -37,8 +36,7 @@ extension AgentRunner: SlashCommandProviding {
         makeSlashCommands(for: registry.catalog())
     }
 
-    /// The full command list after each new catalog of the registry
-    /// (plan.md §9.4).
+    /// The full command list after each new catalog of the registry.
     ///
     /// The stream follows `AgentRegistry.onReload`. Each access makes a
     /// subscription of its own, thus two readers each get each list. The

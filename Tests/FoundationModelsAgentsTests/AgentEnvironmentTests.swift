@@ -4,7 +4,7 @@ import FoundationModelsRouter
 import FoundationModelsSkills
 import Testing
 
-/// Pins the defaults and the limits of `AgentEnvironment` (plan.md §3, §7).
+/// Pins the defaults and the limits of `AgentEnvironment`.
 @Suite("Agent environment")
 struct AgentEnvironmentTests {
     /// The token count that the budget tests give to `budget`.
@@ -16,8 +16,8 @@ struct AgentEnvironmentTests {
     /// A limit that is below the lowest value that the environment accepts.
     static let limitBelowRange = -1
 
-    /// The depth limit that plan.md §1 states.
-    static let planMaxDepth = 3
+    /// The default depth limit of the package.
+    static let expectedMaxDepth = 3
 
     /// The name of the one tool of the custom tool catalog.
     static let probeToolName = "Read"
@@ -39,9 +39,9 @@ struct AgentEnvironmentTests {
     }
 
     /// An environment with only the profile and the skills registry gets the
-    /// defaults of plan.md §3 and §7.
-    @Test("The defaults are the plan values")
-    func defaultsAreThePlanValues() async throws {
+    /// default values.
+    @Test("The defaults have their stated values")
+    func defaultsHaveTheirStatedValues() async throws {
         let profile = try await Self.makeProfile()
 
         let environment = AgentEnvironment(profile: profile, skills: Self.makeEmptySkills())
@@ -52,7 +52,7 @@ struct AgentEnvironmentTests {
         #expect(environment.defaultSlot == .standard)
         #expect(environment.maxConcurrentAgents == AgentEnvironment.defaultMaxConcurrentAgents)
         #expect(environment.maxDepth == AgentEnvironment.defaultMaxDepth)
-        #expect(environment.maxDepth == Self.planMaxDepth)
+        #expect(environment.maxDepth == Self.expectedMaxDepth)
         #expect(environment.maxRetainedRuns == AgentEnvironment.defaultMaxRetainedRuns)
         #expect(environment.budget(Self.contextTokens) == TokenBudget(limit: Self.contextTokens))
     }

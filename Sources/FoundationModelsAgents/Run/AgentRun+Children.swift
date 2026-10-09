@@ -1,7 +1,7 @@
 import FoundationModelsRouter
 import Synchronization
 
-/// The part of the life of a run after its setup (plan.md §8 steps 6 to 8).
+/// The part of the life of a run after its setup.
 ///
 /// The phase tells the runner if the run holds a place in the run limit, and
 /// tells `check agent` if the run waits for the runs that it started.
@@ -11,7 +11,7 @@ enum AgentRunPhase: Sendable, Equatable {
 
     /// No answer of the run is open after its first answer: the run waits
     /// for the final messages of the runs that it started. A run in this
-    /// phase holds no place in the run limit (plan.md §9.3).
+    /// phase holds no place in the run limit.
     ///
     /// The phase does not count the children. The body of a `start agent`
     /// call adds its run after the answer that made the call can end, and a
@@ -39,8 +39,7 @@ enum AgentRunPhase: Sendable, Equatable {
     }
 }
 
-/// The run that calls the `agents` tool, as the tool sees it
-/// (plan.md §9.3, children and depth).
+/// The run that calls the `agents` tool, as the tool sees it.
 ///
 /// `start agent` uses it to give a child its depth and its inherited slot,
 /// and the child adds itself to ``children``. A root session that is not a
@@ -68,7 +67,7 @@ struct ParentRun: Sendable {
     }
 }
 
-/// The runs that one run started (plan.md §9.3, children).
+/// The runs that one run started.
 ///
 /// A child adds itself before its answers start. The run finishes only after
 /// each child ended and its final message was answered.

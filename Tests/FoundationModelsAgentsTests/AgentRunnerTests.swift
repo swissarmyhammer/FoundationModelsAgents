@@ -3,8 +3,8 @@ import FoundationModelsExtras
 import FoundationModelsRouter
 import Testing
 
-/// Pins the host-driven part of `AgentRunner` (plan.md §8.1, §9.3): start,
-/// the run index, the records of finished runs, `catalog()`, and `stop()`.
+/// Pins the host-driven part of `AgentRunner`: start, the run index, the
+/// records of finished runs, `catalog()`, and `stop()`.
 ///
 /// Each test resolves its own scripted profile, which records to its own
 /// temporary folder. A play matches by a key in the prompt of the run.

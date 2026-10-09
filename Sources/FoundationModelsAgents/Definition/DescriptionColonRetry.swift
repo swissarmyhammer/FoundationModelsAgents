@@ -1,6 +1,6 @@
 import Foundation
 
-/// The colon retry of the frontmatter decode (plan.md §4.3 step 1).
+/// The colon retry of the frontmatter decode.
 ///
 /// This is the rule of the `FoundationModelsSkills` frontmatter decoder. A
 /// Claude author often writes a `description:` value that holds an unquoted

@@ -4,10 +4,10 @@ import FoundationModelsRouter
 import Marketplace
 
 /// One validated agent: the frontmatter of one agent file after the rule
-/// table of plan.md §4.3 step 2, the raw body, and the provenance.
+/// table, the raw body, and the provenance.
 ///
 /// The body is the system prompt, as the file writes it. This type does not
-/// render the body; the run renders it at run start (plan.md §4.3 step 3).
+/// render the body; the run renders it at run start.
 public struct AgentDefinition: Sendable {
     /// The maximum count of characters in an id.
     static let idCharacterLimit = 64
@@ -26,7 +26,7 @@ public struct AgentDefinition: Sendable {
     public let body: String
 
     /// The `model` key, as text, or `nil` when the key is absent or empty.
-    /// The runner matches it to a slot (plan.md §7).
+    /// The runner matches it to a slot.
     public let model: String?
 
     /// The fold prompt of this agent, or `nil` for
@@ -78,8 +78,7 @@ public struct AgentDefinition: Sendable {
     /// The marketplace layer that gave the file, or `nil` for a local layer.
     ///
     /// The render of the body uses it for the partial scope: a marketplace
-    /// document sees its own marketplace and the local layers (plan.md §4.3
-    /// step 3).
+    /// document sees its own marketplace and the local layers.
     public let marketplaceLayer: MarketplaceLayer?
 
     /// The URL of the agent file.
@@ -98,7 +97,7 @@ public struct AgentDefinition: Sendable {
     }
 
     /// Makes a definition from one located document, and applies the rule
-    /// table of plan.md §4.3 step 2.
+    /// table.
     ///
     /// A file name that is not a valid id, a missing document, and a
     /// frontmatter that did not decode each give one `skip` and `nil`. Each
@@ -181,7 +180,7 @@ public struct AgentDefinition: Sendable {
     }
 
     /// Gives the `tools` entries that the agent gets, with the access key
-    /// rule of plan.md §4.3: an incorrect value gives less access.
+    /// rule: an incorrect value gives less access.
     ///
     /// - Parameters:
     ///   - frontmatter: The decoded frontmatter.

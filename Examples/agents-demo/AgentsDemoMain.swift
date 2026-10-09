@@ -3,7 +3,7 @@ import FoundationModelsAgents
 import FoundationModelsRouter
 import FoundationModelsSkills
 
-/// The entry point of `agents-demo`, the example of plan.md §13.
+/// The entry point of `agents-demo`, the example executable.
 ///
 /// The first argument selects the mode. With no mode, the example writes the
 /// usage to standard output and exits 0. The work of each mode is in

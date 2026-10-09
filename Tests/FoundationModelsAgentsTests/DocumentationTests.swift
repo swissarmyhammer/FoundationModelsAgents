@@ -1,8 +1,7 @@
 import Foundation
 import Testing
 
-/// Holds the API documentation of this package to its rules (plan.md §14,
-/// M8).
+/// Holds the API documentation of this package to its rules.
 ///
 /// The first rule reads the Swift source: each public declaration and each
 /// enum case has a doc comment (`DocCommentRule`). The suite walks each file
@@ -98,35 +97,35 @@ struct DocumentationTests {
     /// documents under `docs/` to the same list.
     static let speedWords = ["slow", "slower", "fast", "faster", "speed", "cheap", "expensive"]
 
-    /// The rule of the mount table that gives the full `agents` tool to a run
-    /// (plan.md §5, §9.3). A page wraps its lines, thus each rule text fits
-    /// on one line of the page.
+    /// The rule of the mount table that gives the full `agents` tool to a
+    /// run. A page wraps its lines, thus each rule text fits on one line of
+    /// the page.
     private static let agentsToolRule = "Only an explicit `tools` entry gives the operations that start agents."
 
-    /// The rule of the mount table for an agent with no `tools` key
-    /// (plan.md §5, §9.3): a run with a caller gets only the message
-    /// operations, and a host-started run gets no `agents` tool.
+    /// The rule of the mount table for an agent with no `tools` key: a run
+    /// with a caller gets only the message operations, and a host-started run
+    /// gets no `agents` tool.
     private static let noToolsKeyRule =
         "An agent with no `tools` key gets only the message operations, and only in a run with a caller."
 
-    /// The rule of the noun synonym of `send caller` (plan.md §9.1).
+    /// The rule of the noun synonym of `send caller`.
     private static let parentSynonymRule = "`send parent` is the same call as `send caller`."
 
-    /// The operations of the `agents` tool (plan.md §9.1), in tool order.
+    /// The operations of the `agents` tool, in tool order.
     private static let toolOperations = [
         "list agents", "start agent", "check agent", "cancel agent", "send agent", "send caller"
     ]
 
-    /// The rule of the mount of `start agent` (plan.md §9.1).
+    /// The rule of the mount of `start agent`.
     private static let backgroundRunRule = "`start agent` is a background run."
 
-    /// The rule that gives the final message to the caller (plan.md §9.2).
+    /// The rule that gives the final message to the caller.
     private static let mailRule = "The final message comes to the calling session as mail."
 
-    /// The rule that delivers the mail (plan.md §9.2).
+    /// The rule that delivers the mail.
     private static let pumpRule = "The pump of the Router delivers the mail."
 
-    /// The rule of the end of a run (plan.md §8 step 8).
+    /// The rule of the end of a run.
     private static let idleRule = "A run ends when its session is idle."
 
     /// Every claim that a page must make.
@@ -285,7 +284,7 @@ struct DocumentationTests {
     private static let textDirectories = [sourceDirectory, "docs"]
 
     /// The files at the package root that the count check reads.
-    private static let rootTextFiles = ["README.md", "plan.md"]
+    private static let rootTextFiles = ["README.md"]
 
     /// The extensions of the files that the count check reads.
     private static let textExtensions: Set = ["swift", "md"]

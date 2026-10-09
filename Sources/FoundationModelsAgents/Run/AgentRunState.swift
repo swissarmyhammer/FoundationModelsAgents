@@ -1,4 +1,4 @@
-/// The state of one agent run (plan.md §8.1, §12).
+/// The state of one agent run.
 ///
 /// A run starts in ``running``. It then goes to one of the three terminal
 /// states one time, and stays there.

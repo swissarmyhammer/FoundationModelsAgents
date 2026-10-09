@@ -2,15 +2,15 @@ import FoundationModels
 import FoundationModelsExtras
 import FoundationModelsRouter
 
-/// Makes the session of one agent run: plan.md §8 steps 2 to 5.
+/// Makes the session of one agent run, in these steps:
 ///
-/// 2. Render the body with the prompt as `$ARGUMENTS`.
-/// 3. Put the instructions in order: the `AGENTS.md` files of the working
+/// 1. Render the body with the prompt as `$ARGUMENTS`.
+/// 2. Put the instructions in order: the `AGENTS.md` files of the working
 ///    directory, outermost first, then the rendered body, then the rendered
 ///    body of each skill of the `skills` key, in the order of the key
 ///    (``AgentSkillsPreload``).
-/// 4. Resolve the tools.
-/// 5. Match the model, and make the session on the slot of the match.
+/// 3. Resolve the tools.
+/// 4. Match the model, and make the session on the slot of the match.
 ///
 /// The model match comes before the tools, because the `agents` tool of the
 /// run gives the slot of the run to each child with `model: inherit`. Each
@@ -90,7 +90,7 @@ struct AgentSessionMaker: Sendable {
         return (documents.map(\.text) + parts).joined(separator: Self.instructionsSeparator)
     }
 
-    /// Makes the new tools of the run of `request` (plan.md §5).
+    /// Makes the new tools of the run of `request`.
     ///
     /// The run skips each entry that matches no tool. `runner.catalog()`
     /// gives the warnings of those entries.
@@ -119,8 +119,7 @@ struct AgentSessionMaker: Sendable {
         }
     }
 
-    /// Gives the maker of the `agents` tool of the run of `request`
-    /// (plan.md §9.3, the mount table).
+    /// Gives the maker of the `agents` tool of the run of `request`.
     ///
     /// The tool keeps the link to the caller of the run: the context of the
     /// call that started the run, and the session of that call. A
@@ -157,8 +156,7 @@ struct AgentSessionMaker: Sendable {
         }
     }
 
-    /// Gives the grant of the `agents` tool of one run (plan.md §9.3, the
-    /// mount table).
+    /// Gives the grant of the `agents` tool of one run.
     ///
     /// | Case | Grant |
     /// |---|---|

@@ -4,17 +4,13 @@ import FoundationModelsExtras
 import FoundationModelsRouter
 import FoundationModelsSkills
 import Marketplace
-import OperationsCLI
 
-/// The compiled copies of the Swift examples of `README.md` (plan.md §12,
-/// §15).
+/// The compiled copy of the Swift example of `README.md`.
 ///
 /// The text between the two marker comments in ``run(profile:folders:)`` is
-/// the main README block, line for line. The text between the marker
-/// comments in ``send(runner:run:)`` is the `agent send` block.
-/// `ReadmeExampleTests` compares the texts, and runs each copy with a
-/// scripted profile. Thus the README cannot hold code that does not compile,
-/// or code that does not run.
+/// the README block, line for line. `ReadmeExampleTests` compares the texts,
+/// and runs the copy with a scripted profile. Thus the README cannot hold
+/// code that does not compile, or code that does not run.
 enum ReadmeExampleSource {
     /// The folders that the example reads. The README names each one as a
     /// variable of the host.
@@ -136,26 +132,5 @@ enum ReadmeExampleSource {
         // README example: end
 
         return Outcome(listing: listing, review: review, answer: answer)
-    }
-
-    /// Runs the README example of `agent send`: the host sends a message to a
-    /// run that it started, while the run works.
-    ///
-    /// - Parameters:
-    ///   - runner: The runner that owns the run.
-    ///   - run: A host-started run in operation.
-    /// - Returns: The result of the command.
-    /// - Throws: The error of `AgentsCLI.makeDriver(runner:)`.
-    static func send(runner: AgentRunner, run: AgentRun) async throws -> CLIResult {
-        // README example: begin
-        // A host sends a message to a run that it started, while the run works.
-        let driver = try AgentsCLI.makeDriver(runner: runner)
-        let sent = await driver.run(arguments: [
-            "agent", "send", "--id", run.id.description, "--message", "Also check the error paths."
-        ])
-        // The run answers the message before it ends, thus `result()` gives that answer.
-        // README example: end
-
-        return sent
     }
 }

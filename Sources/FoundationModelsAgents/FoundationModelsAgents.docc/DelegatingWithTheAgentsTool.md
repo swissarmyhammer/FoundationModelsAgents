@@ -174,13 +174,8 @@ that has the `skills` tool, and tell it in the prompt to use the named skill.
 run is a session with its own answers, and the final message needs a Router
 session as the caller. Register the tool directly on a session.
 
-### Slash commands and the command line
+### Slash commands
 
 ``AgentRunner`` conforms to `SlashCommandProviding`. It gives one command for
 each user-invocable agent. A command starts a host-driven run with the text
 after the name as the prompt, waits for it, and gives the final text.
-
-``AgentsCLI/makeDriver(runner:)`` gives an `OperationCLIDriver` with the
-commands `agents agent list`, `agents agent start`, `agents agent check`,
-`agents agent cancel`, and `agents agent send`. `send caller` has no command:
-a host is not a run, thus it has no caller.

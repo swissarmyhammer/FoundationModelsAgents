@@ -1,8 +1,7 @@
 import FoundationModels
 import FoundationModelsRouter
 
-/// The answers of the session of one run, as its session events tell them
-/// (plan.md §8 steps 6 to 8).
+/// The answers of the session of one run, as its session events tell them.
 ///
 /// An answer is the chain of submissions that answers the messages of the
 /// session: the task prompt, or the final message of a run that this run
@@ -114,7 +113,7 @@ struct AgentRunAnswers: Sendable, Equatable {
 }
 
 /// One thing that decides the end of a run, as the parts of the run tell it
-/// to the task that drives the run (plan.md §8 steps 6 to 8).
+/// to the task that drives the run.
 enum AgentRunSignal: Sendable {
     /// The session of the run is idle: no run that it started is open, each
     /// final message of those runs was delivered and answered, and no

@@ -1,8 +1,7 @@
 import Foundation
 import FoundationModelsRouter
 
-/// The real profile of `agents-demo --chat` and `agents-demo --fan-out`
-/// (plan.md §12, §13).
+/// The real profile of `agents-demo --chat` and `agents-demo --fan-out`.
 ///
 /// The two modes need a resolved `LanguageModelProfile`. The example makes a
 /// `Router` over the live model loader, and resolves ``definition`` with it.

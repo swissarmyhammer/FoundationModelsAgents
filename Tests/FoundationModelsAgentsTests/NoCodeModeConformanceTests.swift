@@ -1,6 +1,6 @@
 import Testing
 
-/// Guards plan.md §9.5: the `agents` tool is not a code-mode surface. No type
+/// Guards the rule that the `agents` tool is not a code-mode surface. No type
 /// of the library conforms to `OperationDescribing` or to `ForkableTool`.
 ///
 /// A run is a session with its own turns, not a script verb. The lineage of a
@@ -59,7 +59,7 @@ struct NoCodeModeConformanceTests {
             offenders.isEmpty,
             """
             No file under \(Self.sourcesPath)/ may name OperationDescribing or ForkableTool: the \
-            agents tool is not a code-mode surface (plan.md §9.5); found: \(offenders.joined(separator: ", "))
+            agents tool is not a code-mode surface; found: \(offenders.joined(separator: ", "))
             """)
     }
 

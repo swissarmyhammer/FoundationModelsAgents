@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-/// Holds the text of `README.md` to the rules of the code (plan.md §4.3).
+/// Holds the text of `README.md` to the rules of the code.
 ///
 /// The rule table of `AgentDefinition` gives a warning for a `name` that is
 /// absent or not equal to the file name, and the file loads, because the file

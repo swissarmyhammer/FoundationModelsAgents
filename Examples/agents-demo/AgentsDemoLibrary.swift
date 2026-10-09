@@ -2,7 +2,7 @@ import Foundation
 import FoundationModelsExtras
 import Marketplace
 
-/// The fixture library of the example: `Examples/agent-library` (plan.md §13).
+/// The fixture library of the example: `Examples/agent-library`.
 ///
 /// Each URL comes from the `#filePath` of this file or from the caller. Thus
 /// the example never reads the real home directory or `$XDG_CONFIG_HOME`.

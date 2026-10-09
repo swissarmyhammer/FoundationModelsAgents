@@ -5,7 +5,7 @@ import Testing
 
 @testable import FoundationModelsAgents
 
-/// Pins the mount of each call of the `agents` tool (plan.md §9.1, §9.2).
+/// Pins the mount of each call of the `agents` tool.
 ///
 /// `start agent` is the one background operation: in a Router session it
 /// waits for the run up to the settle period of the session. A run that
@@ -51,9 +51,8 @@ struct AgentsToolMountTests {
     private static let completionToken = "01M3N00000000000000000TOKN"
 
     /// The `next` sentence of the pending envelope of `start agent`, word for
-    /// word from plan.md §9.2. The Router delivers the final message only
-    /// after the answer of the model ends, thus the sentence tells the model
-    /// to end its answer.
+    /// word. The Router delivers the final message only after the answer of
+    /// the model ends, thus the sentence tells the model to end its answer.
     private static let collectSentence = """
         This agent works in the background. Do not wait for it, and never guess its result. \
         End your answer now, or do other work first: its final message comes to you as a new message \

@@ -150,8 +150,7 @@ enum ToolListKey: String, Sendable {
     }
 }
 
-/// The result of the tool resolution rules of plan.md §5, before a tool is
-/// made.
+/// The result of the tool resolution rules, before a tool is made.
 ///
 /// `disallowedTools` applies first, then `tools`. No `tools` key selects
 /// each catalog tool, and no grant of the `agents` tool: only an explicit

@@ -1,5 +1,4 @@
-/// An error of `AgentRunner` that stops a run before it starts
-/// (plan.md §9.3).
+/// An error of `AgentRunner` that stops a run before it starts.
 public enum AgentRunnerError: Error, Sendable, Equatable {
     /// The catalog has no agent with the name.
     ///

@@ -4,9 +4,9 @@ import FoundationModelsRouter
 import Testing
 import ULID
 
-/// Pins the progress record of a run in operation (plan.md §9.1,
-/// `check agent`): the text for each phase, the pass count, and the limits
-/// of the tool names and of the text tail.
+/// Pins the progress record of a run in operation for `check agent`: the
+/// text for each phase, the pass count, and the limits of the tool names and
+/// of the text tail.
 @Suite("Agent run progress")
 struct AgentRunProgressTests {
     /// The id of the entry of each recorded-entry event.

@@ -1,8 +1,7 @@
 import Foundation
 import Testing
 
-/// Guards the split between the unit tests and the integration tests
-/// (plan.md §15).
+/// Guards the split between the unit tests and the integration tests.
 ///
 /// The integration tests are in the nested `IntegrationTests/` package, as in
 /// the peer packages. The package boundary is the split:

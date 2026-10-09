@@ -5,8 +5,7 @@ import Marketplace
 import MarketplaceFixtures
 import Testing
 
-/// Pins the marketplace part of layer 2 (plan.md §4.1, §6.1, §16) on
-/// `AgentRegistry`.
+/// Pins the marketplace part of layer 2 on `AgentRegistry`.
 ///
 /// The marketplace layers are below the local layers. Each marketplace
 /// definition keeps its `MarketplaceProvenance` and its marketplace layer.

@@ -2,8 +2,7 @@ import Foundation
 import FoundationModelsExtras
 import Marketplace
 
-/// Renders the body of an agent at run start, in the two passes of plan.md
-/// §4.3 step 3.
+/// Renders the body of an agent at run start, in two passes.
 ///
 /// 1. **`$ARGUMENTS`.** The renderer puts the prompt in place of each
 ///    `$ARGUMENTS` of the raw body, as a `.quarantined` span of a

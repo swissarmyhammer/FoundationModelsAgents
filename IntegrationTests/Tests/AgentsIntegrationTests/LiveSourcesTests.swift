@@ -16,8 +16,8 @@ private struct LiveAnswer {
 }
 
 extension LiveSuites {
-    /// Each kind of agent source gives a live sub-agent (plan.md §15), and the
-    /// real `swissarmyhammer/skills` marketplace loads (plan.md §6.1, §16).
+    /// Each kind of agent source gives a live sub-agent, and the real
+    /// `swissarmyhammer/skills` marketplace loads.
     ///
     /// - A local agent file, a plugin of a git marketplace, and a plugin of a
     ///   `file://` folder each give an agent that a real model runs. The agent

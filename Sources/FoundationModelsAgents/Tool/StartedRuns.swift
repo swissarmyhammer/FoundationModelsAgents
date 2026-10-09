@@ -1,7 +1,7 @@
 import Synchronization
 
 /// The runs that the `start agent` calls of one `agents` tool started, by
-/// the completion token of each call (plan.md §9.1, §9.2).
+/// the completion token of each call.
 ///
 /// The Router gives the model the pending envelope of a `start agent` call
 /// whose run continues past the settle period of the session. The envelope

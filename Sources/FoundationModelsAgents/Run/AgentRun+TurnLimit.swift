@@ -2,7 +2,7 @@ import FoundationModelsRouter
 import Synchronization
 
 /// The one count of the passes of the control loop of one run, and the
-/// `maxTurns` limit of its agent (plan.md §5, §9.3).
+/// `maxTurns` limit of its agent.
 ///
 /// In each pass the model generates. Then it calls tools, and the loop goes
 /// around again, or it answers, and the loop ends. The count holds the passes

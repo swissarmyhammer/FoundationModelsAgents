@@ -1,7 +1,7 @@
 import Foundation
 
 /// Reads the Swift blocks of `README.md` and the compiled copy of each block
-/// in `ReadmeExampleSource.swift` (plan.md §15).
+/// in `ReadmeExampleSource.swift`.
 ///
 /// The compiled copy of a block is the text between two marker comments,
 /// ``startMarker`` and ``endMarker``. A block is a copy when each of its

@@ -1,6 +1,6 @@
 import FoundationModelsRouter
 
-/// The plain-text answers of the `agents` tool (plan.md §9.1).
+/// The plain-text answers of the `agents` tool.
 ///
 /// Each answer is text for the model. A corrective text tells the model what
 /// was wrong and what it can do now, in the same turn.
@@ -66,8 +66,7 @@ enum AgentsToolText {
     /// The text between two run blocks of `check agent` with no id.
     private static let blockSeparator = "\n\n"
 
-    /// Gives the corrective of `start agent` when the run limit is full
-    /// (plan.md §9.3).
+    /// Gives the corrective of `start agent` when the run limit is full.
     ///
     /// - Parameter working: The count of runs that have a turn in operation.
     /// - Returns: "`N` agents are working now, and that is the limit." and
@@ -80,7 +79,7 @@ enum AgentsToolText {
     }
 
     /// Gives the corrective of `start agent` when the new run would be deeper
-    /// than ``AgentEnvironment/maxDepth`` (plan.md §9.3, depth).
+    /// than ``AgentEnvironment/maxDepth``.
     ///
     /// - Parameter maxDepth: The depth limit.
     /// - Returns: The corrective, with what the model can do now.

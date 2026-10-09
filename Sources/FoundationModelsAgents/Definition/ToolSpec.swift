@@ -1,7 +1,6 @@
 import Foundation
 
-/// One entry of the `tools` or `disallowedTools` key, as a typed value
-/// (plan.md §5).
+/// One entry of the `tools` or `disallowedTools` key, as a typed value.
 ///
 /// The parse does not look up a tool. The tool resolution matches each value
 /// to the tool catalog and makes a warning for an unknown name.

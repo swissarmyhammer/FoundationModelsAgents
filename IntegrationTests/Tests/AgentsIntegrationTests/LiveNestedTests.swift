@@ -4,8 +4,7 @@ import FoundationModelsRouter
 import Testing
 
 extension LiveSuites {
-    /// Nested runs on real models: the lineage of three sessions (plan.md
-    /// §8.2, §9, §15).
+    /// Nested runs on real models: the lineage of three sessions.
     ///
     /// The root session starts the agent ``lead``. The model of `lead` starts
     /// the agent ``leaf``. The `agentSpawn` record of each run names its

@@ -1,6 +1,6 @@
 import FoundationModelsExtras
 
-/// The data of one agent that a host shows in a list (plan.md §4.2, §12).
+/// The data of one agent that a host shows in a list.
 ///
 /// A listing holds no body. It holds the tier 2 data, the visibility, and
 /// the provenance of the agent.

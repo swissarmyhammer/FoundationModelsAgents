@@ -3,9 +3,8 @@ import FoundationModels
 import FoundationModelsRouter
 import Testing
 
-/// Pins the rule that tells if an answer answered a prompt (plan.md §8 steps
-/// 6 to 8): the rule reads the session events that the run processed, not
-/// only the transcript.
+/// Pins the rule that tells if an answer answered a prompt: the rule reads
+/// the session events that the run processed, not only the transcript.
 ///
 /// The transcript of a session can be ahead of the events that a run
 /// processed: the Router settles the transcript at the end of a submission,

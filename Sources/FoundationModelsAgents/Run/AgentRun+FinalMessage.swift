@@ -1,7 +1,6 @@
 import FoundationModelsRouter
 
-/// The final message of a run and the texts that tell its state
-/// (plan.md §9.1, §9.2).
+/// The final message of a run and the texts that tell its state.
 ///
 /// The `agents` tool is a background tool of the Router. The background body
 /// of a `start agent` call waits for the run, and gives the final message

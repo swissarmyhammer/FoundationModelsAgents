@@ -1,8 +1,8 @@
 import Testing
 
-/// Guards the loading boundary of this package (plan.md §15): the raw work of
-/// loading an agent lives in `FoundationModelsExtras`, and this package keeps
-/// only the work of the agent schema.
+/// Guards the loading boundary of this package: the raw work of loading an
+/// agent lives in `FoundationModelsExtras`, and this package keeps only the
+/// work of the agent schema.
 ///
 /// The rule, in one table:
 ///

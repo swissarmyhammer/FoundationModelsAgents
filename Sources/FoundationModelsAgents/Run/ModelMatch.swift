@@ -1,7 +1,7 @@
 import FoundationModelsRouter
 
 /// Matches the `model` value of an agent to a generation slot of the
-/// profile (plan.md §7).
+/// profile.
 ///
 /// | `model:` | Result |
 /// |---|---|

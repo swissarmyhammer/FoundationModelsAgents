@@ -1,29 +1,28 @@
 import FoundationModels
 
-/// The reason that an agent run failed (plan.md §12).
+/// The reason that an agent run failed.
 ///
 /// The first four cases occur before the run makes its session. A run that
 /// fails for one of them has no session and no recording directory. The last
 /// four cases occur in the answers of the run.
 public enum AgentRunFailure: Error, Sendable, Equatable {
-    /// The render of the body at run start failed (plan.md §4.3 step 3). The
-    /// text is the description of the render error: for example a template
-    /// that Stencil cannot parse, a construct that the untrusted render
-    /// refuses, or an include of a partial that no layer in scope holds.
+    /// The render of the body at run start failed. The text is the
+    /// description of the render error: for example a template that Stencil
+    /// cannot parse, a construct that the untrusted render refuses, or an
+    /// include of a partial that no layer in scope holds.
     case bodyRenderFailed(String)
 
-    /// The render of a skill of the `skills` key failed at run start
-    /// (plan.md §5, `skills:` preload). `skill` is the name of the skill.
-    /// `description` is the description of the render error of the skills
-    /// registry.
+    /// The render of a skill of the `skills` key failed at run start (the
+    /// `skills:` preload). `skill` is the name of the skill. `description`
+    /// is the description of the render error of the skills registry.
     case skillRenderFailed(skill: String, description: String)
 
-    /// An `AGENTS.md` file of the working directory is not readable text
-    /// (plan.md §8 step 3). The text is the description of the read error.
+    /// An `AGENTS.md` file of the working directory is not readable text.
+    /// The text is the description of the read error.
     case agentsMdUnreadable(String)
 
-    /// The run could not make its tools (plan.md §8 step 4). The text is the
-    /// description of the error of the tool factory.
+    /// The run could not make its tools. The text is the description of the
+    /// error of the tool factory.
     case toolsFailed(String)
 
     /// The context of the session was full, and the compaction of the
@@ -35,11 +34,11 @@ public enum AgentRunFailure: Error, Sendable, Equatable {
     /// description of the error.
     case modelFailed(String)
 
-    /// The run went above the `maxTurns` limit of its agent (plan.md §5).
-    /// The run counts one turn for each pass of the control loop, in the
-    /// answer of its task prompt and in each answer to the final message of
-    /// a run that it started. `partial` is the text of the answer when the
-    /// count went above the limit.
+    /// The run went above the `maxTurns` limit of its agent. The run counts
+    /// one turn for each pass of the control loop, in the answer of its task
+    /// prompt and in each answer to the final message of a run that it
+    /// started. `partial` is the text of the answer when the count went above
+    /// the limit.
     case hitMaxTurns(partial: String)
 
     /// The Router held the final messages of the runs that this run started,

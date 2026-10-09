@@ -4,7 +4,7 @@
 /// stack and in marketplace plugins, and runs each agent in one Router
 /// session. This enum declares no members. It holds the module documentation.
 ///
-/// ## Layers (plan.md §3)
+/// ## Layers
 ///
 /// The layers are types in one library target, not separate modules.
 ///
@@ -44,5 +44,5 @@
 ///
 /// The name `AgentSession` is not a type of this module.
 /// `FoundationModelsMetadataRegistry` declares a protocol with that name, and
-/// `FoundationModelsSkills` brings that module into the graph (plan.md §11).
+/// `FoundationModelsSkills` brings that module into the graph.
 public enum FoundationModelsAgents {}

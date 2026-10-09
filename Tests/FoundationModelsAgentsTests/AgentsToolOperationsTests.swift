@@ -2,12 +2,12 @@
 import FoundationModelsRouter
 import Testing
 
-/// Pins the operations of the `agents` tool (plan.md §9.1): the success
-/// texts, the corrective texts, the verb aliases, and the plain-text answer.
+/// Pins the operations of the `agents` tool: the success texts, the
+/// corrective texts, the verb aliases, and the plain-text answer.
 ///
-/// The tests call the tool outside a Router session, as a command line does,
-/// thus `ToolContext.current` is `nil` and no run posts a final message. A
-/// play matches by a key in the prompt of the run.
+/// The tests call the tool outside a Router session, as a host does, thus
+/// `ToolContext.current` is `nil` and no run posts a final message. A play
+/// matches by a key in the prompt of the run.
 @Suite("Agents tool operations")
 struct AgentsToolOperationsTests {
     /// A failure that a scripted step throws.

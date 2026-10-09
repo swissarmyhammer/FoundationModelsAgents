@@ -3,11 +3,11 @@ import Marketplace
 import MarketplaceFixtures
 
 /// A marketplace provider over the fixture marketplace at
-/// `Examples/agent-library/marketplace` (plan.md §6.1, §13).
+/// `Examples/agent-library/marketplace`.
 ///
 /// `make()` commits each file of the fixture marketplace to a new
 /// `GitFixtureRepository`, and installs the commit with a `MarketplaceStore`
-/// over a new cache folder. The snapshot of the store has the §6.1 shape:
+/// over a new cache folder. The snapshot of the store has the layer shape:
 /// `agents/<id>.md` for each agent of all plugins, each skill folder at the
 /// layer root, and `_partials/`. The provider gives the layers of that store.
 ///

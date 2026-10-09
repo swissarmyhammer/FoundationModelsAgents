@@ -3,7 +3,7 @@ import Foundation
 import FoundationModelsExtras
 import Testing
 
-/// Pins `AgentFrontmatter.decode(_:)` (plan.md §4.2, §4.3 step 1).
+/// Pins `AgentFrontmatter.decode(_:)`.
 ///
 /// The suite decodes the fixture frontmatter through a
 /// `FrontmatterDocumentStack`, thus it also proves that the decode has the
@@ -217,7 +217,7 @@ struct AgentFrontmatterTests {
         #expect(frontmatter.notes.isEmpty)
     }
 
-    @Test("each tier 3 key of plan.md §4.2 is unsupported")
+    @Test("each tier 3 key is unsupported")
     func tierThreeKeysAreUnsupported() {
         #expect(
             Set(AgentFrontmatter.unsupportedKeys)

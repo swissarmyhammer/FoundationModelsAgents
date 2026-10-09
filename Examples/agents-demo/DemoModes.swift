@@ -16,7 +16,7 @@ typealias AgentsDemoOutput = @Sendable (String) -> Void
 /// it controls, and ends the stream when it read the lines that it checks.
 typealias AgentsDemoInput = AsyncStream<String>
 
-/// The work of each mode of `agents-demo` (plan.md §12, §13).
+/// The work of each mode of `agents-demo`.
 ///
 /// Each function takes its registry and its output. The functions of
 /// `--chat` and `--fan-out` also take a resolved profile and an input. Thus a
@@ -139,7 +139,7 @@ enum AgentsDemoModes {
         return "\(definition.id): marketplace \(marketplace.displayText)"
     }
 
-    /// Runs the chat mode (plan.md §12, model-driven).
+    /// Runs the chat mode (model-driven).
     ///
     /// A root session on the `standard` slot gets the `agents` tool. The mode
     /// sends ``chatPrompt`` with `send(_:)`, then each line of `input`. The
@@ -180,7 +180,7 @@ enum AgentsDemoModes {
         await writeRuns(of: root, runner: runner, level: 0, output: output)
     }
 
-    /// Runs the fan-out mode (plan.md §12, model-driven, two runs at once).
+    /// Runs the fan-out mode (model-driven, two runs at once).
     ///
     /// The flow is the flow of ``chat(profile:registry:workingDirectory:input:output:inlineSettleGrace:)``
     /// with ``fanOutInstructions`` and ``fanOutPrompt``. The model starts

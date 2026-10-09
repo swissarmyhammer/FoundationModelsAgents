@@ -4,7 +4,7 @@ import FoundationModelsExtras
 import Marketplace
 import Testing
 
-/// Pins the reload part of layer 2 (plan.md §4.1, §10) on `AgentRegistry`.
+/// Pins the reload part of layer 2 on `AgentRegistry`.
 ///
 /// Each row works on a `TemporaryLayer`. A watch row uses the real
 /// `DotfolderWatcher`, thus it waits on `onReload` for the catalog that it

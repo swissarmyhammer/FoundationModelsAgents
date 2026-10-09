@@ -3,7 +3,7 @@ import FoundationModelsExtras
 import Synchronization
 
 extension AgentRegistry {
-    /// Each new catalog of the registry (plan.md §4.1).
+    /// Each new catalog of the registry.
     ///
     /// Each access makes a subscription of its own. Thus two readers each get
     /// each catalog. The stream gets each catalog that a build swaps in after
@@ -18,7 +18,7 @@ extension AgentRegistry {
 }
 
 /// Follows the changes of the layers of one `AgentRegistry`, and publishes
-/// each new catalog (plan.md §4.1).
+/// each new catalog.
 ///
 /// The `init` of the loop makes a stream of reload requests and reads no
 /// file. Each build of the registry calls `follow(registry:layerUpdates:)`

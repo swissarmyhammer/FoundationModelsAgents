@@ -4,8 +4,7 @@ import Synchronization
 import Tracing
 import ULID
 
-/// One delegated task: one agent, one prompt, and one Router session
-/// (plan.md §8, §8.1).
+/// One delegated task: one agent, one prompt, and one Router session.
 ///
 /// `make` does the synchronous steps before it returns: it renders the
 /// body, puts the instructions in order, makes the tools, matches the model,
@@ -129,12 +128,11 @@ public final class AgentRun: Sendable {
     let slot: ModelSlot?
 
     /// The context of the tool call that started the run, or `nil` for a
-    /// host-driven run. It gives the lineage of the session (plan.md §8.2).
+    /// host-driven run. It gives the lineage of the session.
     let context: ToolContext?
 
     /// The runs that this run started. The run finishes only after each of
-    /// them ends and its final message was answered (plan.md §9.3,
-    /// children).
+    /// them ends and its final message was answered.
     let children: AgentRunChildren
 
     /// The watch of the session of the run. The follower of the run feeds
@@ -142,7 +140,7 @@ public final class AgentRun: Sendable {
     let sessionWatch = ParentSessionWatch()
 
     /// The count of the passes of the control loop over all the answers of
-    /// the run, and the `maxTurns` limit of the agent (plan.md §5).
+    /// the run, and the `maxTurns` limit of the agent.
     let turns: AgentRunTurns
 
     /// The signals that decide the end of the run.
@@ -208,7 +206,7 @@ public final class AgentRun: Sendable {
     }
 
     /// `true` when the run holds a place in the run limit: it is in
-    /// operation and does not wait for its children (plan.md §9.3).
+    /// operation and does not wait for its children.
     var isWorking: Bool {
         storage.withLock { storage in
             storage.state == .running && storage.progress.phase != .waitingForChildren
@@ -240,8 +238,7 @@ public final class AgentRun: Sendable {
         self.storage = Mutex(Storage(state: state, session: made?.session, driver: nil))
     }
 
-    /// Gives the maker of the `agents` tool of each run that `runner`
-    /// starts (plan.md §8 step 4, §9.3).
+    /// Gives the maker of the `agents` tool of each run that `runner` starts.
     ///
     /// A run uses the maker only when its `tools` key has an `Agent`,
     /// `Agent(a, b)`, or `agents` entry. The tool of a run is new for each
@@ -262,7 +259,7 @@ public final class AgentRun: Sendable {
         }
     }
 
-    /// Makes the run of `request`: the setup, and no answer (plan.md §8).
+    /// Makes the run of `request`: the setup, and no answer.
     ///
     /// The setup is done when the call returns, thus the run has its id. The
     /// session gets no prompt until ``begin(_:environment:)``. Thus the runner
@@ -363,8 +360,7 @@ public final class AgentRun: Sendable {
         signals.continuation.yield(.cancelRequested)
     }
 
-    /// Cancels the run, and tells what the cancel did (plan.md §9.1,
-    /// `cancel agent`).
+    /// Cancels the run, and tells what the cancel did (`cancel agent`).
     ///
     /// The final state of a run is known when its answers end, before it
     /// cancels its children and closes its session. A cancel from that time

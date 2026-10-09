@@ -2,10 +2,10 @@
 import FoundationModelsRouter
 import Testing
 
-/// Pins the scheduling rules of the runner and the `agents` tool
-/// (plan.md §9.2, §9.3, §16): the run limit of `start agent`, the isolation
-/// of the callers, `check agent` with no id, `cancelRuns(caller:)`, and the
-/// cancel of an open run when its caller session closes.
+/// Pins the scheduling rules of the runner and the `agents` tool: the run
+/// limit of `start agent`, the isolation of the callers, `check agent` with no
+/// id, `cancelRuns(caller:)`, and the cancel of an open run when its caller
+/// session closes.
 ///
 /// A caller is a root session that calls the tool. Each root session runs on
 /// the `standard` slot, and its turn ends before the test holds a child. A

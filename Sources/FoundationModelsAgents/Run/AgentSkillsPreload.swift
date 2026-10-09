@@ -1,6 +1,6 @@
 import FoundationModelsSkills
 
-/// The `skills:` preload of an agent (plan.md §5, §8 step 3).
+/// The `skills:` preload of an agent.
 ///
 /// At run start, the run appends the rendered body of each skill of the
 /// `skills` key to its instructions, after the body of the agent, in the

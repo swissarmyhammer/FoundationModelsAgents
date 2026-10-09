@@ -3,7 +3,7 @@ import Operations
 
 /// Builds the fused schema of `AgentsTool`: the flat union of the
 /// `Operations` runtime, with the `name` field made an enum of the agent
-/// names (plan.md §9.1).
+/// names.
 ///
 /// `SchemaFusion.fuse` of the `Operations` runtime gives each string field a
 /// plain string schema. It does not read `ParamMeta.allowedValues`, and a

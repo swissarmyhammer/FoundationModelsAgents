@@ -1,13 +1,14 @@
 import Foundation
 import Testing
 
-/// Holds `docs/skills-and-agents.md` to its rules (plan.md §14, M8).
+/// Holds `docs/skills-and-agents.md` to its rules.
 ///
-/// The document must hold the table of plan.md §2, state that skills and
-/// agents are separate things, and state how an agent uses a skill. Each
-/// relative link of the document must resolve to a file or a folder of the
-/// repository. The suite also tests the link reader on texts in memory, thus
-/// a link to a missing file fails a case here.
+/// The document must hold the table of the decisions that transfer from
+/// skills to agents, state that skills and agents are separate things, and
+/// state how an agent uses a skill. Each relative link of the document must
+/// resolve to a file or a folder of the repository. The suite also tests the
+/// link reader on texts in memory, thus a link to a missing file fails a case
+/// here.
 @Suite("docs/skills-and-agents.md")
 struct DocsTests {
     /// The folder of the documents, relative to the package root.
@@ -16,7 +17,8 @@ struct DocsTests {
     /// The name of the document.
     private static let documentName = "skills-and-agents.md"
 
-    /// The header row of the table of plan.md §2.
+    /// The header row of the table of the decisions that transfer from
+    /// skills to agents.
     private static let tableHeaderRow = "| Skills decision | Agents |"
 
     /// The key of a skill that makes the skill an agent. Skills and agents
@@ -41,22 +43,22 @@ struct DocsTests {
 
     /// A relative link from `docs/` to a file of the repository, with a
     /// heading part.
-    private static let planLinkWithHeading = "../plan.md#2-skills-and-agents"
+    private static let documentLinkWithHeading = "skills-and-agents.md#the-partials-rule"
 
-    /// The file path of ``planLinkWithHeading``.
-    private static let planLink = "../plan.md"
+    /// The file path of ``documentLinkWithHeading``.
+    private static let documentLink = "skills-and-agents.md"
 
     /// A Markdown text with one link of each kind: missing, relative,
     /// relative with a heading, absolute, and to a heading of the same text.
     private static let linkSample = """
-        See [a](\(missingLink)), [the README](\(readmeLink)), [the plan](\(planLinkWithHeading)),
+        See [a](\(missingLink)), [the README](\(readmeLink)), [the rule](\(documentLinkWithHeading)),
         [the site](https://example.com/docs), and [the top](#top).
         """
 
     @Test func theDocumentHoldsTheSkillsTableHeaderRow() throws {
         let lines = try Self.readDocument().components(separatedBy: .newlines)
 
-        #expect(lines.contains(Self.tableHeaderRow), "\(Self.documentName) must hold the table of plan.md §2")
+        #expect(lines.contains(Self.tableHeaderRow), "\(Self.documentName) must hold the skills table")
     }
 
     @Test(arguments: claims)
@@ -91,7 +93,7 @@ struct DocsTests {
     }
 
     @Test func theLinkReaderGivesTheRelativePathsWithNoHeadingPart() {
-        let expected = [Self.missingLink, Self.readmeLink, Self.planLink]
+        let expected = [Self.missingLink, Self.readmeLink, Self.documentLink]
 
         #expect(MarkdownLinks.relativePaths(in: Self.linkSample) == expected)
     }

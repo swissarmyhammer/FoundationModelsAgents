@@ -1,12 +1,12 @@
 import FoundationModelsExtras
 
-/// The raw frontmatter of one agent file (plan.md §4.2).
+/// The raw frontmatter of one agent file.
 ///
 /// Each field holds the value as the file writes it. This type does not
-/// validate a value: `AgentDefinition` applies the rules of plan.md §4.3. A
-/// field is `nil` when the file does not write the key, when the value is
-/// null, or when the value has the wrong type. A wrong type also puts the key
-/// into `wrongTypeKeys`.
+/// validate a value: `AgentDefinition` applies the rules. A field is `nil`
+/// when the file does not write the key, when the value is null, or when the
+/// value has the wrong type. A wrong type also puts the key into
+/// `wrongTypeKeys`.
 ///
 /// The frontmatter is never rendered. A `{{ x }}` in a value stays text.
 public struct AgentFrontmatter: Sendable, Equatable {
@@ -22,7 +22,7 @@ public struct AgentFrontmatter: Sendable, Equatable {
     /// The `disallowedTools` key: the tool entries that the agent cannot use.
     public var disallowedTools: [String]?
 
-    /// The `model` key, as text. The runner matches it to a slot (plan.md §7).
+    /// The `model` key, as text. The runner matches it to a slot.
     public var model: String?
 
     /// The `skills` key: the skills to load into the instructions of a run.
@@ -118,8 +118,8 @@ public struct AgentFrontmatter: Sendable, Equatable {
 }
 
 extension AgentFrontmatter {
-    /// The tier 3 keys of plan.md §4.2. A file with one of them loads, and
-    /// the key gets an advisory.
+    /// The tier 3 keys. A file with one of them loads, and the key gets an
+    /// advisory.
     static let unsupportedKeys: Set<String> = [
         "permissionMode", "mcpServers", "hooks", "memory", "effort", "isolation", "initialPrompt"
     ]

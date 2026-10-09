@@ -2,11 +2,10 @@
 import FoundationModelsRouter
 import Testing
 
-/// Pins `send caller` and its noun alias `send parent` (plan.md §9.1): a run
-/// sends a message to the session that started it, and the run continues.
-/// The calling session gets the message as mail, and the Router starts an
-/// answer for it. `send agent` with the id of the calling session does the
-/// same.
+/// Pins `send caller` and its noun alias `send parent`: a run sends a message
+/// to the session that started it, and the run continues. The calling session
+/// gets the message as mail, and the Router starts an answer for it.
+/// `send agent` with the id of the calling session does the same.
 ///
 /// The root session is the caller. It is on the `flash` slot, and the `lead`
 /// run that it starts is on the `standard` slot. A slot has one generation

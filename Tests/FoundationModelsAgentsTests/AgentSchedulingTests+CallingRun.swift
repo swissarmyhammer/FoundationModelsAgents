@@ -4,7 +4,7 @@ import Testing
 
 extension AgentSchedulingTests {
     /// Pins the rule that the run limit does not count the run that calls
-    /// `start agent` (plan.md §9.3, the limit).
+    /// `start agent`.
     ///
     /// The parent is a host-started lead run on the `standard` slot. It calls
     /// `start agent` in its task turn, then waits on a gate in that same turn.

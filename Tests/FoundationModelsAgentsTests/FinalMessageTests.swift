@@ -2,15 +2,15 @@
 import FoundationModelsRouter
 import Testing
 
-/// Pins the final message of a run (plan.md §9.2, §16): a scripted root
-/// session calls `start agent`. With the settle period 0 of the harness, the
-/// call answers at once with the pending envelope of the Router. With the
-/// default settle period, a run that ends fast gives its final message in
-/// band. The background body of the call waits for the
-/// run, and gives the final message text of the run as the detail of the
-/// Router run. The Router records the terminal, emits `runSettled`, and
-/// gives the final message to the root session as mail. The pump of the
-/// Router starts the answer to that mail with no call of the test.
+/// Pins the final message of a run: a scripted root session calls
+/// `start agent`. With the settle period 0 of the harness, the call answers
+/// at once with the pending envelope of the Router. With the default settle
+/// period, a run that ends fast gives its final message in band. The
+/// background body of the call waits for the run, and gives the final
+/// message text of the run as the detail of the Router run. The Router
+/// records the terminal, emits `runSettled`, and gives the final message to
+/// the root session as mail. The pump of the Router starts the answer to that
+/// mail with no call of the test.
 @Suite("Final message")
 struct FinalMessageTests {
     /// A failure that a scripted step throws.

@@ -1,8 +1,8 @@
 import Foundation
 import FoundationModelsExtras
 
-/// Gives the URLs of the fixture layers at `Examples/agent-library`
-/// (plan.md §13), and the local layer stack over them.
+/// Gives the URLs of the fixture layers at `Examples/agent-library`, and the
+/// local layer stack over them.
 ///
 /// Each URL comes from `PackageRoot.directory`. Thus the helper never reads
 /// the real home directory or `$XDG_CONFIG_HOME`, and the tests stay

@@ -2,7 +2,7 @@
 import FoundationModelsRouter
 import Testing
 
-/// Pins a reload while runs and tools are in use (plan.md §6.1, §9.1, §15).
+/// Pins a reload while runs and tools are in use.
 ///
 /// A run keeps the definition that it started with. An `agents` tool that
 /// was made before a reload reads the current catalog in each call, but its

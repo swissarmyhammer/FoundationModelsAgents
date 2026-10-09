@@ -6,7 +6,7 @@ import Testing
 
 @testable import agents_demo
 
-/// The contract of `Examples/agents-demo` (plan.md §13).
+/// The contract of `Examples/agents-demo`.
 ///
 /// The first case runs the built `agents-demo` binary, as a user does. The
 /// other cases call the function of each mode directly, with no process. The

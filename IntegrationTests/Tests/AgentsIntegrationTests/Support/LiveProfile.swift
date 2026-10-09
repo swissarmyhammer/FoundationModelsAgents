@@ -5,7 +5,7 @@ import FoundationModelsRouterTestSupport
 import FoundationModelsSkills
 import Testing
 
-/// The resolved real profile of the live suites (plan.md §15).
+/// The resolved real profile of the live suites.
 ///
 /// The profile has small `mlx-community` models: a different model in the
 /// `standard` slot and in the `flash` slot, and an embedding model. Thus each

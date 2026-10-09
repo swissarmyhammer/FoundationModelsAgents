@@ -1,5 +1,5 @@
-/// One generation of the agent catalog (plan.md §4.1, §12): every agent that
-/// loaded, and every diagnostic of the load.
+/// One generation of the agent catalog: every agent that loaded, and every
+/// diagnostic of the load.
 ///
 /// A catalog is a value. `AgentRegistry.catalog()` gives the cached value,
 /// and `AgentRegistry.load()` or `AgentRegistry.reload()` swaps in a new
@@ -25,8 +25,7 @@ public struct AgentCatalog: Sendable {
         definitions.filter(\.isModelVisible)
     }
 
-    /// Each agent that the user can start as a slash command, sorted by id
-    /// (plan.md §9.4).
+    /// Each agent that the user can start as a slash command, sorted by id.
     public var userInvocable: [AgentDefinition] {
         definitions.filter(\.isUserInvocable)
     }

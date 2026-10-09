@@ -4,7 +4,7 @@ import FoundationModelsExtras
 import FoundationModelsSkills
 import Testing
 
-/// Pins the `skills:` preload of a run (plan.md §5, §8 step 3).
+/// Pins the `skills:` preload of a run.
 ///
 /// The skills registry has two layers: `Examples/agent-library/defaults/skills`
 /// (the `review` skill) and the `skills/` folder of one temporary layer. The

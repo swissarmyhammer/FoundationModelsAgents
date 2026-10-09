@@ -1,6 +1,6 @@
 import FoundationModelsSkills
 
-/// The mode of one run of `agents-demo` (plan.md §13).
+/// The mode of one run of `agents-demo`.
 ///
 /// The first argument selects the mode. The example reads no other argument.
 enum AgentsDemoMode: Equatable {

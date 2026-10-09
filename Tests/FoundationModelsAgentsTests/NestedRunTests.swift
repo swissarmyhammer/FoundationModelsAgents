@@ -4,10 +4,10 @@ import FoundationModelsRouter
 import Testing
 import ULID
 
-/// Pins the nested runs (plan.md §8 steps 7 and 8, §8.2, §9.3, §16): a run
-/// with the `agents` tool starts children, the final message of each child
-/// comes to it as mail, and it finishes only after it answered them. A cancel
-/// or a failure of the parent cancels its open children and waits for them.
+/// Pins the nested runs: a run with the `agents` tool starts children, the
+/// final message of each child comes to it as mail, and it finishes only after
+/// it answered them. A cancel or a failure of the parent cancels its open
+/// children and waits for them.
 ///
 /// The root sessions and the parent runs are on the `standard` slot.
 /// code-reviewer runs on the `flash` slot, and test-writer on the `standard`

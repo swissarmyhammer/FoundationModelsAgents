@@ -2,9 +2,9 @@
 import FoundationModelsRouter
 import Testing
 
-/// Pins the message rule of the watch of a parent session (plan.md §9.2):
-/// each message that a child sent is delivered only when the prompts of the
-/// answered answers hold its mail line one time for each message.
+/// Pins the message rule of the watch of a parent session: each message that
+/// a child sent is delivered only when the prompts of the answered answers
+/// hold its mail line one time for each message.
 ///
 /// One child can send the same text two times with one completion token.
 /// Thus the rule counts the mail lines, and a prompt that holds one line

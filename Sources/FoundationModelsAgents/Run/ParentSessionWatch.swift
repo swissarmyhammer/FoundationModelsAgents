@@ -2,7 +2,7 @@ import Foundation
 import FoundationModelsRouter
 import Synchronization
 
-/// The background runs that settled in the session of a run (plan.md §9.2).
+/// The background runs that settled in the session of a run.
 ///
 /// The run gives each event of its session-event subscription to
 /// ``observe(_:)``. The watch keeps the detail of each terminal that the

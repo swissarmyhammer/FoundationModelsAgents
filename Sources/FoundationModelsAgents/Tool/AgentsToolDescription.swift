@@ -1,6 +1,6 @@
 import ULID
 
-/// Builds the description of the `agents` tool (plan.md §9.1).
+/// Builds the description of the `agents` tool.
 ///
 /// A model reads the description of a tool before it plans, thus the
 /// description is where the model learns which agents it can start. The

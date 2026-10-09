@@ -4,8 +4,7 @@ import FoundationModelsRouter
 import Testing
 
 extension LiveSuites {
-    /// Slash commands, `cancel agent`, and a live edit on real models
-    /// (plan.md §9, §9.4, §15).
+    /// Slash commands, `cancel agent`, and a live edit on real models.
     ///
     /// - The slash command of an agent gives the final text of its run.
     /// - `cancel agent` stops a run that writes a long text.

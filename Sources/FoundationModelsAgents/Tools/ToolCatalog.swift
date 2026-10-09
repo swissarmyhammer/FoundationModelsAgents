@@ -1,6 +1,6 @@
 import FoundationModels
 
-/// The tools that an agent run can get, by name (plan.md §5).
+/// The tools that an agent run can get, by name.
 ///
 /// The catalog holds a factory for each name, not a tool. Each call of a
 /// factory gives a new instance, thus each run gets its own tools. The

@@ -2,7 +2,7 @@ import FoundationModels
 import FoundationModelsRouter
 
 /// The inputs of one agent run: what to run, for which caller, and where in
-/// the tree of runs (plan.md §8, §8.2).
+/// the tree of runs.
 struct AgentRunRequest: Sendable {
     /// Makes the `agents` tool of a run. It gets the run as a ``ParentRun``,
     /// the link to the caller of the run (`nil` when the run has no caller),
@@ -41,9 +41,8 @@ struct AgentRunRequest: Sendable {
     /// start agents.
     let agentsTool: AgentsToolMaker?
 
-    /// The lineage record of the session of the run (plan.md §8.2): the
-    /// session and the tool call that started the run, or `nil` for a
-    /// host-driven run.
+    /// The lineage record of the session of the run: the session and the
+    /// tool call that started the run, or `nil` for a host-driven run.
     var agentSpawn: SessionSidecar.AgentSpawn? {
         context.map { context in
             SessionSidecar.AgentSpawn(

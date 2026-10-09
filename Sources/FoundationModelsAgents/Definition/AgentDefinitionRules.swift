@@ -21,8 +21,7 @@ struct AgentFinding: Sendable, Equatable {
     }
 }
 
-/// The rule table of plan.md §4.3 step 2, for the rules that one file can
-/// break by itself.
+/// The rule table, for the rules that one file can break by itself.
 ///
 /// The rules that need the tool catalog, the skills registry, or the profile
 /// are not here. Later layers apply them.

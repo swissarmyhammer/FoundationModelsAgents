@@ -2,7 +2,7 @@
 import FoundationModelsRouter
 import Testing
 
-/// Pins the model match table of plan.md §7 against the scripted profile.
+/// Pins the model match table against the scripted profile.
 ///
 /// Each row resolves its own profile. The `standard` slot of the profile has
 /// the model `scripted/standard`. The `flash` slot has the pinned model
@@ -41,7 +41,7 @@ struct ModelMatchTests {
     static let pinnedFlashModel = ModelRef(
         stringLiteral: "\(ScriptedProfile.flashModel.stringValue)@\(flashRevision)")
 
-    /// The rows of the §7 table.
+    /// The rows of the model match table.
     static let tableRows: [Row] = [
         Row(model: nil, inherited: .flash, expected: .flash, warns: false),
         Row(model: nil, inherited: .standard, expected: .standard, warns: false),
@@ -78,8 +78,8 @@ struct ModelMatchTests {
         return profile
     }
 
-    /// Each row of the §7 table gives the stated slot, and a warning only
-    /// for a value that matches nothing.
+    /// Each row of the model match table gives the stated slot, and a warning
+    /// only for a value that matches nothing.
     @Test("Each row of the table gives the stated slot", arguments: tableRows + caseRows)
     func rowGivesStatedSlot(_ row: Row) async throws {
         let profile = try await Self.makeTableProfile()

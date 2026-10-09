@@ -6,7 +6,7 @@ import Marketplace
 import MarketplaceFixtures
 import Testing
 
-/// Pins the marketplace agents end to end (plan.md §6, §14 M7, §15, §16).
+/// Pins the marketplace agents end to end.
 ///
 /// Each row commits `Examples/agent-library/marketplace` into a local git
 /// fixture repository, and installs the commit with a real
@@ -218,7 +218,7 @@ struct MarketplaceEndToEndTests {
         #expect(skills.metadata().map(\.id) == [Self.reviewSkill])
     }
 
-    @Test("the snapshot of a catalog source has the §6.1 shape, with the partials at <snapshot>/_partials/")
+    @Test("the snapshot of a catalog source has the layer shape, with the partials at <snapshot>/_partials/")
     func catalogSourceHasTheLayerShape() async throws {
         let provider = try await FixtureMarketplaceProvider.make()
         defer { try? provider.delete() }
@@ -231,7 +231,7 @@ struct MarketplaceEndToEndTests {
         #expect(Self.holdsFile(Self.partialPath(Self.houseRulesName), in: root))
     }
 
-    @Test("the snapshot of a tree source has the §6.1 shape, and its agent includes a root partial")
+    @Test("the snapshot of a tree source has the layer shape, and its agent includes a root partial")
     func treeSourceHasTheLayerShape() async throws {
         let repository = try GitFixtureRepository()
         try repository.commit(files: Self.treeFiles())

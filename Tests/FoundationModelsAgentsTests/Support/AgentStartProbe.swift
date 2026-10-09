@@ -4,8 +4,7 @@ import FoundationModelsRouter
 import Synchronization
 
 /// A tool that starts an agent run inside its call, with the
-/// `ToolContext.current` of the call, as `start agent` will do (plan.md
-/// §8.2, §9.2).
+/// `ToolContext.current` of the call, as `start agent` will do.
 ///
 /// The probe keeps the run and the context, thus the test reads the lineage
 /// and posts through the context after the call returns.

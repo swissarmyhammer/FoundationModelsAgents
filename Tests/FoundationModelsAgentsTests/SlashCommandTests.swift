@@ -3,9 +3,9 @@ import Foundation
 import FoundationModelsExtras
 import Testing
 
-/// Pins the slash commands of `AgentRunner` (plan.md §9.4): one command for
-/// each user-invocable agent, an `.action` body that delegates the typed text
-/// to a host-driven run, `commandUpdates` after a reload, the command names of
+/// Pins the slash commands of `AgentRunner`: one command for each
+/// user-invocable agent, an `.action` body that delegates the typed text to a
+/// host-driven run, `commandUpdates` after a reload, the command names of
 /// `AgentReloadReport`, and no `agent:` key in a fixture skill.
 @Suite("Slash commands")
 struct SlashCommandTests {

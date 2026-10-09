@@ -5,7 +5,7 @@ import Testing
 
 extension AgentRunTests {
     /// Pins each failure of a run: the failures of the setup, which make no
-    /// session, and the failures of the turn (plan.md §8, §12).
+    /// session, and the failures of the turn.
     @Suite("Agent run failures")
     struct Failures {
         /// Bytes that are not UTF-8 text.

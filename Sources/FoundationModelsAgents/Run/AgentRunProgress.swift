@@ -1,7 +1,6 @@
 import FoundationModelsRouter
 
-/// The live progress of a run in operation, as `check agent` tells it
-/// (plan.md §9.1).
+/// The live progress of a run in operation, as `check agent` tells it.
 ///
 /// The run feeds the record from the one session-event subscription of the
 /// run. The answer of the task prompt streams its text, thus its text

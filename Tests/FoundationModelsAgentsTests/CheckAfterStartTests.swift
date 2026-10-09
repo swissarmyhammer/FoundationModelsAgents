@@ -3,7 +3,7 @@ import FoundationModelsRouter
 import Testing
 
 /// Pins `check agent` and `cancel agent` in the pass right after
-/// `start agent` (plan.md §9.1, §9.2).
+/// `start agent`.
 ///
 /// The Router gives the pending envelope of `start agent` before the body of
 /// the call adds its run. A model can read the envelope and call

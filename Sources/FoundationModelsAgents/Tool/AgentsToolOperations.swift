@@ -6,10 +6,10 @@ import Operations
 
 /// The answers of the operations of the `agents` tool.
 ///
-/// Each answer is plain text: `.success` or `.corrective(String)`
-/// (plan.md §9.1). A correction is a text result in the same turn, never a
-/// thrown error, and never a post. `AgentsTool` decodes the JSON string that
-/// `OperationTool` makes of the answer, thus the model reads plain text.
+/// Each answer is plain text: `.success` or `.corrective(String)`. A
+/// correction is a text result in the same turn, never a thrown error, and
+/// never a post. `AgentsTool` decodes the JSON string that `OperationTool`
+/// makes of the answer, thus the model reads plain text.
 typealias AgentsToolAnswer = CorrectiveOutcome<String>
 
 /// Lists the agents that the model can start (`list agents`).
@@ -69,15 +69,15 @@ extension StartAgent {
     /// answer (``AgentsToolContext/finalMessage(of:startedBy:)``). When the
     /// run ends in the settle period of the session, the model gets this
     /// answer. Else the Router answers the model with the pending envelope,
-    /// and delivers the final message later as mail (plan.md §9.2). Outside a Router session there is no context: the call
-    /// returns at once with the id of the run, and the model uses
-    /// `check agent`.
+    /// and delivers the final message later as mail. Outside a Router
+    /// session there is no context: the call returns at once with the id of
+    /// the run, and the model uses `check agent`.
     ///
     /// The call reads the catalog again, thus after a reload a changed agent
     /// runs with its new definition, and a removed agent gives a corrective.
     ///
-    /// Only this operation checks ``AgentEnvironment/maxConcurrentAgents``
-    /// (plan.md §9.3). At the limit it starts no run, and there is no queue.
+    /// Only this operation checks ``AgentEnvironment/maxConcurrentAgents``.
+    /// At the limit it starts no run, and there is no queue.
     ///
     /// The new run gets the depth of the calling run plus one, and the slot
     /// of the calling run for `model: inherit`. A session that is not a run

@@ -1,7 +1,6 @@
 import Synchronization
 
-/// Gives each catalog that it publishes to each current subscriber
-/// (plan.md §4.1).
+/// Gives each catalog that it publishes to each current subscriber.
 ///
 /// Two `for await` loops over one `AsyncStream` divide its values between
 /// them. Thus each `subscribe()` call makes a stream of its own, and

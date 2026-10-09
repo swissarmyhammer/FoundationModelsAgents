@@ -5,8 +5,7 @@ import FoundationModelsRouter
 import Marketplace
 import Testing
 
-/// Pins the rule table of plan.md §4.3 step 2, and the visibility of
-/// plan.md §4.2, on `AgentDefinition.init`.
+/// Pins the rule table and the visibility rules of `AgentDefinition.init`.
 ///
 /// The `broken/` rows load the fixture files. The inline rows build one
 /// document from a frontmatter text. `AgentDefinitionRows` holds the rows.

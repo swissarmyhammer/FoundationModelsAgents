@@ -1,9 +1,8 @@
 @testable import FoundationModelsAgents
 import Testing
 
-/// The rows of `AgentDefinitionTests`: one row for each rule of the table
-/// of plan.md §4.3 step 2, and one row for each visibility case of
-/// plan.md §4.2.
+/// The rows of `AgentDefinitionTests`: one row for each rule of the rule
+/// table, and one row for each visibility case.
 enum AgentDefinitionRows {
     /// One `broken/` fixture and the result that the rule table must give.
     struct BrokenRow: Sendable, CustomTestStringConvertible {

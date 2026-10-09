@@ -3,12 +3,12 @@ import FoundationModelsRouter
 import Testing
 
 extension NestedRunTests {
-    /// Pins the limits and the slots of nested runs (plan.md §7, §9.3): a
-    /// run that waits for its children holds no place in the run limit, a
-    /// child at `maxDepth` has only the messaging tool, a child of an agent
-    /// with no `tools` key has only the messaging tool, a direct start above
-    /// `maxDepth` gives a corrective, and `model: inherit` in a child uses
-    /// the slot of the calling run.
+    /// Pins the limits and the slots of nested runs: a run that waits for
+    /// its children holds no place in the run limit, a child at `maxDepth`
+    /// has only the messaging tool, a child of an agent with no `tools` key
+    /// has only the messaging tool, a direct start above `maxDepth` gives a
+    /// corrective, and `model: inherit` in a child uses the slot of the
+    /// calling run.
     @Suite("Nested run limits")
     struct Limits {
         /// The run limit of the sibling test.

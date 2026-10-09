@@ -4,7 +4,7 @@ import Marketplace
 import Synchronization
 
 /// The catalog of agent definitions over the marketplace layers and the local
-/// layers (plan.md §4.1, §6.1, §12).
+/// layers.
 ///
 /// The layers are `marketplace[0] < … < marketplace[n] < local layers`. The
 /// marketplace layers come from `MarketplaceLayerProviding.marketplaceLayers()`,
@@ -27,9 +27,9 @@ import Synchronization
 /// releases the registry.
 ///
 /// The registry keeps `layers` and `variables` for the render of a body at
-/// run start (plan.md §4.3 step 3). Each definition names the layer that
-/// gave it, and a marketplace definition also keeps its marketplace layer and
-/// its `MarketplaceProvenance`.
+/// run start. Each definition names the layer that gave it, and a
+/// marketplace definition also keeps its marketplace layer and its
+/// `MarketplaceProvenance`.
 public final class AgentRegistry: Sendable {
     /// The local layers of the catalog, lowest precedence first. They are
     /// above each marketplace layer.

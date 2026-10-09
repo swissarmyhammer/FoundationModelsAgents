@@ -182,17 +182,8 @@ start is one slash command.
 ### Messages to a run
 
 A caller can send a message to a run that is still running. A model calls
-`{"op": "send agent", "id": "<id>", "message": "<text>"}`. A host uses the
-`agent send` command of `AgentsCLI` for a run that it started:
-
-```swift
-// A host sends a message to a run that it started, while the run works.
-let driver = try AgentsCLI.makeDriver(runner: runner)
-let sent = await driver.run(arguments: [
-    "agent", "send", "--id", run.id.description, "--message", "Also check the error paths."
-])
-// The run answers the message before it ends, thus `result()` gives that answer.
-```
+`{"op": "send agent", "id": "<id>", "message": "<text>"}`, and the run answers
+the message before it ends.
 
 The run holds a message that comes before its task prompt starts, and the
 session of the run gets it after the task prompt. A run that ended gets no
@@ -204,8 +195,8 @@ corrective "You have no caller." Each message gives one `agent.message.sent`
 log record and span event. The record never holds the text of the message.
 
 [`Tests/FoundationModelsAgentsTests/ReadmeExampleSource.swift`](Tests/FoundationModelsAgentsTests/ReadmeExampleSource.swift)
-holds a copy of each example. `ReadmeExampleTests` compares the texts, and
-runs each copy with a scripted profile over the fixture library. Thus each
+holds a copy of the example. `ReadmeExampleTests` compares the texts, and
+runs the copy with a scripted profile over the fixture library. Thus the
 example compiles and runs.
 
 ## Install
@@ -228,4 +219,3 @@ of `git@github.com:swissarmyhammer/FoundationModelsAgents.git`, and add the
   local layers, a marketplace, and broken files. The tests and the demo use it.
 - [`Examples/agents-demo`](Examples/agents-demo) is the demo executable:
   `--chat`, `--fan-out`, `--watch`, and `--marketplace`.
-- [`plan.md`](plan.md) is the full design.

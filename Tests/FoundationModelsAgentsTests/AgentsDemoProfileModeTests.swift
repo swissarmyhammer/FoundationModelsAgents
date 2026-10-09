@@ -6,7 +6,7 @@ import Testing
 @testable import agents_demo
 
 /// The contract of the two modes of `agents-demo` that need a resolved
-/// profile: `--chat` and `--fan-out` (plan.md §12, §13).
+/// profile: `--chat` and `--fan-out`.
 ///
 /// Each case gives a scripted profile and an input stream to the function of
 /// the mode. The mode sends the first prompt and each input line to the root

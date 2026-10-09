@@ -6,8 +6,7 @@ import Logging
 import Metrics
 import Tracing
 
-/// The dependencies and the limits of the agent runs of one host
-/// (plan.md §3, §7).
+/// The dependencies and the limits of the agent runs of one host.
 ///
 /// The host makes the dependencies. The profile and the skills registry
 /// have no default: the host session and the sub-agents use the same
@@ -26,7 +25,7 @@ public struct AgentEnvironment: Sendable {
     /// The default of ``maxConcurrentAgents``.
     public static let defaultMaxConcurrentAgents = 4
 
-    /// The default of ``maxDepth`` (plan.md §1).
+    /// The default of ``maxDepth``.
     public static let defaultMaxDepth = 3
 
     /// The default of ``maxRetainedRuns``.

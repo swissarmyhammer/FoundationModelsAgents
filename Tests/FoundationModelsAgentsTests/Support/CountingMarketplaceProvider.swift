@@ -5,7 +5,7 @@ import Synchronization
 /// gives the layers of the provider that it wraps.
 ///
 /// A test uses it to show that no `init` of `AgentRegistry` asks the provider
-/// for its layers, and that `load()` asks one time (plan.md §4.1).
+/// for its layers, and that `load()` asks one time.
 final class CountingMarketplaceProvider: MarketplaceLayerProviding {
     /// The provider that gives the layers.
     private let wrapped: any MarketplaceLayerProviding

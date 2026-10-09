@@ -2,9 +2,9 @@ import FoundationModels
 @testable import FoundationModelsAgents
 import Testing
 
-/// Pins `ToolCatalog` and `ToolResolver` (plan.md §5): the Claude semantics
-/// of `tools` and `disallowedTools`, the MCP patterns, the unknown names, and
-/// the `agents` tool.
+/// Pins `ToolCatalog` and `ToolResolver`: the Claude semantics of `tools` and
+/// `disallowedTools`, the MCP patterns, the unknown names, and the `agents`
+/// tool.
 @Suite("Tool resolver")
 struct ToolResolverTests {
     /// One MCP pattern and the names that it must match.
@@ -84,7 +84,7 @@ struct ToolResolverTests {
     /// The resolver of the tests.
     static let resolver = ToolResolver(agent: agentID, provenance: AgentDefinitionAttempt.inlineProvenance)
 
-    /// The MCP patterns of plan.md §5, with the names that each must match.
+    /// The MCP patterns, with the names that each must match.
     static let patternRows: [PatternRow] = [
         PatternRow(entry: "mcp__srv", expected: [srvFirst, srvSecond]),
         PatternRow(entry: "mcp__srv__*", expected: [srvFirst, srvSecond]),

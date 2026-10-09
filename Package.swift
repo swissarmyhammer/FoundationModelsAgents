@@ -11,7 +11,7 @@ let packageName = "FoundationModelsAgents"
 /// The name of the unit test target.
 let testTargetName = packageName + "Tests"
 
-/// The name of the example executable (plan.md §11, §13).
+/// The name of the example executable.
 let demoTargetName = "agents-demo"
 
 /// The GitHub organization URL for the swissarmyhammer sibling packages.
@@ -23,7 +23,7 @@ let demoTargetName = "agents-demo"
 /// package is reached by path here and by URL from a different package.
 let swissArmyHammerOrg = "git@github.com:swissarmyhammer/"
 
-/// The product dependencies of the library target (plan.md §11).
+/// The product dependencies of the library target.
 ///
 /// The example executable and the test target use the same list, thus the
 /// three lists cannot become different.
@@ -40,8 +40,6 @@ let commonDependencies: [Target.Dependency] = [
     .product(name: "Marketplace", package: "FoundationModelsExtras"),
     // `OperationTool`, `@Operation`, and `OperationResolver`.
     .product(name: "Operations", package: "FoundationModelsExtras"),
-    // `OperationCLIDriver` for the dual-use CLI.
-    .product(name: "OperationsCLI", package: "FoundationModelsExtras"),
     // `SkillsRegistry` and `SkillListing`.
     .product(name: "FoundationModelsSkills", package: "FoundationModelsSkills"),
     // `AgentFrontmatter.decode` reads YAML with Yams.
@@ -78,9 +76,9 @@ let testOnlyDependencies: [Target.Dependency] = [
 
 /// The `FoundationModelsAgents` SwiftPM package.
 ///
-/// One library target, one example executable, and one unit test target
-/// (plan.md §11). The layers of plan.md §3 are types in the one library
-/// target, not separate modules.
+/// One library target, one example executable, and one unit test target.
+/// The layers of the library are types in the one library target, not
+/// separate modules.
 let package = Package(
     name: packageName,
     // macOS 27 only. FoundationModels v2 needs macOS 27, and each sibling
@@ -111,7 +109,7 @@ let package = Package(
             name: packageName,
             dependencies: commonDependencies
         ),
-        // The example of plan.md §13. It is in the root manifest, thus one
+        // The example executable. It is in the root manifest, thus one
         // `swift build` builds the library and the example. The live model
         // loader of `agents-demo --chat` and `agents-demo --fan-out` is
         // `LiveModelLoader()` of `FoundationModelsRouter`. It loads each model

@@ -4,8 +4,7 @@ import FoundationModelsExtras
 import Marketplace
 import Testing
 
-/// Pins the local part of layer 2 (plan.md §4.1, §4.3 step 1, §12) on
-/// `AgentRegistry` and `AgentCatalog`.
+/// Pins the local part of layer 2 on `AgentRegistry` and `AgentCatalog`.
 ///
 /// The fixture rows read `Examples/agent-library`. A row that must change
 /// files, or that needs a file the fixture library does not hold, works on a

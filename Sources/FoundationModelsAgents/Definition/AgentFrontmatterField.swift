@@ -1,5 +1,5 @@
-/// A tier 1 or tier 2 field of the agent frontmatter (plan.md §4.2): the
-/// type that its value must have, and the property that holds it.
+/// A tier 1 or tier 2 field of the agent frontmatter: the type that its value
+/// must have, and the property that holds it.
 enum AgentFrontmatterField: Sendable {
     /// The key path of a property of `AgentFrontmatter` with a `Value?`.
     typealias Property<Value> = WritableKeyPath<AgentFrontmatter, Value?> & Sendable

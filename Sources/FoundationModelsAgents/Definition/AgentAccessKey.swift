@@ -1,4 +1,4 @@
-/// A frontmatter key whose value limits what an agent can do (plan.md §4.3).
+/// A frontmatter key whose value limits what an agent can do.
 ///
 /// When the value of such a key is not correct, the author's limit cannot be
 /// read. The key then gets a warning, and the definition uses a value that
@@ -6,7 +6,7 @@
 ///
 /// The cases are in the order of their warnings. The `disallowedTools`
 /// warning comes first, because a dropped deny gives more access than the
-/// author wanted (plan.md §5).
+/// author wanted.
 enum AgentAccessKey: String, CaseIterable, Sendable {
     /// The `disallowedTools` key. A deny that cannot be read in full gives
     /// no tools.

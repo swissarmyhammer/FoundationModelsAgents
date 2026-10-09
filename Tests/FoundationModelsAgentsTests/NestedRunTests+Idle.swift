@@ -3,12 +3,11 @@ import FoundationModelsRouter
 import Testing
 
 extension NestedRunTests {
-    /// Pins the end of a run with children (plan.md §8 steps 6 to 8): `start
-    /// agent` is a background call that answers at once with the pending
-    /// envelope, the final message of a child comes to the parent as mail,
-    /// the pump of the Router starts the answer to that mail, and the run ends
-    /// only when its session is idle. The reply of the last answer is the
-    /// result.
+    /// Pins the end of a run with children: `start agent` is a background
+    /// call that answers at once with the pending envelope, the final message
+    /// of a child comes to the parent as mail, the pump of the Router starts
+    /// the answer to that mail, and the run ends only when its session is
+    /// idle. The reply of the last answer is the result.
     @Suite("Runs end when the session is idle")
     struct Idle {
         /// The mark of a pending envelope of the Router in a tool output.

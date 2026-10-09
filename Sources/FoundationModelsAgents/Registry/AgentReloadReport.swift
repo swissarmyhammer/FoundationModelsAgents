@@ -1,7 +1,7 @@
 import Marketplace
 
 /// What one catalog of an `AgentRegistry` holds, as lines that a host can
-/// write (plan.md §10).
+/// write.
 ///
 /// A host that follows `AgentRegistry.onReload` makes one report for each
 /// catalog, and writes `lines`. Thus no host keeps its own copy of the counts
@@ -20,8 +20,8 @@ public struct AgentReloadReport: Sendable, Equatable {
     public let marketplaceAgentCount: Int
 
     /// The names of the slash commands of the catalog: the id of each
-    /// user-invocable agent, sorted (plan.md §9.4). `AgentRunner` gives one
-    /// command with each of these names.
+    /// user-invocable agent, sorted. `AgentRunner` gives one command with
+    /// each of these names.
     public let slashCommandNames: [String]
 
     /// How many diagnostics the catalog holds, for each severity. Each
