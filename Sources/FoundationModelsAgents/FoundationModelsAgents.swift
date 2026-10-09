@@ -1,8 +1,9 @@
 /// The namespace root of the `FoundationModelsAgents` module.
 ///
-/// The module finds Claude-style sub-agents (`agents/*.md`) in a dotfolder
-/// stack and in marketplace plugins, and runs each agent in one Router
-/// session. This enum declares no members. It holds the module documentation.
+/// The module finds Claude-style sub-agents (`agents/<name>/AGENT.md`) in a
+/// dotfolder stack and in marketplace plugins, and runs each agent in one
+/// Router session. This enum declares no members. It holds the module
+/// documentation.
 ///
 /// ## Layers
 ///
@@ -10,9 +11,10 @@
 ///
 /// - **Layer 1, `AgentDefinition`:** `AgentFrontmatter.decode` and the
 ///   validation of one located document.
-/// - **Layer 2, `AgentRegistry`:** the cached catalog of `agents/*.md` over the
-///   local layers and the marketplace layers. The file name is the id. The
-///   registry makes the catalog again after a watch event or an update.
+/// - **Layer 2, `AgentRegistry`:** the cached catalog of
+///   `agents/<name>/AGENT.md` over the local layers and the marketplace
+///   layers. The folder name is the id. The registry makes the catalog again
+///   after a watch event or an update.
 /// - **Layer 3, the FM adapter:** `AgentsTool` is one `OperationTool` with the
 ///   name "agents" and six operations: `list agents`, `start agent`,
 ///   `check agent`, `cancel agent`, `send agent`, and `send caller`.

@@ -147,7 +147,7 @@ struct SkillsPreloadTests {
     private static func makeLibrary() throws -> Library {
         let layer = try TemporaryLayer.makeEmpty()
         for (agent, skills) in agentSkills {
-            try layer.write(agentFile(agent, skills: skills), at: "agents/\(agent).md")
+            try layer.write(agentFile(agent, skills: skills), at: AgentDocumentPath.of(agent))
         }
         for (skill, file) in writtenSkills {
             try layer.write(

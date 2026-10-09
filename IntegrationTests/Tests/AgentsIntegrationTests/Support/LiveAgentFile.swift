@@ -1,12 +1,11 @@
+import Marketplace
+
 /// The text and the path of one agent file of a live suite.
 ///
 /// Each live agent has a short body with one clear instruction, for example
 /// "answer with the word X". A small real model then does the same thing on
 /// each run, and a test can assert on that word.
 enum LiveAgentFile {
-    /// The name of the folder that holds the agent files of a layer.
-    static let agentsFolderName = "agents"
-
     /// The line that opens and closes a frontmatter.
     private static let frontmatterFence = "---"
 
@@ -44,19 +43,19 @@ enum LiveAgentFile {
             + "Write no other text."
     }
 
-    /// Gives the path of the file of the agent `id`, relative to the layer
-    /// root.
+    /// Gives the path of the document of the agent `id`, relative to the
+    /// layer root. The parts are the constants that the library reads.
     ///
-    /// - Parameter id: The id of the agent.
-    /// - Returns: `agents/<id>.md`.
+    /// - Parameter id: The id of the agent: the name of its folder.
+    /// - Returns: `agents/<id>/AGENT.md`.
     static func path(of id: String) -> String {
-        "\(agentsFolderName)/\(id).md"
+        "\(MarketplaceLayer.agentsDirectoryName)/\(id)/\(MarketplaceLayer.agentDocumentName)"
     }
 
     /// Gives the text of one agent file.
     ///
     /// - Parameters:
-    ///   - id: The id of the agent: the file name and the `name` field.
+    ///   - id: The id of the agent: the folder name and the `name` field.
     ///   - description: The `description` field.
     ///   - fields: More frontmatter lines, for example `model: flash` or
     ///     `tools: hold`.

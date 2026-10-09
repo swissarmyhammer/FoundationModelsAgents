@@ -10,8 +10,9 @@ import Marketplace
 ///    `{{ x }}` or an `{% include %}` in the prompt stays text. A body with
 ///    no `$ARGUMENTS` is one `.original` span.
 /// 2. **Stencil.** `StenciledDotfolderStack.render(_:at:in:)` renders the
-///    text as the document `agents/<id>.md` of the winning layer, with the
-///    `variables` of the registry. An include walks from `agents/_partials/`
+///    text as the document `agents/<id>/AGENT.md` of the winning layer, with
+///    the `variables` of the registry. An include walks from
+///    `agents/<id>/_partials/` of the agent folder, to `agents/_partials/`,
 ///    up to `_partials/` of the layer root. The trust comes from the layer:
 ///    `defaults` renders trusted, and each other layer renders untrusted.
 ///
@@ -68,13 +69,13 @@ struct AgentBodyRenderer: Sendable {
         (definition.marketplaceLayer.map { [$0.layer] } ?? []) + localLayers
     }
 
-    /// The path of the agent file, relative to the root of its layer:
-    /// `agents/<id>.md`.
+    /// The path of the agent document, relative to the root of its layer:
+    /// `agents/<id>/AGENT.md`.
     ///
     /// - Parameter definition: The agent.
     /// - Returns: The document path of the render.
     private static func documentPath(of definition: AgentDefinition) -> String {
-        "\(MarketplaceLayer.agentsDirectoryName)/\(definition.id).md"
+        AgentCatalogBuilder.documentPath(of: definition.id)
     }
 
     /// Cuts `body` at each `$ARGUMENTS`, and puts `prompt` in each cut as a

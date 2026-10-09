@@ -10,8 +10,12 @@ comments:
   id: 01m4gjx5gpwx4nn68qmnx990yf
   text: '2026-10-09: The Extras session accepted the request. It is task ^wcm7ydh (01M4GJWM6FPGFHDTX1FWCM7YDH) on the FoundationModelsExtras board. Its /finish batch does it after ^1vhftw2 and ^jt7qx6k. Extras will tell foundationmodelsagents-3d and skills-79 when it is done.'
   timestamp: 2026-10-09T15:01:03.638769+00:00
-position_column: todo
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m4gtt3kagn7jkpm7fnre3d72
+  text: '2026-10-09: Extras ^wcm7ydh is in on FoundationModelsExtras main, local commits 8c7acc1 and 01d769b (not pushed). Scan only; MarketplaceCatalog, ResolvedSkill, ResolvedAgent and SkillSelection.plugins are removed; MarketplaceLayer.agentDocumentName = "AGENT.md"; no depth limit; agent folders are copied to <snapshot>/agents/<name>/. Follow-up ^77e7ynm in Extras removes catalogVersion and displayID.'
+  timestamp: 2026-10-09T17:19:11.978142+00:00
+position_column: done
+position_ordinal: cc80
 title: 'Extras: scan-only marketplace with folder agents (agents/<name>/AGENT.md)'
 ---
 ## What

@@ -228,7 +228,7 @@ struct AgentsToolMountTests {
           .timeLimit(.minutes(1)), arguments: ["Agent", ToolVocabulary.agentsToolName])
     func disallowedAgentsToolGivesNoTool(entry: String) async throws {
         let layer = try TemporaryLayer.make(holding: [
-            "agents/\(Self.denier).md": """
+            AgentDocumentPath.of(Self.denier): """
                 ---
                 name: \(Self.denier)
                 description: Works alone, with no agents tool.

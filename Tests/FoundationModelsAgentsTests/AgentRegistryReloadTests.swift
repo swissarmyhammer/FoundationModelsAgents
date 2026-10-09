@@ -14,7 +14,7 @@ struct AgentRegistryReloadTests {
     /// The id of the agent that a row adds, changes, or removes.
     private static let agentID = "live-agent"
 
-    /// The path of the file of `agentID`, relative to a layer root.
+    /// The path of the document of `agentID`, relative to a layer root.
     private static let agentPath = filePath(of: agentID)
 
     /// The description of the first version of the agent file.
@@ -263,12 +263,12 @@ struct AgentRegistryReloadTests {
             .reduce(into: []) { catalogs, catalog in catalogs.append(catalog) }
     }
 
-    /// The path of the file of the agent `id`, relative to a layer root.
+    /// The path of the document of the agent `id`, relative to a layer root.
     ///
     /// - Parameter id: The name of the agent.
     /// - Returns: The path.
     private static func filePath(of id: String) -> String {
-        "agents/\(id).md"
+        AgentDocumentPath.of(id)
     }
 
     /// Gives `interval` as a `Duration`.

@@ -7,9 +7,10 @@ import Foundation
 /// that the real model ran the body of the agent that it started.
 ///
 /// The marketplace tree has the shape of `Examples/agent-library/marketplace`:
-/// `.claude-plugin/marketplace.json` names one plugin, and the plugin folder
-/// holds `agents/<id>.md`. A test commits the tree to a git repository, or
-/// writes it to a folder for a `file://` source.
+/// one plugin folder holds `agents/<id>/AGENT.md`. The store finds the agent
+/// with a scan of the folders, thus the tree has no catalog file. A test
+/// commits the tree to a git repository, or writes it to a folder for a
+/// `file://` source.
 enum LiveSourceTree {
     /// The word that each agent must answer with.
     static let answerWord = "PINEAPPLE"
@@ -30,26 +31,6 @@ enum LiveSourceTree {
     /// The folder of the plugin, relative to the marketplace root.
     static let pluginPath = "plugins/\(pluginName)"
 
-    /// The catalog of the marketplace.
-    private static let catalogText = """
-        {
-          "name": "live-sources",
-          "owner": { "name": "swissarmyhammer" },
-          "metadata": {
-            "description": "The marketplace of the live source tests: one plugin with one agent.",
-            "version": "1.0.0"
-          },
-          "plugins": [
-            {
-              "name": "\(pluginName)",
-              "source": "./\(pluginPath)",
-              "strict": false,
-              "description": "One agent that answers with one word."
-            }
-          ]
-        }
-        """
-
     /// The files of the local layer, one entry for each path relative to the
     /// layer root.
     static var localLayerFiles: [String: String] {
@@ -59,10 +40,7 @@ enum LiveSourceTree {
     /// The files of the marketplace, one entry for each path relative to the
     /// marketplace root.
     static var marketplaceFiles: [String: String] {
-        [
-            ".claude-plugin/marketplace.json": catalogText,
-            "\(pluginPath)/\(LiveAgentFile.path(of: pluginAgentID))": agentText(id: pluginAgentID)
-        ]
+        ["\(pluginPath)/\(LiveAgentFile.path(of: pluginAgentID))": agentText(id: pluginAgentID)]
     }
 
     /// Makes a new, empty folder in the temporary directory.
@@ -108,7 +86,7 @@ enum LiveSourceTree {
 
     /// The text of one agent file.
     ///
-    /// - Parameter id: The id of the agent: the file name and the `name`
+    /// - Parameter id: The id of the agent: the folder name and the `name`
     ///   field.
     /// - Returns: The frontmatter and the body. The body tells the model to
     ///   answer with ``answerWord``.

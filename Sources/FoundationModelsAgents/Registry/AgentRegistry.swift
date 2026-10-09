@@ -110,9 +110,9 @@ public final class AgentRegistry: Sendable {
     /// `marketplaces.marketplaceLayers()`: call `load()` to build the
     /// catalog.
     ///
-    /// The build reads the `.md` files directly in `agents/` of each layer
-    /// of `marketplaces.marketplaceLayers()`, one level. A marketplace layer
-    /// with no `agents/` folder gives no agent. A local copy of a file name
+    /// The build reads each agent folder `agents/<id>/AGENT.md` of each
+    /// layer of `marketplaces.marketplaceLayers()`. A marketplace layer with
+    /// no `agents/` folder gives no agent. A local copy of an agent folder
     /// wins over a marketplace copy, with one advisory.
     ///
     /// The first `load()` takes the `layerUpdates` stream of the provider.

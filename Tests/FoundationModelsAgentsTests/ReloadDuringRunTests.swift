@@ -85,12 +85,12 @@ struct ReloadDuringRunTests {
         try layer.write(agentFile(agent, description: secondDescription, body: secondBody), at: agentPath(agent))
     }
 
-    /// The path of the file of the agent `name` in a layer.
+    /// The path of the document of the agent `name` in a layer.
     ///
     /// - Parameter name: The id of the agent.
     /// - Returns: The relative path.
     private static func agentPath(_ name: String) -> String {
-        "agents/\(name).md"
+        AgentDocumentPath.of(name)
     }
 
     /// The fields of a `start agent` payload for ``prompt``.

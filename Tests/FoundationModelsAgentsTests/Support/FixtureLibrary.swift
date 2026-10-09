@@ -50,13 +50,15 @@ enum FixtureLibrary {
     }
 
     /// The source root of the fixture marketplace: `marketplace/`. It holds
-    /// `.claude-plugin/marketplace.json` and the `plugins/` folder.
+    /// the `plugins/` folder and no catalog file. A scan of the folders finds
+    /// each agent folder and each skill folder.
     static var marketplaceDirectory: URL {
         root.appendingPathComponent("marketplace", isDirectory: true)
     }
 
-    /// The folder of the broken agent fixtures: `broken/agents/`. Each file
-    /// in it holds one defect.
+    /// The folder of the broken agent fixtures: `broken/agents/`. Each agent
+    /// folder in it holds one defect, and the file `old-format.md` has the
+    /// old agent format.
     static var brokenAgentsDirectory: URL {
         root.appendingPathComponent("broken", isDirectory: true)
             .appendingPathComponent("agents", isDirectory: true)
@@ -78,7 +80,7 @@ enum FixtureLibrary {
             environment: [:])
     }
 
-    /// Resolves `relativePath`, for example `"defaults/agents/lead.md"`,
+    /// Resolves `relativePath`, for example `"defaults/agents/lead/AGENT.md"`,
     /// against `root`.
     ///
     /// The path must be relative. It must not start with `/` or `~`, and it

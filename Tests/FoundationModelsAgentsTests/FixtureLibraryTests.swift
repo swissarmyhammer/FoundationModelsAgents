@@ -6,49 +6,68 @@ import Testing
 ///
 /// The suite makes sure that each fixture file exists, that
 /// `FixtureLibrary.stack()` gives the three local layers in order, that the
-/// fixture marketplace catalog decodes as JSON, and that the marketplace
-/// agents hold the keys that later suites use.
+/// fixture marketplace holds no catalog file, and that the marketplace agents
+/// hold the keys that later suites use.
 @Suite("Fixture library")
 struct FixtureLibraryTests {
-    /// The file names of the `broken/agents/` fixtures, each with one defect.
-    private static let brokenFileNames = [
-        "bad-colon-description.md",
-        "missing-description.md",
-        "bad-name.md",
-        "Bad_Name.md",
-        "no-frontmatter.md",
-        "unknown-model.md",
-        "unknown-disallowed-tool.md"
+    /// The agent folder names of the `broken/agents/` fixtures, each with one
+    /// defect.
+    private static let brokenFolderNames = [
+        "bad-colon-description",
+        "missing-description",
+        "bad-name",
+        "Bad_Name",
+        "no-frontmatter",
+        "unknown-model",
+        "unknown-disallowed-tool"
     ]
 
-    /// The URL of each fixture file: the layer files, then the broken files.
+    /// The agent file of the old format in `broken/agents/`. It gives a
+    /// warning and no agent.
+    private static let oldFormatFileName = "old-format.md"
+
+    /// The URL of each fixture file: the layer files, the broken agent
+    /// documents, then the old-format file.
     private static let expectedFiles = layerFiles.map(FixtureLibrary.url)
-        + brokenFileNames.map { FixtureLibrary.brokenAgentsDirectory.appendingPathComponent($0) }
+        + brokenFolderNames.map {
+            FixtureLibrary.brokenAgentsDirectory.appendingPathComponent($0)
+                .appendingPathComponent(AgentDocumentPath.documentName)
+        }
+        + [FixtureLibrary.brokenAgentsDirectory.appendingPathComponent(oldFormatFileName)]
 
     /// Each fixture file of the local layers and of the marketplace, relative
     /// to `Examples/agent-library`.
     private static let layerFiles = [
-        "defaults/agents/code-reviewer.md",
-        "defaults/agents/test-writer.md",
-        "defaults/agents/lead.md",
+        "defaults/\(AgentDocumentPath.of("code-reviewer"))",
+        "defaults/\(AgentDocumentPath.of("test-writer"))",
+        "defaults/\(AgentDocumentPath.of("lead"))",
         "defaults/_partials/house-rules.md",
         "defaults/skills/review/SKILL.md",
-        "user/agents/code-reviewer.md",
-        "project/.agents/agents/code-reviewer.md",
-        "project/.agents/agents/internal-helper.md",
-        "project/.agents/agents/release-manager.md",
-        "marketplace/.claude-plugin/marketplace.json",
+        "user/\(AgentDocumentPath.of("code-reviewer"))",
+        "project/.agents/\(AgentDocumentPath.of("code-reviewer"))",
+        "project/.agents/\(AgentDocumentPath.of("internal-helper"))",
+        "project/.agents/\(AgentDocumentPath.of("release-manager"))",
         "marketplace/plugins/code-tools/_partials/house-rules.md",
         "marketplace/plugins/code-tools/skills/review/SKILL.md",
-        "marketplace/plugins/code-tools/agents/security-reviewer.md",
-        "marketplace/plugins/docs-tools/agents/doc-writer.md"
+        securityReviewerPath,
+        "marketplace/plugins/code-tools/agents/security-reviewer/checklist.md",
+        docWriterPath
     ]
 
-    /// The path of the agent that each local layer holds a copy of.
-    private static let sharedAgentPath = "agents/code-reviewer.md"
+    /// The document of the security-reviewer agent of the `code-tools`
+    /// plugin.
+    private static let securityReviewerPath =
+        "marketplace/plugins/code-tools/\(AgentDocumentPath.of("security-reviewer"))"
 
-    /// The plugin names of the fixture marketplace catalog, in order.
-    private static let marketplacePluginNames = ["code-tools", "docs-tools"]
+    /// The document of the doc-writer agent of the `docs-tools` plugin.
+    private static let docWriterPath = "marketplace/plugins/docs-tools/\(AgentDocumentPath.of("doc-writer"))"
+
+    /// The path of the agent that each local layer holds a copy of.
+    private static let sharedAgentPath = AgentDocumentPath.of("code-reviewer")
+
+    /// The catalog file of a Claude marketplace. The fixture marketplace does
+    /// not hold it: a scan of the folders finds each agent and each skill.
+    private static let catalogFilePath = ".claude-plugin/marketplace.json"
 
     /// The roots of the three local layers, lowest layer first, in standard
     /// form.
@@ -65,11 +84,11 @@ struct FixtureLibraryTests {
         #expect(FileManager.default.fileExists(atPath: file.path), "Missing fixture: \(file.path)")
     }
 
-    @Test("broken/agents holds exactly the broken fixtures")
+    @Test("broken/agents holds exactly the broken agent folders and the old-format file")
     func brokenFolderHoldsTheBrokenFixtures() throws {
         let names = try FileManager.default.contentsOfDirectory(
             atPath: FixtureLibrary.brokenAgentsDirectory.path)
-        #expect(Set(names) == Set(Self.brokenFileNames))
+        #expect(Set(names) == Set(Self.brokenFolderNames + [Self.oldFormatFileName]))
     }
 
     @Test("the stack has the defaults, user, and project layers in that order")
@@ -79,34 +98,30 @@ struct FixtureLibraryTests {
         #expect(layers.map(\.root.standardizedFileURL.path) == Self.localLayerRoots.map(\.path))
     }
 
-    @Test("the stack finds a copy of code-reviewer.md in each layer")
+    @Test("the stack finds a copy of agents/code-reviewer/AGENT.md in each layer")
     func stackFindsEachLayer() {
         let copies = FixtureLibrary.stack().locate(Self.sharedAgentPath)
         let expected = Self.localLayerRoots.map { $0.appendingPathComponent(Self.sharedAgentPath).path }
         #expect(copies.map(\.standardizedFileURL.path) == expected)
     }
 
-    @Test("the project copy of code-reviewer.md wins, and the view holds each local agent")
+    @Test("the project copy of code-reviewer wins, and the view holds each local agent")
     func projectCopyWins() {
-        let agents = FixtureLibrary.stack().enumerate("agents", suffix: ".md")
+        let agents = FixtureLibrary.stack().items(
+            in: AgentDocumentPath.agentsFolderName, named: AgentDocumentPath.documentName)
         #expect(Set(agents.keys) == FixtureLibrary.localAgentIDs)
         #expect(agents["code-reviewer"]?.layer.source == .project)
     }
 
-    @Test("marketplace.json decodes as JSON and names the two plugins")
-    func marketplaceCatalogDecodes() throws {
-        let file = FixtureLibrary.marketplaceDirectory
-            .appendingPathComponent(".claude-plugin", isDirectory: true)
-            .appendingPathComponent("marketplace.json")
-        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: file))
-        let catalog = try #require(object as? [String: Any])
-        let plugins = try #require(catalog["plugins"] as? [[String: Any]])
-        #expect(plugins.compactMap { $0["name"] as? String } == Self.marketplacePluginNames)
+    @Test("the fixture marketplace holds no catalog file")
+    func marketplaceHoldsNoCatalogFile() {
+        let file = FixtureLibrary.marketplaceDirectory.appendingPathComponent(Self.catalogFilePath)
+        #expect(!FileManager.default.fileExists(atPath: file.path))
     }
 
-    @Test("security-reviewer.md preloads the review skill and includes house-rules.md")
+    @Test("security-reviewer preloads the review skill and includes house-rules.md")
     func securityReviewerHasSkillsAndInclude() throws {
-        let text = try Self.fixtureText("marketplace/plugins/code-tools/agents/security-reviewer.md")
+        let text = try Self.fixtureText(Self.securityReviewerPath)
         #expect(text.contains("\nskills: [review]\n"))
         #expect(text.contains("{% include \"house-rules.md\" %}"))
     }
@@ -118,9 +133,9 @@ struct FixtureLibraryTests {
         #expect(!text.contains("\nagent:"))
     }
 
-    @Test("doc-writer.md names the model sonnet")
+    @Test("doc-writer names the model sonnet")
     func docWriterNamesSonnet() throws {
-        let text = try Self.fixtureText("marketplace/plugins/docs-tools/agents/doc-writer.md")
+        let text = try Self.fixtureText(Self.docWriterPath)
         #expect(text.contains("\nmodel: sonnet\n"))
     }
 

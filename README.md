@@ -6,7 +6,7 @@
 
 [Claude Code-style sub-agents](https://code.claude.com/docs/en/sub-agents) for
 [FoundationModels](https://developer.apple.com/documentation/foundationmodels):
-load agent files from a stack of folders and from marketplaces, and run each
+load agent folders from a stack of folders and from marketplaces, and run each
 agent in its own [FoundationModelsRouter](https://github.com/swissarmyhammer/FoundationModelsRouter)
 session.
 
@@ -20,12 +20,16 @@ agents through one tool, `agents`, with six operations: `list agents`,
 gets each operation, thus agents can start agents. Each other run that a
 `start agent` call started gets only `send agent` and `send caller`.
 
-## The agent file
+## The agent folder
 
-An agent is one Markdown file in an `agents/` folder. The YAML frontmatter
-gives the name, the description, the tools, the model, and the other keys. The
-body is the system prompt. The file name is the id of the agent:
-`agents/code-reviewer.md` is `code-reviewer`.
+An agent is one folder in an `agents/` folder: `agents/<name>/AGENT.md`. The
+YAML frontmatter of `AGENT.md` gives the name, the description, the tools, the
+model, and the other keys. The body is the system prompt. The folder name is
+the id of the agent: `agents/code-reviewer/AGENT.md` is `code-reviewer`. The
+other files of the folder are the resources of the agent, and
+`AgentDefinition.folderURL` gives the folder. A `.md` file directly in
+`agents/` has the old format: it gives no agent, and it gives one warning
+that tells you to move it to `agents/<name>/AGENT.md`.
 
 ```markdown
 ---
@@ -39,8 +43,8 @@ skills: [review]
 You are a code reviewer. Read the code and give specific feedback.
 ```
 
-- A `name` that is absent or not equal to the file name gives a warning.
-  The file loads, because the file name is the id.
+- A `name` that is absent or not equal to the folder name gives a warning.
+  The agent loads, because the folder name is the id.
 - An agent with no valid `description` is not visible to the model.
 - `tools` is the list of tools of the run. With no `tools` key, the run gets
   each tool of the `ToolCatalog`, but not the operations that start agents.
@@ -59,12 +63,15 @@ You are a code reviewer. Read the code and give specific feedback.
 - `disable-model-invocation: true` removes the agent from the `agents` tool.
   `user-invocable: false` removes its slash command.
 - `$ARGUMENTS` in the body is the prompt of the run. The body can include
-  partials with `{% include "house-rules.md" %}`.
+  partials with `{% include "house-rules.md" %}`. The search starts in
+  `agents/<name>/_partials/`, then `agents/_partials/`, then `_partials/` of
+  the layer root.
 
 The layers are, from lowest to highest: the marketplace layers, then
-`defaults < user < project`. When two layers hold the same file, the highest
-layer wins, and the registry records an advisory for each lower copy. A file
-that is not valid gives a diagnostic, and the good files next to it load.
+`defaults < user < project`. When two layers hold the same agent folder, the
+highest layer wins, and the registry records an advisory for each lower copy.
+An agent that is not valid gives a diagnostic, and the good agents next to it
+load.
 
 ## Skills and agents
 

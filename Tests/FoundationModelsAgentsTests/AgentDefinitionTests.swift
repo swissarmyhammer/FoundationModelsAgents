@@ -23,11 +23,20 @@ struct AgentDefinitionTests {
 
         #expect(attempt.severities == row.severities)
         #expect((attempt.definition != nil) == row.loads)
-        #expect(attempt.diagnostics.allSatisfy { $0.provenance.url.lastPathComponent == "\(row.id).md" })
+        #expect(attempt.diagnostics.allSatisfy { Self.folderName(of: $0) == row.id })
     }
 
-    @Test("bad-name loads with the file name as the id")
-    func badNameKeepsTheFileNameAsTheID() throws {
+    /// Gives the name of the agent folder that holds the file of
+    /// `diagnostic`.
+    ///
+    /// - Parameter diagnostic: A diagnostic of an agent document.
+    /// - Returns: The folder name: the id of the agent.
+    private static func folderName(of diagnostic: AgentDiagnostic) -> String {
+        diagnostic.provenance.url.deletingLastPathComponent().lastPathComponent
+    }
+
+    @Test("bad-name loads with the folder name as the id")
+    func badNameKeepsTheFolderNameAsTheID() throws {
         let attempt = Attempt.broken("bad-name")
         let definition = try #require(attempt.definition)
 
@@ -90,15 +99,15 @@ struct AgentDefinitionTests {
     }
 
     @Test("the name rule accepts only 1 to 64 of [a-z0-9-] with no bad hyphen", arguments: Rows.ids)
-    func nameRuleChecksTheFileName(row: Rows.IDRow) {
+    func nameRuleChecksTheFolderName(row: Rows.IDRow) {
         let attempt = Attempt.inline(Attempt.validDescription, id: row.id)
 
         #expect((attempt.definition != nil) == row.isValid)
         #expect(attempt.severities.contains(.skip) == !row.isValid)
     }
 
-    @Test("a skip for a bad file name gives no agent name")
-    func badFileNameSkipHasNoAgent() {
+    @Test("a skip for a bad folder name gives no agent name")
+    func badFolderNameSkipHasNoAgent() {
         let attempt = Attempt.inline(Attempt.validDescription, id: "Bad_Name")
 
         #expect(attempt.severities == [.skip])

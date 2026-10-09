@@ -29,7 +29,7 @@ extension NestedRunTests {
 
         /// The agent files of the temporary layer, by path.
         private static let agentFiles = [
-            "agents/\(planner).md": """
+            AgentDocumentPath.of(planner): """
                 ---
                 name: \(planner)
                 description: Plans a task and gives parts of it to other agents.
@@ -38,7 +38,7 @@ extension NestedRunTests {
 
                 You are a planner.
                 """,
-            "agents/\(flashLead).md": """
+            AgentDocumentPath.of(flashLead): """
                 ---
                 name: \(flashLead)
                 description: Gives a task to the helper.
@@ -48,7 +48,7 @@ extension NestedRunTests {
 
                 You are a lead on the flash slot.
                 """,
-            "agents/\(helper).md": """
+            AgentDocumentPath.of(helper): """
                 ---
                 name: \(helper)
                 description: Does one part of a task.

@@ -41,7 +41,7 @@ struct AgentRunLoggingTests {
         """
 
     /// The path of ``limitedFile`` in the temporary layer.
-    private static let limitedPath = "agents/\(limited).md"
+    private static let limitedPath = AgentDocumentPath.of(limited)
 
     /// The key of the play of ``limited``.
     private static let limitedKey = "logging-limited-key: count the passes"

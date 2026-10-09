@@ -31,8 +31,8 @@ struct SlashCommandTests {
     /// The id of the agent that the reload row adds.
     private static let addedAgent = "added-agent"
 
-    /// The path of the file of `addedAgent`, relative to the layer root.
-    private static let addedAgentPath = "agents/\(addedAgent).md"
+    /// The path of the document of `addedAgent`, relative to the layer root.
+    private static let addedAgentPath = AgentDocumentPath.of(addedAgent)
 
     /// The description of the agent that the reload row adds.
     private static let addedDescription = "An agent that a reload adds."

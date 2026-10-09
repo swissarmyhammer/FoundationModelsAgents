@@ -121,7 +121,7 @@ struct LoadingBoundaryTests {
         fileHandleRule,
         Rule(
             name: "String(contentsOf",
-            reason: "FrontmatterDocumentStack of Extras reads the text of each agents/<id>.md",
+            reason: "FrontmatterDocumentStack of Extras reads the text of each agents/<id>/AGENT.md",
             exemptFiles: []),
         Rule(
             name: "Data(contentsOf",

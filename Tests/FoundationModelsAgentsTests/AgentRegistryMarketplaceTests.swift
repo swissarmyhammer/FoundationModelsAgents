@@ -38,10 +38,10 @@ struct AgentRegistryMarketplaceTests {
     /// The agent in the plugin shape under the `file://` folder.
     private static let pluginAgent = "plugin-agent"
 
-    /// The path of the file of `pluginAgent`, relative to the `file://`
-    /// folder. A snapshot moves such a file to `agents/`; a `file://` source
-    /// does not.
-    private static let pluginAgentPath = "plugins/extra-tools/agents/\(pluginAgent).md"
+    /// The path of the document of `pluginAgent`, relative to the `file://`
+    /// folder. A snapshot moves such a folder to `agents/`; a `file://`
+    /// source does not.
+    private static let pluginAgentPath = "plugins/extra-tools/\(AgentDocumentPath.of(pluginAgent))"
 
     /// The path of the skill file of a marketplace with no `agents/` folder.
     private static let skillPath = "review/SKILL.md"
@@ -70,7 +70,6 @@ struct AgentRegistryMarketplaceTests {
 
         #expect(marketplace.provenance.id == FixtureMarketplaceProvider.marketplaceID)
         #expect(marketplace.provenance.sha == provider.sha)
-        #expect(marketplace.provenance.catalogVersion == FixtureMarketplaceProvider.catalogVersion)
         #expect(catalog.definitions.map(\.id) == FixtureMarketplaceProvider.agentIDs)
         for definition in catalog.definitions {
             #expect(definition.marketplace == marketplace.provenance)
@@ -104,7 +103,7 @@ struct AgentRegistryMarketplaceTests {
         defer { try? provider.delete() }
         let project = try TemporaryLayer.makeEmpty()
         defer { try? project.delete() }
-        try project.write(Self.agentText(named: Self.sharedAgent), at: Self.agentPath(Self.sharedAgent))
+        try project.write(Self.agentText(named: Self.sharedAgent), at: AgentDocumentPath.of(Self.sharedAgent))
         let marketplace = try #require(provider.marketplaceLayers().first)
 
         let registry = AgentRegistry(marketplaces: provider, stack: DotfolderStack(layers: [project.layer]))
@@ -177,7 +176,8 @@ struct AgentRegistryMarketplaceTests {
         let folder = try TemporaryLayer.makeEmpty()
         defer { try? folder.delete() }
         let library = "\(Self.libraryFolderName)/"
-        try folder.write(Self.agentText(named: Self.libraryAgent), at: library + Self.agentPath(Self.libraryAgent))
+        try folder.write(
+            Self.agentText(named: Self.libraryAgent), at: library + AgentDocumentPath.of(Self.libraryAgent))
         try folder.write(Self.agentText(named: Self.pluginAgent), at: library + Self.pluginAgentPath)
         let fixture = try MarketplaceStoreFixture(
             sources: [MarketplaceSource(Self.url(ofFolder: folder.root), path: Self.libraryFolderName)])
@@ -196,22 +196,14 @@ struct AgentRegistryMarketplaceTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.cacheDirectory.path).isEmpty)
     }
 
-    /// The path of the file of `id`, relative to a layer root.
-    ///
-    /// - Parameter id: The agent id.
-    /// - Returns: `agents/<id>.md`.
-    private static func agentPath(_ id: String) -> String {
-        "\(MarketplaceLayer.agentsDirectoryName)/\(id).md"
-    }
-
-    /// The URL of the file of `id` in the layer at `root`.
+    /// The URL of the document of `id` in the layer at `root`.
     ///
     /// - Parameters:
     ///   - id: The agent id.
     ///   - root: The layer root.
-    /// - Returns: `<root>/agents/<id>.md`.
+    /// - Returns: `<root>/agents/<id>/AGENT.md`.
     private static func agentURL(_ id: String, inLayerRoot root: URL) -> URL {
-        root.appendingPathComponent(agentPath(id))
+        root.appendingPathComponent(AgentDocumentPath.of(id))
     }
 
     /// A valid agent file with the name `id`.

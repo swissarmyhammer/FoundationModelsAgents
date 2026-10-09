@@ -6,18 +6,18 @@ import Testing
 enum AgentDefinitionRows {
     /// One `broken/` fixture and the result that the rule table must give.
     struct BrokenRow: Sendable, CustomTestStringConvertible {
-        /// The file name of the fixture, with no `.md`.
+        /// The agent folder name of the fixture.
         let id: String
 
         /// The severities that the attempt must give, in order.
         let severities: [AgentDiagnostic.Severity]
 
-        /// `true` when the file must load.
+        /// `true` when the agent must load.
         let loads: Bool
 
-        /// The file name, as the name of the test case.
+        /// The path of the fixture, as the name of the test case.
         var testDescription: String {
-            "broken/agents/\(id).md"
+            "broken/\(AgentDocumentPath.of(id))"
         }
     }
 
@@ -38,15 +38,15 @@ enum AgentDefinitionRows {
         }
     }
 
-    /// One file name and whether the name rule accepts it.
+    /// One agent folder name and whether the name rule accepts it.
     struct IDRow: Sendable, CustomTestStringConvertible {
-        /// The file name, with no `.md`.
+        /// The agent folder name.
         let id: String
 
-        /// `true` when the name rule accepts the file name.
+        /// `true` when the name rule accepts the folder name.
         let isValid: Bool
 
-        /// The file name, as the name of the test case.
+        /// The folder name, as the name of the test case.
         var testDescription: String {
             "`\(id)`"
         }
@@ -100,7 +100,7 @@ enum AgentDefinitionRows {
     static let longDescription = String(
         repeating: "d", count: AgentDefinition.descriptionCharacterLimit + 1)
 
-    /// A file name of the maximum length.
+    /// An agent folder name of the maximum length.
     static let longestID = String(repeating: "a", count: AgentDefinition.idCharacterLimit)
 
     /// The `broken/` fixtures, with their results.
@@ -164,7 +164,7 @@ enum AgentDefinitionRows {
             maxTurns: turnLimitOfBadValue)
     ]
 
-    /// The file names of the name rule.
+    /// The agent folder names of the name rule.
     static let ids: [IDRow] = [
         IDRow(id: "a", isValid: true),
         IDRow(id: "code-reviewer", isValid: true),

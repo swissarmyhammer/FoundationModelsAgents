@@ -8,8 +8,10 @@ public struct AgentCatalog: Sendable {
     /// Each agent that loaded, sorted by id.
     public let definitions: [AgentDefinition]
 
-    /// Each diagnostic of the load, in the id order of the files. The
-    /// diagnostics of one file keep the order of the load.
+    /// Each diagnostic of the load. First the diagnostics of the agent
+    /// folders, in the id order of the folders. The diagnostics of one folder
+    /// keep the order of the load. Then one warning for each agent file of the
+    /// old format, `agents/<name>.md`, sorted by file name, then by layer.
     public let diagnostics: [AgentDiagnostic]
 
     /// Each agent that loaded, by id.
@@ -43,7 +45,7 @@ public struct AgentCatalog: Sendable {
 
     /// Finds the agent with the id `id`.
     ///
-    /// - Parameter id: The id of the agent: the file name with no `.md`.
+    /// - Parameter id: The id of the agent: the name of its folder.
     /// - Returns: The agent, or `nil` when no agent of this catalog has the
     ///   id.
     public func definition(named id: String) -> AgentDefinition? {

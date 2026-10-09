@@ -3,7 +3,7 @@ import FoundationModelsExtras
 import FoundationModelsRouter
 import Marketplace
 
-/// One validated agent: the frontmatter of one agent file after the rule
+/// One validated agent: the frontmatter of one `AGENT.md` file after the rule
 /// table, the raw body, and the provenance.
 ///
 /// The body is the system prompt, as the file writes it. This type does not
@@ -16,7 +16,7 @@ public struct AgentDefinition: Sendable {
     /// a warning.
     static let descriptionCharacterLimit = 1024
 
-    /// The id of the agent: the file name with no `.md`.
+    /// The id of the agent: the name of its folder.
     public let id: String
 
     /// The `description` key. It tells the model when to use the agent.
@@ -81,9 +81,19 @@ public struct AgentDefinition: Sendable {
     /// document sees its own marketplace and the local layers.
     public let marketplaceLayer: MarketplaceLayer?
 
-    /// The URL of the agent file.
+    /// The URL of the agent document: `<layer root>/agents/<id>/AGENT.md`.
     public var url: URL {
         provenance.url
+    }
+
+    /// The URL of the agent folder of the winning layer:
+    /// `<layer root>/agents/<id>/`.
+    ///
+    /// The folder holds `AGENT.md` and the resources of the agent: each other
+    /// file of the folder. A copy of the folder in a lower layer is hidden,
+    /// thus this URL names the folder of the layer that gave the document.
+    public var folderURL: URL {
+        provenance.url.deletingLastPathComponent()
     }
 
     /// The marketplace of the layer, or `nil` for a local layer.
@@ -99,12 +109,12 @@ public struct AgentDefinition: Sendable {
     /// Makes a definition from one located document, and applies the rule
     /// table.
     ///
-    /// A file name that is not a valid id, a missing document, and a
+    /// A folder name that is not a valid id, a missing document, and a
     /// frontmatter that did not decode each give one `skip` and `nil`. Each
     /// other rule adds a `warning` or an `advisory`, and the agent loads.
     ///
     /// - Parameters:
-    ///   - id: The file name with no `.md`.
+    ///   - id: The name of the agent folder.
     ///   - document: The winning copy of the file, or `nil`.
     ///   - provenance: The file of the agent. The caller makes it from the
     ///     same located document. For a marketplace file, its
@@ -140,7 +150,7 @@ public struct AgentDefinition: Sendable {
     /// Makes a definition from a frontmatter that passed the skip rules.
     ///
     /// - Parameters:
-    ///   - id: The file name with no `.md`.
+    ///   - id: The name of the agent folder.
     ///   - frontmatter: The decoded frontmatter.
     ///   - body: The raw body of the file.
     ///   - layer: The layer that gave the file.

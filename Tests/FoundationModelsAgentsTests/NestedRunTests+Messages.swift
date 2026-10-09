@@ -24,7 +24,7 @@ extension NestedRunTests {
 
         /// The agent files of the temporary layer, by path.
         private static let agentFiles = [
-            "agents/\(parent).md": """
+            AgentDocumentPath.of(parent): """
                 ---
                 name: \(parent)
                 description: Gives a part of a task to the messenger.
@@ -33,7 +33,7 @@ extension NestedRunTests {
 
                 You are a parent.
                 """,
-            "agents/\(messenger).md": """
+            AgentDocumentPath.of(messenger): """
                 ---
                 name: \(messenger)
                 description: Does a part of a task, and tells its caller about it.

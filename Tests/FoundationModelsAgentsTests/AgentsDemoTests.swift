@@ -27,8 +27,8 @@ struct AgentsDemoTests {
     /// library.
     private static let addedAgentID = "added-agent"
 
-    /// The path of the added agent file, relative to the library root.
-    private static let addedAgentPath = "defaults/agents/\(addedAgentID).md"
+    /// The path of the added agent document, relative to the library root.
+    private static let addedAgentPath = "defaults/\(AgentDocumentPath.of(addedAgentID))"
 
     /// The text of the added agent file.
     private static let addedAgentText = """

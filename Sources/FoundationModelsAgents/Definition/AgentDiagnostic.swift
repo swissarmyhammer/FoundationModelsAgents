@@ -57,7 +57,7 @@ public struct AgentDiagnostic: Sendable, Equatable {
     /// How serious this diagnostic is.
     public var severity: Severity
 
-    /// The id of the agent, or `nil` when the file name is not a valid id.
+    /// The id of the agent, or `nil` when the folder name is not a valid id.
     public var agent: String?
 
     /// The file that this diagnostic is about.

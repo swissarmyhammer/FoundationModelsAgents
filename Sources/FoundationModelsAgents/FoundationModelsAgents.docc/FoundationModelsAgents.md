@@ -5,10 +5,11 @@ run each agent in its own Router session.
 
 ## Overview
 
-An agent is one Markdown file in an `agents/` folder. The YAML frontmatter
-gives the name, the description, the tools, the model, and the other keys. The
-body is the system prompt. The file name is the id of the agent:
-`agents/code-reviewer.md` is `code-reviewer`.
+An agent is one folder in an `agents/` folder: `agents/<name>/AGENT.md`. The
+YAML frontmatter of `AGENT.md` gives the name, the description, the tools, the
+model, and the other keys. The body is the system prompt. The folder name is
+the id of the agent: `agents/code-reviewer/AGENT.md` is `code-reviewer`. The
+other files of the folder are the resources of the agent.
 
 ```markdown
 ---
@@ -28,8 +29,8 @@ messages to each other. The caller keeps its own context.
 
 The package has three layers:
 
-- **``AgentDefinition``** decodes and validates one agent file.
-- **``AgentRegistry``** keeps the catalog of the agent files over the local
+- **``AgentDefinition``** decodes and validates one `AGENT.md` file.
+- **``AgentRegistry``** keeps the catalog of the agent folders over the local
   layers and the marketplace layers.
 - **``AgentRunner``**, **``AgentRun``**, and **``AgentsTool``** start the runs,
   drive each Router session, and give a model one tool, `agents`, with six

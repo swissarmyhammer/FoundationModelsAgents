@@ -31,8 +31,9 @@ struct AgentRunTests {
     /// The id of each agent that a test writes into a temporary layer.
     private static let writtenAgent = "written-agent"
 
-    /// The path of the file of `writtenAgent`, relative to the layer root.
-    private static let writtenAgentPath = "agents/\(writtenAgent).md"
+    /// The path of the document of `writtenAgent`, relative to the layer
+    /// root.
+    private static let writtenAgentPath = AgentDocumentPath.of(writtenAgent)
 
     /// The text of the `compactionPrompt` key of a written agent.
     private static let compactionText = "Keep each file name."

@@ -69,7 +69,8 @@ enum AgentsDemoLibrary {
     /// - Parameters:
     ///   - libraryRoot: The root of the library.
     ///   - cacheDirectory: The cache folder of the store.
-    /// - Returns: The store. Its layers hold `agents/*.md` of each plugin.
+    /// - Returns: The store. Its layers hold `agents/<name>/AGENT.md` of each
+    ///   plugin.
     static func marketplaceStore(libraryRoot: URL, cacheDirectory: URL) -> MarketplaceStore {
         let marketplace = libraryRoot.appendingPathComponent("marketplace", isDirectory: true)
         let sources = marketplacePlugins.map { plugin in

@@ -7,19 +7,20 @@ import MarketplaceFixtures
 ///
 /// `make()` commits each file of the fixture marketplace to a new
 /// `GitFixtureRepository`, and installs the commit with a `MarketplaceStore`
-/// over a new cache folder. The snapshot of the store has the layer shape:
-/// `agents/<id>.md` for each agent of all plugins, each skill folder at the
-/// layer root, and `_partials/`. The provider gives the layers of that store.
+/// over a new cache folder. The fixture marketplace has no catalog file: a
+/// scan of its folders finds each agent folder and each skill folder. The
+/// snapshot of the store has the layer shape: `agents/<id>/` for each agent
+/// folder of all plugins, with `AGENT.md` and the resources of the agent,
+/// each skill folder at the layer root, and `_partials/`. The provider gives
+/// the layers of that store.
 ///
 /// The provider makes no network call. The test calls `delete()` in a
 /// `defer`.
 struct FixtureMarketplaceProvider: MarketplaceLayerProviding {
-    /// The display id of the fixture marketplace: the `name` field of its
-    /// catalog.
-    static let marketplaceID = "agent-library"
-
-    /// The `version` field of the metadata of the fixture catalog.
-    static let catalogVersion = "1.0.0"
+    /// The id of the fixture marketplace. The marketplace has no catalog
+    /// name, thus the store makes the id from the URL of the source: the
+    /// folder of the `GitFixtureRepository`.
+    static let marketplaceID = "fixture"
 
     /// The agent ids of the snapshot, sorted.
     static let agentIDs = ["doc-writer", "security-reviewer"]
@@ -110,8 +111,7 @@ struct FixtureMarketplaceProvider: MarketplaceLayerProviding {
         try cache.delete()
     }
 
-    /// Reads each file of the fixture marketplace, the hidden
-    /// `.claude-plugin/` folder too.
+    /// Reads each file of the fixture marketplace.
     ///
     /// - Returns: The tree of one commit, one entry for each path relative to
     ///   the marketplace folder.

@@ -34,7 +34,7 @@ struct TemporaryLayer {
     /// Makes a layer root that holds `files`.
     ///
     /// - Parameter files: The text of each file, by its path relative to the
-    ///   root, for example `agents/helper.md`.
+    ///   root, for example `agents/helper/AGENT.md`.
     /// - Returns: The new layer.
     /// - Throws: The error of the file system when it cannot make the folder
     ///   or write a file.

@@ -5,7 +5,7 @@ import FoundationModelsExtras
 /// A listing holds no body. It holds the tier 2 data, the visibility, and
 /// the provenance of the agent.
 public struct AgentListing: Sendable, Equatable {
-    /// The id of the agent: the file name with no `.md`.
+    /// The id of the agent: the name of its folder.
     public let id: String
 
     /// The `description` key, or `nil` when the key is absent.

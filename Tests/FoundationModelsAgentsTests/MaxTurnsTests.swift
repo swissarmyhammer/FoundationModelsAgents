@@ -56,7 +56,7 @@ struct MaxTurnsTests {
 
     /// The agent files of the temporary layer, by path.
     private static let agentFiles = [
-        "agents/\(limited).md": """
+        AgentDocumentPath.of(limited): """
             ---
             name: \(limited)
             description: Does a task in a small count of turns.
@@ -66,7 +66,7 @@ struct MaxTurnsTests {
 
             You work in a small count of turns.
             """,
-        "agents/\(unlimited).md": """
+        AgentDocumentPath.of(unlimited): """
             ---
             name: \(unlimited)
             description: Does a task in any count of turns.
@@ -75,7 +75,7 @@ struct MaxTurnsTests {
 
             You work in any count of turns.
             """,
-        "agents/\(limitedLead).md": """
+        AgentDocumentPath.of(limitedLead): """
             ---
             name: \(limitedLead)
             description: Gives a part of a task to the helper in a small count of turns.
@@ -85,7 +85,7 @@ struct MaxTurnsTests {
 
             You are a lead with a small count of turns.
             """,
-        "agents/\(countingLead).md": """
+        AgentDocumentPath.of(countingLead): """
             ---
             name: \(countingLead)
             description: Gives a part of a task to the helper.
@@ -94,7 +94,7 @@ struct MaxTurnsTests {
 
             You are a lead.
             """,
-        "agents/\(flashHelper).md": """
+        AgentDocumentPath.of(flashHelper): """
             ---
             name: \(flashHelper)
             description: Does one part of a task on the flash slot.

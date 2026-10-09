@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModelsExtras
+import Marketplace
 
 /// One finding of the rule table before it gets a file: a severity and a
 /// message.
@@ -26,7 +27,7 @@ struct AgentFinding: Sendable, Equatable {
 /// The rules that need the tool catalog, the skills registry, or the profile
 /// are not here. Later layers apply them.
 enum AgentDefinitionRules {
-    /// One rule over a frontmatter. It gets the id (the file name) and the
+    /// One rule over a frontmatter. It gets the id (the folder name) and the
     /// frontmatter, and gives its findings in order.
     typealias Rule = @Sendable (String, AgentFrontmatter) -> [AgentFinding]
 
@@ -61,7 +62,7 @@ enum AgentDefinitionRules {
     /// Tells if `id` is a valid agent id: 1 to 64 of `[a-z0-9-]`, with no
     /// leading, trailing, or doubled hyphen.
     ///
-    /// - Parameter id: The file name with no `.md`.
+    /// - Parameter id: The name of the agent folder.
     /// - Returns: `true` when the id is valid.
     static func isValidID(_ id: String) -> Bool {
         (1...AgentDefinition.idCharacterLimit).contains(id.count)
@@ -71,21 +72,34 @@ enum AgentDefinitionRules {
             && !id.contains(doubledHyphen)
     }
 
-    /// The skip for a file name that is not a valid id.
+    /// The skip for an agent folder name that is not a valid id.
     ///
-    /// - Parameter id: The file name with no `.md`.
+    /// - Parameter id: The name of the agent folder.
     /// - Returns: The finding.
     static func invalidIDFinding(_ id: String) -> AgentFinding {
         AgentFinding(
             severity: .skip,
-            message: "the file name '\(id)' is not 1 to \(AgentDefinition.idCharacterLimit) of [a-z0-9-] "
+            message: "the folder name '\(id)' is not 1 to \(AgentDefinition.idCharacterLimit) of [a-z0-9-] "
                 + "with no leading, trailing, or doubled hyphen; the file is skipped")
+    }
+
+    /// The warning for an agent file of the old format: a `.md` file
+    /// directly in `agents/`. The file gives no agent.
+    ///
+    /// - Parameter name: The file name with no `.md`.
+    /// - Returns: The finding. Its message names the path of the new format.
+    static func oldFormatFinding(_ name: String) -> AgentFinding {
+        let folder = MarketplaceLayer.agentsDirectoryName
+        return AgentFinding(
+            severity: .warning,
+            message: "the file '\(folder)/\(name).md' has the old agent format and does not load; "
+                + "move it to '\(folder)/\(name)/\(MarketplaceLayer.agentDocumentName)'")
     }
 
     /// Applies each frontmatter rule.
     ///
     /// - Parameters:
-    ///   - id: The file name with no `.md`.
+    ///   - id: The name of the agent folder.
     ///   - frontmatter: The decoded frontmatter.
     /// - Returns: The findings of all the rules, in order.
     static func findings(id: String, frontmatter: AgentFrontmatter) -> [AgentFinding] {
@@ -102,25 +116,26 @@ enum AgentDefinitionRules {
 
     /// Tells if `character` can be in an id.
     ///
-    /// - Parameter character: One character of a file name.
+    /// - Parameter character: One character of an agent folder name.
     /// - Returns: `true` for an ASCII lowercase letter, an ASCII digit, or a
     ///   hyphen.
     private static func isIDCharacter(_ character: Character) -> Bool {
         character.isASCII && (character.isLowercase || character.isNumber || character == hyphen)
     }
 
-    /// The `name` rule: absent, or not equal to the file name, is a warning.
+    /// The `name` rule: absent, or not equal to the folder name, is a
+    /// warning.
     private static func nameFindings(id: String, frontmatter: AgentFrontmatter) -> [AgentFinding] {
         guard let name = frontmatter.name else {
             return [AgentFinding(
-                severity: .warning, message: "the frontmatter has no 'name'; the file name '\(id)' is the id")]
+                severity: .warning, message: "the frontmatter has no 'name'; the folder name '\(id)' is the id")]
         }
         guard name != id else {
             return []
         }
         return [AgentFinding(
             severity: .warning,
-            message: "the 'name' value '\(name)' is not equal to the file name '\(id)'; the file name is the id")]
+            message: "the 'name' value '\(name)' is not equal to the folder name '\(id)'; the folder name is the id")]
     }
 
     /// The `description` rule: absent or empty is a warning, and longer than

@@ -19,7 +19,7 @@ struct AgentDefinitionAttempt {
         source: .project, root: URL(fileURLWithPath: "/inline/layer", isDirectory: true))
 
     /// The URL of the inline documents.
-    static let inlineURL = inlineLayer.root.appendingPathComponent("agents/\(inlineID).md")
+    static let inlineURL = inlineLayer.root.appendingPathComponent(AgentDocumentPath.of(inlineID))
 
     /// The layer position of the inline documents: the project layer of a
     /// `defaults < user < project` stack.
@@ -47,14 +47,14 @@ struct AgentDefinitionAttempt {
     /// Loads one `broken/agents/` fixture through a `FrontmatterDocumentStack`
     /// and applies the rule table.
     ///
-    /// - Parameter id: The file name of the fixture, with no `.md`.
+    /// - Parameter id: The agent folder name of the fixture.
     /// - Returns: The attempt.
     static func broken(_ id: String) -> AgentDefinitionAttempt {
         let layer = DotfolderStack.Layer(
             source: .project, root: FixtureLibrary.brokenAgentsDirectory.deletingLastPathComponent())
         let documents = FrontmatterDocumentStack(
             base: DotfolderStack(layers: [layer]), decode: AgentFrontmatter.decode)
-        let path = "agents/\(id).md"
+        let path = AgentDocumentPath.of(id)
         let provenance = AgentDiagnostic.Provenance(
             layerIndex: 0, layerRoot: layer.root, url: layer.root.appendingPathComponent(path))
         return make(id: id, document: documents.item(at: path), provenance: provenance)
@@ -64,7 +64,7 @@ struct AgentDefinitionAttempt {
     ///
     /// - Parameters:
     ///   - yaml: The frontmatter text between the fences.
-    ///   - id: The file name. The default is `inlineID`.
+    ///   - id: The agent folder name. The default is `inlineID`.
     ///   - provenance: The provenance. The default is `inlineProvenance`.
     /// - Returns: The attempt.
     static func inline(
@@ -78,9 +78,9 @@ struct AgentDefinitionAttempt {
     /// Applies the rule table to one document.
     ///
     /// - Parameters:
-    ///   - id: The file name.
+    ///   - id: The agent folder name.
     ///   - document: The located document, or `nil`.
-    ///   - provenance: The provenance of the file.
+    ///   - provenance: The provenance of the document.
     /// - Returns: The attempt.
     static func make(
         id: String,

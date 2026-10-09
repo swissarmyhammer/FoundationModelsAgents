@@ -13,7 +13,7 @@ own tools, and its own session.
 
 An agent uses skills through its `skills:` preload and through the `skills` tool:
 
-- The `skills:` key of the agent file names skills. At run start, the run
+- The `skills:` key of the `AGENT.md` file names skills. At run start, the run
   gets the rendered body of each named skill from the `SkillsRegistry`, and
   adds the body to the instructions of the new session. An unknown skill or a
   skill that is not visible gives a warning, and the run does not use it.
@@ -26,7 +26,7 @@ messages that the run sends with `send caller` while it works, and the final
 text of the run when it ends.
 
 The agent
-[security-reviewer.md](../Examples/agent-library/marketplace/plugins/code-tools/agents/security-reviewer.md)
+[security-reviewer/AGENT.md](../Examples/agent-library/marketplace/plugins/code-tools/agents/security-reviewer/AGENT.md)
 of the fixture library preloads the skill `review` with `skills: [review]`.
 The same plugin gives a skill with that name:
 [review/SKILL.md](../Examples/agent-library/marketplace/plugins/code-tools/skills/review/SKILL.md).
@@ -57,8 +57,8 @@ surface transfer. Decisions about text in the current context do not.
 | A plugin gives `skills/` in the layer | Same: the plugin gives `agents/` in the same layer |
 | Split and decode raw frontmatter; render the body later; trust by layer | Same |
 | Lenient retry for a `description:` with an unquoted `:` | Same |
-| The folder name is the id; a `name` mismatch is a warning | Same: the file name is the id. Claude takes the id from `name`; a Claude file whose `name` is its file name loads with no warning. |
-| One marketplace layer; the later plugin wins a name | Same: one flat `agents/` folder |
+| The folder name is the id; a `name` mismatch is a warning | Same: an agent is the folder `agents/<name>/AGENT.md`, and the folder name is the id. A Claude file `agents/<name>.md` has the old format: it gives no agent and one warning that tells you to move it to `agents/<name>/AGENT.md`. |
+| One marketplace layer; the later plugin wins a name | Same: one flat `agents/` folder with one folder for each agent |
 | Name rules, length limits, severities, diagnostics with provenance | Same |
 | `disable-model-invocation`, `user-invocable` | Same |
 | Description built from the catalog, with a limit and four forms | Same |
@@ -71,7 +71,7 @@ surface transfer. Decisions about text in the current context do not.
 | Argument substitution and quarantine | `$ARGUMENTS` only: this package puts the prompt into the body as a quarantined span. |
 | Shell injection; `RenderPolicy` | Not copied. A system prompt is static. |
 | `preload: true` into the host's instructions | Not copied. The `skills:` key preloads into the agent's own context. |
-| Resources and `run script` under the skill folder | Not copied. An agent is one file. |
+| Resources and `run script` under the skill folder | The agent folder holds resources: each file of the folder other than `AGENT.md`. `AgentDefinition.folderURL` gives the folder of the winning layer. No operation gives the resources yet, and there is no `run script`. |
 | `search skill` | Not copied. `list agents` gives the full catalog. |
 | `OperationDescribing`, `ForkableTool` | Not copied. |
 | A slash command delivers the raw body as a prompt | Different: a slash command starts a run. |
@@ -85,31 +85,36 @@ marketplace layer:
 
 ```
 <marketplace layer root>/
-  review/SKILL.md          the skills of all plugins
-  _partials/house-rules.md the partials of the plugins
+  review/SKILL.md                         the skills of all plugins
+  _partials/house-rules.md                the partials of the plugins
   agents/
-    security-reviewer.md   one .md file for each agent of all plugins
-    doc-writer.md
+    security-reviewer/AGENT.md            one folder for each agent of all plugins
+    security-reviewer/checklist.md        a resource of the agent
+    doc-writer/AGENT.md
 ```
 
+- The store finds the skills and the agents with a scan of the folders of
+  the marketplace. It reads no catalog file. A folder that holds `SKILL.md`
+  is a skill, and a folder that holds `AGENT.md` is an agent. The scan has
+  no depth limit, thus `plugins/<name>/skills/` and `plugins/<name>/agents/`
+  load. The snapshot copies each agent folder to `agents/<name>/`.
 - The skills registry reads the skill folders of the layer. The agents
-  registry reads the `.md` files directly in `agents/` of the layer, one
-  level. The file name is the id of the agent.
-- When two plugins give the same file name, the later plugin wins, and the
+  registry reads each folder `agents/<name>/AGENT.md` of the layer. The folder
+  name is the id of the agent.
+- When two plugins give the same agent name, the later plugin wins, and the
   store records one diagnostic.
 - A local layer (`defaults`, `user`, or `project`) is above each marketplace
-  layer. Thus a local copy of an agent file hides the marketplace copy.
-- The selection `.all` or `.plugins([...])` gives the agents of the selected
-  plugins. The selection `.skills([...])` gives no agents.
+  layer. Thus a local copy of an agent folder hides the marketplace copy.
+- The selection `.all` gives the skills and the agents. The selection
+  `.skills([...])` gives the named skills and no agents.
 - When the marketplace changes, the store reports `layerUpdates`, and the
   two registries build their catalogs again. A run that operates keeps its
   definition.
 
-The fixture
-[marketplace.json](../Examples/agent-library/marketplace/.claude-plugin/marketplace.json)
-has two plugins. The plugin
+The fixture [marketplace](../Examples/agent-library/marketplace) has two
+plugins. The plugin
 [code-tools](../Examples/agent-library/marketplace/plugins/code-tools) gives a
-skill, an agent, and a partial. The plugin
+skill, an agent with a resource, and a partial. The plugin
 [docs-tools](../Examples/agent-library/marketplace/plugins/docs-tools) gives
 one agent.
 
@@ -118,15 +123,17 @@ one agent.
 The partials of a plugin are in `<plugin root>/_partials/`. The skills and the
 agents of the plugin use the same partials. The snapshot of a marketplace
 copies each `_partials/` folder from the source root down to each selected
-skill into `_partials/` of the layer. A more specific copy of a name replaces
-a less specific copy.
+skill and each agent into `_partials/` of the layer. A more specific copy of a
+name replaces a less specific copy. A `_partials/` folder in an agent folder
+goes with the agent folder.
 
 An agent body includes a partial with `{% include "house-rules.md" %}`. The
 include resolves from the folder of the document up to the layer root, and
 never above the layer root:
 
-1. `agents/_partials/house-rules.md`.
-2. `_partials/house-rules.md`.
+1. `agents/<name>/_partials/house-rules.md`, in the agent folder.
+2. `agents/_partials/house-rules.md`.
+3. `_partials/house-rules.md`.
 
 At each level, the render examines each layer, highest layer first. The first
 copy that it finds wins. Thus a more specific folder of a lower layer wins
@@ -139,7 +146,7 @@ over the root of a higher layer.
 - An include that does not resolve fails the run with `bodyRenderFailed`.
 
 The agent
-[security-reviewer.md](../Examples/agent-library/marketplace/plugins/code-tools/agents/security-reviewer.md)
+[security-reviewer/AGENT.md](../Examples/agent-library/marketplace/plugins/code-tools/agents/security-reviewer/AGENT.md)
 includes the partial
 [house-rules.md](../Examples/agent-library/marketplace/plugins/code-tools/_partials/house-rules.md)
 of its plugin.

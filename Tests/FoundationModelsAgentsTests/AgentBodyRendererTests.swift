@@ -7,7 +7,7 @@ import Testing
 ///
 /// Pass 1 puts the prompt in place of each `$ARGUMENTS` as a quarantined
 /// span. Pass 2 renders the text with Stencil as the document
-/// `agents/<id>.md` of the winning layer, with the variables of the
+/// `agents/<id>/AGENT.md` of the winning layer, with the variables of the
 /// registry. A render failure is `AgentRunFailure.bodyRenderFailed`.
 @Suite("Agent body renderer")
 struct AgentBodyRendererTests {
@@ -42,8 +42,9 @@ struct AgentBodyRendererTests {
     /// The id of each agent that a test writes into a temporary layer.
     private static let writtenAgent = "written-agent"
 
-    /// The path of the file of `writtenAgent`, relative to the layer root.
-    private static let writtenAgentPath = "agents/\(writtenAgent).md"
+    /// The path of the document of `writtenAgent`, relative to the layer
+    /// root.
+    private static let writtenAgentPath = AgentDocumentPath.of(writtenAgent)
 
     /// The heading of `_partials/house-rules.md` in the `defaults` layer.
     private static let rootHouseRules = "## House Rules"
@@ -54,6 +55,14 @@ struct AgentBodyRendererTests {
     /// The path of the copy in `agents/_partials/`, relative to the layer
     /// root.
     private static let agentsPartialPath = "agents/_partials/house-rules.md"
+
+    /// The heading of the copy in the agent folder of `includingAgent` that
+    /// a test writes.
+    private static let folderHouseRules = "## Folder House Rules"
+
+    /// The path of the copy in `agents/code-reviewer/_partials/`, relative
+    /// to the layer root.
+    private static let folderPartialPath = "agents/\(includingAgent)/_partials/house-rules.md"
 
     /// The heading of `_partials/house-rules.md` in the fixture marketplace.
     private static let marketplaceHouseRules = "## Code Tools House Rules"
@@ -211,6 +220,22 @@ struct AgentBodyRendererTests {
         let rendered = try AgentBodyRenderer(registry: registry).render(definition, prompt: Self.prompt)
 
         #expect(rendered.contains(Self.agentsHouseRules))
+        #expect(!rendered.contains(Self.rootHouseRules))
+    }
+
+    @Test("a copy in the _partials/ of the agent folder wins over agents/_partials/ and the layer root")
+    func agentFolderPartialsCopyWins() async throws {
+        let copy = try TemporaryLayer.copy(of: FixtureLibrary.defaultsDirectory)
+        defer { try? copy.delete() }
+        try copy.write("\(Self.agentsHouseRules)\n", at: Self.agentsPartialPath)
+        try copy.write("\(Self.folderHouseRules)\n", at: Self.folderPartialPath)
+        let registry = AgentRegistry(layers: [DotfolderStack.Layer(source: .defaults, root: copy.root)])
+        let definition = try await Self.definition(Self.includingAgent, in: registry)
+
+        let rendered = try AgentBodyRenderer(registry: registry).render(definition, prompt: Self.prompt)
+
+        #expect(rendered.contains(Self.folderHouseRules))
+        #expect(!rendered.contains(Self.agentsHouseRules))
         #expect(!rendered.contains(Self.rootHouseRules))
     }
 

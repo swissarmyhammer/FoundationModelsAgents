@@ -4,7 +4,7 @@ Make an agent registry over the layers, load it, and read its catalog.
 
 ## Overview
 
-``AgentRegistry`` keeps the catalog of the agent files. Its layers are, from
+``AgentRegistry`` keeps the catalog of the agent folders. Its layers are, from
 the lowest precedence to the highest:
 
 ```
@@ -15,10 +15,16 @@ The local layers come from the `DotfolderStack` of the host. The marketplace
 layers come from `MarketplaceLayerProviding.marketplaceLayers()`. A host that
 wants `~/.claude` appends a local layer.
 
-The agent files are the `.md` files directly in the `agents/` folder of each
-layer. The registry reads one level only. The file name is the id of the agent.
-The highest layer wins a file name, and each lower copy gives an advisory. A
-local copy wins over a marketplace copy.
+An agent is a child folder of the `agents/` folder of a layer that holds
+`AGENT.md`: `agents/<name>/AGENT.md`. The folder name is the id of the agent,
+and the other files of the folder are the resources of the agent.
+``AgentDefinition/folderURL`` gives the folder of the winning layer. The
+highest layer that holds the `AGENT.md` of an id wins it, and each lower copy
+gives an advisory. A local copy wins over a marketplace copy.
+
+A `.md` file directly in `agents/` has the old format. It gives no agent. Each
+such file gives one warning: "the file 'agents/<name>.md' has the old agent
+format and does not load; move it to 'agents/<name>/AGENT.md'".
 
 ### Make the registry, then load it
 
@@ -83,9 +89,10 @@ for await catalog in agents.onReload {
 - ``AgentCatalog/userInvocable``: the agents that are slash commands. An agent
   is user-invocable when `user-invocable` is not `false`.
 
-A bad file does not stop a good file next to it. A file with no frontmatter, or
-with a file name that is not a valid id, is a skip. A `name` that is not equal
-to the file name, or an absent description, is a warning.
+A bad agent does not stop a good agent next to it. An `AGENT.md` with no
+frontmatter, or an agent folder with a name that is not a valid id, is a skip.
+A `name` that is not equal to the folder name, or an absent description, is a
+warning.
 
 The registry does not match the `model` key to a slot, because the registry has
 no profile. ``AgentRunner/catalog()`` gives the catalog with the model warnings

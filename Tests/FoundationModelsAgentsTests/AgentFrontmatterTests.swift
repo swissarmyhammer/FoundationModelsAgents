@@ -10,9 +10,9 @@ import Testing
 /// signature that the stack wants.
 @Suite("Agent frontmatter")
 struct AgentFrontmatterTests {
-    /// The path of an agent file, relative to a layer root.
+    /// The path of an agent document, relative to a layer root.
     private static func agentPath(_ id: String) -> String {
-        "agents/\(id).md"
+        AgentDocumentPath.of(id)
     }
 
     /// The note that a decode records after the colon retry.

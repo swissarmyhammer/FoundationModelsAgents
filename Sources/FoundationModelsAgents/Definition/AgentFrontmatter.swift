@@ -10,7 +10,7 @@ import FoundationModelsExtras
 ///
 /// The frontmatter is never rendered. A `{{ x }}` in a value stays text.
 public struct AgentFrontmatter: Sendable, Equatable {
-    /// The `name` key. It must be equal to the file name.
+    /// The `name` key. It must be equal to the name of the agent folder.
     public var name: String?
 
     /// The `description` key. It tells the model when to use the agent.

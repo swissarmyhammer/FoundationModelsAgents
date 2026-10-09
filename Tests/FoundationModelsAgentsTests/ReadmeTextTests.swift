@@ -4,16 +4,16 @@ import Testing
 /// Holds the text of `README.md` to the rules of the code.
 ///
 /// The rule table of `AgentDefinition` gives a warning for a `name` that is
-/// absent or not equal to the file name, and the file loads, because the file
-/// name is the id. The README must state this rule, and it must not state
-/// that `name` is necessary. A page wraps its lines, thus each claim fits on
-/// one line of the README.
+/// absent or not equal to the folder name, and the agent loads, because the
+/// folder name is the id. The README must state this rule, and it must not
+/// state that `name` is necessary. A page wraps its lines, thus each claim
+/// fits on one line of the README.
 @Suite("README.md text")
 struct ReadmeTextTests {
     /// Every text that the README must hold.
     private static let claims = [
-        "A `name` that is absent or not equal to the file name gives a warning.",
-        "The file loads, because the file name is the id.",
+        "A `name` that is absent or not equal to the folder name gives a warning.",
+        "The agent loads, because the folder name is the id.",
         "An agent with no valid `description` is not visible to the model."
     ]
 

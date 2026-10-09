@@ -21,8 +21,8 @@ struct MarketplaceEndToEndTests {
     /// The agent of the `docs-tools` plugin. It has `model: sonnet`.
     private static let docWriter = "doc-writer"
 
-    /// The plugin that holds `securityReviewer` and the `review` skill.
-    private static let codeTools = "code-tools"
+    /// The resource file in the agent folder of `securityReviewer`.
+    private static let securityReviewerResource = "checklist.md"
 
     /// The skill of the `code-tools` plugin.
     private static let reviewSkill = "review"
@@ -51,8 +51,8 @@ struct MarketplaceEndToEndTests {
     /// The agent that the second commit adds to the `docs-tools` plugin.
     private static let addedAgent = "api-writer"
 
-    /// The path of the file of `addedAgent` in the fixture repository.
-    private static let addedAgentPath = "plugins/docs-tools/agents/\(addedAgent).md"
+    /// The path of the document of `addedAgent` in the fixture repository.
+    private static let addedAgentPath = "plugins/docs-tools/\(AgentDocumentPath.of(addedAgent))"
 
     /// The file of `addedAgent`.
     private static let addedAgentText = """
@@ -76,13 +76,13 @@ struct MarketplaceEndToEndTests {
     /// The skill of the tree source.
     private static let treeSkill = "tree-skill"
 
-    /// The tree of a git source with no catalog: one agent that includes one
-    /// partial of the source root, and one skill.
+    /// The tree of a git source with no plugin folder: one agent that
+    /// includes one partial of the source root, and one skill.
     ///
     /// - Returns: The tree, one entry for each path.
     private static func treeFiles() -> [String: GitFixtureRepository.Entry] {
         [
-            agentPath(treeAgent): .file(
+            AgentDocumentPath.of(treeAgent): .file(
                 """
                 ---
                 name: \(treeAgent)
@@ -146,14 +146,6 @@ struct MarketplaceEndToEndTests {
         FileManager.default.fileExists(atPath: root.appendingPathComponent(path).path)
     }
 
-    /// The path of the file of an agent, relative to a layer root.
-    ///
-    /// - Parameter id: The agent id.
-    /// - Returns: `agents/<id>.md`.
-    private static func agentPath(_ id: String) -> String {
-        "\(MarketplaceLayer.agentsDirectoryName)/\(id).md"
-    }
-
     /// The path of a partial, relative to a layer root.
     ///
     /// - Parameter name: The file name of the partial.
@@ -194,16 +186,6 @@ struct MarketplaceEndToEndTests {
         #expect(skills.metadata().map(\.id) == [Self.reviewSkill])
     }
 
-    @Test(".plugins([code-tools]) gives security-reviewer only")
-    func pluginsSelectionGivesThePluginAgents() async throws {
-        let provider = try await FixtureMarketplaceProvider.make(select: .plugins([Self.codeTools]))
-        defer { try? provider.delete() }
-
-        let catalog = try await Self.agentRegistry(over: provider).loadedCatalog()
-
-        #expect(catalog.definitions.map(\.id) == [Self.securityReviewer])
-    }
-
     @Test(".skills([review]) gives the skill and no agents")
     func skillsSelectionGivesNoAgents() async throws {
         let provider = try await FixtureMarketplaceProvider.make(select: .skills([Self.reviewSkill]))
@@ -218,17 +200,30 @@ struct MarketplaceEndToEndTests {
         #expect(skills.metadata().map(\.id) == [Self.reviewSkill])
     }
 
-    @Test("the snapshot of a catalog source has the layer shape, with the partials at <snapshot>/_partials/")
-    func catalogSourceHasTheLayerShape() async throws {
+    @Test("the snapshot of the plugin tree has the layer shape, with the partials at <snapshot>/_partials/")
+    func pluginTreeHasTheLayerShape() async throws {
         let provider = try await FixtureMarketplaceProvider.make()
         defer { try? provider.delete() }
 
         let root = try #require(provider.marketplaceLayers().first).layer.root
-        let agentPaths = FixtureMarketplaceProvider.agentIDs.map(Self.agentPath)
+        let agentPaths = FixtureMarketplaceProvider.agentIDs.map(AgentDocumentPath.of)
 
         #expect(agentPaths.allSatisfy { Self.holdsFile($0, in: root) })
         #expect(Self.holdsFile(Self.skillPath(Self.reviewSkill), in: root))
         #expect(Self.holdsFile(Self.partialPath(Self.houseRulesName), in: root))
+    }
+
+    @Test("the folder of a marketplace agent is in the snapshot, and it holds the resources of the agent")
+    func marketplaceAgentFolderHoldsItsResources() async throws {
+        let provider = try await FixtureMarketplaceProvider.make()
+        defer { try? provider.delete() }
+
+        let catalog = try await Self.agentRegistry(over: provider).loadedCatalog()
+        let definition = try #require(catalog.definition(named: Self.securityReviewer))
+        let root = try #require(provider.marketplaceLayers().first).layer.root
+
+        #expect(definition.folderURL == root.appendingPathComponent("agents/\(Self.securityReviewer)"))
+        #expect(Self.holdsFile(Self.securityReviewerResource, in: definition.folderURL))
     }
 
     @Test("the snapshot of a tree source has the layer shape, and its agent includes a root partial")
@@ -244,7 +239,7 @@ struct MarketplaceEndToEndTests {
         let definition = try #require(catalog.definition(named: Self.treeAgent))
         let body = try AgentBodyRenderer(registry: registry).render(definition, prompt: Self.prompt)
 
-        #expect(Self.holdsFile(Self.agentPath(Self.treeAgent), in: root))
+        #expect(Self.holdsFile(AgentDocumentPath.of(Self.treeAgent), in: root))
         #expect(Self.holdsFile(Self.partialPath(Self.treePartialName), in: root))
         #expect(Self.holdsFile(Self.skillPath(Self.treeSkill), in: root))
         #expect(catalog.definitions.map(\.id) == [Self.treeAgent])
