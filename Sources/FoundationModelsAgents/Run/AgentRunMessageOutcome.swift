@@ -1,6 +1,6 @@
 /// What ``AgentRun/deliver(_:)`` did with a message from the caller of a
 /// run.
-enum AgentRunMessageOutcome: Sendable, Equatable {
+public enum AgentRunMessageOutcome: Sendable, Equatable {
     /// The run accepted the message. The session of the run answers it
     /// before the run ends.
     case delivered

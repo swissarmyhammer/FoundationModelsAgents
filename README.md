@@ -183,7 +183,9 @@ start is one slash command.
 
 A caller can send a message to a run that is still running. A model calls
 `{"op": "send agent", "id": "<id>", "message": "<text>"}`, and the run answers
-the message before it ends.
+the message before it ends. A host calls `await run.deliver("<text>")` for a
+run that it started. The call gives `.delivered`, or `.ended(state)` for a
+run that ended.
 
 The run holds a message that comes before its task prompt starts, and the
 session of the run gets it after the task prompt. A run that ended gets no
@@ -191,8 +193,9 @@ message, and the call gives a corrective: "The run `id` ended (`state`), and
 it gets no more messages. Start a new run." A run with a caller sends a
 message to that caller with `send caller`. The message comes to the caller as
 mail, and the run continues to work. A run that has no caller gets the
-corrective "You have no caller." Each message gives one `agent.message.sent`
-log record and span event. The record never holds the text of the message.
+corrective "You have no caller." Each message through the `agents` tool gives
+one `agent.message.sent` log record and span event. The record never holds
+the text of the message.
 
 [`Tests/FoundationModelsAgentsTests/ReadmeExampleSource.swift`](Tests/FoundationModelsAgentsTests/ReadmeExampleSource.swift)
 holds a copy of the example. `ReadmeExampleTests` compares the texts, and

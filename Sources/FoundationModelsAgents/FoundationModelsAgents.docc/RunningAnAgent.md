@@ -85,7 +85,8 @@ the state ``AgentRunState/failed(_:)``.
 Then the run sends the prompt as the first message of its session, and the
 session answers it in the background. A run with a caller can send messages
 to that caller with `send caller` while it works. A caller can send messages
-to the run with `send agent`: the run holds a message that comes before the
+to the run with `send agent`, and a host calls ``AgentRun/deliver(_:)`` for
+a run that it started: the run holds a message that comes before the
 answer of the task prompt starts, and the session gets the message after the
 task prompt. The run answers each message that it accepted before it ends. A
 run that started no agents and got no message ends when this answer ends,

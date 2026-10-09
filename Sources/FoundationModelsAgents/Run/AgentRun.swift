@@ -411,7 +411,7 @@ public final class AgentRun: Sendable {
     ///   ``AgentRunMessageOutcome/ended(_:)`` with the final state when the
     ///   run started to end before the message: its answers ended, a caller
     ///   cancelled it, or its setup failed.
-    func deliver(_ message: String) async -> AgentRunMessageOutcome {
+    public func deliver(_ message: String) async -> AgentRunMessageOutcome {
         let admission = storage.withLock { storage in
             Self.admit(message, in: &storage)
         }

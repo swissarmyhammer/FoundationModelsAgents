@@ -76,6 +76,7 @@ skill.
 - ``AgentRunner``
 - ``AgentRun``
 - ``AgentRunState``
+- ``AgentRunMessageOutcome``
 - ``AgentRunFailure``
 - ``AgentRunnerError``
 
