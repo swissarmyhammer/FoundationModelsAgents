@@ -104,7 +104,7 @@ struct AgentRunProgress: Sendable, Equatable {
     ///
     /// - Parameter event: The event.
     mutating func apply(_ event: SessionEvent) {
-        if case .toolInvocation(let record) = event, record.closedAt == nil {
+        if case .toolInvocation(let record, _) = event, record.closedAt == nil {
             toolNames = Array((toolNames + [record.tool]).suffix(Self.toolNameLimit))
         }
         if case .textDelta(let fragment) = event {

@@ -248,7 +248,7 @@ enum AgentsDemoModes {
             [messagePrefix + message.correlationID]
         case .mailDeliveryPaused(let pause):
             [pausedPrefix + pause.description, sendMessageHint]
-        case .textDelta, .textReset, .reasoningDelta, .toolCall, .toolStatus, .toolInvocation,
+        case .textDelta, .textReset, .reasoningDelta, .toolCall, .toolStatus, .toolInvocation, .toolDisplay,
             .toolCallReport, .entryRecorded, .compaction, .discoveryPrimingFailed, .generationStalled,
             .submissionQueued, .submissionStarted, .submissionEnded, .repetitionStopped,
             .elicitationRequested, .generationCall, .compactionStarted, .compactionFailed,

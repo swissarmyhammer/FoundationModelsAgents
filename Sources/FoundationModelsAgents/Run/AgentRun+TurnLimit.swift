@@ -14,7 +14,7 @@ import Synchronization
 ///
 /// - The live events count the passes of the submission in operation. Each
 ///   ``SessionEvent/generationCall(_:)`` is one pass. An open
-///   ``SessionEvent/toolInvocation(_:)`` record shows that at least one pass
+///   ``SessionEvent/toolInvocation(_:toolCallID:)`` record shows that at least one pass
 ///   ran: the tools of a pass can open before the generation call of that
 ///   pass comes, and a backend that reports no usage gives no generation
 ///   call at all. Thus the live count of a submission is its count of
@@ -99,7 +99,7 @@ final class AgentRunTurns: Sendable {
         if case .generationCall = event {
             return update { $0.generationCalls += 1 }
         }
-        if case .toolInvocation(let record) = event, record.closedAt == nil {
+        if case .toolInvocation(let record, _) = event, record.closedAt == nil {
             return update { $0.hasToolOpen = true }
         }
         if case .entryRecorded(_, let kind) = event, Self.isPass(kind) {
