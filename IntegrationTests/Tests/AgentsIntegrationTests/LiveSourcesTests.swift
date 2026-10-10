@@ -24,8 +24,10 @@ extension LiveSuites {
     ///   answers with ``LiveSourceTree/answerWord``, thus the test sees that the
     ///   model got the body of that agent.
     /// - The `swissarmyhammer/skills` marketplace comes over HTTPS: the git
-    ///   transport of FoundationModelsExtras has no SSH. It gives its eight
-    ///   agents, and its `_partials/sah-*.md` files are at the root of its layer.
+    ///   transport of FoundationModelsExtras has no SSH. It gives each agent
+    ///   folder of its snapshot, and its `_partials/sah-*.md` files are at the
+    ///   root of its layer. The test reads the expected agents and partials
+    ///   from the snapshot, because the repository can add or remove them.
     ///
     /// Each live test uses the one resolved profile of ``LiveProfile/shared``.
     /// The parent suite is serialized, thus one live run at a time uses the
@@ -34,16 +36,6 @@ extension LiveSuites {
     struct LiveSourcesTests {
         /// The HTTPS URL of the `swissarmyhammer/skills` marketplace.
         private static let skillsMarketplaceURL = "https://github.com/swissarmyhammer/skills.git"
-
-        /// The agent ids of the `swissarmyhammer/skills` marketplace, sorted.
-        private static let skillsAgentIDs = [
-            "committer", "double-check", "explorer", "general-purpose",
-            "implementer", "planner", "reviewer", "tester"
-        ]
-
-        /// The number of `_partials/sah-*.md` files at the root of the layer of
-        /// the `swissarmyhammer/skills` marketplace.
-        private static let skillsPartialCount = 8
 
         /// The name of the partials folder at the root of a marketplace layer.
         private static let partialsFolderName = "_partials"
@@ -106,17 +98,36 @@ extension LiveSuites {
             let registry = AgentRegistry(marketplaces: fixture.store, stack: DotfolderStack(layers: []))
             try await registry.load()
 
+            let layer = try #require(fixture.store.marketplaceLayers().first)
+            let snapshotAgentIDs = try Self.agentFolderNames(in: layer.layer.root)
+            try #require(!snapshotAgentIDs.isEmpty, "The snapshot holds no agent folder")
             let marketplaceAgentIDs = registry.catalog().definitions
                 .filter { $0.marketplaceLayer != nil }
                 .map(\.id)
-            #expect(marketplaceAgentIDs == Self.skillsAgentIDs)
+            #expect(marketplaceAgentIDs == snapshotAgentIDs)
 
-            let layer = try #require(fixture.store.marketplaceLayers().first)
             let partialsFolder = layer.layer.root.appendingPathComponent(Self.partialsFolderName, isDirectory: true)
             let partials = try FileManager.default.contentsOfDirectory(atPath: partialsFolder.path)
                 .filter { $0.hasPrefix(Self.skillsPartialPrefix) && $0.hasSuffix(Self.partialSuffix) }
-            #expect(partials.count == Self.skillsPartialCount, "The partials at the layer root: \(partials.sorted())")
+            #expect(!partials.isEmpty, "The partials folder at the layer root holds no sah-*.md file")
             withExtendedLifetime(fixture) {}
+        }
+
+        /// Gives the name of each folder in `<root>/agents/` that holds an
+        /// `AGENT.md` document, sorted.
+        ///
+        /// - Parameter root: The root of a marketplace layer.
+        /// - Returns: The agent ids that the snapshot holds.
+        /// - Throws: The error of the folder read.
+        private static func agentFolderNames(in root: URL) throws -> [String] {
+            let agents = root.appendingPathComponent(MarketplaceLayer.agentsDirectoryName, isDirectory: true)
+            return try FileManager.default.contentsOfDirectory(atPath: agents.path)
+                .filter { name in
+                    let document = agents.appendingPathComponent(name, isDirectory: true)
+                        .appendingPathComponent(MarketplaceLayer.agentDocumentName)
+                    return FileManager.default.fileExists(atPath: document.path)
+                }
+                .sorted()
         }
 
         /// Loads `registry`, starts the agent `id` on the live profile, and waits
