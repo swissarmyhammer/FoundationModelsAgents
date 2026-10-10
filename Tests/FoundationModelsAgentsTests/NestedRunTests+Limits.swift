@@ -76,10 +76,12 @@ extension NestedRunTests {
         /// The final text of the child of the second sibling.
         private static let secondHelperText = "The second part is done."
 
-        /// The key of the play of the child planner in the depth test.
+        /// The key of the play of the child in the depth test: a run of
+        /// ``flashLead``, which has an `Agent` entry. The parent is a run of
+        /// ``planner``, and a run cannot start its own agent.
         private static let childPlannerKey = "nested-child-planner-key: plan a part"
 
-        /// The final text of the child planner.
+        /// The final text of the child of the depth test.
         private static let childPlannerText = "The part is planned."
 
         /// The key of the play of the helper.
@@ -210,7 +212,7 @@ extension NestedRunTests {
             let harness = try await AgentRunHarness.make(
                 script: ScriptedAgentScript([
                     NestedRunTests.parentPlay(
-                        NestedRunTests.leadKey, children: [(Self.planner, Self.childPlannerKey)]),
+                        NestedRunTests.leadKey, children: [(Self.flashLead, Self.childPlannerKey)]),
                     ScriptedAgentPlay(key: Self.childPlannerKey, steps: [.finalText(Self.childPlannerText)])
                 ]),
                 registry: AgentRegistry(layers: [layer.layer]))
@@ -260,7 +262,8 @@ extension NestedRunTests {
                 script: ScriptedAgentScript([]), registry: AgentRegistry(layers: [layer.layer]))
             defer { try? runHarness.delete() }
             let runner = runHarness.makeRunner(maxDepth: Self.depthLimit)
-            let atLimit = ParentRun(depth: Self.depthLimit, slot: .standard, family: ParentRun.Family())
+            let atLimit = ParentRun(
+                depth: Self.depthLimit, slot: .standard, agentID: Self.planner, family: ParentRun.Family())
             let tool = try await AgentsTool.make(
                 context: AgentsToolContext(
                     runner: runner, allowedNames: nil, parent: atLimit, callerLink: nil, grant: .full))

@@ -91,10 +91,19 @@ let root = profile.standard.makeSession(instructions: "…", workingDirectory: p
 runner one time. The model-visible agents go into two places:
 
 - The description holds fixed sentences on delegation, then the agents. The
-  agent list uses the first form that fits `catalogCharacterLimit`: full
-  `- name: description` lines, descriptions cut to 200 characters, names
-  only, or as many names as fit and the count of the other agents. The fixed
-  sentences are never cut.
+  fixed sentences tell the model to compare each task with the description
+  of each agent, and to give the task to the agent whose description
+  matches it, in place of doing the task itself. When the list does not show
+  all the agents or their descriptions, or no listed agent matches, the model
+  calls `{"op": "list agents"}`. When no agent matches after that, the model
+  does the task itself. The model puts the full task in the
+  `prompt`, because the agent sees only that prompt. Each call in the text
+  names the tool `agents`, and the text tells that the value of `op` is not
+  the name of a tool. The agent list uses the first form that fits
+  `catalogCharacterLimit`: full `- name: description` lines, descriptions
+  cut to 200 characters, names only, or as many names as fit and the count
+  of the other agents with the `list agents` call. The fixed sentences are
+  never cut.
 - The schema makes the `name` field an enum of the same agents. Thus the model
   cannot invent a name.
 
@@ -106,6 +115,15 @@ the schema of this tool.
 ``AgentsToolContext/init(runner:allowedNames:)`` with `allowedNames` limits
 the tool to those agents. The `Agent(a, b)` entry of a `tools` key gives the
 same limit to the tool of a run.
+
+The tool of a run does not offer the agent of that run. Its description,
+`list agents`, and the `name` enum do not hold that agent. A `start agent`
+call with its name gives the corrective "You cannot start the agent `name`,
+because it is your own agent. Do this task yourself." with the names that the
+tool can start. A `send agent` call with the id of the run gives the corrective
+"The id `id` is the id of your own run. You cannot send a message to your own
+run." Thus a model of a run cannot give its own task to a new run of its own
+agent. The tool of a host session is not a run, and it offers each agent.
 
 ### Answers are plain text
 

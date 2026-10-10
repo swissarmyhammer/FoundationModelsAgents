@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModelsAgents
+import FoundationModelsExtras
 import FoundationModelsRouter
 import FoundationModelsRouterTestSupport
 import FoundationModelsSkills
@@ -7,9 +8,12 @@ import Testing
 
 /// The resolved real profile of the live suites.
 ///
-/// The profile has small `mlx-community` models: a different model in the
-/// `standard` slot and in the `flash` slot, and an embedding model. Thus each
-/// generation slot has its own generation queue. The recipe is the recipe of
+/// The profile has the default models of `FoundationModelsACPAgent`
+/// (`ProfileConfiguration` in `AgentConfiguration.swift`): a different
+/// `mlx-community` model in the `standard` slot and in the `flash` slot, and
+/// an embedding model. Thus each generation slot has its own generation
+/// queue. The live suites test the agents with the models that a user of the
+/// family gets by default. The recipe is the recipe of
 /// `Examples/agents-demo/AgentsDemoProfile.swift`: a `Router` over the live
 /// model loader, then one resolve of ``definition``.
 ///
@@ -54,9 +58,9 @@ struct LiveProfile: Sendable {
     /// The profile that the live suites resolve.
     static let definition = ProfileDefinition(
         name: "agents-integration",
-        description: "Small local models for the FoundationModelsAgents integration suites.",
-        standard: ["mlx-community/Qwen3-4B-4bit"],
-        flash: ["mlx-community/Qwen3-1.7B-4bit"],
+        description: "The FoundationModelsACPAgent default models for the FoundationModelsAgents integration suites.",
+        standard: ["mlx-community/Qwen3.8-27B-mxfp4"],
+        flash: ["mlx-community/Qwen3-4B-4bit"],
         embedding: ["mlx-community/Qwen3-Embedding-0.6B-4bit-DWQ"])
 
     /// The one resolve of the process.
@@ -89,19 +93,23 @@ struct LiveProfile: Sendable {
     /// Makes a runner over the live profile.
     ///
     /// The environment has no skills layer and the default limits of
-    /// `AgentEnvironment`.
+    /// `AgentEnvironment`, with the settle period `inlineSettleGrace`.
     ///
     /// - Parameters:
     ///   - registry: The registry of the agents. The caller loads it.
     ///   - workingDirectory: The working directory of each run.
     ///   - tools: The tools that an agent can name in its `tools` field.
+    ///   - inlineSettleGrace: The settle period of the session of each run,
+    ///     in seconds. The default is `ToolMount.defaultInlineSettleGrace`.
     /// - Returns: The runner. The caller stops it at the end of the test.
     /// - Throws: The error of `AgentEnvironment.make`.
     func makeRunner(
-        registry: AgentRegistry, workingDirectory: URL, tools: ToolCatalog = ToolCatalog()
+        registry: AgentRegistry, workingDirectory: URL, tools: ToolCatalog = ToolCatalog(),
+        inlineSettleGrace: TimeInterval = ToolMount.defaultInlineSettleGrace
     ) async throws -> AgentRunner {
         let environment = try await AgentEnvironment.make(
-            profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory, tools: tools)
+            profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory, tools: tools,
+            inlineSettleGrace: inlineSettleGrace)
         return AgentRunner(registry: registry, environment: environment)
     }
 

@@ -1,3 +1,4 @@
+import Foundation
 import FoundationModelsAgents
 import FoundationModelsExtras
 import FoundationModelsRouter
@@ -65,11 +66,21 @@ extension LiveSuites {
         /// The op of `send caller`.
         private static let sendCallerOperation = "send caller"
 
+        /// The settle period of the lineage test: `0` sends each run to the
+        /// background at once.
+        ///
+        /// With the default period, `leaf` on the `flash` slot ends in a few
+        /// seconds, the `start agent` call of `lead` gives the final message
+        /// in place of the pending envelope, and no mail comes. The test
+        /// examines the pending envelope and the mail, thus each start goes
+        /// to the background.
+        private static let backgroundAtOnce: TimeInterval = 0
+
         @Test("agentSpawn links three sessions, parentToolCallId joins to the start agent call, lead reads leaf")
         func agentSpawnLinksThreeSessions() async throws {
             let agents = try Self.agentFiles()
 
-            try await LiveHarness.withHarness(agents: agents) { harness in
+            try await LiveHarness.withHarness(agents: agents, inlineSettleGrace: Self.backgroundAtOnce) { harness in
                 let root = harness.makeRootSession(tools: [try await harness.makeAgentsTool()])
                 let rootEvents = await root.streamSessionEvents()
                 var mailAnswers = rootEvents.filter { event in

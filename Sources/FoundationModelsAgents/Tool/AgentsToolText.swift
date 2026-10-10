@@ -156,6 +156,27 @@ enum AgentsToolText {
         "You cannot start the agent \(name). \(availability(available))"
     }
 
+    /// Gives the corrective of `start agent` in the tool of a run, with the
+    /// name of the agent of that run.
+    ///
+    /// - Parameters:
+    ///   - name: The name that the model gave: the agent of the run.
+    ///   - available: The names of the agents that the tool can start now.
+    /// - Returns: The corrective, with the available names.
+    static func ownAgent(_ name: String, available: [String]) -> String {
+        "You cannot start the agent \(name), because it is your own agent. Do this task yourself. "
+            + availability(available)
+    }
+
+    /// Gives the corrective of `send agent` in the tool of a run, with the id
+    /// of that run.
+    ///
+    /// - Parameter id: The id that the model gave: the id of the run.
+    /// - Returns: The corrective.
+    static func ownRun(_ id: String) -> String {
+        "The id \(id) is the id of your own run. You cannot send a message to your own run."
+    }
+
     /// Gives the corrective of `check agent`, `cancel agent`, or
     /// `send agent` with an id that no run of the caller has.
     ///

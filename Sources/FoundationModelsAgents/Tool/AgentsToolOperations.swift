@@ -135,10 +135,14 @@ extension StartAgent {
     /// - Parameters:
     ///   - startable: The names of the agents that the tool can start now.
     ///   - context: The shared context of the tool.
-    /// - Returns: The not-permitted corrective when the catalog has a
-    ///   model-visible agent `name` that `Agent(a, b)` does not permit.
-    ///   Otherwise the unknown-agent corrective.
+    /// - Returns: The own-agent corrective when `name` is the agent of the
+    ///   run that holds the tool. The not-permitted corrective when the
+    ///   catalog has a model-visible agent `name` that `Agent(a, b)` does not
+    ///   permit. Otherwise the unknown-agent corrective.
     private func unavailableText(startable: [String], in context: AgentsToolContext) -> String {
+        guard !context.isOwnAgent(name) else {
+            return AgentsToolText.ownAgent(name, available: startable)
+        }
         let isVisible = context.runner.catalog().definition(named: name)?.isModelVisible == true
         return isVisible
             ? AgentsToolText.notPermitted(name, available: startable)
@@ -238,14 +242,19 @@ extension SendAgent {
     ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The sent text when the run or the caller accepted the
-    ///   message. A corrective for a blank message, for a run that ended, or
-    ///   for an id that names no run of the caller and not the caller.
+    ///   message. A corrective for a blank message, for the id of the run
+    ///   that holds the tool (``AgentsToolContext/isOwnRun(_:)``), for a run
+    ///   that ended, or for an id that names no run of the caller and not the
+    ///   caller.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
         if let corrective = AgentsToolContext.blankMessageCorrective(message) {
             return corrective
         }
         guard !context.isCaller(id) else {
             return await context.messageCaller(message)
+        }
+        guard !context.isOwnRun(id) else {
+            return .corrective(AgentsToolText.ownRun(id))
         }
         return await context.answer(forRun: id) { run in await deliver(to: run, in: context) }
     }

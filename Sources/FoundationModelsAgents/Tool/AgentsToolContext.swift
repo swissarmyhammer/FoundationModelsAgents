@@ -106,11 +106,43 @@ public struct AgentsToolContext: Sendable {
 
     /// Tells whether the tool can start `definition`.
     ///
+    /// The tool of a run cannot start the agent of that run
+    /// (``isOwnAgent(_:)``). Thus the description, `list agents`, and the
+    /// `name` enum of the tool do not hold that agent, and the model of the
+    /// run cannot give its own task to a new run of its own agent.
+    ///
     /// - Parameter definition: An agent of the catalog.
-    /// - Returns: `true` when the model can see the agent and the allowed
-    ///   names, if any, hold its id.
+    /// - Returns: `true` when the model can see the agent, the allowed names,
+    ///   if any, hold its id, and it is not the agent of the run.
     func canStart(_ definition: AgentDefinition) -> Bool {
         definition.isModelVisible && (allowedNames?.contains(definition.id) ?? true)
+            && !isOwnAgent(definition.id)
+    }
+
+    /// Tells whether `name` is the agent of the run whose session holds the
+    /// tool.
+    ///
+    /// - Parameter name: The id of an agent.
+    /// - Returns: `true` when the session is a run of the agent `name`. A
+    ///   session that is not a run, for example a host root session, has no
+    ///   own agent.
+    func isOwnAgent(_ name: String) -> Bool {
+        parent?.agentID == name
+    }
+
+    /// Tells whether `id` is the id of the run whose session holds the tool.
+    ///
+    /// A run id is the id of its session, thus the session of
+    /// `ToolContext.current` names the run that makes the call.
+    ///
+    /// - Parameter id: The id that the model gave. White space at the start
+    ///   or the end, and the case of the letters, do not matter.
+    /// - Returns: `true` when the session is a run and `id` names it.
+    func isOwnRun(_ id: String) -> Bool {
+        guard parent != nil, let sessionID = ToolContext.current?.sessionID else {
+            return false
+        }
+        return ULID(ulidString: Self.key(of: id)) == sessionID
     }
 
     /// Gives the agents that the tool can start now.

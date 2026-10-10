@@ -4,8 +4,9 @@ import ULID
 ///
 /// A model reads the description of a tool before it plans, thus the
 /// description is where the model learns which agents it can start. The
-/// text has the fixed sentences, which tell the model how to delegate, and
-/// then the list of the agents.
+/// text has the fixed sentences, which tell the model to compare each task
+/// with the description of each agent, to give a task to the agent that
+/// matches it, and how to delegate. Then the list of the agents follows.
 ///
 /// The list has a character limit. The limit counts the list only, thus the
 /// fixed sentences take no room from it and are never cut. The builder tries
@@ -15,7 +16,7 @@ import ULID
 /// 2. The same lines, with each description cut to 200 characters.
 /// 3. The names only, on one comma-separated line.
 /// 4. As many names as fit, then a line with the count of the names that are
-///    not listed and the tip to see them with `list agents`.
+///    not listed and the `list agents` call that shows them.
 ///
 /// An empty catalog gives the no-agents line in place of the list.
 ///
@@ -38,6 +39,14 @@ enum AgentsToolDescription {
     /// The words that name the `agents` tool in the delegation sentence.
     private static let toolReference = #"the tool "\#(ToolVocabulary.agentsToolName)""#
 
+    /// The words before the JSON arguments of each call that the text tells
+    /// the model to make. Each call names the `agents` tool, thus a model
+    /// does not call an op name as a tool.
+    private static let callPrefix = "call \(toolReference) with the arguments"
+
+    /// The JSON arguments of a `list agents` call with no filter.
+    private static let listCall = #"{"op": "list agents"}"#
+
     /// The sentence that tells that the value of `op` is not a tool name.
     private static let opSentence = #"The value of "op" is an operation of \#(toolReference), not the name of a tool."#
 
@@ -49,14 +58,36 @@ enum AgentsToolDescription {
     /// the op name "start agent" as the name of a tool, and the Router
     /// rejected that call as `undeclared_tool`.
     static let delegationSentence = """
-        To give a task to an agent, call \(toolReference) with the arguments {"op": "start agent", \
+        To give a task to an agent, \(callPrefix) {"op": "start agent", \
         "name": "<name>", "prompt": "<the full task>"}. \(opSentence)
         """
 
-    /// The fixed sentences: what an agent is and how to delegate to one.
+    /// The sentences that tell the model to find a matching agent before it
+    /// does a task itself.
+    ///
+    /// The model compares the task with the description of each listed
+    /// agent, and gives the task to the agent that matches. When the list
+    /// is cut or no listed agent matches, the model calls `list agents`.
+    /// When no agent matches after that, the model does the task itself.
+    ///
+    /// The list of the tool of a run does not hold the agent of that run
+    /// (``AgentsToolContext/canStart(_:)``). Thus a model of a run cannot
+    /// match its own entry and give its own task to a new run of its own
+    /// agent.
+    private static let matchSentences = """
+        Each agent in the list below has a name and a description of the tasks that it does. Before you \
+        do a task, compare the task with the description of each agent. When the description of an agent \
+        matches the task, give the task to that agent in place of doing the task yourself. When the list \
+        does not show all the agents or their descriptions, or when no agent in the list matches the task, \
+        \(callPrefix) \(listCall). When no agent matches the task after that, do the task yourself.
+        """
+
+    /// The fixed sentences: what an agent is, how to find the agent for a
+    /// task, and how to delegate to it.
     private static let fixedSentences = """
-        An agent is a model session that works in the background. Each agent starts with an empty context \
-        and sees only the prompt that you give it, so put all that the agent needs in the prompt. \
+        An agent is a model session that works in the background. \(matchSentences) Each agent starts with \
+        an empty context and sees only the prompt that you give it, so put the full task and all that the \
+        agent needs in the prompt. \
         \(delegationSentence) When the agent finishes in a few seconds, the call gives its final \
         message. Else the agent works in the background, and its final message comes to you as a new \
         message after you end your answer. Your answer is the text of \
@@ -67,7 +98,7 @@ enum AgentsToolDescription {
     /// The description of a tool with only the message operations. It names
     /// no agent and no `start agent`, because that tool cannot start a run.
     static let messaging = """
-        This tool sends messages. To send a message to a run, call \(toolReference) with the arguments \
+        This tool sends messages. To send a message to a run, \(callPrefix) \
         {"op": "send agent", "id": "<id>", "message": "<the message>"}. \(opSentence) \
         You continue to work after the message is sent.
         """
@@ -75,8 +106,9 @@ enum AgentsToolDescription {
     /// The line that replaces the list when no agent is visible.
     private static let noAgentsLine = "No agents are installed now."
 
-    /// The words after the count on the last line of form 4.
-    private static let notListedNote = "more agents are not listed. See them with `list agents`."
+    /// The words after the count on the last line of form 4: the `list
+    /// agents` call that shows the agents that are not listed.
+    private static let notListedNote = "more agents are not listed. To see them, \(callPrefix) \(listCall)."
 
     /// The most characters that a description of form 2 has, with the
     /// ellipsis.

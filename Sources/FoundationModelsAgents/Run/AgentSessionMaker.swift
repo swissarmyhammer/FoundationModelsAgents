@@ -56,7 +56,8 @@ struct AgentSessionMaker: Sendable {
             definition.model, profile: environment.profile, inherited: request.inheritedSlot
         ).slot
         let tools = try await tools(
-            for: request, as: ParentRun(depth: request.depth, slot: slot, family: family))
+            for: request,
+            as: ParentRun(depth: request.depth, slot: slot, agentID: definition.id, family: family))
         let model = ModelMatch.model(of: slot, in: environment.profile)
         let session = model.makeSession(
             configuration: SessionConfiguration(

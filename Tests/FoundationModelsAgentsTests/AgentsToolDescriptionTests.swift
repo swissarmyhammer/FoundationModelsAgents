@@ -16,8 +16,14 @@ struct AgentsToolDescriptionTests {
 
     /// The fixed sentences, word for word.
     private static let fixedSentences =
-        "An agent is a model session that works in the background. Each agent starts with an empty context "
-        + "and sees only the prompt that you give it, so put all that the agent needs in the prompt. "
+        "An agent is a model session that works in the background. Each agent in the list below has a name "
+        + "and a description of the tasks that it does. Before you do a task, compare the task with the "
+        + "description of each agent. When the description of an agent matches the task, give the task to "
+        + "that agent in place of doing the task yourself. When the list does not show all the agents or their "
+        + "descriptions, or when no agent in the list matches the task, call the tool \"agents\" with the "
+        + #"arguments {"op": "list agents"}. When no agent matches the task after that, do the task yourself. "#
+        + "Each agent starts with an empty context and sees only the prompt "
+        + "that you give it, so put the full task and all that the agent needs in the prompt. "
         + #"To give a task to an agent, call the tool "agents" with the arguments {"op": "start agent", "#
         + #""name": "<name>", "prompt": "<the full task>"}. The value of "op" is an operation of the tool "#
         + #""agents", not the name of a tool. When the agent finishes in a few seconds, the call gives its "#
@@ -29,6 +35,11 @@ struct AgentsToolDescriptionTests {
 
     /// The text between the fixed sentences and the agent list.
     private static let listSeparator = "\n\n"
+
+    /// The words after the count on the count line of the partial form,
+    /// word for word.
+    private static let notListedNote =
+        #"more agents are not listed. To see them, call the tool "agents" with the arguments {"op": "list agents"}."#
 
     /// The line of an empty catalog.
     private static let noAgentsLine = "No agents are installed now."
@@ -110,7 +121,7 @@ struct AgentsToolDescriptionTests {
 
     @Test func thePartialFormGivesTheNamesThatFitAndTheCountOfTheOthers() throws {
         let firstName = try #require(Self.longNamedAgents.first?.name)
-        let countLine = "2 more agents are not listed. See them with `list agents`."
+        let countLine = "2 " + Self.notListedNote
         let list = firstName + "\n" + countLine
 
         let description = AgentsToolDescription.make(agents: Self.longNamedAgents, characterLimit: list.count)
@@ -119,7 +130,7 @@ struct AgentsToolDescriptionTests {
     }
 
     @Test func thePartialFormGivesOnlyTheCountLineWhenNoNameFits() {
-        let countLine = "3 more agents are not listed. See them with `list agents`."
+        let countLine = "3 " + Self.notListedNote
 
         let description = AgentsToolDescription.make(agents: Self.longNamedAgents, characterLimit: countLine.count)
 

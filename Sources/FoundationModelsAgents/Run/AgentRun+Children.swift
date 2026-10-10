@@ -42,8 +42,9 @@ enum AgentRunPhase: Sendable, Equatable {
 /// The run that calls the `agents` tool, as the tool sees it.
 ///
 /// `start agent` uses it to give a child its depth and its inherited slot,
-/// and the child adds itself to ``children``. A root session that is not a
-/// run has no such value.
+/// and the child adds itself to ``children``. The tool also uses ``agentID``:
+/// the tool of a run does not list, start, or send a message to its own
+/// agent. A root session that is not a run has no such value.
 struct ParentRun: Sendable {
     /// The children of one run. The run makes them before its session,
     /// because the `agents` tool of the session needs them.
@@ -57,6 +58,10 @@ struct ParentRun: Sendable {
 
     /// The slot of the session of the calling run.
     let slot: ModelSlot
+
+    /// The id of the agent of the calling run. The `agents` tool of the run
+    /// does not offer this agent.
+    let agentID: String
 
     /// The children of the calling run.
     let family: Family

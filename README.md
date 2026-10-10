@@ -20,6 +20,16 @@ agents through one tool, `agents`, with six operations: `list agents`,
 gets each operation, thus agents can start agents. Each other run that a
 `start agent` call started gets only `send agent` and `send caller`.
 
+The description of the `agents` tool lists the agents with their
+descriptions. It tells the model to compare each task with these
+descriptions, to give the task to the agent whose description matches it,
+and to put the full task in the prompt. When the list is cut or no listed
+agent matches, the model calls `{"op": "list agents"}`. When no agent matches
+after that, the model does the task itself. The tool of a run does not list,
+start, or send a message to its own agent or run, thus a run cannot give its
+own task to a new run of its own agent. The tool of a host session lists each
+agent.
+
 ## The agent folder
 
 An agent is one folder in an `agents/` folder: `agents/<name>/AGENT.md`. The

@@ -18,7 +18,7 @@ enum LiveSuites {}
 /// The parts of one live test: a local layer of agent files, its registry,
 /// and a runner over the live profile.
 ///
-/// ``withHarness(agents:tools:watch:_:)`` makes the parts, gives them to the
+/// ``withHarness(agents:tools:watch:inlineSettleGrace:_:)`` makes the parts, gives them to the
 /// test, and then stops the runner and removes the folders, also when the
 /// test throws.
 struct LiveHarness {
@@ -72,6 +72,11 @@ struct LiveHarness {
     /// The working directory of each run and of each root session.
     let workingDirectory: URL
 
+    /// The settle period of each root session and of the session of each
+    /// run, in seconds. A `start agent` call waits up to this period for its
+    /// run. `0` sends each run to the background at once.
+    let inlineSettleGrace: TimeInterval
+
     /// Makes the parts of one live test, runs `body`, then stops the runner
     /// and removes the folders.
     ///
@@ -80,11 +85,15 @@ struct LiveHarness {
     ///     layer root.
     ///   - tools: The tools that an agent can name in its `tools` field.
     ///   - watch: `true` to make the registry watch the layer root.
+    ///   - inlineSettleGrace: The settle period of each root session and of
+    ///     each run, in seconds. The default is
+    ///     `ToolMount.defaultInlineSettleGrace`.
     ///   - body: The test.
     /// - Returns: The value of `body`.
     /// - Throws: The error of the setup, of the load, or of `body`.
     static func withHarness<Value>(
         agents: [String: String], tools: [any Tool] = [], watch: Bool = false,
+        inlineSettleGrace: TimeInterval = ToolMount.defaultInlineSettleGrace,
         _ body: (LiveHarness) async throws -> Value
     ) async throws -> Value {
         let layerRoot = try LiveSourceTree.writeTemporaryFolder(holding: agents)
@@ -96,9 +105,11 @@ struct LiveHarness {
         try await registry.load()
         let live = try await LiveProfile.shared.value
         let runner = try await live.makeRunner(
-            registry: registry, workingDirectory: workingDirectory, tools: .holding(tools))
+            registry: registry, workingDirectory: workingDirectory, tools: .holding(tools),
+            inlineSettleGrace: inlineSettleGrace)
         let harness = LiveHarness(
-            live: live, layerRoot: layerRoot, registry: registry, runner: runner, workingDirectory: workingDirectory)
+            live: live, layerRoot: layerRoot, registry: registry, runner: runner, workingDirectory: workingDirectory,
+            inlineSettleGrace: inlineSettleGrace)
         let outcome: Result<Value, any Error>
         do {
             outcome = .success(try await body(harness))
@@ -149,14 +160,16 @@ struct LiveHarness {
         try await AgentsTool.make(context: AgentsToolContext(runner: runner))
     }
 
-    /// Makes a root session on the `standard` slot with ``rootInstructions``
-    /// and `tools`.
+    /// Makes a root session on the `standard` slot with ``rootInstructions``,
+    /// `tools`, and ``inlineSettleGrace``.
     ///
     /// - Parameter tools: The tools of the session.
     /// - Returns: The session. The caller closes it.
     func makeRootSession(tools: [any Tool]) -> any RoutedSession {
         live.profile.standard.makeSession(
-            instructions: Self.rootInstructions, workingDirectory: workingDirectory, tools: tools)
+            configuration: SessionConfiguration(
+                instructions: Self.rootInstructions, workingDirectory: workingDirectory, tools: tools,
+                inlineSettleGrace: inlineSettleGrace))
     }
 
     /// Calls `tool` as the host, outside of a Router session. The caller of
