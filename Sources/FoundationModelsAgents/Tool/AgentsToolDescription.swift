@@ -1,3 +1,4 @@
+import FoundationModelsExtras
 import ULID
 
 /// Builds the description of the `agents` tool.
@@ -85,11 +86,14 @@ enum AgentsToolDescription {
     /// The fixed sentences: what an agent is, how to find the agent for a
     /// task, and how to delegate to it.
     ///
-    /// The injection sentences come from ``AgentsToolText/injectionSentences``,
-    /// the same constant that the pending text of `start agent` uses.
+    /// The sentences end with `PendingRunEnvelope.pendingWorkInstruction` of
+    /// FoundationModelsExtras, the same text that the pending text of
+    /// `start agent` uses. That text starts with "This is not the result.",
+    /// thus the sentence before it names the pending answer and does not say
+    /// these words again.
     ///
-    /// The sentences do not point to `check agent`. The injection sentences
-    /// say "Do not call a tool to wait or to check", and a pointer to a
+    /// The sentences do not point to `check agent`. The pending-work text
+    /// says "Do not call a tool to wait or to check", and a pointer to a
     /// check operation tells the model to check. The descriptions of the
     /// Multitool package have no such pointer for the same reason.
     private static let fixedSentences = """
@@ -97,8 +101,8 @@ enum AgentsToolDescription {
         an empty context and sees only the prompt that you give it, so put the full task and all that the \
         agent needs in the prompt. \
         \(delegationSentence) When the agent finishes in a few seconds, the call gives its final \
-        message. Else the call is not the result: the agent works in the background. \
-        \(AgentsToolText.injectionSentences)
+        message. Else the call gives a pending answer, and the agent works in the background. \
+        \(PendingRunEnvelope.pendingWorkInstruction)
         """
 
     /// The description of a tool with only the message operations. It names

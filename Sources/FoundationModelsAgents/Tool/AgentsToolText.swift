@@ -1,3 +1,4 @@
+import FoundationModelsExtras
 import FoundationModelsRouter
 
 /// The plain-text answers of the `agents` tool.
@@ -129,32 +130,18 @@ enum AgentsToolText {
     /// (``AgentRun/finalMessage(for:)`` uses it as the correlation id). Thus
     /// the model can match the run to the message that brings its result.
     ///
-    /// The background commands of the Multitool package use the same form:
-    /// a sentence that names the run, then "This is not the result. " and
-    /// the injection sentences (`PendingWorkInstruction.text` there).
+    /// The instruction after the first sentence is
+    /// `PendingRunEnvelope.pendingWorkInstruction` of FoundationModelsExtras.
+    /// That package owns the one copy of the text. The fixed sentences of
+    /// ``AgentsToolDescription`` and the background commands of the Multitool
+    /// package use the same text.
     ///
     /// - Parameter completionToken: The completion token of the call.
     /// - Returns: The sentence that names the run, then the instruction.
     static func collectInstruction(forCompletionToken completionToken: String) -> String {
         "The agent is running in the background, with completionToken \"\(completionToken)\". "
-            + "This is not the result. " + injectionSentences
+            + PendingRunEnvelope.pendingWorkInstruction
     }
-
-    /// The injection sentences: the session injects the result of a
-    /// background call as a new message, the model does not wait or check,
-    /// and it does nothing when no other work can be done.
-    ///
-    /// ``collectInstruction(forCompletionToken:)`` and the fixed sentences of
-    /// ``AgentsToolDescription`` both hold these sentences, each after its own
-    /// opening words. Thus a change to the wording changes the two texts
-    /// together.
-    static let injectionSentences = """
-        When the work finishes, the session injects its result into this conversation as a new message. \
-        That message starts you working again, so you do not need to wait, to check, or to ask for it. \
-        Do not call a tool to wait or to check. If you have other work that does not need this result, \
-        do that work now. If no other work can be done until the result comes back, do nothing: write no \
-        text and call no tool. When the injected result arrives, continue the task from it.
-        """
 
     /// Gives the corrective of `start agent` with a name that the catalog
     /// does not have, or that a reload removed.

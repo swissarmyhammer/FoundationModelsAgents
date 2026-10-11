@@ -107,8 +107,24 @@ comments:
     - evidence: 6 files — Sources/FoundationModelsAgents/Tool/AgentsToolText.swift, Sources/FoundationModelsAgents/Tool/AgentsTool.swift, Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift, Sources/FoundationModelsAgents/FoundationModelsAgents.docc/DelegatingWithTheAgentsTool.md, Tests/FoundationModelsAgentsTests/AgentsToolMountTests.swift, Tests/FoundationModelsAgentsTests/AgentsToolDescriptionTests.swift. `swift test`: 499 tests in 68 suites passed. Blocker and "same as Multitool" items checked (Multitool dd32c9e, PendingWorkInstruction.text).
     - next: /review
   timestamp: 2026-10-11T20:47:15.578752+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m4pc33d3j9j9hhqed2c5vgfz
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (eb07d53). 0 findings, 0 confirmed, 0 refuted. 7 validator runs, 0 failed. All prior review items are checked. The injection text in AgentsToolText.injectionSentences is the same word for word as FoundationModelsMultitool dd32c9e PendingWorkInstruction.text after "This is not the result. ".
+    - next: none. The task is in done. Task ^z190zft moves the shared text into FoundationModelsExtras.
+  timestamp: 2026-10-11T20:57:24.643868+00:00
+- actor: claude-code
+  id: 01m4pc3b80xp1zjjkzr8c7211a
+  text: |-
+    ### finish iteration 3 — clean
+    - implement: changed — 6 files
+    - test: green — swift test, 499 tests in 68 suites passed
+    - commit: eb07d53
+    - review: clean — no findings; task moved to done
+  timestamp: 2026-10-11T20:57:32.672012+00:00
+position_column: done
+position_ordinal: d280
 title: Change the "end your answer" texts of start agent to the injection model
 ---
 ## Reason

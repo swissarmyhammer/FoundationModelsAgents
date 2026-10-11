@@ -1,4 +1,5 @@
 import FoundationModels
+import FoundationModelsExtras
 import FoundationModelsRouter
 import Synchronization
 import Testing
@@ -55,11 +56,12 @@ struct AgentsToolMountTests {
     /// token, because the mail of the final message names the run by the same
     /// token. The session injects the final message as a new message, thus
     /// the sentence tells the model not to wait and not to check. It tells
-    /// the model to do other work, or to do nothing. The tool description
-    /// holds the same injection sentences.
+    /// the model to do other work, or to do nothing. These instructions are
+    /// `PendingRunEnvelope.pendingWorkInstruction` of FoundationModelsExtras,
+    /// and the tool description holds the same text.
     private static let collectSentence =
         "The agent is running in the background, with completionToken \"\(completionToken)\". "
-        + "This is not the result. " + PinnedInjectionText.sentences
+        + PendingRunEnvelope.pendingWorkInstruction
 
     /// Each op with the mode of its mount. A verb alias gives the mode of
     /// the operation that it names.

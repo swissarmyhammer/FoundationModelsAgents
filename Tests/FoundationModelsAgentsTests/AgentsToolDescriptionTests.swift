@@ -1,3 +1,4 @@
+import FoundationModelsExtras
 import Testing
 import ULID
 
@@ -14,10 +15,11 @@ import ULID
 struct AgentsToolDescriptionTests {
     // MARK: - Constants
 
-    /// The fixed sentences, word for word. The injection sentences are the
-    /// same as in the pending text of `start agent`. The injection sentences
-    /// tell the model not to call a tool to check, thus the fixed sentences
-    /// do not point to `check agent`.
+    /// The fixed sentences, word for word. The fixed sentences end with
+    /// `PendingRunEnvelope.pendingWorkInstruction` of FoundationModelsExtras,
+    /// the same text that the pending text of `start agent` ends with. That
+    /// text tells the model not to call a tool to check, thus the fixed
+    /// sentences do not point to `check agent`.
     private static let fixedSentences =
         "An agent is a model session that works in the background. Each agent in the list below has a name "
         + "and a description of the tasks that it does. Before you do a task, compare the task with the "
@@ -30,8 +32,8 @@ struct AgentsToolDescriptionTests {
         + #"To give a task to an agent, call the tool "agents" with the arguments {"op": "start agent", "#
         + #""name": "<name>", "prompt": "<the full task>"}. The value of "op" is an operation of the tool "#
         + #""agents", not the name of a tool. When the agent finishes in a few seconds, the call gives its "#
-        + "final message. Else the call is not the result: the agent works in the background. "
-        + PinnedInjectionText.sentences
+        + "final message. Else the call gives a pending answer, and the agent works in the background. "
+        + PendingRunEnvelope.pendingWorkInstruction
 
     /// The text between the fixed sentences and the agent list.
     private static let listSeparator = "\n\n"
@@ -159,16 +161,29 @@ struct AgentsToolDescriptionTests {
     }
 
     /// The fixed sentences and the pending text of `start agent` get the
-    /// injection sentences from one constant, thus the two texts cannot
-    /// drift apart.
-    @Test func theFixedSentencesAndThePendingTextShareTheInjectionSentences() {
+    /// pending-work text from `PendingRunEnvelope.pendingWorkInstruction` of
+    /// FoundationModelsExtras, thus the texts of the packages cannot drift
+    /// apart.
+    @Test func theFixedSentencesAndThePendingTextEndWithThePendingWorkInstruction() {
         let description = AgentsToolDescription.make(agents: [], characterLimit: Self.largeLimit)
 
-        #expect(AgentsToolText.injectionSentences == PinnedInjectionText.sentences)
-        #expect(description.contains(AgentsToolText.injectionSentences))
+        #expect(
+            description.hasSuffix(
+                PendingRunEnvelope.pendingWorkInstruction + Self.listSeparator + Self.noAgentsLine))
         #expect(
             AgentsToolText.collectInstruction(forCompletionToken: Self.completionToken)
-                .hasSuffix(AgentsToolText.injectionSentences))
+                .hasSuffix(PendingRunEnvelope.pendingWorkInstruction))
+    }
+
+    /// The pending-work text starts with "This is not the result.", thus the
+    /// sentence before it does not say the same words again.
+    @Test func theFixedSentencesSayThatTheCallIsNotTheResultOneTime() {
+        let notTheResult = "not the result"
+
+        let description = AgentsToolDescription.make(agents: [], characterLimit: Self.largeLimit)
+
+        #expect(PendingRunEnvelope.pendingWorkInstruction.contains(notTheResult))
+        #expect(description.components(separatedBy: notTheResult).count == 2)
     }
 
     // MARK: - The delegation sentence
