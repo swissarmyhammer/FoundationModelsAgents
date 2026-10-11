@@ -35,7 +35,7 @@ extension AgentRun {
     /// final state of the run.
     ///
     /// The run subscribes to the session events first, and follows that one
-    /// subscription for its whole life (``follow(_:on:)``). It then sends the
+    /// subscription for its whole life (``follow(_:on:observer:)``). It then sends the
     /// task prompt as one message. The pump of the Router runs the answer of
     /// that message, and the answer of each final message of a run that this
     /// run started: each final message is mail, and mail starts an answer
@@ -57,12 +57,16 @@ extension AgentRun {
     /// - Parameters:
     ///   - session: The session of the run.
     ///   - prompt: The task prompt.
+    ///   - observer: The observer of the session events of the host
+    ///     (``AgentEnvironment/runEventObserver``), or `nil`.
     /// - Returns: The final state: ``AgentRunState/finished(_:)`` with the
     ///   reply of the last answer, ``AgentRunState/cancelled`` for a
     ///   cancelled run, or ``AgentRunState/failed(_:)``.
-    func drive(_ session: any RoutedSession, prompt: String) async -> AgentRunState {
+    func drive(
+        _ session: any RoutedSession, prompt: String, observer: AgentEnvironment.RunEventObserver? = nil
+    ) async -> AgentRunState {
         let events = await session.streamSessionEvents()
-        async let following: Void = follow(events, on: session)
+        async let following: Void = follow(events, on: session, observer: observer)
         let final = settle(await outcome(of: prompt, on: session))
         await children.cancelOpenRuns()
         await sessionWatch.waitForSettlement(ofCalls: children.runs.compactMap(\.context?.completionToken))
@@ -168,8 +172,9 @@ extension AgentRun {
 
     /// Reads the session-event subscription of the run until it finishes.
     ///
-    /// Each event feeds the progress and the answers of the run
-    /// (``record(_:)``), the watch of the settled background runs, and the
+    /// The observer of the host gets each event first, synchronously, before
+    /// the run uses it. Each event then feeds the progress and the answers of
+    /// the run (``record(_:)``), the watch of the settled background runs, and the
     /// count of passes. The start of an answer sends the messages from the
     /// caller that the run held before the answer of its task prompt started
     /// (``releaseHeldMessages(to:)``). The follower sends them before it
@@ -182,8 +187,14 @@ extension AgentRun {
     ///   - events: The session-event subscription of the run, made before
     ///     the task prompt. The session finishes it when the run closes it.
     ///   - session: The session of the run.
-    private func follow(_ events: AsyncStream<SessionEvent>, on session: any RoutedSession) async {
+    ///   - observer: The observer of the session events of the host, or
+    ///     `nil`.
+    private func follow(
+        _ events: AsyncStream<SessionEvent>, on session: any RoutedSession,
+        observer: AgentEnvironment.RunEventObserver?
+    ) async {
         for await event in events {
+            observer?(self, event)
             record(event)
             if case .submissionStarted = event {
                 await releaseHeldMessages(to: session)

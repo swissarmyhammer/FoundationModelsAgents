@@ -35,6 +35,10 @@ public struct AgentEnvironment: Sendable {
     /// model, in tokens. `nil` gives a run with no budget.
     public typealias BudgetFactory = @Sendable (Int) -> TokenBudget?
 
+    /// Receives each session event of one agent run, with that run.
+    /// ``runEventObserver`` tells the contract.
+    public typealias RunEventObserver = @Sendable (AgentRun, SessionEvent) -> Void
+
     /// The default of ``maxConcurrentAgents``.
     public static let defaultMaxConcurrentAgents = 4
 
@@ -144,6 +148,27 @@ public struct AgentEnvironment: Sendable {
     /// run gets this value as `SessionConfiguration.inlineSettleGrace`.
     public let inlineSettleGrace: TimeInterval
 
+    /// The observer of the session events of each run, or `nil` for no
+    /// observer. `nil` is the default.
+    ///
+    /// Each run calls the observer, the child runs too. The run reads the
+    /// session-event subscription of its session in one loop, and calls the
+    /// observer synchronously in that loop, first for each event, before the
+    /// run uses the event. Thus the observer gets the events of one run in
+    /// the order of that subscription. The observer holds the loop of the
+    /// run while it runs: it must return quickly, and it must not wait for
+    /// the run. Two runs can call it at the same time.
+    ///
+    /// The open ``SessionEvent/toolInvocation(_:toolCallID:)`` record of a
+    /// tool run carries the completion token of that tool run. The Router
+    /// gives the open record to the subscription before the body of the
+    /// tool starts. The loop of the run and the body of the tool are two
+    /// tasks, thus the observer gets the open record while the body runs
+    /// at the latest, and normally before the body gives output. The
+    /// package does not promise that the observer runs before the first
+    /// output of the body.
+    public let runEventObserver: RunEventObserver?
+
     /// The most answers in a row that mail alone starts in the session of a
     /// run, with no caller message between them. Message mail and final
     /// messages both count. When the Router holds the mail at this limit,
@@ -200,6 +225,9 @@ public struct AgentEnvironment: Sendable {
     ///   - inlineSettleGrace: The settle period of the session of each run,
     ///     in seconds. The default is `ToolMount.defaultInlineSettleGrace`. A
     ///     negative value acts as `0`.
+    ///   - runEventObserver: The observer of the session events of each run,
+    ///     or `nil` (the default) for no observer. ``runEventObserver`` tells
+    ///     the contract.
     /// - Returns: The environment.
     /// - Throws: Whatever `SkillsTool.make` throws.
     public static func make(
@@ -218,7 +246,8 @@ public struct AgentEnvironment: Sendable {
         tracer: (any Tracer)? = nil,
         logger: Logger? = nil,
         metricsFactory: (any MetricsFactory)? = nil,
-        inlineSettleGrace: TimeInterval = ToolMount.defaultInlineSettleGrace
+        inlineSettleGrace: TimeInterval = ToolMount.defaultInlineSettleGrace,
+        runEventObserver: RunEventObserver? = nil
     ) async throws -> AgentEnvironment {
         let skillsTool = try await makeSkillsTool(
             skills: skills, selectionModel: skillsSelectionModel,
@@ -228,7 +257,7 @@ public struct AgentEnvironment: Sendable {
             workingDirectory: workingDirectory, tools: tools, defaultSlot: defaultSlot,
             maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth, maxRetainedRuns: maxRetainedRuns,
             budget: budget, tracer: tracer, logger: logger, metricsFactory: metricsFactory,
-            inlineSettleGrace: inlineSettleGrace)
+            inlineSettleGrace: inlineSettleGrace, runEventObserver: runEventObserver)
     }
 
     /// Makes the `skills` tool from `skills`.
@@ -259,7 +288,7 @@ public struct AgentEnvironment: Sendable {
 
     /// Makes an environment over a `skills` tool that is already made.
     ///
-    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:)``
+    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:)``
     /// tells each parameter. `skillsTool` must be the tool that
     /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:)``
     /// made from `skills` and `skillsVisibility`. The init adds it to `tools`
@@ -282,7 +311,8 @@ public struct AgentEnvironment: Sendable {
         tracer: (any Tracer)?,
         logger: Logger?,
         metricsFactory: (any MetricsFactory)?,
-        inlineSettleGrace: TimeInterval
+        inlineSettleGrace: TimeInterval,
+        runEventObserver: RunEventObserver? = nil
     ) {
         precondition(
             ModelMatch.generationSlots.contains { $0.slot == defaultSlot },
@@ -310,5 +340,6 @@ public struct AgentEnvironment: Sendable {
         self.logger = logger
         self.metricsFactory = metricsFactory
         self.inlineSettleGrace = max(0, inlineSettleGrace)
+        self.runEventObserver = runEventObserver
     }
 }

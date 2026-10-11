@@ -24,7 +24,7 @@ let runner = AgentRunner(registry: agents, environment: env)
 ```
 
 The `SkillsRegistry` is the one source of the skills.
-``AgentEnvironment/make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:)``
+``AgentEnvironment/make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:)``
 makes the `skills` tool from it, and adds the tool to the ``ToolCatalog``
 under the name `skills`. The `skills:` preload of each run reads the same
 registry, with the visibility rule of the tool. Give
@@ -122,6 +122,31 @@ When the run ends, it closes its session. A finished run holds no session.
 - ``AgentRunState/finished(_:)``: the run gave its final text.
 - ``AgentRunState/failed(_:)``: the run failed, with the reason.
 - ``AgentRunState/cancelled``: the run was cancelled.
+
+### Observe the events of each run
+
+Give ``AgentEnvironment/runEventObserver`` to see the session events of each
+run, the child runs too. The observer gets the run and the event. For
+example, the open `toolInvocation` record of a tool run of a run carries the
+completion token of that tool run.
+
+```swift
+let env = try await AgentEnvironment.make(
+    profile: profile, skills: skills, tools: tools,
+    runEventObserver: { run, event in
+        if case .toolInvocation(let record, _) = event, record.closedAt == nil {
+            joins.add(run: run.id, token: record.correlationID)
+        }
+    })
+```
+
+The run calls the observer synchronously in the loop that reads its
+events, before the run uses the event. Thus the observer gets the events of
+one run in their order. It holds that loop, thus it must return quickly.
+The Router gives the open record before the body of the tool starts, but
+the loop and the body are two tasks. Thus the observer gets the open record
+while the body runs at the latest. The package does not promise that the
+observer runs before the first output of the body.
 
 ### The turn limit
 

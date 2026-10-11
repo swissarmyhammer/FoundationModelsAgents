@@ -71,6 +71,10 @@ struct AgentRunHarness {
     /// when each run ends.
     let metricsFactory: (any MetricsFactory)?
 
+    /// The observer of the session events of each run, or `nil` for no
+    /// observer.
+    let runEventObserver: AgentEnvironment.RunEventObserver?
+
     /// The scratch folder. Its root is the working directory of each run.
     let scratch: TemporaryLayer
 
@@ -124,7 +128,8 @@ struct AgentRunHarness {
             skillsVisibility: AgentEnvironment.defaultSkillsVisibility, workingDirectory: workingDirectory,
             tools: tools, defaultSlot: .standard, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
             maxRetainedRuns: maxRetainedRuns, budget: budget, tracer: tracer, logger: logger,
-            metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace)
+            metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace,
+            runEventObserver: runEventObserver)
         environment.mailOnlyAnswerLimit = mailOnlyAnswerLimit
         return environment
     }
@@ -207,6 +212,8 @@ struct AgentRunHarness {
     ///     that reads the metrics of a child run gives its factory here,
     ///     because a child run starts under the detached pump of a session,
     ///     which does not inherit the task-local factory of the test.
+    ///   - runEventObserver: The observer of the session events of each run,
+    ///     or `nil` (the default) for no observer.
     /// - Returns: The harness.
     /// - Throws: The error of the file system, of the profile, or of
     ///   `registry.load()`.
@@ -218,7 +225,8 @@ struct AgentRunHarness {
         tools: ToolCatalog = ToolCatalog(),
         tracer: (any Tracer)? = nil,
         logger: Logger? = nil,
-        metricsFactory: (any MetricsFactory)? = nil
+        metricsFactory: (any MetricsFactory)? = nil,
+        runEventObserver: AgentEnvironment.RunEventObserver? = nil
     ) async throws -> AgentRunHarness {
         let scratch = try TemporaryLayer.makeEmpty()
         try scratch.write(agentsMdText, at: agentsMdName)
@@ -233,7 +241,7 @@ struct AgentRunHarness {
         return AgentRunHarness(
             router: router, profile: profile, script: script, registry: registry, skills: skills,
             skillsTool: skillsTool, budget: budget, tools: tools, tracer: tracer, logger: logger,
-            metricsFactory: metricsFactory, scratch: scratch)
+            metricsFactory: metricsFactory, runEventObserver: runEventObserver, scratch: scratch)
     }
 
     /// Makes the request of a host-started run of `agent` with `prompt`.

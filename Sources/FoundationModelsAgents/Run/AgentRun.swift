@@ -506,7 +506,7 @@ public final class AgentRun: Sendable {
 
     /// Starts the background task that holds the span and the log records of
     /// the run (``traced(in:_:)``), and in it the task that drives the session
-    /// of the run (``drive(_:prompt:)``).
+    /// of the run (``drive(_:prompt:observer:)``).
     ///
     /// The task of the span is not detached: it takes the task-local values
     /// of the caller. Thus the span is a child of the `ServiceContext` of the
@@ -529,7 +529,7 @@ public final class AgentRun: Sendable {
             await self.traced(in: environment) { spanContext in
                 let final = await Task.detached {
                     await ServiceContext.withValue(spanContext) {
-                        await self.drive(session, prompt: prompt)
+                        await self.drive(session, prompt: prompt, observer: environment.runEventObserver)
                     }
                 }.value
                 self.end(in: final)
