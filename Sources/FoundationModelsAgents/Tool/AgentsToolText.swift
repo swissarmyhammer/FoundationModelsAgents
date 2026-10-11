@@ -114,25 +114,26 @@ enum AgentsToolText {
             + "Ask about it with {\"op\": \"check agent\", \"id\": \"\(run.id)\"}."
     }
 
-    /// Gives the `next` sentence of the pending envelope of a call in a
-    /// Router session.
+    /// The `next` sentence of the pending envelope of a call in a Router
+    /// session.
     ///
     /// Only `start agent` is a background call. Its run works in the
-    /// background, and its final message comes to the caller as mail. The
-    /// pump of the Router delivers the mail only after the answer of the
-    /// caller ends. Thus the sentence tells the model not to wait, not to
-    /// guess the result, and to end its answer. It also tells the model how
-    /// to ask about the run with the completion token of the call.
+    /// background, and the session injects its final message into the
+    /// conversation of the caller as a new message. That message starts the
+    /// model again. Thus the sentence tells the model not to call a tool to
+    /// wait or to check. It tells the model to do other work that does not
+    /// need the result, or else to do nothing. The envelope holds the
+    /// completion token in its own field, thus the sentence does not name it.
     ///
-    /// - Parameter completionToken: The completion token of the call.
-    /// - Returns: The sentence.
-    static func collectInstruction(forCompletionToken completionToken: String) -> String {
+    /// The background calls of the Multitool package must use the same text.
+    static let collectInstruction = """
+        This is not the result. When the work finishes, the session injects its result into this \
+        conversation as a new message. That message starts you working again, so you do not need to \
+        wait, to check, or to ask for it. Do not call a tool to wait or to check. If you have other \
+        work that does not need this result, do that work now. If no other work can be done until the \
+        result comes back, do nothing: write no text and call no tool. When the injected result arrives, \
+        continue the task from it.
         """
-        This agent works in the background. Do not wait for it, and never guess its result. \
-        End your answer now, or do other work first: its final message comes to you as a new message \
-        after your answer ends. To see its state, call {"op": "check agent", "id": "\(completionToken)"}.
-        """
-    }
 
     /// Gives the corrective of `start agent` with a name that the catalog
     /// does not have, or that a reload removed.

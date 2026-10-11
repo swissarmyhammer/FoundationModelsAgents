@@ -51,12 +51,16 @@ struct AgentsToolMountTests {
     private static let completionToken = "01M3N00000000000000000TOKN"
 
     /// The `next` sentence of the pending envelope of `start agent`, word for
-    /// word. The Router delivers the final message only after the answer of
-    /// the model ends, thus the sentence tells the model to end its answer.
+    /// word. The session injects the final message as a new message, thus
+    /// the sentence tells the model not to wait and not to check. It tells
+    /// the model to do other work, or to do nothing.
     private static let collectSentence = """
-        This agent works in the background. Do not wait for it, and never guess its result. \
-        End your answer now, or do other work first: its final message comes to you as a new message \
-        after your answer ends. To see its state, call {"op": "check agent", "id": "\(completionToken)"}.
+        This is not the result. When the work finishes, the session injects its result into this \
+        conversation as a new message. That message starts you working again, so you do not need to \
+        wait, to check, or to ask for it. Do not call a tool to wait or to check. If you have other \
+        work that does not need this result, do that work now. If no other work can be done until the \
+        result comes back, do nothing: write no text and call no tool. When the injected result arrives, \
+        continue the task from it.
         """
 
     /// Each op with the mode of its mount. A verb alias gives the mode of
@@ -114,8 +118,8 @@ struct AgentsToolMountTests {
         #expect(harness.tool.inlineSettleGrace == ToolMount.defaultInlineSettleGrace)
     }
 
-    @Test("the pending envelope tells the model to end its answer to get the final message as mail")
-    func collectSentenceTellsTheModelToEndItsAnswer() async throws {
+    @Test("the pending envelope tells the model that the session injects the result, and not to wait or to check")
+    func collectSentenceTellsTheModelThatTheResultIsInjected() async throws {
         let harness = try await AgentsToolHarness.make()
         defer { try? harness.delete() }
 

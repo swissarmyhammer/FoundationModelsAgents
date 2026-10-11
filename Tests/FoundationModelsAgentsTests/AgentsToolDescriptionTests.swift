@@ -27,11 +27,11 @@ struct AgentsToolDescriptionTests {
         + #"To give a task to an agent, call the tool "agents" with the arguments {"op": "start agent", "#
         + #""name": "<name>", "prompt": "<the full task>"}. The value of "op" is an operation of the tool "#
         + #""agents", not the name of a tool. When the agent finishes in a few seconds, the call gives its "#
-        + "final message. Else the agent works in the background, and its final message comes to you as a "
-        + "new message after you end your answer. Your answer is the text of "
-        + "your last turn, so give your final answer after you have the results of the agents that you "
-        + "started. You can ask about a run "
-        + #"with {"op": "check agent", "id": "<id>"}."#
+        + "final message. Else the call is not the result: the agent works in the background, and when it "
+        + "finishes, the session injects its result into this conversation as a new message. That message "
+        + "starts you working again, so do not call a tool to wait for it. If no other work can be done "
+        + "until the result comes back, do nothing: write no text and call no tool. You can see the state "
+        + #"of a run with {"op": "check agent", "id": "<id>"}."#
 
     /// The text between the fixed sentences and the agent list.
     private static let listSeparator = "\n\n"

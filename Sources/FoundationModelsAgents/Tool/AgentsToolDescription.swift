@@ -89,10 +89,11 @@ enum AgentsToolDescription {
         an empty context and sees only the prompt that you give it, so put the full task and all that the \
         agent needs in the prompt. \
         \(delegationSentence) When the agent finishes in a few seconds, the call gives its final \
-        message. Else the agent works in the background, and its final message comes to you as a new \
-        message after you end your answer. Your answer is the text of \
-        your last turn, so give your final answer after you have the results of the agents that you \
-        started. You can ask about a run with {"op": "check agent", "id": "<id>"}.
+        message. Else the call is not the result: the agent works in the background, and when it \
+        finishes, the session injects its result into this conversation as a new message. That message \
+        starts you working again, so do not call a tool to wait for it. If no other work can be done \
+        until the result comes back, do nothing: write no text and call no tool. You can see the state \
+        of a run with {"op": "check agent", "id": "<id>"}.
         """
 
     /// The description of a tool with only the message operations. It names

@@ -240,13 +240,17 @@ extension AgentsTool: BackgroundTool {
     }
 
     /// Gives the `next` sentence of the pending envelope of a call: the run
-    /// works in the background, and its final message comes as mail after
-    /// the answer of the model ends.
+    /// works in the background, and the session injects its final message
+    /// as a new message. The model does not call a tool to wait or to check.
     ///
-    /// - Parameter completionToken: The completion token of the call.
-    /// - Returns: The sentence. It names `completionToken`.
+    /// The sentence is the same for each call. The envelope holds the
+    /// completion token in its own field, thus the sentence does not name it.
+    ///
+    /// - Parameter completionToken: The completion token of the call. The
+    ///   `BackgroundTool` protocol gives it. The sentence does not use it.
+    /// - Returns: The sentence.
     public func collectInstruction(forCompletionToken completionToken: String) -> String {
-        AgentsToolText.collectInstruction(forCompletionToken: completionToken)
+        AgentsToolText.collectInstruction
     }
 
     /// Gives the canceler of the call `completionToken`: it cancels the run

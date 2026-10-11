@@ -62,10 +62,14 @@ longer than 4 096 characters. The Router records one terminal for each call.
 
 ### Act on the final message
 
-The pump of the Router delivers mail only after the answer in operation ends.
-Thus the pending envelope tells the model not to wait and not to guess the
-result, but to end its answer. The pump then starts an answer to the mail
-with no call of the host. The Router also sends
+The session injects the final message into the conversation of the caller as
+a new message, and that message starts the model again. Thus the pending
+envelope tells the model that it is not the result, and not to call a tool to
+wait or to check. The model does other work that does not need the result.
+When no other work can be done, the model does nothing: it writes no text and
+calls no tool. The pump of the Router delivers the mail when the answer in
+operation is done, and starts an answer to the mail with no call of the host.
+The Router also sends
 `SessionEvent.runSettled(event)` on `streamSessionEvents()`, and each answer
 ends with `SessionEvent.answered(_:)`. An answer that answers only mail has no
 message ids. A host reads these answers from its subscription:
