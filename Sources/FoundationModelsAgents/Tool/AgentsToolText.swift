@@ -114,25 +114,37 @@ enum AgentsToolText {
             + "Ask about it with {\"op\": \"check agent\", \"id\": \"\(run.id)\"}."
     }
 
-    /// The `next` sentence of the pending envelope of a call in a Router
-    /// session.
+    /// Gives the `next` sentence of the pending envelope of a call in a
+    /// Router session.
     ///
     /// Only `start agent` is a background call. Its run works in the
     /// background, and the session injects its final message into the
     /// conversation of the caller as a new message. That message starts the
     /// model again. Thus the sentence tells the model not to call a tool to
     /// wait or to check. It tells the model to do other work that does not
-    /// need the result, or else to do nothing. The envelope holds the
-    /// completion token in its own field, thus the sentence does not name it.
+    /// need the result, or else to do nothing.
     ///
-    /// The background calls of the Multitool package must use the same text.
-    static let collectInstruction = "This is not the result. " + injectionSentences
+    /// The first sentence names the run by its completion token. The mail of
+    /// the final message names the run by the same token
+    /// (``AgentRun/finalMessage(for:)`` uses it as the correlation id). Thus
+    /// the model can match the run to the message that brings its result.
+    ///
+    /// The background commands of the Multitool package use the same form:
+    /// a sentence that names the run, then "This is not the result. " and
+    /// the injection sentences (`PendingWorkInstruction.text` there).
+    ///
+    /// - Parameter completionToken: The completion token of the call.
+    /// - Returns: The sentence that names the run, then the instruction.
+    static func collectInstruction(forCompletionToken completionToken: String) -> String {
+        "The agent is running in the background, with completionToken \"\(completionToken)\". "
+            + "This is not the result. " + injectionSentences
+    }
 
     /// The injection sentences: the session injects the result of a
     /// background call as a new message, the model does not wait or check,
     /// and it does nothing when no other work can be done.
     ///
-    /// ``collectInstruction`` and the fixed sentences of
+    /// ``collectInstruction(forCompletionToken:)`` and the fixed sentences of
     /// ``AgentsToolDescription`` both hold these sentences, each after its own
     /// opening words. Thus a change to the wording changes the two texts
     /// together.

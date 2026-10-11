@@ -71,9 +71,12 @@ A run that continues gives the pending envelope, and works behind it. The
 tool states no settle period of its own: the host sets it with
 `SessionConfiguration.inlineSettleGrace`, and for the sessions of the runs
 with `AgentEnvironment.make(inlineSettleGrace:)`.
-The `next` sentence of the envelope tells the model that the envelope is not
-the result, and not to call a tool to wait or to check. The model does other
-work that does not need the result, or else it does nothing.
+The `next` sentence of the envelope names the run by its completion token.
+The mail of the final message names the run by the same token. Then the
+sentence tells the model that the envelope is not the result, and not to call
+a tool to wait or to check. The model does other work that does not need the
+result, or else it does nothing. The tool description does not tell the model
+to call `check agent` for a run in the background.
 The final message comes to the calling session as mail. The session injects
 it as a new message, and that message starts the model again (see
 <doc:TheFinalMessage>). `list agents`, `check agent`, `cancel agent`,

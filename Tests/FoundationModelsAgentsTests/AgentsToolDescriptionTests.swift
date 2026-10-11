@@ -15,7 +15,9 @@ struct AgentsToolDescriptionTests {
     // MARK: - Constants
 
     /// The fixed sentences, word for word. The injection sentences are the
-    /// same as in the pending text of `start agent`.
+    /// same as in the pending text of `start agent`. The injection sentences
+    /// tell the model not to call a tool to check, thus the fixed sentences
+    /// do not point to `check agent`.
     private static let fixedSentences =
         "An agent is a model session that works in the background. Each agent in the list below has a name "
         + "and a description of the tasks that it does. Before you do a task, compare the task with the "
@@ -30,7 +32,6 @@ struct AgentsToolDescriptionTests {
         + #""agents", not the name of a tool. When the agent finishes in a few seconds, the call gives its "#
         + "final message. Else the call is not the result: the agent works in the background. "
         + PinnedInjectionText.sentences
-        + #" You can see the state of a run with {"op": "check agent", "id": "<id>"}."#
 
     /// The text between the fixed sentences and the agent list.
     private static let listSeparator = "\n\n"
@@ -52,6 +53,9 @@ struct AgentsToolDescriptionTests {
 
     /// A limit that each list of these tests fits.
     private static let largeLimit = 100_000
+
+    /// A completion token of a `start agent` call.
+    private static let completionToken = "01M3N00000000000000000TOKN"
 
     /// The first agent of the small catalog.
     private static let alpha = AgentsToolDescription.Entry(name: "alpha", description: "Reads the code.")
@@ -162,7 +166,9 @@ struct AgentsToolDescriptionTests {
 
         #expect(AgentsToolText.injectionSentences == PinnedInjectionText.sentences)
         #expect(description.contains(AgentsToolText.injectionSentences))
-        #expect(AgentsToolText.collectInstruction.hasSuffix(AgentsToolText.injectionSentences))
+        #expect(
+            AgentsToolText.collectInstruction(forCompletionToken: Self.completionToken)
+                .hasSuffix(AgentsToolText.injectionSentences))
     }
 
     // MARK: - The delegation sentence
