@@ -51,17 +51,12 @@ struct AgentsToolMountTests {
     /// A completion token of a `start agent` call.
     private static let completionToken = "01M3N00000000000000000TOKN"
 
-    /// The `next` sentence of the pending envelope of `start agent` for
-    /// ``completionToken``, word for word. It names the run by its completion
-    /// token, because the mail of the final message names the run by the same
-    /// token. The session injects the final message as a new message, thus
-    /// the sentence tells the model not to wait and not to check. It tells
-    /// the model to do other work, or to do nothing. These instructions are
-    /// `PendingRunEnvelope.pendingWorkInstruction` of FoundationModelsExtras,
-    /// and the tool description holds the same text.
-    private static let collectSentence =
-        "The agent is running in the background, with completionToken \"\(completionToken)\". "
-        + PendingRunEnvelope.pendingWorkInstruction
+    /// The sentence of the pending text of `start agent` that names the run
+    /// for ``completionToken``, word for word. Agents owns this sentence. It
+    /// names the run by its completion token, because the mail of the final
+    /// message names the run by the same token.
+    private static let runSentence =
+        #"The agent is running in the background, with completionToken "01M3N00000000000000000TOKN". "#
 
     /// Each op with the mode of its mount. A verb alias gives the mode of
     /// the operation that it names.
@@ -118,12 +113,22 @@ struct AgentsToolMountTests {
         #expect(harness.tool.inlineSettleGrace == ToolMount.defaultInlineSettleGrace)
     }
 
-    @Test("the pending envelope names the run by its completion token, and tells the model that the session injects the result, and not to wait or to check")
-    func collectSentenceTellsTheModelThatTheResultIsInjected() async throws {
+    /// This test pins only the Agents part of the pending text: the literal
+    /// ``runSentence``. It also checks the composition: the shared
+    /// pending-work text follows that sentence, with nothing between them and
+    /// nothing after. The shared text tells the model that the session
+    /// injects the result, and not to wait or to check. FoundationModelsExtras
+    /// owns that text, and its test
+    /// `PendingRunEnvelopeTests.approvedPendingWorkInstruction` pins it word
+    /// for word. Thus this package holds no copy of it.
+    @Test("the pending text is the sentence that names the run by its completion token, then the shared pending-work text")
+    func pendingTextIsTheRunSentenceThenThePendingWorkInstruction() async throws {
         let harness = try await AgentsToolHarness.make()
         defer { try? harness.delete() }
 
-        #expect(harness.tool.collectInstruction(forCompletionToken: Self.completionToken) == Self.collectSentence)
+        let pendingText = harness.tool.collectInstruction(forCompletionToken: Self.completionToken)
+
+        #expect(pendingText == Self.runSentence + PendingRunEnvelope.pendingWorkInstruction)
     }
 
     @Test(

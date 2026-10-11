@@ -15,12 +15,11 @@ import ULID
 struct AgentsToolDescriptionTests {
     // MARK: - Constants
 
-    /// The fixed sentences, word for word. The fixed sentences end with
-    /// `PendingRunEnvelope.pendingWorkInstruction` of FoundationModelsExtras,
-    /// the same text that the pending text of `start agent` ends with. That
-    /// text tells the model not to call a tool to check, thus the fixed
+    /// The sentences of the fixed sentences that Agents owns, word for word.
+    /// The shared pending-work text follows them in the description. That
+    /// text tells the model not to call a tool to check, thus these
     /// sentences do not point to `check agent`.
-    private static let fixedSentences =
+    private static let agentsSentences =
         "An agent is a model session that works in the background. Each agent in the list below has a name "
         + "and a description of the tasks that it does. Before you do a task, compare the task with the "
         + "description of each agent. When the description of an agent matches the task, give the task to "
@@ -33,7 +32,15 @@ struct AgentsToolDescriptionTests {
         + #""name": "<name>", "prompt": "<the full task>"}. The value of "op" is an operation of the tool "#
         + #""agents", not the name of a tool. When the agent finishes in a few seconds, the call gives its "#
         + "final message. Else the call gives a pending answer, and the agent works in the background. "
-        + PendingRunEnvelope.pendingWorkInstruction
+
+    /// The fixed sentences of the description: ``agentsSentences``, then the
+    /// shared pending-work text. The tests compare a full description with
+    /// this value to check the composition of the description. They pin
+    /// only the Agents wording with literals. FoundationModelsExtras owns
+    /// the shared text, and its test
+    /// `PendingRunEnvelopeTests.approvedPendingWorkInstruction` pins it word
+    /// for word. Thus this package holds no copy of it.
+    private static let fixedSentences = agentsSentences + PendingRunEnvelope.pendingWorkInstruction
 
     /// The text between the fixed sentences and the agent list.
     private static let listSeparator = "\n\n"
@@ -55,9 +62,6 @@ struct AgentsToolDescriptionTests {
 
     /// A limit that each list of these tests fits.
     private static let largeLimit = 100_000
-
-    /// A completion token of a `start agent` call.
-    private static let completionToken = "01M3N00000000000000000TOKN"
 
     /// The first agent of the small catalog.
     private static let alpha = AgentsToolDescription.Entry(name: "alpha", description: "Reads the code.")
@@ -160,19 +164,21 @@ struct AgentsToolDescriptionTests {
         #expect(description.hasPrefix(Self.fixedSentences + Self.listSeparator))
     }
 
-    /// The fixed sentences and the pending text of `start agent` get the
-    /// pending-work text from `PendingRunEnvelope.pendingWorkInstruction` of
-    /// FoundationModelsExtras, thus the texts of the packages cannot drift
-    /// apart.
-    @Test func theFixedSentencesAndThePendingTextEndWithThePendingWorkInstruction() {
+    /// This test pins only the Agents part of the fixed sentences: the
+    /// literal ``agentsSentences``. It also checks the composition: the
+    /// shared pending-work text follows those sentences, and the list
+    /// follows the shared text. FoundationModelsExtras owns the shared text,
+    /// and its test `PendingRunEnvelopeTests.approvedPendingWorkInstruction`
+    /// pins it word for word. Thus the texts of the packages cannot drift
+    /// apart. `AgentsToolMountTests` checks the same composition for the
+    /// pending text of `start agent`.
+    @Test func theFixedSentencesAreTheAgentsSentencesThenThePendingWorkInstruction() {
         let description = AgentsToolDescription.make(agents: [], characterLimit: Self.largeLimit)
 
         #expect(
-            description.hasSuffix(
-                PendingRunEnvelope.pendingWorkInstruction + Self.listSeparator + Self.noAgentsLine))
-        #expect(
-            AgentsToolText.collectInstruction(forCompletionToken: Self.completionToken)
-                .hasSuffix(PendingRunEnvelope.pendingWorkInstruction))
+            description
+                == Self.agentsSentences + PendingRunEnvelope.pendingWorkInstruction
+                + Self.listSeparator + Self.noAgentsLine)
     }
 
     /// The pending-work text starts with "This is not the result.", thus the
