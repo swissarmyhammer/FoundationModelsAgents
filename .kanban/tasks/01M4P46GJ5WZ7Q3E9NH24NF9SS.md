@@ -31,6 +31,40 @@ comments:
     - evidence: 7 files — AgentsToolText.swift, AgentsTool.swift, AgentsToolDescription.swift, TheFinalMessage.md, DelegatingWithTheAgentsTool.md, AgentsToolMountTests.swift, AgentsToolDescriptionTests.swift. `swift test`: 498 tests in 68 suites passed.
     - next: /review. Before merge, confirm the final wording with the session foundationmodelsmultitool-a4.
   timestamp: 2026-10-11T19:05:02.522119+00:00
+- actor: claude-code
+  id: 01m4p63mgkxsm6rbbcna5mqdsw
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (9cf7ee3); 2 findings, 2 confirmed, 0 refuted — Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift:93, Sources/FoundationModelsAgents/Tool/AgentsToolText.swift:130 (duplication/duplication). Blocker: the wording confirmation with the session foundationmodelsmultitool-a4 is open. A person must do it.
+    - next: Put the shared injection sentences in one constant. Use it from collectInstruction and fixedSentences. Update the tests. Then review again.
+  timestamp: 2026-10-11T19:12:50.707323+00:00
+- actor: claude-code
+  id: 01m4p640hzjybjpvmzkb5pvtb8
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 7 files
+    - test: green — swift test, 498 tests in 68 suites passed
+    - commit: 9cf7ee3
+    - review: findings — Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift:93, Sources/FoundationModelsAgents/Tool/AgentsToolText.swift:130; blocker — Multitool wording confirmation (foundationmodelsmultitool-a4) open
+  timestamp: 2026-10-11T19:13:03.039023+00:00
+- actor: claude-code
+  id: 01m4p6eadvs31jcs76r5sjhgw5
+  text: |-
+    Duplication findings, implementation:
+    - New constant `AgentsToolText.injectionSentences` holds the injection and do-nothing sentences one time. `collectInstruction` is now "This is not the result. " + `injectionSentences`. The pending text stays word for word the same as the text that the user approved.
+    - `AgentsToolDescription.fixedSentences` now uses `AgentsToolText.injectionSentences` after its own opening: "Else the call is not the result: the agent works in the background." The old shorter copy in the description ("so do not call a tool to wait for it ...") is gone. Thus the description now has the full approved injection sentences.
+    - The description still ends with the `check agent` state sentence, as before. It now comes after "Do not call a tool to wait or to check." A person can decide in the Multitool confirmation if the description must keep that sentence.
+    - Tests: new test support constant `PinnedInjectionText.sentences` (Tests/.../Support/PinnedInjectionText.swift) pins the sentences word for word one time. `AgentsToolMountTests.collectSentence` and `AgentsToolDescriptionTests.fixedSentences` both use it. New test `theFixedSentencesAndThePendingTextShareTheInjectionSentences` checks that both texts hold `AgentsToolText.injectionSentences`. RED was a compile failure (no member `injectionSentences`).
+    - `swift test`: 499 tests in 68 suites passed. The one build warning "missing creator for mutated node ... mlx-swift_Cmlx.bundle" comes from the SwiftPM build graph of the mlx-swift dependency.
+    - The blocker (confirmation with the session foundationmodelsmultitool-a4) stays open. Only a person can do it. No message was sent to that session.
+  timestamp: 2026-10-11T19:18:40.827195+00:00
+- actor: claude-code
+  id: 01m4p6ecwt9epmv3knfnr23k57
+  text: |-
+    ### implement — changed
+    - evidence: 5 files — Sources/FoundationModelsAgents/Tool/AgentsToolText.swift, Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift, Tests/FoundationModelsAgentsTests/AgentsToolMountTests.swift, Tests/FoundationModelsAgentsTests/AgentsToolDescriptionTests.swift, Tests/FoundationModelsAgentsTests/Support/PinnedInjectionText.swift (new). `swift test`: 499 tests in 68 suites passed. Both duplication findings checked.
+    - next: /review. The blocker (Multitool wording confirmation with foundationmodelsmultitool-a4) is open for a person.
+  timestamp: 2026-10-11T19:18:43.354093+00:00
 position_column: doing
 position_ordinal: '80'
 title: Change the "end your answer" texts of start agent to the injection model
@@ -69,3 +103,21 @@ Note: this text says "Do not call a tool to wait or to check". The current pendi
 - [ ] The pending text of `start agent` and the tool description use the approved injection wording, the same as Multitool. (The approved wording is in. The confirmation with the session `foundationmodelsmultitool-a4` is still open. Multitool does not have the wording yet.)
 - [x] The pending text does not tell the model to call a tool to wait or to check.
 - [x] The tests pin the new texts, and all tests pass.
+
+## Review Findings (2026-10-11 14:07)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 5 file(s) reviewed, 4 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+> 2 file(s) not reviewed — no validator matched:
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/DelegatingWithTheAgentsTool.md` — no validator matches this file
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/TheFinalMessage.md` — no validator matches this file
+
+- [x] `Sources/FoundationModelsAgents/Tool/AgentsToolDescription.swift:93` `duplication/duplication` — The sentence that tells the model the session injects the run result is written twice in changed code. Here, inside the `fixedSentences` text, and again in `AgentsToolText.collectInstruction`. Both copies state the same rule: the result arrives as a new message, do not wait or check, and do nothing when no other work exists. A later wording fix to one copy could leave the other out of date, so the model would get two different instructions. Keep one constant for the injection-and-do-nothing sentences, for example in `AgentsToolText`, and build both `fixedSentences` and `collectInstruction` from it. The two texts differ only in their opening words, so the shared part can be one constant with the opening added per site. Update the tests to match the shared text.
+- [x] `Sources/FoundationModelsAgents/Tool/AgentsToolText.swift:130` `duplication/duplication` — The same injection-and-do-nothing wording in `collectInstruction` repeats the sentences in `AgentsToolDescription.fixedSentences`. Both halves are inside this change, so this is a changed-set duplicate. The two copies can drift apart. Extract the shared injection sentences into one constant, as in the finding on AgentsToolDescription.swift:93, and use it from both `collectInstruction` and `fixedSentences`.
+
+### Blocker (outside confirmation)
+
+- [ ] The acceptance criterion "the same as Multitool" is not complete. A person must confirm the final wording with the session `foundationmodelsmultitool-a4`. The review did not do this check. Do not move this task to done until a person records this confirmation.

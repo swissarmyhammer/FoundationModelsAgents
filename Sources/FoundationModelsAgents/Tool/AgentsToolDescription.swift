@@ -84,16 +84,17 @@ enum AgentsToolDescription {
 
     /// The fixed sentences: what an agent is, how to find the agent for a
     /// task, and how to delegate to it.
+    ///
+    /// The injection sentences come from ``AgentsToolText/injectionSentences``,
+    /// the same constant that the pending text of `start agent` uses.
     private static let fixedSentences = """
         An agent is a model session that works in the background. \(matchSentences) Each agent starts with \
         an empty context and sees only the prompt that you give it, so put the full task and all that the \
         agent needs in the prompt. \
         \(delegationSentence) When the agent finishes in a few seconds, the call gives its final \
-        message. Else the call is not the result: the agent works in the background, and when it \
-        finishes, the session injects its result into this conversation as a new message. That message \
-        starts you working again, so do not call a tool to wait for it. If no other work can be done \
-        until the result comes back, do nothing: write no text and call no tool. You can see the state \
-        of a run with {"op": "check agent", "id": "<id>"}.
+        message. Else the call is not the result: the agent works in the background. \
+        \(AgentsToolText.injectionSentences) You can see the state of a run with \
+        {"op": "check agent", "id": "<id>"}.
         """
 
     /// The description of a tool with only the message operations. It names

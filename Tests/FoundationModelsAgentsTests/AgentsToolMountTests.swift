@@ -53,15 +53,9 @@ struct AgentsToolMountTests {
     /// The `next` sentence of the pending envelope of `start agent`, word for
     /// word. The session injects the final message as a new message, thus
     /// the sentence tells the model not to wait and not to check. It tells
-    /// the model to do other work, or to do nothing.
-    private static let collectSentence = """
-        This is not the result. When the work finishes, the session injects its result into this \
-        conversation as a new message. That message starts you working again, so you do not need to \
-        wait, to check, or to ask for it. Do not call a tool to wait or to check. If you have other \
-        work that does not need this result, do that work now. If no other work can be done until the \
-        result comes back, do nothing: write no text and call no tool. When the injected result arrives, \
-        continue the task from it.
-        """
+    /// the model to do other work, or to do nothing. The tool description
+    /// holds the same injection sentences.
+    private static let collectSentence = "This is not the result. " + PinnedInjectionText.sentences
 
     /// Each op with the mode of its mount. A verb alias gives the mode of
     /// the operation that it names.

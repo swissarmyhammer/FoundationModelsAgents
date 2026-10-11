@@ -126,13 +126,22 @@ enum AgentsToolText {
     /// completion token in its own field, thus the sentence does not name it.
     ///
     /// The background calls of the Multitool package must use the same text.
-    static let collectInstruction = """
-        This is not the result. When the work finishes, the session injects its result into this \
-        conversation as a new message. That message starts you working again, so you do not need to \
-        wait, to check, or to ask for it. Do not call a tool to wait or to check. If you have other \
-        work that does not need this result, do that work now. If no other work can be done until the \
-        result comes back, do nothing: write no text and call no tool. When the injected result arrives, \
-        continue the task from it.
+    static let collectInstruction = "This is not the result. " + injectionSentences
+
+    /// The injection sentences: the session injects the result of a
+    /// background call as a new message, the model does not wait or check,
+    /// and it does nothing when no other work can be done.
+    ///
+    /// ``collectInstruction`` and the fixed sentences of
+    /// ``AgentsToolDescription`` both hold these sentences, each after its own
+    /// opening words. Thus a change to the wording changes the two texts
+    /// together.
+    static let injectionSentences = """
+        When the work finishes, the session injects its result into this conversation as a new message. \
+        That message starts you working again, so you do not need to wait, to check, or to ask for it. \
+        Do not call a tool to wait or to check. If you have other work that does not need this result, \
+        do that work now. If no other work can be done until the result comes back, do nothing: write no \
+        text and call no tool. When the injected result arrives, continue the task from it.
         """
 
     /// Gives the corrective of `start agent` with a name that the catalog
