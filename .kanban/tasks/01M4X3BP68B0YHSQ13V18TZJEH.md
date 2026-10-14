@@ -3,8 +3,8 @@ assignees:
 - claude-code
 depends_on:
 - 01M4X3BJJTE03YFKMTTTAHJHJF
-position_column: todo
-position_ordinal: '8480'
+position_column: done
+position_ordinal: d980
 title: 'Mail step 3, T4: turn limit, docs, agents-demo, IntegrationTests'
 ---
 ## Plan (from the step 3 message)
