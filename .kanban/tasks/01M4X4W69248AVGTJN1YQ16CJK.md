@@ -1,8 +1,8 @@
 ---
 assignees:
 - claude-code
-position_column: todo
-position_ordinal: '8780'
+position_column: done
+position_ordinal: d680
 title: A run can wait forever for the settlement of a child after a cancel during the answer that started it
 ---
 ## Defect (found in T1, not yet proved by a test)

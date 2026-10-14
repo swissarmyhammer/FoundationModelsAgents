@@ -30,6 +30,10 @@ comments:
   id: 01m4x48bexz7r45m4abrhwbkh7
   text: 'Router part H is accepted: `awaitAnswer(of id: MailID) async throws -> SessionAnswer` on RoutedSession. `answered` gives the answer; `answerFailed` throws the original error (for example contextSizeExceeded); `cancelled` and `lost` throw CancellationError; close throws MailRefusal.closed. Each mail that one answer delivers gets that same answer. Router head to follow. After the T1 commit: move the Router pin to that head, then do the task prompt part of T2 (mail(_:) for the task prompt, awaitAnswer(of:) for its end, the small hold that opens after the mail).'
   timestamp: 2026-10-14T11:55:09.149862+00:00
+- actor: claude-code
+  id: 01m4x5cwt536q53jvh5ha1fwzy
+  text: 'Router part I is pushed: Router main head 50341cfa. `awaitTerminal(of:)` and `awaitAnswer(of:)` throw `TerminalLookupError` (`unknownMail` / `unknownSignal`) at once for an id that the session does not know: an id that left the 4096 ledger, or an id that was never given to `mail(_:)`. Rule for Agents: start a wait for a MailID only after `mail(_:)` returned it (or after the id was seen in the output). Never make a `Mail` and wait on its id before the call of `mail(_:)`. In T2 this matters for the hold: a held message has a `Mail` (and an id) before `mail(_:)`, so no code may wait on a held id. Move the Router pin to 50341cfa in T2 (after the ^yq16cjk commit, which is tested on bd914144).'
+  timestamp: 2026-10-14T12:15:06.565535+00:00
 depends_on:
 - 01M4X3B3NWJT56QDGZXEKEVTB3
 position_column: doing
