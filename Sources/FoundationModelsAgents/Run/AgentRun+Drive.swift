@@ -51,10 +51,16 @@ extension AgentRun {
     ///
     /// When the answers end, the run records its final state (``settle(_:)``)
     /// at once. It then cancels its open children and waits for them, waits
-    /// until the Router recorded the final message of each child, and closes
-    /// its session. The close stops all work of the session first
+    /// until the run plane settled the call of each child, and closes its
+    /// session. The wait for the calls goes by token through the run plane
+    /// (``ParentSessionWatch/waitForSettlement(ofCalls:)``). It does not use
+    /// the live ``SessionEvent/runSettled(_:)``, because a cancel can drop
+    /// that event. The close stops all work of the session first
     /// (`cancelAll()`), and finishes the subscription, thus the follower
-    /// ends.
+    /// ends. The close also waits for each run body
+    /// (`RunPlane.joinRunBodies()`), and the body of each call writes its
+    /// terminal to the journal before it ends. Thus the recording of the
+    /// session holds the final message of each child.
     ///
     /// - Parameters:
     ///   - session: The session of the run.
@@ -71,7 +77,7 @@ extension AgentRun {
         async let following: Void = follow(events, on: session, observer: observer)
         let final = settle(await outcome(of: prompt, on: session))
         await children.cancelOpenRuns()
-        await sessionWatch.waitForSettlement(ofCalls: children.runs.compactMap(\.context?.completionToken))
+        await sessionWatch.waitForSettlement(ofCalls: children.runs.compactMap(\.context))
         await session.close()
         await following
         return final
@@ -211,7 +217,6 @@ extension AgentRun {
                 signals.continuation.yield(signal)
             }
         }
-        sessionWatch.finish()
         signals.continuation.yield(.sessionClosed)
         signals.continuation.finish()
     }

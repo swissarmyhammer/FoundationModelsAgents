@@ -71,4 +71,58 @@ struct CancelAllFinalMessageTests {
         #expect(settled.detail == cancelledText)
         #expect(posts.map(\.detail) == [cancelledText])
     }
+
+    /// The order of each step is fixed. The task answer of the lead calls
+    /// `start agent`, and the call answers at once with the pending envelope
+    /// (the settle period of the harness is 0). The next step of the lead is
+    /// a ``ScriptedAgentStep/holdThroughCancel(_:)`` step, thus the task
+    /// answer is still open when the lead arrives at its gate. The child
+    /// holds on its own gate in the same way. The test calls `cancelAll()`
+    /// on the lead session while both hold. It opens each gate only after
+    /// the cancel arrived at that gate (``ScriptedGate/waitForCancel()``).
+    ///
+    /// The `cancelAll()` stops the open task answer. The session then sends
+    /// no live event that the work of that answer posts, also not the
+    /// `runSettled` of the `start agent` call. Thus the test does not wait
+    /// for that event. It waits for the end of the lead, and then reads the
+    /// recording of the lead.
+    @Test("cancelAll() while the answer that started a child still runs: the run ends, and the recording of the parent holds the final message of the child")
+    func cancelAllInTheOpenAnswerEndsTheRunAndKeepsTheFinalMessage() async throws {
+        let leadGate = ScriptedGate()
+        let childGate = ScriptedGate()
+        let harness = try await AgentRunHarness.make(
+            script: ScriptedAgentScript([
+                ScriptedAgentPlay(
+                    key: NestedRunTests.leadKey,
+                    steps: [
+                        NestedRunTests.startStep(NestedRunTests.reviewer, prompt: NestedRunTests.reviewerKey),
+                        .holdThroughCancel(leadGate),
+                        .finalText(NestedRunTests.startedText)
+                    ]),
+                ScriptedAgentPlay(
+                    key: NestedRunTests.reviewerKey,
+                    steps: [.holdThroughCancel(childGate), .finalText(NestedRunTests.reviewerText)])
+            ]))
+        defer { try? harness.delete() }
+        let runner = harness.makeRunner()
+
+        let lead = try await runner.start(NestedRunTests.lead, prompt: NestedRunTests.leadKey)
+        await leadGate.waitForArrival()
+        await childGate.waitForArrival()
+        let child = try await NestedRunTests.onlyRun(of: runner, caller: lead.id)
+        let leadSession = try #require(lead.heldSession)
+
+        leadSession.cancelAll()
+        await leadGate.waitForCancel()
+        await childGate.waitForCancel()
+        leadGate.open()
+        childGate.open()
+        let leadFinal = await lead.finalState()
+        let childFinal = await child.finalState()
+        let posts = try NestedRunTests.posts(of: child, in: lead.recordingDirectory)
+
+        #expect(leadFinal == .cancelled)
+        #expect(childFinal == .cancelled)
+        #expect(posts.map(\.detail) == [child.report(of: .cancelled)])
+    }
 }

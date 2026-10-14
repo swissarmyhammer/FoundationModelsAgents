@@ -1,4 +1,5 @@
 import Foundation
+import FoundationModelsExtras
 import FoundationModelsRouter
 import Synchronization
 
@@ -6,19 +7,20 @@ import Synchronization
 ///
 /// The run gives each event of its session-event subscription to
 /// ``observe(_:)``. The watch keeps the detail of each terminal that the
-/// Router recorded. Two parts of the run read it:
+/// Router sent live (``SessionEvent/runSettled(_:)``). The idle rule reads
+/// the detail of each background call of the session
+/// (``detail(ofSettledCall:)``): the session is idle only when a prompt
+/// holds that detail. The key is the completion token of the call. The
+/// Router sends ``SessionEvent/runSettled(_:)`` with that token as the
+/// `correlationID` of the terminal.
 ///
-/// - The idle rule reads the detail of each background call of the session
-///   (``detail(ofSettledCall:)``): the session is idle only when a prompt
-///   holds that detail.
-/// - Before the run closes its session, it waits until the Router recorded
-///   the final message of each run that it started
-///   (``waitForSettlement(ofCalls:)``). Thus the recording of the session
-///   holds each final message.
-///
-/// The key is the completion token of the call. The Router sends
-/// ``SessionEvent/runSettled(_:)`` with that token as the `correlationID` of
-/// the terminal.
+/// Before the run closes its session, it waits until the run plane settled
+/// the call of each run that it started (``waitForSettlement(ofCalls:)``).
+/// That wait goes by token through the run plane, not through the live
+/// ``SessionEvent/runSettled(_:)``. A cancel (`cancelAll()`) can drop the
+/// live events of the answer that it stopped, also the `runSettled` of a
+/// call that the answer started. Thus a wait for the live event can wait
+/// for ever.
 ///
 /// The watch also keeps each message that a running child sent
 /// (``SessionEvent/runMessage(_:)``), in order, for each token. One child can
@@ -44,13 +46,6 @@ final class ParentSessionWatch: Sendable {
         /// The messages that each running child sent, in event order, by
         /// the token of its call.
         var messages: [String: [OperationEvent]] = [:]
-
-        /// The waits for the settlement of a call, by token.
-        var settlementWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
-
-        /// `true` after the session-event subscription finished. Each wait
-        /// then returns at once.
-        var isFinished = false
     }
 
     /// The state of the watch.
@@ -59,13 +54,12 @@ final class ParentSessionWatch: Sendable {
     /// Makes an empty watch.
     init() {}
 
-    /// Applies one event of the session-event subscription of the run, and
-    /// resumes each wait that the event completes.
+    /// Applies one event of the session-event subscription of the run.
     ///
     /// - Parameter event: The event.
     func observe(_ event: SessionEvent) {
         if case .runSettled(let terminal) = event {
-            resume(takingSettlementWaiters(of: terminal))
+            state.withLock { $0.settledDetails[terminal.correlationID] = terminal.detail }
         }
         if case .runMessage(let message) = event {
             state.withLock { $0.messages[message.correlationID, default: []].append(message) }
@@ -121,62 +115,20 @@ final class ParentSessionWatch: Sendable {
         state.withLock { $0.settledDetails[token] }
     }
 
-    /// Ends the watch when the session-event subscription finished. Each
-    /// wait returns, now and later.
-    func finish() {
-        let waiters = state.withLock { state in
-            state.isFinished = true
-            let waiters = Array(state.settlementWaiters.values.joined())
-            state.settlementWaiters = [:]
-            return waiters
-        }
-        resume(waiters)
-    }
-
-    /// Waits until the Router recorded the terminal of each call of `tokens`.
+    /// Waits until the run plane settled each call of `calls`.
     ///
-    /// - Parameter tokens: The completion tokens of the calls.
-    func waitForSettlement(ofCalls tokens: [String]) async {
-        for token in tokens {
-            await waitForSettlement(ofCall: token)
-        }
-    }
-
-    /// Waits until the Router recorded the terminal of the call `token`.
+    /// For each call, the wait goes by its completion token through the run
+    /// plane (`ToolContext.wait(completionToken:seconds:)`). The run plane
+    /// settles the call when the body of the call posts its terminal, also
+    /// when a cancel dropped the live ``SessionEvent/runSettled(_:)`` of that
+    /// terminal. Thus the wait does not use the live event. A call that is
+    /// settled already, or a token that the run plane does not know, returns
+    /// at once.
     ///
-    /// - Parameter token: The completion token of the call.
-    private func waitForSettlement(ofCall token: String) async {
-        await withCheckedContinuation { continuation in
-            let isDone = state.withLock { state in
-                guard !state.isFinished, state.settledDetails[token] == nil else {
-                    return true
-                }
-                state.settlementWaiters[token, default: []].append(continuation)
-                return false
-            }
-            if isDone {
-                continuation.resume()
-            }
-        }
-    }
-
-    /// Records `terminal`, and takes the waits of its call.
-    ///
-    /// - Parameter terminal: The terminal that the Router recorded.
-    /// - Returns: The waits to resume.
-    private func takingSettlementWaiters(of terminal: OperationEvent) -> [CheckedContinuation<Void, Never>] {
-        state.withLock { state in
-            state.settledDetails[terminal.correlationID] = terminal.detail
-            return state.settlementWaiters.removeValue(forKey: terminal.correlationID) ?? []
-        }
-    }
-
-    /// Resumes each wait of `waiters`.
-    ///
-    /// - Parameter waiters: The waits.
-    private func resume(_ waiters: [CheckedContinuation<Void, Never>]) {
-        for waiter in waiters {
-            waiter.resume()
+    /// - Parameter calls: The context of each `start agent` call, in order.
+    func waitForSettlement(ofCalls calls: [ToolContext]) async {
+        for call in calls {
+            _ = await call.wait(completionToken: call.completionToken, seconds: nil)
         }
     }
 }
