@@ -32,8 +32,8 @@ comments:
   timestamp: 2026-10-14T11:55:09.149862+00:00
 depends_on:
 - 01M4X3B3NWJT56QDGZXEKEVTB3
-position_column: todo
-position_ordinal: '8280'
+position_column: doing
+position_ordinal: '80'
 title: 'Mail step 3, T2: caller messages as mail by MailID'
 ---
 ## Plan (from the step 3 message)

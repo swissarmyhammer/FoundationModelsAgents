@@ -3,8 +3,8 @@ assignees:
 - claude-code
 depends_on:
 - 01M4X3AWSG1NMS3411854X04J6
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: d580
 title: 'Mail step 3, T1: port to the new Router API'
 ---
 ## Plan (from the step 3 message)
