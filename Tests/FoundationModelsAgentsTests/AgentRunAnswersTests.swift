@@ -78,9 +78,9 @@ struct AgentRunAnswersTests {
         let transcript = await session.transcript
         var events: [SessionEvent] = []
         var answers = 0
-        for await event in stream {
-            events.append(event)
-            if case .answered = event {
+        for await output in stream {
+            events.append(output.event)
+            if case .answered = output.event {
                 answers += 1
             }
             if answers == answerCount {

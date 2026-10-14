@@ -194,7 +194,7 @@ public struct AgentsToolContext: Sendable {
     /// - Returns: The final message text of the run: the ``AgentRun/report``
     ///   of its final state.
     func finalMessage(of run: AgentRun, startedBy call: ToolContext) async -> String {
-        startedRuns.add(run, forCall: call.completionToken)
+        startedRuns.add(run, forCall: call)
         let final = await withTaskCancellationHandler {
             await run.finalState()
         } onCancel: {

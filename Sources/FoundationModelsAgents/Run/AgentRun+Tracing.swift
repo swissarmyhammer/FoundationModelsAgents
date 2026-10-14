@@ -73,8 +73,9 @@ extension AgentRun {
     /// and 8 of the OpenTelemetry design of 2026-09-28).
     ///
     /// The span is a child of the `ServiceContext` of the task that calls
-    /// this method: the tool span of the `start agent` call for a child run,
-    /// or the context of the host for a host-started run. The span has the
+    /// this method: for a child run, the run plane span of the body of the
+    /// `start agent` call (a child of the tool span of the call); for a
+    /// host-started run, the context of the host. The span has the
     /// ids, the name and the depth of the run when it starts, and the outcome
     /// when `body` gives the final state. It ends when this method returns.
     ///

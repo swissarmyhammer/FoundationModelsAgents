@@ -486,13 +486,15 @@ public final class AgentRun: Sendable {
     }
 
     /// Puts one accepted message from the caller in the message queue of the
-    /// session, and removes it from the count of inbound messages.
+    /// session, and removes it from the count of inbound messages. The
+    /// session refuses the message only after its close, when the run ends
+    /// and does not answer it.
     ///
     /// - Parameters:
     ///   - message: The text of the caller.
     ///   - session: The session of the run.
     private func send(_ message: String, to session: any RoutedSession) async {
-        await session.send(AgentsToolText.callerMessage(message))
+        _ = try? session.send(AgentsToolText.callerMessage(message))
         storage.withLock { $0.inboundMessages -= 1 }
     }
 

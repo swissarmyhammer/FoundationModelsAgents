@@ -111,7 +111,7 @@ struct AgentRunTests {
     ///
     /// - Parameter events: A subscription of the session events.
     /// - Returns: `true` when the subscription ended.
-    private static func ends(_ events: AsyncStream<SessionEvent>) async -> Bool {
+    private static func ends(_ events: AsyncStream<SessionOutput>) async -> Bool {
         for await _ in events {}
         return true
     }

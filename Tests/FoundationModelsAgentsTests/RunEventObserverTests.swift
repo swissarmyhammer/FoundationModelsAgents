@@ -124,8 +124,8 @@ private final class ObservedRunEvents: Sendable {
 
     /// The observer to give to the environment.
     var observer: AgentEnvironment.RunEventObserver {
-        { [self] run, event in
-            observe(event, of: run.id)
+        { [self] run, output in
+            observe(output.event, of: run.id)
         }
     }
 

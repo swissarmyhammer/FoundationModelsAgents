@@ -141,7 +141,12 @@ struct ScriptedProfileTests {
         let firstAnswer = Task { try await first.respond(to: Self.promptKey) }
         await gate.waitForArrival()
         var secondEvents = await second.streamEvents(to: secondKey).makeAsyncIterator()
-        let firstSecondEvent = try await secondEvents.next()
+        // The Router sends the delivery of the mail first; the submission
+        // event of the mail comes after it.
+        var firstSecondEvent = try await secondEvents.next()
+        if case .mailDelivered = firstSecondEvent {
+            firstSecondEvent = try await secondEvents.next()
+        }
         gate.open()
         _ = try await firstAnswer.value
 

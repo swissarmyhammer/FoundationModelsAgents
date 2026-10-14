@@ -83,9 +83,6 @@ extension LiveSuites {
             try await LiveHarness.withHarness(agents: agents, inlineSettleGrace: Self.backgroundAtOnce) { harness in
                 let root = harness.makeRootSession(tools: [try await harness.makeAgentsTool()])
                 let rootEvents = await root.streamSessionEvents()
-                var mailAnswers = rootEvents.filter { event in
-                    if case .answered(let answer) = event { answer.messageIds.isEmpty } else { false }
-                }.makeAsyncIterator()
                 _ = try await root.respond(
                     to: try LiveHarness.agentsCallText([
                         "op": LiveHarness.startOperation, "name": Self.lead, "prompt": Self.leadTask
@@ -94,7 +91,16 @@ extension LiveSuites {
                 let leadText = try await lead.result()
                 let leaf = try LiveHarness.run(of: Self.leaf, in: await harness.runner.runs(caller: lead.id))
                 let leafText = try await leaf.result()
-                _ = await mailAnswers.next()
+                // Wait for the first answer to mail. The first submission of an answer
+                // that mail alone started has the cause `.mail`.
+                var answersMail = false
+                for await output in rootEvents {
+                    if case .submissionStarted(let start) = output.event, start.cause != .continuation {
+                        answersMail = start.cause == .mail
+                    } else if case .answered = output.event, answersMail {
+                        break
+                    }
+                }
                 await root.close()
 
                 let rootSpawn = try LiveRecording.session(in: root.recordingDirectory).agentSpawn

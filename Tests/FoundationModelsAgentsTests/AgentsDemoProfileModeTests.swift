@@ -348,15 +348,15 @@ struct AgentsDemoEventLineTests {
     @Test("an answer gives one root line with its reply")
     func answerGivesARootLine() {
         let answer = SessionAnswer(
-            reply: Self.reply, messageIds: [], usage: nil, compactions: [], toolCalls: [], toolInvocations: [])
+            reply: Self.reply, mailIds: [], usage: nil, compactions: [], toolCalls: [], toolInvocations: [])
 
         #expect(AgentsDemoModes.lines(for: .answered(answer)) == [AgentsDemoModes.rootLine(Self.reply)])
     }
 
     @Test("a failed answer gives one line with the reason")
     func failedAnswerGivesTheReason() {
-        let failed = AnswerFailure(messageIds: [], reason: .error(Self.errorText))
-        let cancelled = AnswerFailure(messageIds: [], reason: .cancelled)
+        let failed = AnswerFailure(mailIds: [], reason: .error(Self.errorText))
+        let cancelled = AnswerFailure(mailIds: [], reason: .cancelled)
 
         #expect(AgentsDemoModes.lines(for: .answerFailed(failed)) == [AgentsDemoModes.failedPrefix + Self.errorText])
         #expect(AgentsDemoModes.lines(for: .answerFailed(cancelled))

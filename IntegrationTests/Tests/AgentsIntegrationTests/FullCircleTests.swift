@@ -133,13 +133,20 @@ extension LiveSuites {
                 let task = Task {
                     var isSettled = false
                     var readsFinalMessage = false
-                    for await event in events {
-                        switch event {
+                    // The first submission of an answer that mail alone started has the cause `.mail`.
+                    var answersMail = false
+                    for await output in events {
+                        switch output.event {
                         case .runSettled:
                             isSettled = true
-                        case .submissionStarted where isSettled:
-                            readsFinalMessage = true
-                        case .answered(let answer) where answer.messageIds.isEmpty && readsFinalMessage:
+                        case .submissionStarted(let start):
+                            if start.cause != .continuation {
+                                answersMail = start.cause == .mail
+                            }
+                            if isSettled {
+                                readsFinalMessage = true
+                            }
+                        case .answered(let answer) where answersMail && readsFinalMessage:
                             readsFinalMessage = false
                             continuation.yield(answer.reply)
                         default:

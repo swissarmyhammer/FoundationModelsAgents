@@ -256,6 +256,15 @@ extension AgentsTool: BackgroundTool {
     /// Gives the canceler of the call `completionToken`: it cancels the run
     /// that the call started, or the run that the call starts later.
     ///
+    /// When the call has a run, the canceler waits until the body of the call
+    /// settled the call with its own terminal event, which holds the final
+    /// message of the run ("… was cancelled."). The sweep of the run plane
+    /// (`cancelAll()`, `close()`) runs the canceler and then keeps that
+    /// terminal event. Without the wait, the sweep gives the call a terminal
+    /// event with no final message. The sweep runs in the background, thus
+    /// this wait does not delay `cancelAll()`. A call with no run yet has no
+    /// body to wait for: the canceler returns at once.
+    ///
     /// The Router asks for the canceler of each background call before the
     /// body of the call runs. Thus this call also opens the call in the record of the
     /// started runs: from now on, `check agent`, `cancel agent`, and
@@ -270,7 +279,9 @@ extension AgentsTool: BackgroundTool {
         let startedRuns = context.startedRuns
         startedRuns.open(call: completionToken)
         return {
-            startedRuns.cancelRun(ofCall: completionToken)
+            if let call = startedRuns.cancelRun(ofCall: completionToken) {
+                _ = await call.wait(completionToken: completionToken, seconds: nil)
+            }
             return .cancelled
         }
     }

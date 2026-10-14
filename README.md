@@ -153,11 +153,17 @@ _ = try await root.respond(to: "Ask code-reviewer to review Sources/Parser.swift
 
 // The run works in the background. When it ends, the Router gives its
 // final message to the root session as mail, and the root answers it.
-var mailAnswers = events.compactMap { event -> String? in
-    guard case .answered(let answer) = event, answer.messageIds.isEmpty else { return nil }
-    return answer.reply
-}.makeAsyncIterator()
-let answer = await mailAnswers.next()
+// The first submission of an answer that mail alone started has the cause `.mail`.
+var answer: String?
+var answersMail = false
+for await output in events {
+    if case .submissionStarted(let start) = output.event, start.cause != .continuation {
+        answersMail = start.cause == .mail
+    } else if case .answered(let mailAnswer) = output.event, answersMail {
+        answer = mailAnswer.reply
+        break
+    }
+}
 
 // The Router does not know the runs of a session: cancel them before close().
 await runner.cancelRuns(caller: root.id)

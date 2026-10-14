@@ -252,7 +252,7 @@ enum AgentsDemoModes {
             .toolCallReport, .entryRecorded, .compaction, .discoveryPrimingFailed, .generationStalled,
             .submissionQueued, .submissionStarted, .submissionEnded, .repetitionStopped,
             .elicitationRequested, .generationCall, .compactionStarted, .compactionFailed,
-            .reasoningStopped, .runProgress:
+            .reasoningStopped, .runProgress, .mailDelivered, .cancelled, .signalDone, .lost:
             []
         }
     }
@@ -389,9 +389,9 @@ enum AgentsDemoModes {
         let writer = Task {
             await write(events, to: output)
         }
-        _ = await root.send(conversation.firstPrompt)
+        try root.send(conversation.firstPrompt)
         for await line in input {
-            _ = await root.send(line)
+            try root.send(line)
         }
         await runner.cancelRuns(caller: root.id)
         await root.close()
@@ -405,9 +405,9 @@ enum AgentsDemoModes {
     /// - Parameters:
     ///   - events: The session events of the root session.
     ///   - output: The receiver of each line.
-    private static func write(_ events: AsyncStream<SessionEvent>, to output: AgentsDemoOutput) async {
-        for await event in events {
-            for line in lines(for: event) {
+    private static func write(_ events: AsyncStream<SessionOutput>, to output: AgentsDemoOutput) async {
+        for await sessionOutput in events {
+            for line in lines(for: sessionOutput.event) {
                 output(line)
             }
         }

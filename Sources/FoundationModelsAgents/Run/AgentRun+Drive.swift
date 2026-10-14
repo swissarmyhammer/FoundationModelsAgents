@@ -1,4 +1,5 @@
 import FoundationModels
+import FoundationModelsExtras
 import FoundationModelsRouter
 
 /// The signals that decide the end of one run: one stream, and the one
@@ -50,9 +51,10 @@ extension AgentRun {
     ///
     /// When the answers end, the run records its final state (``settle(_:)``)
     /// at once. It then cancels its open children and waits for them, waits
-    /// until the Router recorded the final message of each child, stops its
-    /// session, and closes it. The close finishes the subscription, thus the
-    /// follower ends.
+    /// until the Router recorded the final message of each child, and closes
+    /// its session. The close stops all work of the session first
+    /// (`cancelAll()`), and finishes the subscription, thus the follower
+    /// ends.
     ///
     /// - Parameters:
     ///   - session: The session of the run.
@@ -70,7 +72,6 @@ extension AgentRun {
         let final = settle(await outcome(of: prompt, on: session))
         await children.cancelOpenRuns()
         await sessionWatch.waitForSettlement(ofCalls: children.runs.compactMap(\.context?.completionToken))
-        await session.cancel()
         await session.close()
         await following
         return final
@@ -133,14 +134,14 @@ extension AgentRun {
         case .limitHit(let partial):
             return .failed(.hitMaxTurns(partial: partial))
         case .cancelRequested:
-            await session.cancel()
+            session.cancelAll()
             return .cancelled
         case .taskAnswerFailed(let error):
             return turns.isLimitHit ? nil : Self.endState(afterTaskFailure: error)
         case .mailAnswerFailed(let reason):
             return turns.isLimitHit ? nil : Self.endState(afterMailFailure: reason)
         case .mailDeliveryPaused(let text):
-            await session.cancel()
+            session.cancelAll()
             return .failed(.mailDeliveryPaused(text))
         case .sessionClosed:
             return .cancelled
@@ -190,20 +191,23 @@ extension AgentRun {
     ///   - observer: The observer of the session events of the host, or
     ///     `nil`.
     private func follow(
-        _ events: AsyncStream<SessionEvent>, on session: any RoutedSession,
+        _ events: AsyncStream<SessionOutput>, on session: any RoutedSession,
         observer: AgentEnvironment.RunEventObserver?
     ) async {
-        for await event in events {
-            observer?(self, event)
+        var chains = MailAnswerFilter()
+        for await output in events {
+            observer?(self, output)
+            let event = output.event
+            _ = chains.answerToMailAlone(in: event)
             record(event)
             if case .submissionStarted = event {
                 await releaseHeldMessages(to: session)
             }
             sessionWatch.observe(event)
             if turns.apply(event) {
-                await session.cancel()
+                session.cancelAll()
             }
-            if let signal = await signal(after: event, on: session) {
+            if let signal = await signal(after: event, isChainOfMailAlone: chains.isChainOfMailAlone, on: session) {
                 signals.continuation.yield(signal)
             }
         }
@@ -229,9 +233,14 @@ extension AgentRun {
     ///
     /// - Parameters:
     ///   - event: The event, already recorded.
+    ///   - isChainOfMailAlone: `true` when run mail alone started the chain
+    ///     of the event (``MailAnswerFilter``). The ids of a failure hold run
+    ///     mail too, thus they do not tell it.
     ///   - session: The session of the run.
     /// - Returns: The signal, or `nil`.
-    private func signal(after event: SessionEvent, on session: any RoutedSession) async -> AgentRunSignal? {
+    private func signal(
+        after event: SessionEvent, isChainOfMailAlone: Bool, on session: any RoutedSession
+    ) async -> AgentRunSignal? {
         if case .answered(let answer) = event {
             if turns.isLimitHit {
                 return .limitHit(partial: answer.reply)
@@ -248,7 +257,7 @@ extension AgentRun {
             if turns.isLimitHit {
                 return .limitHit(partial: answers.partial)
             }
-            return failure.messageIds.isEmpty ? .mailAnswerFailed(failure.reason) : nil
+            return isChainOfMailAlone ? .mailAnswerFailed(failure.reason) : nil
         }
         if case .mailDeliveryPaused(let pause) = event {
             return .mailDeliveryPaused(pause.description)
@@ -297,8 +306,11 @@ extension AgentRun {
     /// count of accepted messages from the caller for an idle session.
     ///
     /// The session is idle when each run that this run started ended, when
-    /// no message waits, and when the session delivered the final message of
-    /// each background call of the session. A background call is a tool
+    /// no user-type mail waits (``userTypeKinds``), when no answer runs, and
+    /// when the session delivered the final message of each background call
+    /// of the session. Run mail in the queue does not keep the session from
+    /// idle: progress mail starts no answer, thus it can wait after the last
+    /// answer. The checks below find the run mail that matters. A background call is a tool
     /// output of the settled transcript that is a pending envelope
     /// (``pendingRunTokens(in:)``). Its final message is the detail of its
     /// terminal, and a prompt of the settled transcript must hold that
@@ -342,8 +354,8 @@ extension AgentRun {
         else {
             return nil
         }
-        let depth = await session.messageQueueDepth()
-        guard depth.waiting == 0, depth.running.isEmpty else {
+        let depth = await session.mailQueueDepth()
+        guard Self.userTypeKinds.allSatisfy({ (depth.depthByKind[$0] ?? 0) == 0 }), depth.running.isEmpty else {
             return nil
         }
         let transcript = await session.transcript
@@ -358,6 +370,10 @@ extension AgentRun {
             inAnsweredPrompts: answers.answeredPromptTexts(in: transcript))
         return isDelivered && isEachMessageDelivered ? acceptedMessages : nil
     }
+
+    /// The kinds of mail that keep the session from idle while they wait in
+    /// the queue: each kind except run mail.
+    static let userTypeKinds: [MailKind] = MailKind.allCases.filter { $0 != .runEvent }
 
     /// Gives the completion token of each pending envelope that a tool
     /// output of `transcript` holds.

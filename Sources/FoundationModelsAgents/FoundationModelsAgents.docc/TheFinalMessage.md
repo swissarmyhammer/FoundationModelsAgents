@@ -71,14 +71,21 @@ calls no tool. The pump of the Router delivers the mail when the answer in
 operation is done, and starts an answer to the mail with no call of the host.
 The Router also sends
 `SessionEvent.runSettled(event)` on `streamSessionEvents()`, and each answer
-ends with `SessionEvent.answered(_:)`. An answer that answers only mail has no
-message ids. A host reads these answers from its subscription:
+ends with `SessionEvent.answered(_:)`. Each `SessionOutput` of the
+subscription holds the event and its origin. The first submission of an
+answer that only mail started has the cause `.mail`. A host reads these
+answers from its subscription:
 
 ```swift
 let events = await root.streamSessionEvents()   // subscribe before the first message
 _ = try await root.respond(to: userPrompt)
-for await case .answered(let answer) in events where answer.messageIds.isEmpty {
-    print(answer.reply)                          // the answer to a final message
+var answersMail = false
+for await output in events {
+    if case .submissionStarted(let start) = output.event, start.cause != .continuation {
+        answersMail = start.cause == .mail
+    } else if case .answered(let answer) = output.event, answersMail {
+        print(answer.reply)                      // the answer to a final message
+    }
 }
 ```
 

@@ -16,6 +16,15 @@ struct CapturedTrace {
     /// card of the task names it too.
     static let submissionSpanName = "FoundationModelsRouter.submission"
 
+    /// The name of the span of one mounted tool call. Extras keeps its span
+    /// names internal, thus the test states this name here.
+    static let toolSpanName = "FoundationModelsExtras.tool"
+
+    /// The name of the span of the body of one background run of the run
+    /// plane. It is a child of the tool span of the call, and the parent of
+    /// the work of the body. Extras keeps its span names internal.
+    static let runPlaneSpanName = "FoundationModelsExtras.run"
+
     /// The spans that ended in the capture, in the order of their end.
     let spans: [FinishedInMemorySpan]
 

@@ -1,3 +1,4 @@
+import FoundationModelsRouter
 import Synchronization
 
 /// The runs that the `start agent` calls of one `agents` tool started, by
@@ -33,6 +34,11 @@ final class StartedRuns: Sendable {
     private struct State {
         /// The runs, by the completion token of the call that started each.
         var runs: [String: AgentRun] = [:]
+
+        /// The context of the call that started each run, by the completion
+        /// token of the call. The canceler of a call waits on it until the
+        /// body of the call settled the call.
+        var calls: [String: ToolContext] = [:]
 
         /// The tokens of the calls that the Router cancelled before their
         /// body added a run.
@@ -78,10 +84,12 @@ final class StartedRuns: Sendable {
     ///
     /// - Parameters:
     ///   - run: The run.
-    ///   - token: The completion token of the call.
-    func add(_ run: AgentRun, forCall token: String) {
+    ///   - call: The context of the call. Its completion token is the key.
+    func add(_ run: AgentRun, forCall call: ToolContext) {
+        let token = call.completionToken
         let (isCancelled, waiters) = state.withLock { state in
             state.runs[token] = run
+            state.calls[token] = call
             return (state.cancelled.remove(token) != nil, state.endOpenCall(token))
         }
         if isCancelled {
@@ -140,15 +148,19 @@ final class StartedRuns: Sendable {
     /// run yet, the record keeps the cancel for it.
     ///
     /// - Parameter token: The completion token of the call.
-    func cancelRun(ofCall token: String) {
-        let run = state.withLock { state in
-            guard let run = state.runs[token] else {
+    /// - Returns: The context of the call when the call has a run, or `nil`
+    ///   when the record keeps the cancel for a later run.
+    @discardableResult
+    func cancelRun(ofCall token: String) -> ToolContext? {
+        let started = state.withLock { state in
+            guard let run = state.runs[token], let call = state.calls[token] else {
                 state.cancelled.insert(token)
-                return AgentRun?.none
+                return (AgentRun, ToolContext)?.none
             }
-            return run
+            return (run, call)
         }
-        run?.cancel()
+        started?.0.cancel()
+        return started?.1
     }
 
     /// Resumes each task that waited for an open call.

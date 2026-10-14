@@ -8,7 +8,8 @@ import Tracing
 /// Pins the span of each agent run (item A of the OpenTelemetry design of
 /// 2026-09-28): one `FoundationModelsAgents.run` span for each run, with ids,
 /// names, the depth and the outcome and no content; a child run span under
-/// the `start agent` tool span of its parent; and the submission spans of the
+/// the run plane span of the `start agent` call of its parent (the run plane
+/// span is a child of the tool span of the call); and the submission spans of the
 /// session of a run under the span of that run. Each run also writes one
 /// "enter" log record when it starts (item 8, hang detection).
 ///
@@ -187,7 +188,7 @@ struct AgentRunTracingTests {
                 == AgentsTelemetry.FailureKind.setupFailed.rawValue)
     }
 
-    @Test("a child run span is a child of the start agent tool span, under a submission of its parent run",
+    @Test("a child run span is under the run plane span of the start agent call, under a submission of its parent run",
         .timeLimit(.minutes(1)))
     func childRunSpanIsChildOfToolSpan() async throws {
         let nested = try await Self.runNested()
@@ -195,10 +196,11 @@ struct AgentRunTracingTests {
 
         let leadSpan = try trace.runSpan(of: lead)
         let childSpan = try trace.runSpan(of: child)
-        let toolSpan = try #require(trace.parent(of: childSpan))
+        let runPlaneSpan = try #require(trace.parent(of: childSpan))
+        let toolSpan = try #require(trace.parent(of: runPlaneSpan))
         let submission = try #require(trace.parent(of: toolSpan))
-        #expect(toolSpan.operationName != AgentsTelemetry.SpanName.run)
-        #expect(toolSpan.operationName != CapturedTrace.submissionSpanName)
+        #expect(runPlaneSpan.operationName == CapturedTrace.runPlaneSpanName)
+        #expect(toolSpan.operationName == CapturedTrace.toolSpanName)
         #expect(CapturedTrace.texts(of: toolSpan).contains(lead.id.description))
         #expect(submission.operationName == CapturedTrace.submissionSpanName)
         #expect(submission.parentSpanID == leadSpan.spanID)

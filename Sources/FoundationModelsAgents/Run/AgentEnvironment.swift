@@ -35,9 +35,11 @@ public struct AgentEnvironment: Sendable {
     /// model, in tokens. `nil` gives a run with no budget.
     public typealias BudgetFactory = @Sendable (Int) -> TokenBudget?
 
-    /// Receives each session event of one agent run, with that run.
-    /// ``runEventObserver`` tells the contract.
-    public typealias RunEventObserver = @Sendable (AgentRun, SessionEvent) -> Void
+    /// Receives each session output of one agent run, with that run. The
+    /// output holds the event and its origin, thus a host can follow the id
+    /// chain from the mail to the event. ``runEventObserver`` tells the
+    /// contract.
+    public typealias RunEventObserver = @Sendable (AgentRun, SessionOutput) -> Void
 
     /// The default of ``maxConcurrentAgents``.
     public static let defaultMaxConcurrentAgents = 4
@@ -151,6 +153,7 @@ public struct AgentEnvironment: Sendable {
     /// The observer of the session events of each run, or `nil` for no
     /// observer. `nil` is the default.
     ///
+    /// The observer gets each ``SessionOutput``: the event and its origin.
     /// Each run calls the observer, the child runs too. The run reads the
     /// session-event subscription of its session in one loop, and calls the
     /// observer synchronously in that loop, first for each event, before the

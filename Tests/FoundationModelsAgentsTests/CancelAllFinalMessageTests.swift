@@ -1,0 +1,74 @@
+@testable import FoundationModelsAgents
+import FoundationModelsRouter
+import Testing
+
+/// Pins the Router contract of `cancelAll()` on the session of a lead run that
+/// has an open child: the call returns its `SignalID` at once, the signal ends
+/// before the child ends, and the recorded terminal of the `start agent` call
+/// holds the final message of the child.
+///
+/// The order of each step is fixed. The child holds its turn on a gate with
+/// a ``ScriptedAgentStep/holdThroughCancel(_:)`` step: a cancel does not
+/// release the step, only ``ScriptedGate/open()`` does. The child closes its
+/// session before it ends, and the close waits for the held turn. Thus the
+/// child stays ``AgentRunState/running`` until the test opens the gate, and
+/// the body of the `start agent` call, which waits for the end of the child,
+/// cannot settle the call before that.
+///
+/// The test calls `cancelAll()` only after the task answer of the lead ended.
+/// The run event observer opens a gate at the `answered` event of the lead.
+/// A `cancelAll()` in an answer stops that answer, and the session then
+/// sends no live event that the work of that answer posts. The `start agent`
+/// call is work of the task answer. Thus the order of the end of the answer
+/// and of `cancelAll()` must be fixed. The test uses no clock and no poll.
+@Suite("cancelAll() and the final message of a child")
+struct CancelAllFinalMessageTests {
+    @Test("cancelAll() returns its SignalID before the child ends, and the recorded terminal of the start agent call has the final message")
+    func cancelAllKeepsTheFinalMessageOfTheChild() async throws {
+        let gate = ScriptedGate()
+        let leadAnswered = ScriptedGate()
+        let harness = try await AgentRunHarness.make(
+            script: ScriptedAgentScript([
+                NestedRunTests.parentPlay(NestedRunTests.leadKey, children: [(NestedRunTests.reviewer, NestedRunTests.reviewerKey)]),
+                ScriptedAgentPlay(
+                    key: NestedRunTests.reviewerKey,
+                    steps: [.holdThroughCancel(gate), .finalText(NestedRunTests.reviewerText)])
+            ]),
+            runEventObserver: { run, output in
+                if run.agent.id == NestedRunTests.lead, case .answered = output.event {
+                    leadAnswered.open()
+                }
+            })
+        defer { try? harness.delete() }
+        let runner = harness.makeRunner()
+
+        let lead = try await runner.start(NestedRunTests.lead, prompt: NestedRunTests.leadKey)
+        try await leadAnswered.wait()
+        await gate.waitForArrival()
+        let child = try await NestedRunTests.onlyRun(of: runner, caller: lead.id)
+        let leadSession = try #require(lead.heldSession)
+        let events = await leadSession.streamSessionEvents()
+
+        let signal = leadSession.cancelAll()
+        let stateAfterCancelAll = child.state
+        await gate.waitForCancel()
+        let signalEnd = try await leadSession.awaitTerminal(of: signal)
+        let stateAtSignalEnd = child.state
+        gate.open()
+        let childFinal = await child.finalState()
+        let settled = try await NestedRunTests.settlement(of: child, in: events)
+        // A stopped run makes no mail, thus the lead never answers the final
+        // message and never goes idle. The cancel of the lead ends it.
+        lead.cancel()
+        _ = await lead.finalState()
+        let posts = try NestedRunTests.posts(of: child, in: lead.recordingDirectory)
+        let cancelledText = child.report(of: .cancelled)
+
+        #expect(stateAfterCancelAll == .running)
+        #expect(signalEnd == .signalDone(signal))
+        #expect(stateAtSignalEnd == .running)
+        #expect(childFinal == .cancelled)
+        #expect(settled.detail == cancelledText)
+        #expect(posts.map(\.detail) == [cancelledText])
+    }
+}

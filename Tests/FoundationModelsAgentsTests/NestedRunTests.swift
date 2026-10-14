@@ -158,7 +158,7 @@ struct NestedRunTests {
     /// - Returns: The terminal of the call.
     /// - Throws: The error of `#require` when the run has no context, or when
     ///   the events end before the event.
-    static func settlement(of run: AgentRun, in events: AsyncStream<SessionEvent>) async throws -> OperationEvent {
+    static func settlement(of run: AgentRun, in events: AsyncStream<SessionOutput>) async throws -> OperationEvent {
         try await firstSettlement(in: events, token: try #require(run.context?.completionToken))
     }
 
@@ -172,10 +172,10 @@ struct NestedRunTests {
     /// - Returns: The terminal of the first run that settled.
     /// - Throws: The error of `#require` when the events end first.
     static func firstSettlement(
-        in events: AsyncStream<SessionEvent>, token: String? = nil
+        in events: AsyncStream<SessionOutput>, token: String? = nil
     ) async throws -> OperationEvent {
-        var terminals = events.compactMap { event -> OperationEvent? in
-            if case .runSettled(let terminal) = event, token == nil || terminal.correlationID == token {
+        var terminals = events.compactMap { output -> OperationEvent? in
+            if case .runSettled(let terminal) = output.event, token == nil || terminal.correlationID == token {
                 terminal
             } else {
                 nil
@@ -339,12 +339,9 @@ struct NestedRunTests {
         defer { try? harness.delete() }
         let root = harness.makeRootSession(instructions: Self.rootKey)
         let rootEvents = await root.streamSessionEvents()
-        var mailAnswers = rootEvents.compactMap { event -> SessionAnswer? in
-            if case .answered(let answer) = event, answer.messageIds.isEmpty { answer } else { nil }
-        }.makeAsyncIterator()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
-        let mailAnswer = try #require(await mailAnswers.next())
+        let mailAnswer = try #require(await MailAnswerFilter.firstAnswerToMailAlone(in: rootEvents))
         let child = try await Self.onlyRun(of: harness.runner, caller: root.id)
         await root.close()
 

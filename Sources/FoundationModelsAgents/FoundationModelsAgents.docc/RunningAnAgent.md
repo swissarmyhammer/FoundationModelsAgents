@@ -126,15 +126,16 @@ When the run ends, it closes its session. A finished run holds no session.
 ### Observe the events of each run
 
 Give ``AgentEnvironment/runEventObserver`` to see the session events of each
-run, the child runs too. The observer gets the run and the event. For
-example, the open `toolInvocation` record of a tool run of a run carries the
-completion token of that tool run.
+run, the child runs too. The observer gets the run and the session output:
+the event and its origin (the ids of the mail or the signal that started
+it). For example, the open `toolInvocation` record of a tool run of a run
+carries the completion token of that tool run.
 
 ```swift
 let env = try await AgentEnvironment.make(
     profile: profile, skills: skills, tools: tools,
-    runEventObserver: { run, event in
-        if case .toolInvocation(let record, _) = event, record.closedAt == nil {
+    runEventObserver: { run, output in
+        if case .toolInvocation(let record, _) = output.event, record.closedAt == nil {
             joins.add(run: run.id, token: record.correlationID)
         }
     })

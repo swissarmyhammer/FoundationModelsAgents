@@ -186,12 +186,13 @@ struct FinalMessageTests {
         await root.close()
         var settledEvents = 0
         var mailAnswers = 0
+        var mailAnswerFilter = MailAnswerFilter()
         // close() ends the event stream, thus this loop reads each event of the session.
-        for await event in events {
-            if case .runSettled = event {
+        for await output in events {
+            if case .runSettled = output.event {
                 settledEvents += 1
             }
-            if case .answered(let mailAnswer) = event, mailAnswer.messageIds.isEmpty {
+            if mailAnswerFilter.answerToMailAlone(in: output.event) != nil {
                 mailAnswers += 1
             }
         }

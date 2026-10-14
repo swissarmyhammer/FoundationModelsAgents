@@ -54,8 +54,30 @@ enum RootSessionEvent {
     /// An answer that mail started, with its reply.
     case mailAnswer(String)
 
-    /// The iterator over the events of a root session.
-    typealias Iterator = AsyncCompactMapSequence<AsyncStream<SessionEvent>, RootSessionEvent>.AsyncIterator
+    /// The iterator over the `runMessage` events and the mail answers of a
+    /// root session.
+    struct Iterator: AsyncIteratorProtocol {
+        /// The iterator over the session outputs of the root session.
+        var outputs: AsyncStream<SessionOutput>.Iterator
+
+        /// The filter that finds the answers to mail alone.
+        var mailAnswers = MailAnswerFilter()
+
+        /// Gives the next `runMessage` event or mail answer.
+        ///
+        /// - Returns: The next event, or `nil` when the session closed.
+        mutating func next() async -> RootSessionEvent? {
+            while let output = await outputs.next() {
+                if case .runMessage(let message) = output.event {
+                    return .runMessage(message.detail)
+                }
+                if let answer = mailAnswers.answerToMailAlone(in: output.event) {
+                    return .mailAnswer(answer.reply)
+                }
+            }
+            return nil
+        }
+    }
 
     /// Gives an iterator over the `runMessage` events and the mail answers
     /// of `root`.
@@ -64,15 +86,7 @@ enum RootSessionEvent {
     ///   message.
     /// - Returns: The iterator.
     static func iterator(of root: any RoutedSession) async -> Iterator {
-        await root.streamSessionEvents().compactMap { event -> RootSessionEvent? in
-            if case .runMessage(let message) = event {
-                return .runMessage(message.detail)
-            }
-            if case .answered(let answer) = event, answer.messageIds.isEmpty {
-                return .mailAnswer(answer.reply)
-            }
-            return nil
-        }.makeAsyncIterator()
+        Iterator(outputs: await root.streamSessionEvents().makeAsyncIterator())
     }
 }
 
