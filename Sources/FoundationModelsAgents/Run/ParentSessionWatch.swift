@@ -3,16 +3,43 @@ import FoundationModelsExtras
 import FoundationModelsRouter
 import Synchronization
 
-/// The background runs that settled in the session of a run.
+/// The mail and the tool calls of the session of a run, by id, as the
+/// session-event subscription of the run tells them.
 ///
-/// The run gives each event of its session-event subscription to
-/// ``observe(_:)``. The watch keeps the detail of each terminal that the
-/// Router sent live (``SessionEvent/runSettled(_:)``). The idle rule reads
-/// the detail of each background call of the session
-/// (``detail(ofSettledCall:)``): the session is idle only when a prompt
-/// holds that detail. The key is the completion token of the call. The
-/// Router sends ``SessionEvent/runSettled(_:)`` with that token as the
-/// `correlationID` of the terminal.
+/// The run gives each output of its session-event subscription to
+/// ``observe(_:)``. The watch keeps three records:
+///
+/// - The id of each mail of a run event, by the completion token of its
+///   call: the origin `.mail([id])` of each ``SessionEvent/runMessage(_:)``
+///   and ``SessionEvent/runSettled(_:)`` output. The idle rule reads only
+///   the ids of the calls that started the children of the run. A run that
+///   ends in its call, for example the run of a synchronous tool that posted
+///   progress, also makes mail for its terminal event. That mail starts no
+///   submission: it goes with the next submission, thus no terminal event
+///   comes for it when no other mail comes. An event that makes no mail has
+///   the origin of the work that sent it. That origin holds no id, or the
+///   ids of an answer, and an answer always gets a terminal event. Thus each
+///   id of such an origin also goes in this set, with no harm.
+/// - The id of each mail that has a terminal event: the `mailIds` of
+///   ``SessionEvent/answered(_:)`` and of ``SessionEvent/answerFailed(_:)``,
+///   ``SessionEvent/cancelled(_:)``, and ``SessionEvent/lost(_:)``.
+/// - The completion token of each tool call whose open and close
+///   ``SessionEvent/toolInvocation(_:toolCallID:)`` records came.
+///
+/// The idle rule reads the sets (``isEachCallClosed`` and
+/// ``hasTerminal(forEachMailOfCalls:and:)``). The rule uses sets, not the order
+/// of the events: the Router can send ``SessionEvent/mailDelivered(_:)`` and
+/// the terminal event of a mail before or after the output of the run event
+/// that the mail holds.
+///
+/// A tool call posts its open record before its body starts, thus before
+/// the call gives the model its output or the pending envelope of a
+/// background run. The body of a run that makes mail posts its terminal
+/// event and waits until the journal recorded it. The journal sends the
+/// output of that event at that time. Then the call posts its close record.
+/// A message of a child goes the same way: the post waits until the journal
+/// recorded it. Thus the output of each run event of a call comes before the
+/// close record of that call.
 ///
 /// Before the run closes its session, it waits until the run plane settled
 /// the call of each run that it started (``waitForSettlement(ofCalls:)``).
@@ -22,30 +49,24 @@ import Synchronization
 /// call that the answer started. Thus a wait for the live event can wait
 /// for ever.
 ///
-/// The watch also keeps each message that a running child sent
-/// (``SessionEvent/runMessage(_:)``), in order, for each token. One child can
-/// send many messages with one token, thus the watch keeps a list for each
-/// token and not one message. The idle rule reads them
-/// (``isEachMessageDelivered(inAnsweredPrompts:)``): the session is idle only
-/// when the answered prompts hold the mail line of each message.
-///
 /// A class, because the follower of the run and the close of the run share
 /// one watch. A `Mutex` guards the state, thus the `Sendable` conformance is
 /// compiler-checked.
 final class ParentSessionWatch: Sendable {
-    /// The words of the Router for the state of a message in its mail line
-    /// (`OperationEventSegment.renderedLine(for:)` of the Router).
-    static let messageState = "message, still running"
-
     /// The state that the lock guards.
     private struct State {
-        /// The detail of each terminal that the Router recorded, by the
-        /// token of its call.
-        var settledDetails: [String: String] = [:]
+        /// The id of each mail of a run event, by the completion token of
+        /// its call.
+        var runMail: [String: Set<MailID>] = [:]
 
-        /// The messages that each running child sent, in event order, by
-        /// the token of its call.
-        var messages: [String: [OperationEvent]] = [:]
+        /// The id of each mail that has a terminal event.
+        var endedMail: Set<MailID> = []
+
+        /// The completion token of each tool call whose open record came.
+        var openedCalls: Set<String> = []
+
+        /// The completion token of each tool call whose close record came.
+        var closedCalls: Set<String> = []
     }
 
     /// The state of the watch.
@@ -54,65 +75,55 @@ final class ParentSessionWatch: Sendable {
     /// Makes an empty watch.
     init() {}
 
-    /// Applies one event of the session-event subscription of the run.
+    /// Applies one output of the session-event subscription of the run.
     ///
-    /// - Parameter event: The event.
-    func observe(_ event: SessionEvent) {
-        if case .runSettled(let terminal) = event {
-            state.withLock { $0.settledDetails[terminal.correlationID] = terminal.detail }
-        }
-        if case .runMessage(let message) = event {
-            state.withLock { $0.messages[message.correlationID, default: []].append(message) }
-        }
-    }
-
-    /// Gives the line that the Router puts in a prompt for the mail of
-    /// `message`: "[tool] op (token) message, still running: text".
-    ///
-    /// - Parameter message: A message of a running child.
-    /// - Returns: The mail line.
-    static func mailLine(of message: OperationEvent) -> String {
-        "[\(message.tool)] \(message.op) (\(message.correlationID)) \(messageState): \(message.detail)"
-    }
-
-    /// Tells if the session delivered each message that a child sent.
-    ///
-    /// A message is delivered when an answered prompt holds its mail line
-    /// (``mailLine(of:)``). Two messages with the same mail line need two
-    /// such lines, thus the rule counts the lines and does not only look for
-    /// one.
-    ///
-    /// - Parameter prompts: The text of each prompt that an answer that the
-    ///   run processed answered
-    ///   (``AgentRunAnswers/answeredPromptTexts(in:)``).
-    /// - Returns: `true` when the prompts hold the mail line of each message
-    ///   one time for each message.
-    func isEachMessageDelivered(inAnsweredPrompts prompts: [String]) -> Bool {
-        let messages = state.withLock { Array($0.messages.values.joined()) }
-        let needed = Dictionary(messages.map { (Self.mailLine(of: $0), 1) }, uniquingKeysWith: +)
-        return needed.allSatisfy { line, count in
-            prompts.reduce(0) { total, prompt in total + Self.count(of: line, in: prompt) } >= count
+    /// - Parameter output: The output.
+    func observe(_ output: SessionOutput) {
+        state.withLock { state in
+            switch output.event {
+            case .runMessage(let event), .runSettled(let event):
+                if case .mail(let ids) = output.origin {
+                    state.runMail[event.correlationID, default: []].formUnion(ids)
+                }
+            case .answered(let answer):
+                state.endedMail.formUnion(answer.mailIds)
+            case .answerFailed(let failure):
+                state.endedMail.formUnion(failure.mailIds)
+            case .cancelled(let id), .lost(let id):
+                state.endedMail.insert(id)
+            case .toolInvocation(let record, _):
+                if record.closedAt == nil {
+                    state.openedCalls.insert(record.correlationID)
+                } else {
+                    state.closedCalls.insert(record.correlationID)
+                }
+            default:
+                break
+            }
         }
     }
 
-    /// Gives the count of the places where `line` stands in `text`, with no
-    /// overlap.
+    /// `true` when the close record of each tool call whose open record came
+    /// also came. A call that runs, also a background run of a call, keeps
+    /// this value `false`.
+    var isEachCallClosed: Bool {
+        state.withLock { $0.openedCalls.isSubset(of: $0.closedCalls) }
+    }
+
+    /// Tells if each mail of the run events of the calls `tokens`, and each
+    /// mail of `ids`, has a terminal event.
     ///
     /// - Parameters:
-    ///   - line: The text to find.
-    ///   - text: The text to look in.
-    /// - Returns: The count.
-    private static func count(of line: String, in text: String) -> Int {
-        text.components(separatedBy: line).count - 1
-    }
-
-    /// Gives the detail of the terminal of the call `token`.
-    ///
-    /// - Parameter token: The completion token of the call.
-    /// - Returns: The detail, or `nil` when the Router recorded no terminal
-    ///   for the call yet.
-    func detail(ofSettledCall token: String) -> String? {
-        state.withLock { $0.settledDetails[token] }
+    ///   - tokens: The completion token of each call whose mail needs a
+    ///     terminal event, for example the call of each child.
+    ///   - ids: More ids that need a terminal event, for example the
+    ///     user-type mail of the run.
+    /// - Returns: `true` when each of these ids has a terminal event.
+    func hasTerminal(forEachMailOfCalls tokens: some Sequence<String>, and ids: some Sequence<MailID>) -> Bool {
+        state.withLock { state in
+            tokens.allSatisfy { state.runMail[$0, default: []].isSubset(of: state.endedMail) }
+                && ids.allSatisfy(state.endedMail.contains)
+        }
     }
 
     /// Waits until the run plane settled each call of `calls`.

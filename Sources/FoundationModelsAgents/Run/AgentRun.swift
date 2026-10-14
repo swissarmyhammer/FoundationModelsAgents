@@ -71,14 +71,16 @@ public final class AgentRun: Sendable {
         /// from the caller. The run adds a mail before it mails it, thus no
         /// answer can hold its id before the run knows it. An answer whose
         /// `mailIds` hold none of these ids is an answer to mail alone
-        /// (``AgentRun/isAnswerToMailAlone(_:)``). Task T3 of mail step 3
-        /// also reads these ids.
+        /// (``AgentRun/isAnswerToMailAlone(_:)``). The idle rule also reads
+        /// these ids: the session is idle only when each of them has a
+        /// terminal event.
         var mailedUserTypeMail: [Mail] = []
 
-        /// The subscription of each user-type mail that the run mailed, by
-        /// the id of the mail. Task T3 of mail step 3 reads them. The run
-        /// drops them when it ends (``AgentRun/end(in:)``).
-        var mailedUserTypeMailSubscriptions: [MailID: MailSubscription<SessionOutput>] = [:]
+        /// The task that waits for the answer of each message from the
+        /// caller that the run mailed (``AgentRun/awaitAnswer(ofCallerMessage:on:)``),
+        /// or `nil` after the run ended. The run cancels each task when it
+        /// ends (``AgentRun/end(in:)``).
+        var callerAnswerWaits: [Task<Void, Never>]? = []
 
         /// The test hooks of the idle rule. They do nothing in a run that no
         /// test changes.
@@ -547,21 +549,59 @@ public final class AgentRun: Sendable {
     /// Puts one accepted message from the caller in the mail queue of the
     /// session, and removes it from the count of inbound messages. The
     /// session refuses the mail only after its close, when the run ends and
-    /// does not answer it.
+    /// does not answer it. When the mail is in the queue, the run waits for
+    /// its answer (``awaitAnswer(ofCallerMessage:on:)``).
     ///
     /// - Parameters:
     ///   - mail: The mail of the message.
     ///   - session: The session of the run.
     private func send(_ mail: Mail, to session: any RoutedSession) {
-        _ = mailUserTypeMail(mail, to: session)
+        if mailUserTypeMail(mail, to: session) == nil {
+            awaitAnswer(ofCallerMessage: mail.id, on: session)
+        }
         storage.withLock { $0.inboundMessages -= 1 }
+    }
+
+    /// Starts one task that waits for the answer of the message from the
+    /// caller with the id `id`. When the answer fails, the task gives the
+    /// signal ``AgentRunSignal/callerAnswerFailed(_:)`` with the error of
+    /// the answer. The answer of a message from the caller is not an answer
+    /// to mail alone, thus no other signal tells its failure.
+    ///
+    /// The task is detached. Thus it does not take the task-local values of
+    /// the tool call that sent the message, and the Router does not see the
+    /// wait as a wait in the submission of that call. The run keeps the task
+    /// (`Storage.callerAnswerWaits`), and cancels it when the run ends
+    /// (``end(in:)``). A task that starts after the end of the run is
+    /// cancelled at once. The run ends after it closed its session, thus the
+    /// cancel does not cancel the queued mail.
+    ///
+    /// - Parameters:
+    ///   - id: The id that `mail(_:)` of the session gave for the message.
+    ///   - session: The session of the run.
+    private func awaitAnswer(ofCallerMessage id: MailID, on session: any RoutedSession) {
+        let continuation = signals.continuation
+        let wait = Task.detached {
+            do {
+                _ = try await session.awaitAnswer(of: id)
+            } catch {
+                continuation.yield(.callerAnswerFailed(error))
+            }
+        }
+        let isEnded = storage.withLock { storage in
+            storage.callerAnswerWaits?.append(wait) == nil
+        }
+        if isEnded {
+            wait.cancel()
+        }
     }
 
     /// Mails one user-type mail of the run: the task prompt or a message from
     /// the caller. The run records the mail before it mails it
     /// (``mailedUserTypeMail``), thus no answer holds its id before the run
-    /// knows it. The run keeps the subscription of the mail. When the
-    /// session refuses the mail, the run removes the record again.
+    /// knows it. The run does not keep the subscription of the mail: it
+    /// reads the events of the mail from its session-event subscription.
+    /// When the session refuses the mail, the run removes the record again.
     ///
     /// - Parameters:
     ///   - mail: The mail.
@@ -571,8 +611,7 @@ public final class AgentRun: Sendable {
     func mailUserTypeMail(_ mail: Mail, to session: any RoutedSession) -> (any Error)? {
         storage.withLock { $0.mailedUserTypeMail.append(mail) }
         do {
-            let subscription = try session.mail(mail)
-            storage.withLock { $0.mailedUserTypeMailSubscriptions[mail.id] = subscription }
+            _ = try session.mail(mail)
             return nil
         } catch {
             storage.withLock { $0.mailedUserTypeMail.removeAll { $0.id == mail.id } }
@@ -582,7 +621,8 @@ public final class AgentRun: Sendable {
 
     /// Each user-type mail that the run put in the mail queue of its
     /// session, in mail order: the task prompt first, then each message from
-    /// the caller. Task T3 of mail step 3 reads the ids.
+    /// the caller. The idle rule reads the ids
+    /// (``acceptedMessagesIfIdle(on:)``).
     var mailedUserTypeMail: [Mail] {
         storage.withLock { $0.mailedUserTypeMail }
     }
@@ -666,6 +706,13 @@ public final class AgentRun: Sendable {
         return final
     }
 
+    /// `true` after the run recorded its final state (``settle(_:)`` or
+    /// ``settle(idle:acceptedMessages:)``). The run then makes no more idle
+    /// checks.
+    var isSettled: Bool {
+        storage.withLock { $0.settled != nil }
+    }
+
     /// The count of messages that ``deliver(_:from:)`` accepted, for the start of
     /// an idle check, or `nil` while a message is on its way to the message
     /// queue of the session. The session is not idle then.
@@ -696,15 +743,21 @@ public final class AgentRun: Sendable {
         }
     }
 
-    /// Records the final state, lets go of the session, and drops the
-    /// subscriptions of the user-type mail that the run mailed.
+    /// Records the final state, lets go of the session, and cancels each
+    /// task that waits for the answer of a message from the caller
+    /// (``awaitAnswer(ofCallerMessage:on:)``). The run calls it after it
+    /// closed its session. A task that starts later is cancelled at once.
     ///
     /// - Parameter final: The final state of the run.
     private func end(in final: AgentRunState) {
-        storage.withLock { storage in
+        let waits = storage.withLock { storage in
             storage.state = final
             storage.session = nil
-            storage.mailedUserTypeMailSubscriptions = [:]
+            defer { storage.callerAnswerWaits = nil }
+            return storage.callerAnswerWaits ?? []
+        }
+        for wait in waits {
+            wait.cancel()
         }
     }
 }

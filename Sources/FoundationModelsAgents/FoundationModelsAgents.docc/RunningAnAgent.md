@@ -111,10 +111,13 @@ comes as mail. The pump of the Router delivers the mail and starts an answer
 to it, with no call of the run. An answer to mail can start more agents.
 
 A run ends when its session is idle.
-The session is idle when each agent that the run started ended, when the
-session answered the final message and each message of each of those agents,
-when no pending envelope waits for its final message, and when no message
-waits in the queue.
+The session is idle when each agent that the run started ended, when no tool
+call of the session is open, when each mail of those agents and each message
+to the run has a terminal event, and when no message waits in the queue. A
+terminal event is the answer of the mail, its failed answer, its cancel, or
+its loss. The rule goes by mail id, and it reads no text of a prompt. When the
+answer of a message from the caller fails, the run fails with the failure of
+that answer, also after the answer of its task prompt.
 The reply of the last answer is the result of the run. When the Router holds
 the mail and starts no answer for it, the run fails with
 ``AgentRunFailure/mailDeliveryPaused(_:)``.

@@ -1,5 +1,6 @@
 @testable import FoundationModelsAgents
 import FoundationModelsRouter
+import Synchronization
 import Testing
 
 extension NestedRunTests {
@@ -15,6 +16,36 @@ extension NestedRunTests {
     /// waits.
     @Suite("Messages from a child")
     struct Messages {
+        /// The mail id of each `runMessage` and `runSettled` output of the
+        /// parent: the origin `.mail([id])` of the output.
+        ///
+        /// A class, because the observer and the test share it. A `Mutex`
+        /// guards the ids, thus the `Sendable` conformance is
+        /// compiler-checked.
+        private final class ChildMailRecord: Sendable {
+            /// The ids.
+            private let state = Mutex<Set<MailID>>([])
+
+            /// The ids.
+            var ids: Set<MailID> {
+                state.withLock { $0 }
+            }
+
+            /// Records the mail id of one output of a run event.
+            ///
+            /// - Parameter output: One output of the session of the parent.
+            func observe(_ output: SessionOutput) {
+                switch output.event {
+                case .runMessage, .runSettled:
+                    if case .mail(let ids) = output.origin {
+                        state.withLock { $0.formUnion(ids) }
+                    }
+                default:
+                    break
+                }
+            }
+        }
+
         /// The agent of the temporary layer that starts the child.
         private static let parent = "message-parent"
 
@@ -103,18 +134,22 @@ extension NestedRunTests {
         ///   - childSteps: The steps of the child.
         ///   - mailOnlyAnswerLimit: The limit of answers that mail alone
         ///     starts in the session of each run.
+        ///   - runEventObserver: The observer of the session events of each
+        ///     run, or `nil` (the default) for no observer.
         ///   - body: Reads the parent and the script.
         /// - Returns: The value of `body`.
         /// - Throws: The error of the harness, of the start, or of `body`.
         private static func withParent<Value>(
             parentPlay: ScriptedAgentPlay = parentPlay(), childSteps: [ScriptedAgentStep],
             mailOnlyAnswerLimit: Int = SessionConfiguration.defaultMailOnlyAnswerLimit,
+            runEventObserver: AgentEnvironment.RunEventObserver? = nil,
             body: (AgentRun, ScriptedAgentScript) async throws -> Value
         ) async throws -> Value {
             let layer = try TemporaryLayer.make(holding: agentFiles)
             defer { try? layer.delete() }
             let script = ScriptedAgentScript([parentPlay, ScriptedAgentPlay(key: childKey, steps: childSteps)])
-            let harness = try await AgentRunHarness.make(script: script, registry: AgentRegistry(layers: [layer.layer]))
+            let harness = try await AgentRunHarness.make(
+                script: script, registry: AgentRegistry(layers: [layer.layer]), runEventObserver: runEventObserver)
             defer { try? harness.delete() }
             let parent = try await harness.makeRunner(mailOnlyAnswerLimit: mailOnlyAnswerLimit)
                 .start(Self.parent, prompt: parentKey)
@@ -136,7 +171,9 @@ extension NestedRunTests {
         }
 
         /// Gives the line that the Router puts in a prompt for the mail of
-        /// `message` from `child`.
+        /// `message` from `child`: "[tool] op (token) message, still running:
+        /// text". The test finds the prompt of the message by this line. The
+        /// run itself finds no mail by text.
         ///
         /// - Parameters:
         ///   - message: The text of the message.
@@ -145,10 +182,7 @@ extension NestedRunTests {
         /// - Throws: The error of `#require` when the child has no context.
         private static func mailLine(_ message: String, of child: AgentRun) throws -> String {
             let context = try #require(child.context)
-            return ParentSessionWatch.mailLine(
-                of: OperationEvent(
-                    tool: context.tool, op: context.op, correlationID: context.completionToken, kind: .message,
-                    detail: message))
+            return "[\(context.tool)] \(context.op) (\(context.completionToken)) message, still running: \(message)"
         }
 
         /// Gives the position of the first prompt that holds `text`.
@@ -290,26 +324,61 @@ extension NestedRunTests {
             }
         }
 
+        /// The parent holds its task answer on a gate. The run event observer
+        /// opens a second gate at the `runSettled` event of the parent. The
+        /// mail of the final message is in the queue before that event, and
+        /// the mail of the message before the final message. Thus both mails
+        /// wait in the queue when the test opens the task gate, and one
+        /// submission takes both.
         @Test(
             "message mail and the final message in one submission: one prompt holds both, and the parent then ends",
             .timeLimit(.minutes(1)))
         func messageAndFinalMessageInOneSubmission() async throws {
             let taskGate = ScriptedGate()
+            let settledGate = ScriptedGate()
             try await Self.withParent(
                 parentPlay: Self.parentPlay(holdingTaskAt: taskGate),
-                childSteps: [Self.send(Self.firstMessage), .finalText(Self.childText)]
+                childSteps: [Self.send(Self.firstMessage), .finalText(Self.childText)],
+                runEventObserver: { run, output in
+                    if run.agent.id == Self.parent, case .runSettled = output.event {
+                        settledGate.open()
+                    }
+                }
             ) { parent, script in
                 let child = try await Self.child(of: parent)
-                let token = try #require(child.context?.completionToken)
-                while parent.sessionWatch.detail(ofSettledCall: token) == nil {
-                    try await Task.sleep(for: NestedRunTests.pollInterval)
-                }
+                try await settledGate.wait()
                 taskGate.open()
                 let result = try await parent.result()
                 let line = try Self.mailLine(Self.firstMessage, of: child)
 
                 #expect(script.prompts.contains { $0.contains(line) && $0.contains(child.report) })
                 #expect(result == script.prompts.last)
+            }
+        }
+
+        /// The run event observer gives each session event of the parent to a
+        /// ``ParentSessionWatch`` of the test. The observer runs before the
+        /// parent reads the event, thus the watch of the test has each event
+        /// that the parent read before it ended. The test reads no text of a
+        /// prompt.
+        @Test("each mail of the child has a terminal event by id before the parent ends")
+        func eachChildMailHasATerminalBeforeTheParentEnds() async throws {
+            let watch = ParentSessionWatch()
+            let childMail = ChildMailRecord()
+            try await Self.withParent(
+                childSteps: [Self.send(Self.firstMessage), .finalText(Self.childText)],
+                runEventObserver: { run, output in
+                    guard run.agent.id == Self.parent else { return }
+                    watch.observe(output)
+                    childMail.observe(output)
+                }
+            ) { parent, _ in
+                let result = try await parent.result()
+
+                #expect(parent.state == .finished(result))
+                #expect(childMail.ids.count == 2)
+                #expect(watch.hasTerminal(forEachMailOfCalls: [], and: childMail.ids))
+                #expect(watch.isEachCallClosed)
             }
         }
 

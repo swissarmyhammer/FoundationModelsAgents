@@ -1,4 +1,5 @@
 import Foundation
+import FoundationModels
 @testable import FoundationModelsAgents
 import FoundationModelsRouter
 import Synchronization
@@ -396,6 +397,59 @@ struct AgentRunMessageTests {
         #expect(result == Self.taskReply)
         #expect(run.mailedUserTypeMail.map(\.sender) == [.user])
         #expect(harness.script.prompts == [AgentRunTests.prompt])
+    }
+
+    /// Runs a run whose task answer ends with ``taskReply``, holds the run at
+    /// its idle settle, delivers a message, and lets the answer of that
+    /// message fail with `error`.
+    ///
+    /// The order is fixed: the `beforeIdleSettle` hook holds the run after
+    /// the idle signal of the task answer. The test delivers the message
+    /// while the run holds, thus the idle settle sees a new message and the
+    /// run goes on. The second step of the script fails the answer of the
+    /// message. The answer of a message from the caller is not an answer to
+    /// mail alone, thus only the wait for the id of the message tells the
+    /// failure.
+    ///
+    /// - Parameter error: The error of the answer of the message.
+    /// - Returns: The final state of the run.
+    /// - Throws: The error of the harness or of `#require`.
+    private static func finalStateAfterFailedCallerAnswer(_ error: any Error) async throws -> AgentRunState {
+        let settleGate = ScriptedGate()
+        let harness = try await AgentRunHarness.make(
+            script: AgentRunTests.script([.finalText(taskReply), .fail(error)]))
+        defer { try? harness.delete() }
+
+        let run = try await startRun(
+            in: harness, hooks: AgentRunIdleHooks(beforeIdleSettle: { try? await settleGate.wait() }))
+        await settleGate.waitForArrival()
+        let outcome = try run.deliver(message, from: .user)
+        settleGate.open()
+        let final = await run.finalState()
+
+        #expect(outcome == .delivered)
+        #expect(run.mailedUserTypeMail.count == 2)
+        return final
+    }
+
+    @Test("a message after the task answer whose answer fails ends the run with the failure of that answer")
+    func failedCallerAnswerFailsTheRun() async throws {
+        let final = try await Self.finalStateAfterFailedCallerAnswer(NestedRunTests.ScriptedFailure.broken)
+
+        #expect(final == .failed(AgentRunFailure.turnFailure(for: NestedRunTests.ScriptedFailure.broken)))
+    }
+
+    @Test("a message after the task answer whose answer overflows the context ends the run with contextOverflow")
+    func overflowingCallerAnswerFailsTheRun() async throws {
+        let overflow = LanguageModelError.contextSizeExceeded(
+            .init(contextSize: 100, tokenCount: 150, debugDescription: "scripted context overflow"))
+
+        let final = try await Self.finalStateAfterFailedCallerAnswer(overflow)
+
+        #expect(final == .failed(AgentRunFailure.turnFailure(for: overflow)))
+        if case .failed(.contextOverflow) = final {} else {
+            Issue.record("the final state is \(final), not a context overflow")
+        }
     }
 
     @Test("a message from a user is mailed as a user message with the caller prefix")

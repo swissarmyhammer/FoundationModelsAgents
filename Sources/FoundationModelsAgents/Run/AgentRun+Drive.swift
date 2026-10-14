@@ -1,4 +1,3 @@
-import FoundationModels
 import FoundationModelsExtras
 import FoundationModelsRouter
 
@@ -39,10 +38,12 @@ extension AgentRun {
     /// subscription for its whole life (``follow(_:on:observer:)``). It then
     /// mails the task prompt as one user message, and at once after it each
     /// message from the caller that it held (``mailTaskPrompt(_:to:)``). It
-    /// waits for the answer of the task prompt by its mail id. The pump of
-    /// the Router runs the answer of that mail, and the answer of each final
-    /// message of a run that this run started: each final message is mail,
-    /// and mail starts an answer with no call of this run.
+    /// waits for the answer of the task prompt by its mail id, and for the
+    /// answer of each message from the caller by its mail id
+    /// (``awaitAnswer(ofCallerMessage:on:)``). The pump of the Router runs the
+    /// answer of that mail, and the answer of each final message of a run
+    /// that this run started: each final message is mail, and mail starts an
+    /// answer with no call of this run.
     ///
     /// The run ends when its session is idle (``acceptedMessagesIfIdle(on:)``)
     /// and no message from the caller arrived after the idle check
@@ -87,6 +88,16 @@ extension AgentRun {
 
     /// Sends the task prompt, and reads the signals of the run until one of
     /// them decides the final state.
+    ///
+    /// The first signal that decides a final state wins: the call returns
+    /// it, and reads no more signals. Thus a signal that comes after that
+    /// time does not change the final state, for example a
+    /// `MailRefusal.closed` or a `CancellationError` of a wait for an answer
+    /// when the run closes its session. One failed answer can give two
+    /// signals: a chain that holds the task prompt and a message from the
+    /// caller gives ``AgentRunSignal/taskAnswerFailed(_:)`` and
+    /// ``AgentRunSignal/callerAnswerFailed(_:)`` with the same error. Both
+    /// give the same final state, and only the first decides it.
     ///
     /// - Parameters:
     ///   - prompt: The task prompt.
@@ -177,8 +188,8 @@ extension AgentRun {
         case .cancelRequested:
             session.cancelAll()
             return .cancelled
-        case .taskAnswerFailed(let error):
-            return turns.isLimitHit ? nil : Self.endState(afterTaskFailure: error)
+        case .taskAnswerFailed(let error), .callerAnswerFailed(let error):
+            return turns.isLimitHit ? nil : Self.endState(afterAnswerFailure: error)
         case .mailAnswerFailed(let reason):
             return turns.isLimitHit ? nil : Self.endState(afterMailFailure: reason)
         case .mailDeliveryPaused(let text):
@@ -189,16 +200,17 @@ extension AgentRun {
         }
     }
 
-    /// Gives the final state of a run whose task answer failed.
+    /// Gives the final state of a run whose answer to the task prompt or to
+    /// a message from the caller failed.
     ///
     /// - Parameter error: The error of the answer.
     /// - Returns: ``AgentRunState/cancelled`` for a cancel, else
     ///   ``AgentRunState/failed(_:)`` with the failure of the error.
-    private static func endState(afterTaskFailure error: any Error) -> AgentRunState {
+    private static func endState(afterAnswerFailure error: any Error) -> AgentRunState {
         error is CancellationError ? .cancelled : .failed(AgentRunFailure.turnFailure(for: error))
     }
 
-    /// Gives the final state of a run whose answer to a final message failed.
+    /// Gives the final state of a run whose answer to mail alone failed.
     ///
     /// - Parameter reason: The reason of the failure.
     /// - Returns: ``AgentRunState/cancelled`` for a cancel, else
@@ -216,10 +228,11 @@ extension AgentRun {
     ///
     /// The observer of the host gets each event first, synchronously, before
     /// the run uses it. Each event then feeds the progress and the answers of
-    /// the run (``record(_:)``), the watch of the settled background runs, and the
-    /// count of passes. When the count goes above the limit, the run stops
-    /// its session at once. Then each event that decides the end of the run
-    /// gives its signal (``signal(after:on:)``).
+    /// the run (``record(_:)``), the watch of the mail and of the tool calls
+    /// of the session (``ParentSessionWatch/observe(_:)``), and the count of
+    /// passes. When the count goes above the limit, the run stops its session
+    /// at once. Then each event that decides the end of the run gives its
+    /// signal (``signal(after:on:)``).
     ///
     /// - Parameters:
     ///   - events: The session-event subscription of the run, made before
@@ -235,7 +248,7 @@ extension AgentRun {
             observer?(self, output)
             let event = output.event
             record(event)
-            sessionWatch.observe(event)
+            sessionWatch.observe(output)
             if turns.apply(event) {
                 session.cancelAll()
             }
@@ -254,12 +267,14 @@ extension AgentRun {
     ///   after the count went above the limit. Else an answer gives
     ///   ``AgentRunSignal/idle(_:acceptedMessages:)`` when the session is
     ///   idle.
-    /// - A settled background run, and a message of a running child, give
+    /// - A run event of a child, a terminal event of a mail with no answer,
+    ///   and the close record of a tool call give
     ///   ``AgentRunSignal/idle(_:acceptedMessages:)`` when the session is
     ///   idle after them (``idleSignalAfterRunEvent(on:)``).
     /// - A failed answer to mail alone gives
     ///   ``AgentRunSignal/mailAnswerFailed(_:)``. A failed answer of the task
-    ///   prompt gives nothing here: its error comes from its own stream.
+    ///   prompt or of a message from the caller gives nothing here: the wait
+    ///   for its id gives its error.
     /// - A hold of the mail gives ``AgentRunSignal/mailDeliveryPaused(_:)``.
     ///
     /// - Parameters:
@@ -267,40 +282,36 @@ extension AgentRun {
     ///   - session: The session of the run.
     /// - Returns: The signal, or `nil`.
     private func signal(after event: SessionEvent, on session: any RoutedSession) async -> AgentRunSignal? {
-        if case .answered(let answer) = event {
+        switch event {
+        case .answered(let answer):
             if turns.isLimitHit {
                 return .limitHit(partial: answer.reply)
             }
             return await idleSignal(reply: answer.reply, on: session)
-        }
-        if case .runSettled = event {
+        case .runSettled, .runMessage, .cancelled, .lost:
             return await idleSignalAfterRunEvent(on: session)
-        }
-        if case .runMessage = event {
+        case .toolInvocation(let record, _) where record.closedAt != nil:
             return await idleSignalAfterRunEvent(on: session)
-        }
-        if case .answerFailed(let failure) = event {
+        case .answerFailed(let failure):
             if turns.isLimitHit {
                 return .limitHit(partial: answers.partial)
             }
             return isAnswerToMailAlone(failure.mailIds) ? .mailAnswerFailed(failure.reason) : nil
-        }
-        if case .mailDeliveryPaused(let pause) = event {
+        case .mailDeliveryPaused(let pause):
             return .mailDeliveryPaused(pause.description)
+        default:
+            return nil
         }
-        return nil
     }
 
     /// Gives ``AgentRunSignal/idle(_:acceptedMessages:)`` when the session is
-    /// idle after a background run settled or a running child sent a
-    /// message, with the reply of the last answer.
+    /// idle after an event that is not the end of an answer, with the reply
+    /// of the last answer.
     ///
-    /// The Router stages the final message of a run before it sends its
-    /// ``SessionEvent/runSettled(_:)``, thus the answer to that final message
-    /// can end before the event. The mail of a message
-    /// (``SessionEvent/runMessage(_:)``) can also start its answer before
-    /// the run reads the event. The idle check of that answer then fails,
-    /// and this check after the event is the one that ends the run.
+    /// The answer to the mail of a child can end before the output of the
+    /// run event that the mail holds. A tool call can close after the answer
+    /// that started it ended. The idle check of that answer then fails, and
+    /// this check after the later event is the one that ends the run.
     ///
     /// - Parameter session: The session of the run.
     /// - Returns: The signal, or `nil` when no answer ended yet, when an
@@ -317,65 +328,72 @@ extension AgentRun {
     /// Gives ``AgentRunSignal/idle(_:acceptedMessages:)`` with `reply` when
     /// the session is idle (``acceptedMessagesIfIdle(on:)``).
     ///
+    /// A run that recorded its final state makes no idle check
+    /// (``isSettled``). The follower reads the events of the session until
+    /// the close of the session, and the close sends events too, for example
+    /// the `cancelled` event of each queued mail. A check at that time can
+    /// change nothing.
+    ///
     /// - Parameters:
     ///   - reply: The reply of the last answer.
     ///   - session: The session of the run.
-    /// - Returns: The signal, or `nil` when the session is not idle.
+    /// - Returns: The signal, or `nil` when the run recorded its final state
+    ///   or when the session is not idle.
     private func idleSignal(reply: String, on session: any RoutedSession) async -> AgentRunSignal? {
-        guard let acceptedMessages = await acceptedMessagesIfIdle(on: session) else {
+        guard !isSettled, let acceptedMessages = await acceptedMessagesIfIdle(on: session) else {
             return nil
         }
         return .idle(reply, acceptedMessages: acceptedMessages)
     }
 
-    /// Tells if the session of the run is idle after an answer, and gives the
+    /// Tells if the session of the run is idle after an event, and gives the
     /// count of accepted messages from the caller for an idle session.
     ///
-    /// The session is idle when each run that this run started ended, when
-    /// no user-type mail waits (``userTypeKinds``), when no answer runs, and
-    /// when the session delivered the final message of each background call
-    /// of the session. Run mail in the queue does not keep the session from
-    /// idle: progress mail starts no answer, thus it can wait after the last
-    /// answer. The checks below find the run mail that matters. A background call is a tool
-    /// output of the settled transcript that is a pending envelope
-    /// (``pendingRunTokens(in:)``). Its final message is the detail of its
-    /// terminal, and a prompt of the settled transcript must hold that
-    /// detail. An answer that the processed events ended must come after
-    /// that prompt (``AgentRunAnswers/hasAnswered(promptHolding:in:)``).
-    /// The settled transcript can be ahead of the processed events: at a
-    /// ``SessionEvent/runSettled(_:)``, it can hold the prompt of the final
-    /// message and its reply before the run read the start of that answer.
-    /// The session is then not idle, and the end of that answer checks again.
+    /// The rule goes by mail id and by the completion token of each tool
+    /// call. It reads no text of a prompt and no transcript. The session is
+    /// idle when all of these are true:
     ///
-    /// The body of a `start agent` call starts its run after the call gave
-    /// the pending envelope. Thus the run can be absent from ``children``
-    /// when an answer ends. The envelope is in the transcript already, and
-    /// its terminal is not settled, so the session is not idle.
+    /// - No answer is open.
+    /// - No message from the caller is on its way to the mail queue
+    ///   (``acceptedMessagesWhenNoneInbound``).
+    /// - Each run that this run started ended.
+    /// - No user-type mail waits in the queue (``userTypeKinds``), and the
+    ///   pump runs no mail. Run mail in the queue does not keep the session
+    ///   from idle: progress mail starts no answer, thus it can wait after
+    ///   the last answer.
+    /// - Each tool call of the session closed
+    ///   (``ParentSessionWatch/isEachCallClosed``). A call posts its open
+    ///   record before it gives the model the pending envelope of a
+    ///   background run, and the body of a `start agent` call adds its run
+    ///   to ``children`` later. Thus the open record keeps the session from
+    ///   idle also while the run is not in ``children``.
+    /// - Each mail of the run events of the call of each child, and each
+    ///   user-type mail of the run (``mailedUserTypeMail``), has a terminal
+    ///   event (``ParentSessionWatch/hasTerminal(forEachMailOfCalls:and:)``).
+    ///   The output of each run event of a call comes before the close record
+    ///   of that call, thus the watch knows each mail of a closed call. The
+    ///   mail of a run that ended in its call, for example the terminal of a
+    ///   synchronous tool that posted progress, does not count: it starts no
+    ///   answer, thus no terminal event can come for it while the session is
+    ///   idle.
     ///
-    /// Each message that a running child sent keeps the session from idle
-    /// in the same way, until an answered prompt holds its mail
-    /// (``ParentSessionWatch/isEachMessageDelivered(inAnsweredPrompts:)``).
-    /// The Router can give the message and the final message of one child
-    /// in one submission or in two. Each order passes this check only after
-    /// the answer to each of them.
-    ///
-    /// A message from the caller also keeps the session from idle, from the
-    /// time that ``deliver(_:from:)`` accepts it to the end of its answer. While
-    /// the run holds the message, and while the message goes to the queue,
-    /// ``acceptedMessagesWhenNoneInbound`` is `nil`. In the queue, the
-    /// message waits. The pump then moves it to the running messages before
-    /// the run reads the start of its answer, thus a
-    /// running message also keeps the session from idle. The check gives the
-    /// count of accepted messages that it read first. A message that the run
-    /// accepts after that read changes the count, and the run does not end
-    /// on this check (``settle(idle:acceptedMessages:)``).
+    /// A message from the caller keeps the session from idle from the time
+    /// that ``deliver(_:from:)`` accepts it to its terminal event. While the
+    /// run holds the message, and while the message goes to the queue,
+    /// ``acceptedMessagesWhenNoneInbound`` is `nil`. After that time, the id
+    /// of the message is in ``mailedUserTypeMail`` and has no terminal event
+    /// until its answer ends. The check gives the count of accepted messages
+    /// that it read first. A message that the run accepts after that read
+    /// changes the count, and the run does not end on this check
+    /// (``settle(idle:acceptedMessages:)``).
     ///
     /// - Parameter session: The session of the run.
     /// - Returns: The count of accepted messages when the session is idle, or
     ///   `nil` when it is not idle.
     private func acceptedMessagesIfIdle(on session: any RoutedSession) async -> Int? {
         await idleHooks.beforeIdleCheck()
-        guard let acceptedMessages = acceptedMessagesWhenNoneInbound,
+        guard !answers.isAnswerOpen,
+            let acceptedMessages = acceptedMessagesWhenNoneInbound,
             children.runs.allSatisfy({ $0.state != .running })
         else {
             return nil
@@ -384,64 +402,17 @@ extension AgentRun {
         guard Self.userTypeKinds.allSatisfy({ (depth.depthByKind[$0] ?? 0) == 0 }), depth.running.isEmpty else {
             return nil
         }
-        let transcript = await session.transcript
-        let answers = answers
-        let isDelivered = Self.pendingRunTokens(in: transcript).allSatisfy { token in
-            guard let finalMessage = sessionWatch.detail(ofSettledCall: token) else {
-                return false
-            }
-            return answers.hasAnswered(promptHolding: finalMessage, in: transcript)
+        guard sessionWatch.isEachCallClosed,
+            sessionWatch.hasTerminal(
+                forEachMailOfCalls: children.runs.compactMap { $0.context?.completionToken },
+                and: mailedUserTypeMail.map(\.id))
+        else {
+            return nil
         }
-        let isEachMessageDelivered = sessionWatch.isEachMessageDelivered(
-            inAnsweredPrompts: answers.answeredPromptTexts(in: transcript))
-        return isDelivered && isEachMessageDelivered ? acceptedMessages : nil
+        return acceptedMessages
     }
 
     /// The kinds of mail that keep the session from idle while they wait in
     /// the queue: each kind except run mail.
     static let userTypeKinds: [MailKind] = MailKind.allCases.filter { $0 != .runEvent }
-
-    /// Gives the completion token of each pending envelope that a tool
-    /// output of `transcript` holds.
-    ///
-    /// - Parameter transcript: A transcript of the session.
-    /// - Returns: The tokens, in transcript order.
-    private static func pendingRunTokens(in transcript: Transcript) -> [String] {
-        transcript.compactMap { entry in
-            guard case .toolOutput(let output) = entry else {
-                return nil
-            }
-            let text = output.segments.compactMap(Self.text(of:)).joined()
-            guard let envelope = PendingRunEnvelope.makeDecoded(fromRendered: text), envelope.pending else {
-                return nil
-            }
-            return envelope.completionToken
-        }
-    }
-
-    /// Gives the text of each prompt of `transcript`.
-    ///
-    /// - Parameter transcript: A transcript of the session.
-    /// - Returns: The text segments of each prompt, joined, in transcript
-    ///   order.
-    static func promptTexts(in transcript: Transcript) -> [String] {
-        transcript.compactMap { entry in
-            guard case .prompt(let prompt) = entry else {
-                return nil
-            }
-            return prompt.segments.compactMap(Self.text(of:)).joined()
-        }
-    }
-
-    /// Gives the text of one segment.
-    ///
-    /// - Parameter segment: A segment of a prompt or of a tool output.
-    /// - Returns: The text of a text segment, or `nil` for each other
-    ///   segment.
-    private static func text(of segment: Transcript.Segment) -> String? {
-        guard case .text(let text) = segment else {
-            return nil
-        }
-        return text.content
-    }
 }

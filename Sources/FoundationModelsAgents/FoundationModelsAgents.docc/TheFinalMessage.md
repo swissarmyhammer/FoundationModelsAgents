@@ -90,10 +90,11 @@ for await output in events {
 
 A run that started agents uses the same path on its own session.
 A run ends when its session is idle.
-The session is idle when each run that it started ended, when the session
-answered the final message and each message of each of those runs, when no
-pending envelope waits for its final message, and when no message waits in
-the queue. The
+The session is idle when each run that it started ended, when no tool call
+of the session is open, when each mail of those runs and each message to the
+run has a terminal event, and when no message waits in the queue. A terminal
+event is the answer of the mail, its failed answer, its cancel, or its loss.
+The rule goes by mail id, and it reads no text of a prompt. The
 reply of the last answer is the result of the run.
 The passes of each answer, also each answer to mail, count toward
 `maxTurns`. When the Router holds the mail and starts no answer for it
