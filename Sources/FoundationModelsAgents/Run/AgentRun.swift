@@ -48,20 +48,37 @@ public final class AgentRun: Sendable {
         /// closes its session. A cancel reads this value.
         var settled: AgentRunState?
 
-        /// The count of messages from the caller that ``AgentRun/deliver(_:)``
-        /// accepted and did not yet put in the message queue of the session.
-        /// A held message (``callerMessages``) is in this count.
+        /// The count of messages from the caller that
+        /// ``AgentRun/deliver(_:from:)`` accepted and did not yet put in the
+        /// mail queue of the session. A held message (``callerMessages``) is
+        /// in this count.
         var inboundMessages = 0
 
         /// The gate of the messages from the caller. It holds each message
-        /// until the run reads the start of the answer of its task prompt.
+        /// until the task prompt of the run is in the mail queue of the
+        /// session.
         var callerMessages = CallerMessageGate.holding([])
 
         /// The count of all messages from the caller that
-        /// ``AgentRun/deliver(_:)`` accepted. It only goes up. An idle check
-        /// records it, and the run ends on that check only when the count
-        /// did not change after it (``AgentRun/settle(idle:acceptedMessages:)``).
+        /// ``AgentRun/deliver(_:from:)`` accepted. It only goes up. An idle
+        /// check records it, and the run ends on that check only when the
+        /// count did not change after it
+        /// (``AgentRun/settle(idle:acceptedMessages:)``).
         var acceptedMessages = 0
+
+        /// Each user-type mail that the run put in the mail queue of its
+        /// session, in mail order: the task prompt first, then each message
+        /// from the caller. The run adds a mail before it mails it, thus no
+        /// answer can hold its id before the run knows it. An answer whose
+        /// `mailIds` hold none of these ids is an answer to mail alone
+        /// (``AgentRun/isAnswerToMailAlone(_:)``). Task T3 of mail step 3
+        /// also reads these ids.
+        var mailedUserTypeMail: [Mail] = []
+
+        /// The subscription of each user-type mail that the run mailed, by
+        /// the id of the mail. Task T3 of mail step 3 reads them. The run
+        /// drops them when it ends (``AgentRun/end(in:)``).
+        var mailedUserTypeMailSubscriptions: [MailID: MailSubscription<SessionOutput>] = [:]
 
         /// The test hooks of the idle rule. They do nothing in a run that no
         /// test changes.
@@ -70,27 +87,31 @@ public final class AgentRun: Sendable {
 
     /// The gate of the messages from the caller of the run.
     ///
-    /// The task prompt is the first message of the session. `begin` starts
-    /// the task that sends it, and returns before that task sends it. Thus a
-    /// message from the caller that goes to the session before the run reads
-    /// the start of the answer of the task prompt can come before the task
-    /// prompt. The run holds each such message, and sends it after that
-    /// start (``AgentRun/releaseHeldMessages(to:)``).
+    /// The task prompt is the first mail of the session. `begin` starts the
+    /// task that mails it, and returns before that task mails it. Thus a
+    /// message from the caller that goes to the session before that time can
+    /// come before the task prompt. The run holds each such message as a
+    /// ``Mail``, and mails it at once after the task prompt is in the mail
+    /// queue (``AgentRun/releaseHeldMessages(to:)``). After that time the
+    /// mail queue is first in, first out, thus it keeps the order, and the
+    /// gate is open. The hold is only for the time before the task prompt is
+    /// in the queue.
     private enum CallerMessageGate {
-        /// The run holds these messages, in the order that they arrived. The
-        /// run did not read the start of the answer of its task prompt, or it
-        /// did not yet send each held message.
-        case holding([String])
+        /// The run holds these mails, in the order that they arrived. The
+        /// task prompt is not in the mail queue yet, or the run did not yet
+        /// mail each held mail.
+        case holding([Mail])
 
-        /// The run sent each held message. A new message goes to the session
+        /// The run mailed each held mail. A new message goes to the session
         /// at once.
         case open
     }
 
-    /// What ``AgentRun/deliver(_:)`` does with one message from the caller.
+    /// What ``AgentRun/deliver(_:from:)`` does with one message from the
+    /// caller.
     private enum MessageAdmission {
-        /// Send the message to this session now.
-        case send(any RoutedSession)
+        /// Mail this mail to this session now.
+        case send(Mail, any RoutedSession)
 
         /// The run holds the message, and sends it later.
         case held
@@ -265,7 +286,7 @@ public final class AgentRun: Sendable {
     /// session gets no prompt until ``begin(_:environment:)``. Thus the runner
     /// can put the run in its index before the session can call a tool. A
     /// message from the caller before that time waits in the run
-    /// (``deliver(_:)``).
+    /// (``deliver(_:from:)``).
     ///
     /// Each run has one span and its log records (``traced(in:_:)``), a child
     /// of the `ServiceContext` of the caller. The span and the records of a
@@ -389,35 +410,52 @@ public final class AgentRun: Sendable {
     /// its task prompt, and while it waits for its children. The session
     /// then answers the message before the run ends, because a message that
     /// the run accepted keeps it from the idle end
-    /// (``acceptedMessagesIfIdle(on:)``, ``settle(idle:acceptedMessages:)``). The
-    /// prompt of the message is ``AgentsToolText/callerMessage(_:)``.
+    /// (``acceptedMessagesIfIdle(on:)``, ``settle(idle:acceptedMessages:)``).
     ///
-    /// The task prompt is always the first message of the session. Before
-    /// ``begin(_:environment:)``, and after it until the run reads the start
-    /// of the answer of the task prompt, the run holds the message
-    /// (``CallerMessageGate``). The run then sends each held message, in
-    /// order (``releaseHeldMessages(to:)``). A held message keeps the run
-    /// from the idle end as a message on its way to the queue does. A run
-    /// that is cancelled or fails before that start does not send its held
-    /// messages.
+    /// The sender gives the kind of the mail:
+    ///
+    /// - `MailSender.session(_:)`: an agent message from that session. The
+    ///   Router puts the line "[message from session <id>]" before the
+    ///   content in the prompt, thus the run adds no prefix of its own.
+    /// - `MailSender.user`: a host that is not a session. The mail is a user
+    ///   message with the prompt ``AgentsToolText/callerMessage(_:)``,
+    ///   because no Router line names a user.
+    /// - Each other sender throws ``AgentRunMessageError/unsupportedSender(_:)``,
+    ///   and the run mails nothing.
+    ///
+    /// The run makes the ``Mail`` when it accepts the message. The task
+    /// prompt is always the first mail of the session. Before the task
+    /// prompt is in the mail queue, the run holds the mail
+    /// (``CallerMessageGate``). The run mails each held mail, in order, at
+    /// once after it mails the task prompt (``releaseHeldMessages(to:)``).
+    /// After that time the mail queue is first in, first out, thus it keeps
+    /// the order. A held message keeps the run from the idle end as a
+    /// message on its way to the queue does. A run that is cancelled before
+    /// it mails the task prompt does not mail its held messages.
     ///
     /// The answer of a message to a run that waits for its children starts
     /// with no check against ``AgentEnvironment/maxConcurrentAgents``. An
     /// answer to the final message of a child does the same.
     ///
-    /// - Parameter message: The text of the caller.
+    /// - Parameters:
+    ///   - message: The text of the caller.
+    ///   - sender: The sender of the message: `.session(id)` for a session,
+    ///     or `.user` for a host that is not a session.
     /// - Returns: ``AgentRunMessageOutcome/delivered`` when the run accepted
     ///   the message: the session got it, or the run holds it.
     ///   ``AgentRunMessageOutcome/ended(_:)`` with the final state when the
     ///   run started to end before the message: its answers ended, a caller
     ///   cancelled it, or its setup failed.
-    public func deliver(_ message: String) async -> AgentRunMessageOutcome {
+    /// - Throws: ``AgentRunMessageError/unsupportedSender(_:)`` for a sender
+    ///   that is not `.session(_:)` and not `.user`.
+    public func deliver(_ message: String, from sender: MailSender) throws -> AgentRunMessageOutcome {
+        let body = try Self.body(of: message, from: sender)
         let admission = storage.withLock { storage in
-            Self.admit(message, in: &storage)
+            Self.admit(Mail(sender: sender, body: body), in: &storage)
         }
         switch admission {
-        case .send(let session):
-            await send(message, to: session)
+        case .send(let mail, let session):
+            send(mail, to: session)
             return .delivered
         case .held:
             return .delivered
@@ -426,30 +464,51 @@ public final class AgentRun: Sendable {
         }
     }
 
-    /// Sends each message that ``deliver(_:)`` held, in order, and then
-    /// opens the gate (``CallerMessageGate/open``). The follower of the run
-    /// calls it when it reads the start of an answer. The first start is the
-    /// start of the answer of the task prompt, thus each held message goes
-    /// to the session after the task prompt. A message that arrives while
-    /// this call sends is held too, and this call sends it, thus the order
-    /// of the messages stays. After the gate opens, the call does nothing.
-    ///
-    /// - Parameter session: The session of the run.
-    func releaseHeldMessages(to session: any RoutedSession) async {
-        while let message = storage.withLock({ Self.takeHeldMessage(from: &$0) }) {
-            await send(message, to: session)
-        }
-    }
-
-    /// Decides what ``deliver(_:)`` does with `message`, under the lock of
-    /// the run.
+    /// Gives the body of the mail of one message from the caller.
     ///
     /// - Parameters:
     ///   - message: The text of the caller.
+    ///   - sender: The sender of the message.
+    /// - Returns: An agent message for a session, or a user message with the
+    ///   caller prefix for a user.
+    /// - Throws: ``AgentRunMessageError/unsupportedSender(_:)`` for each
+    ///   other sender.
+    private static func body(of message: String, from sender: MailSender) throws -> MailBody {
+        switch sender {
+        case .session(let id):
+            return .agentMessage(from: id, content: message)
+        case .user:
+            return .userMessage(prompt: AgentsToolText.callerMessage(message), options: UserMessageOptions())
+        case .run, .elicitation:
+            throw AgentRunMessageError.unsupportedSender(sender)
+        }
+    }
+
+    /// Mails each mail that ``deliver(_:from:)`` held, in order, and then
+    /// opens the gate (``CallerMessageGate/open``). The run calls it one
+    /// time, at once after it mails the task prompt
+    /// (``mailTaskPrompt(_:to:)``). This is the only call that opens the
+    /// gate. Thus each held message goes to the session after the task
+    /// prompt. A message that arrives while this call mails is held too, and
+    /// this call mails it, thus the order of the messages stays.
+    ///
+    /// - Parameter session: The session of the run.
+    func releaseHeldMessages(to session: any RoutedSession) {
+        while let mail = storage.withLock({ Self.takeHeldMessage(from: &$0) }) {
+            send(mail, to: session)
+        }
+    }
+
+    /// Decides what ``deliver(_:from:)`` does with `mail`, under the lock of
+    /// the run.
+    ///
+    /// - Parameters:
+    ///   - mail: The mail of the message. The run made it when it accepted
+    ///     the message, and a held mail stays the same mail.
     ///   - storage: The state of the run. An accepted message goes in the
     ///     counts, and a held message goes in the gate.
     /// - Returns: The admission of the message.
-    private static func admit(_ message: String, in storage: inout Storage) -> MessageAdmission {
+    private static func admit(_ mail: Mail, in storage: inout Storage) -> MessageAdmission {
         if let settled = storage.settled {
             return .ended(settled)
         }
@@ -462,18 +521,18 @@ public final class AgentRun: Sendable {
         storage.inboundMessages += 1
         storage.acceptedMessages += 1
         guard case .holding(let held) = storage.callerMessages else {
-            return .send(session)
+            return .send(mail, session)
         }
-        storage.callerMessages = .holding(held + [message])
+        storage.callerMessages = .holding(held + [mail])
         return .held
     }
 
-    /// Takes the first held message from the gate, under the lock of the
-    /// run. When no message is held, the gate opens.
+    /// Takes the first held mail from the gate, under the lock of the run.
+    /// When no mail is held, the gate opens.
     ///
     /// - Parameter storage: The state of the run.
-    /// - Returns: The first held message, or `nil` when the gate is open.
-    private static func takeHeldMessage(from storage: inout Storage) -> String? {
+    /// - Returns: The first held mail, or `nil` when the gate is open.
+    private static func takeHeldMessage(from storage: inout Storage) -> Mail? {
         guard case .holding(let held) = storage.callerMessages else {
             return nil
         }
@@ -485,17 +544,61 @@ public final class AgentRun: Sendable {
         return first
     }
 
-    /// Puts one accepted message from the caller in the message queue of the
+    /// Puts one accepted message from the caller in the mail queue of the
     /// session, and removes it from the count of inbound messages. The
-    /// session refuses the message only after its close, when the run ends
-    /// and does not answer it.
+    /// session refuses the mail only after its close, when the run ends and
+    /// does not answer it.
     ///
     /// - Parameters:
-    ///   - message: The text of the caller.
+    ///   - mail: The mail of the message.
     ///   - session: The session of the run.
-    private func send(_ message: String, to session: any RoutedSession) async {
-        _ = try? session.send(AgentsToolText.callerMessage(message))
+    private func send(_ mail: Mail, to session: any RoutedSession) {
+        _ = mailUserTypeMail(mail, to: session)
         storage.withLock { $0.inboundMessages -= 1 }
+    }
+
+    /// Mails one user-type mail of the run: the task prompt or a message from
+    /// the caller. The run records the mail before it mails it
+    /// (``mailedUserTypeMail``), thus no answer holds its id before the run
+    /// knows it. The run keeps the subscription of the mail. When the
+    /// session refuses the mail, the run removes the record again.
+    ///
+    /// - Parameters:
+    ///   - mail: The mail.
+    ///   - session: The session of the run.
+    /// - Returns: The refusal of the session, or `nil` when the mail is in
+    ///   the queue.
+    func mailUserTypeMail(_ mail: Mail, to session: any RoutedSession) -> (any Error)? {
+        storage.withLock { $0.mailedUserTypeMail.append(mail) }
+        do {
+            let subscription = try session.mail(mail)
+            storage.withLock { $0.mailedUserTypeMailSubscriptions[mail.id] = subscription }
+            return nil
+        } catch {
+            storage.withLock { $0.mailedUserTypeMail.removeAll { $0.id == mail.id } }
+            return error
+        }
+    }
+
+    /// Each user-type mail that the run put in the mail queue of its
+    /// session, in mail order: the task prompt first, then each message from
+    /// the caller. Task T3 of mail step 3 reads the ids.
+    var mailedUserTypeMail: [Mail] {
+        storage.withLock { $0.mailedUserTypeMail }
+    }
+
+    /// Tells if an answer with the mail ids `mailIds` is an answer to mail
+    /// alone: its ids hold none of the user-type mail that the run mailed
+    /// (``mailedUserTypeMail``).
+    ///
+    /// - Parameter mailIds: The `mailIds` of an answer or of a failed answer.
+    /// - Returns: `true` when no id is the id of the task prompt or of a
+    ///   message from the caller.
+    func isAnswerToMailAlone(_ mailIds: [MailID]) -> Bool {
+        storage.withLock { storage in
+            let userTypeIDs = Set(storage.mailedUserTypeMail.map(\.id))
+            return !mailIds.contains(where: userTypeIDs.contains)
+        }
     }
 
     /// Sets the test hooks of the idle rule of the run. Call it before
@@ -563,7 +666,7 @@ public final class AgentRun: Sendable {
         return final
     }
 
-    /// The count of messages that ``deliver(_:)`` accepted, for the start of
+    /// The count of messages that ``deliver(_:from:)`` accepted, for the start of
     /// an idle check, or `nil` while a message is on its way to the message
     /// queue of the session. The session is not idle then.
     var acceptedMessagesWhenNoneInbound: Int? {
@@ -574,14 +677,14 @@ public final class AgentRun: Sendable {
 
     /// Records the final state of an idle run, when no message from the
     /// caller arrived after the idle check. One lock holds the check and the
-    /// record, thus ``deliver(_:)`` accepts each message before this call,
-    /// and the run then answers it, or refuses it after this call.
+    /// record, thus ``deliver(_:from:)`` accepts each message before this
+    /// call, and the run then answers it, or refuses it after this call.
     ///
     /// - Parameters:
     ///   - final: The final state that the idle signal gave.
     ///   - acceptedMessages: The count of accepted messages that the idle
     ///     check read.
-    /// - Returns: `final`, or `nil` when ``deliver(_:)`` accepted a message
+    /// - Returns: `final`, or `nil` when ``deliver(_:from:)`` accepted a message
     ///   after the idle check. The run then waits for its answer.
     func settle(idle final: AgentRunState, acceptedMessages: Int) -> AgentRunState? {
         storage.withLock { storage in
@@ -593,13 +696,23 @@ public final class AgentRun: Sendable {
         }
     }
 
-    /// Records the final state, and lets go of the session.
+    /// Records the final state, lets go of the session, and drops the
+    /// subscriptions of the user-type mail that the run mailed.
     ///
     /// - Parameter final: The final state of the run.
     private func end(in final: AgentRunState) {
         storage.withLock { storage in
             storage.state = final
             storage.session = nil
+            storage.mailedUserTypeMailSubscriptions = [:]
         }
     }
+}
+
+/// Why ``AgentRun/deliver(_:from:)`` refused a message.
+public enum AgentRunMessageError: Error, Sendable, Equatable {
+    /// The sender cannot send a message to a run. Only a session
+    /// (`MailSender.session(_:)`) and a host that is not a session
+    /// (`MailSender.user`) can send one. The run mailed nothing.
+    case unsupportedSender(MailSender)
 }

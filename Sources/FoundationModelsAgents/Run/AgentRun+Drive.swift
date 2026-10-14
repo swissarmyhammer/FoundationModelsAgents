@@ -36,11 +36,13 @@ extension AgentRun {
     /// final state of the run.
     ///
     /// The run subscribes to the session events first, and follows that one
-    /// subscription for its whole life (``follow(_:on:observer:)``). It then sends the
-    /// task prompt as one message. The pump of the Router runs the answer of
-    /// that message, and the answer of each final message of a run that this
-    /// run started: each final message is mail, and mail starts an answer
-    /// with no call of this run.
+    /// subscription for its whole life (``follow(_:on:observer:)``). It then
+    /// mails the task prompt as one user message, and at once after it each
+    /// message from the caller that it held (``mailTaskPrompt(_:to:)``). It
+    /// waits for the answer of the task prompt by its mail id. The pump of
+    /// the Router runs the answer of that mail, and the answer of each final
+    /// message of a run that this run started: each final message is mail,
+    /// and mail starts an answer with no call of this run.
     ///
     /// The run ends when its session is idle (``acceptedMessagesIfIdle(on:)``)
     /// and no message from the caller arrived after the idle check
@@ -94,7 +96,8 @@ extension AgentRun {
         guard !isCancelRequested else {
             return .cancelled
         }
-        async let taskAnswer: Void = answerTaskPrompt(prompt, on: session)
+        let taskMailID = mailTaskPrompt(prompt, to: session)
+        async let taskAnswer: Void = answerTaskPrompt(taskMailID, on: session)
         for await signal in signals.stream {
             if let final = await endState(after: signal, on: session) {
                 return final
@@ -104,18 +107,50 @@ extension AgentRun {
         return .cancelled
     }
 
-    /// Sends the task prompt as one message, and waits for its answer.
+    /// Mails the task prompt as one user message in stream mode, and then
+    /// mails each message from the caller that the run held
+    /// (``releaseHeldMessages(to:)``). The follower subscribed to the
+    /// session events before this call (``drive(_:prompt:observer:)``).
     ///
-    /// The answer streams its text, thus the progress of the run shows the
-    /// text so far. The stream throws the error of a failed answer as it is,
-    /// thus a context overflow gives ``AgentRunFailure/contextOverflow(_:)``.
+    /// The task prompt is the first mail of the session. The run held each
+    /// message from the caller until this time, and mails the held messages
+    /// at once after the task prompt. The mail queue is first in, first out,
+    /// thus the session gets them after the task prompt.
+    ///
+    /// When the session refuses the task prompt, the run gets
+    /// ``AgentRunSignal/taskAnswerFailed(_:)`` with the refusal, and the
+    /// held messages stay held.
     ///
     /// - Parameters:
     ///   - prompt: The task prompt.
     ///   - session: The session of the run.
-    private func answerTaskPrompt(_ prompt: String, on session: any RoutedSession) async {
+    /// - Returns: The id of the task prompt, or `nil` when the session
+    ///   refused it.
+    private func mailTaskPrompt(_ prompt: String, to session: any RoutedSession) -> MailID? {
+        let taskMail = Mail(
+            sender: .user, body: .userMessage(prompt: prompt, options: UserMessageOptions(maxTokens: nil, mode: .stream)))
+        if let refusal = mailUserTypeMail(taskMail, to: session) {
+            signals.continuation.yield(.taskAnswerFailed(refusal))
+            return nil
+        }
+        releaseHeldMessages(to: session)
+        return taskMail.id
+    }
+
+    /// Waits for the answer of the task prompt.
+    ///
+    /// The run waits on the id only after ``mailTaskPrompt(_:to:)`` mailed
+    /// it. The wait throws the error of a failed answer as it is, thus a
+    /// context overflow gives ``AgentRunFailure/contextOverflow(_:)``.
+    ///
+    /// - Parameters:
+    ///   - taskMailID: The id of the task prompt, or `nil` when the session
+    ///     refused it. The run then got its signal already.
+    ///   - session: The session of the run.
+    private func answerTaskPrompt(_ taskMailID: MailID?, on session: any RoutedSession) async {
+        guard let taskMailID else { return }
         do {
-            for try await _ in await session.streamEvents(to: prompt) {}
+            _ = try await session.awaitAnswer(of: taskMailID)
         } catch {
             signals.continuation.yield(.taskAnswerFailed(error))
         }
@@ -182,13 +217,9 @@ extension AgentRun {
     /// The observer of the host gets each event first, synchronously, before
     /// the run uses it. Each event then feeds the progress and the answers of
     /// the run (``record(_:)``), the watch of the settled background runs, and the
-    /// count of passes. The start of an answer sends the messages from the
-    /// caller that the run held before the answer of its task prompt started
-    /// (``releaseHeldMessages(to:)``). The follower sends them before it
-    /// reads the next event, thus the end of that answer sees them in the
-    /// message queue. When the count goes above the limit, the run stops its
-    /// session at once. Then each event that decides the end of the run gives
-    /// its signal (``signal(after:on:)``).
+    /// count of passes. When the count goes above the limit, the run stops
+    /// its session at once. Then each event that decides the end of the run
+    /// gives its signal (``signal(after:on:)``).
     ///
     /// - Parameters:
     ///   - events: The session-event subscription of the run, made before
@@ -200,20 +231,15 @@ extension AgentRun {
         _ events: AsyncStream<SessionOutput>, on session: any RoutedSession,
         observer: AgentEnvironment.RunEventObserver?
     ) async {
-        var chains = MailAnswerFilter()
         for await output in events {
             observer?(self, output)
             let event = output.event
-            _ = chains.answerToMailAlone(in: event)
             record(event)
-            if case .submissionStarted = event {
-                await releaseHeldMessages(to: session)
-            }
             sessionWatch.observe(event)
             if turns.apply(event) {
                 session.cancelAll()
             }
-            if let signal = await signal(after: event, isChainOfMailAlone: chains.isChainOfMailAlone, on: session) {
+            if let signal = await signal(after: event, on: session) {
                 signals.continuation.yield(signal)
             }
         }
@@ -238,14 +264,9 @@ extension AgentRun {
     ///
     /// - Parameters:
     ///   - event: The event, already recorded.
-    ///   - isChainOfMailAlone: `true` when run mail alone started the chain
-    ///     of the event (``MailAnswerFilter``). The ids of a failure hold run
-    ///     mail too, thus they do not tell it.
     ///   - session: The session of the run.
     /// - Returns: The signal, or `nil`.
-    private func signal(
-        after event: SessionEvent, isChainOfMailAlone: Bool, on session: any RoutedSession
-    ) async -> AgentRunSignal? {
+    private func signal(after event: SessionEvent, on session: any RoutedSession) async -> AgentRunSignal? {
         if case .answered(let answer) = event {
             if turns.isLimitHit {
                 return .limitHit(partial: answer.reply)
@@ -262,7 +283,7 @@ extension AgentRun {
             if turns.isLimitHit {
                 return .limitHit(partial: answers.partial)
             }
-            return isChainOfMailAlone ? .mailAnswerFailed(failure.reason) : nil
+            return isAnswerToMailAlone(failure.mailIds) ? .mailAnswerFailed(failure.reason) : nil
         }
         if case .mailDeliveryPaused(let pause) = event {
             return .mailDeliveryPaused(pause.description)
@@ -339,7 +360,7 @@ extension AgentRun {
     /// the answer to each of them.
     ///
     /// A message from the caller also keeps the session from idle, from the
-    /// time that ``deliver(_:)`` accepts it to the end of its answer. While
+    /// time that ``deliver(_:from:)`` accepts it to the end of its answer. While
     /// the run holds the message, and while the message goes to the queue,
     /// ``acceptedMessagesWhenNoneInbound`` is `nil`. In the queue, the
     /// message waits. The pump then moves it to the running messages before

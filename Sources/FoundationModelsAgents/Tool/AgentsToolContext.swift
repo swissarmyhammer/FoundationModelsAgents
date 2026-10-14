@@ -217,19 +217,20 @@ public struct AgentsToolContext: Sendable {
     /// - Parameters:
     ///   - id: The id that the model gave. The case of the letters does not
     ///     matter.
-    ///   - body: Gives the answer for the run. It can wait, for example for
-    ///     ``AgentRun/deliver(_:)``.
+    ///   - body: Gives the answer for the run. It can wait, and it can throw,
+    ///     for example the error of ``AgentRun/deliver(_:from:)``.
     /// - Returns: The answer of `body`, or a corrective with the ids of the
     ///   runs of the caller when no run of the caller has the id `id`.
+    /// - Throws: The error of `body`.
     func answer(
-        forRun id: String, _ body: (AgentRun) async -> AgentsToolAnswer
-    ) async -> AgentsToolAnswer {
+        forRun id: String, _ body: (AgentRun) async throws -> AgentsToolAnswer
+    ) async rethrows -> AgentsToolAnswer {
         let caller = ToolContext.current?.sessionID
         guard let run = await run(named: id), run.caller == caller else {
             let callerRuns = await runner.runs(caller: caller)
             return .corrective(AgentsToolText.unknownRun(id, ids: callerRuns.map(\.id.description)))
         }
-        return await body(run)
+        return try await body(run)
     }
 
     /// Tells whether `id` is the id of the session of the caller.

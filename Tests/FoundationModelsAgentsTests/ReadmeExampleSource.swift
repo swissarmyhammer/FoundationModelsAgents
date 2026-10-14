@@ -114,17 +114,16 @@ enum ReadmeExampleSource {
                 tools: [agentsTool, environment.skillsTool],
                 inlineSettleGrace: 0))
         let events = await root.streamSessionEvents()   // subscribe before the first message
-        _ = try await root.respond(to: "Ask code-reviewer to review Sources/Parser.swift.")
+        let askID = try root.send("Ask code-reviewer to review Sources/Parser.swift.")
+        _ = try await root.awaitAnswer(of: askID)       // wait on an id only after send returned it
 
         // The run works in the background. When it ends, the Router gives its
         // final message to the root session as mail, and the root answers it.
-        // The first submission of an answer that mail alone started has the cause `.mail`.
+        // An answer to mail alone holds none of the ids that the host sent.
+        let hostMailIDs: Set<MailID> = [askID]
         var answer: String?
-        var answersMail = false
         for await output in events {
-            if case .submissionStarted(let start) = output.event, start.cause != .continuation {
-                answersMail = start.cause == .mail
-            } else if case .answered(let mailAnswer) = output.event, answersMail {
+            if case .answered(let mailAnswer) = output.event, !mailAnswer.mailIds.contains(where: hostMailIDs.contains) {
                 answer = mailAnswer.reply
                 break
             }

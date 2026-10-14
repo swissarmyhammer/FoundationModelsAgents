@@ -1,6 +1,7 @@
 @testable import FoundationModelsAgents
 import FoundationModelsRouter
 import Testing
+import ULID
 
 /// Pins `send agent`: a caller sends a message to a run that it started. A
 /// run in operation gets the message and answers it before it ends. A run
@@ -77,13 +78,25 @@ struct SendAgentTests {
         ["id": run.id.description, "message": text]
     }
 
-    /// `true` when `text` is the prompt of ``message`` from the caller.
+    /// `true` when `text` is the prompt of ``message`` from a caller that is
+    /// not a session: a call of the tool outside a Router session sends as
+    /// `MailSender.user`, and the prompt holds the caller prefix.
     ///
     /// - Parameter text: The text of a prompt or a reply.
     /// - Returns: `true` when the text holds the caller prefix and the
     ///   message.
     private static func isCallerMessage(_ text: String) -> Bool {
-        text.contains(AgentsToolText.callerMessagePrefix) && text.contains(message)
+        text.contains("Message from your caller: \(message)")
+    }
+
+    /// The prompt of ``message`` from the session `session`: a call of the
+    /// tool in a Router session sends as `MailSender.session(_:)`, and the
+    /// Router puts its line before the message.
+    ///
+    /// - Parameter session: The id of the session that sent the message.
+    /// - Returns: The text of the prompt.
+    private static func sessionMessage(from session: ULID) -> String {
+        "[message from session \(session.ulidString)]\n\(message)"
     }
 
     /// The answer of `send agent` for a message that the run accepted.
@@ -184,7 +197,7 @@ struct SendAgentTests {
         await root.close()
 
         #expect(answer == Self.sentText(to: run))
-        #expect(Self.isCallerMessage(result))
+        #expect(result == Self.sessionMessage(from: root.id))
     }
 
     @Test("send agent to a finished run gives the run-ended corrective", .timeLimit(.minutes(1)))
@@ -267,6 +280,7 @@ struct SendAgentTests {
         #expect(answerOfB == "No run has the id \(run.id). You have no runs.")
         #expect(result == Self.taskReply)
         #expect(!harness.runHarness.script.prompts.contains(where: Self.isCallerMessage))
+        #expect(!harness.runHarness.script.prompts.contains(Self.sessionMessage(from: rootB.id)))
     }
 
     @Test("send agent with a blank message is a corrective, and the run gets no message",

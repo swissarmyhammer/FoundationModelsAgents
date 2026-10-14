@@ -221,7 +221,8 @@ struct SendAgent {
 }
 
 extension SendAgent {
-    /// Sends `message` to the run `id` of the caller (``AgentRun/deliver(_:)``).
+    /// Sends `message` to the run `id` of the caller
+    /// (``AgentRun/deliver(_:from:)``).
     ///
     /// The id is the id of the run, or the completion token of the
     /// `start agent` call that started it. When that call did not add its
@@ -256,20 +257,28 @@ extension SendAgent {
         guard !context.isOwnRun(id) else {
             return .corrective(AgentsToolText.ownRun(id))
         }
-        return await context.answer(forRun: id) { run in await deliver(to: run, in: context) }
+        return try await context.answer(forRun: id) { run in try deliver(to: run, in: context) }
     }
 
     /// Gives `message` to `run`, and records the message: one
     /// `agent.message.sent` log record and span event with the `to_run`
     /// direction (``AgentsToolContext/record(_:)``).
     ///
+    /// The sender is the session of the call (`MailSender.session(_:)` with
+    /// the `sessionID` of `ToolContext.current`). A call that has no
+    /// `ToolContext`, for example a call of the tool outside a Router
+    /// session, sends as `MailSender.user`.
+    ///
     /// - Parameters:
     ///   - run: A run of the caller.
     ///   - context: The shared context of the tool.
     /// - Returns: The sent text when the run accepted the message, or the
     ///   corrective for a run that ended.
-    private func deliver(to run: AgentRun, in context: AgentsToolContext) async -> AgentsToolAnswer {
-        let outcome = await run.deliver(message)
+    /// - Throws: Never in practice: ``AgentRun/deliver(_:from:)`` throws only
+    ///   for a sender that is not a session and not a user.
+    private func deliver(to run: AgentRun, in context: AgentsToolContext) throws -> AgentsToolAnswer {
+        let sender: MailSender = ToolContext.current.map { .session($0.sessionID) } ?? .user
+        let outcome = try run.deliver(message, from: sender)
         context.record(
             AgentMessageRecord(
                 direction: .toRun, run: run, outcome: AgentsTelemetry.MessageOutcome(outcome), length: message.count))

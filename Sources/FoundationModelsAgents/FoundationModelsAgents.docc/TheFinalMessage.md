@@ -72,18 +72,17 @@ operation is done, and starts an answer to the mail with no call of the host.
 The Router also sends
 `SessionEvent.runSettled(event)` on `streamSessionEvents()`, and each answer
 ends with `SessionEvent.answered(_:)`. Each `SessionOutput` of the
-subscription holds the event and its origin. The first submission of an
-answer that only mail started has the cause `.mail`. A host reads these
+subscription holds the event and its origin. The host keeps the id of each
+mail that it sent (`send(_:)` and `mail(_:)` give it). An answer to mail
+alone is an answer whose `mailIds` hold none of these ids. A host reads these
 answers from its subscription:
 
 ```swift
 let events = await root.streamSessionEvents()   // subscribe before the first message
-_ = try await root.respond(to: userPrompt)
-var answersMail = false
+let promptID = try root.send(userPrompt)
+let hostMailIDs: Set<MailID> = [promptID]
 for await output in events {
-    if case .submissionStarted(let start) = output.event, start.cause != .continuation {
-        answersMail = start.cause == .mail
-    } else if case .answered(let answer) = output.event, answersMail {
+    if case .answered(let answer) = output.event, !answer.mailIds.contains(where: hostMailIDs.contains) {
         print(answer.reply)                      // the answer to a final message
     }
 }

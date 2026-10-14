@@ -49,7 +49,7 @@ struct AgentMessageRecord {
 }
 
 extension AgentsTelemetry.MessageOutcome {
-    /// Gives the outcome of a message that ``AgentRun/deliver(_:)`` took or
+    /// Gives the outcome of a message that ``AgentRun/deliver(_:from:)`` took or
     /// refused.
     ///
     /// - Parameter outcome: What the run did with the message.

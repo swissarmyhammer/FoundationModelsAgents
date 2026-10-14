@@ -119,7 +119,7 @@ enum AgentRunSignal: Sendable {
     /// final message of those runs was delivered and answered, and no
     /// message waits. The text is the reply of the last answer. The count is
     /// the count of messages from the caller that the run accepted before
-    /// the idle check (``AgentRun/deliver(_:)``).
+    /// the idle check (``AgentRun/deliver(_:from:)``).
     case idle(String, acceptedMessages: Int)
 
     /// The count of passes went above the `maxTurns` limit, and the open

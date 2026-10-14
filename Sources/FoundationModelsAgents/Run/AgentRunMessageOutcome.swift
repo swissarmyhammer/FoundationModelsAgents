@@ -1,4 +1,4 @@
-/// What ``AgentRun/deliver(_:)`` did with a message from the caller of a
+/// What ``AgentRun/deliver(_:from:)`` did with a message from the caller of a
 /// run.
 public enum AgentRunMessageOutcome: Sendable, Equatable {
     /// The run accepted the message. The session of the run answers it

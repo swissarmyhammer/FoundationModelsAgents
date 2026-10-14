@@ -1,17 +1,73 @@
 import Foundation
 @testable import FoundationModelsAgents
+import FoundationModelsRouter
+import Synchronization
 import Testing
+import ULID
 
-/// Pins ``AgentRun/deliver(_:)``: a caller sends a message to a run that it
-/// started. The run accepts the message and answers it before it ends, or it
-/// tells that it ended. A message never races with the idle rule of the run.
+/// Pins ``AgentRun/deliver(_:from:)``: a caller sends a message to a run that
+/// it started. The run accepts the message and answers it before it ends, or
+/// it tells that it ended. A message never races with the idle rule of the
+/// run.
+///
+/// Most tests send as `MailSender.user`, a host that is not a session: the
+/// prompt of the message then holds the caller prefix
+/// (``AgentsToolText/callerMessage(_:)``). The tests of a session sender pin
+/// the line of the Router, "[message from session <id>]".
 @Suite("Messages to a run")
 struct AgentRunMessageTests {
+    /// The session events of one run that the run event observer got: the
+    /// ids of the delivered mail, in delivery order, and the mail ids of each
+    /// answer, in answer order.
+    ///
+    /// A class, because the observer and the test share it. A `Mutex` guards
+    /// the state, thus the `Sendable` conformance is compiler-checked.
+    private final class MailLedger: Sendable {
+        /// The state that the lock guards.
+        private struct State {
+            /// The id of each delivered mail, in delivery order.
+            var delivered: [MailID] = []
+
+            /// The mail ids of each answer, in answer order.
+            var answered: [[MailID]] = []
+        }
+
+        /// The state.
+        private let state = Mutex(State())
+
+        /// The id of each delivered mail, in delivery order.
+        var delivered: [MailID] {
+            state.withLock { $0.delivered }
+        }
+
+        /// The mail ids of each answer, in answer order.
+        var answered: [[MailID]] {
+            state.withLock { $0.answered }
+        }
+
+        /// Records one session event.
+        ///
+        /// - Parameter event: The event.
+        func observe(_ event: SessionEvent) {
+            state.withLock { state in
+                if case .mailDelivered(let id) = event {
+                    state.delivered.append(id)
+                }
+                if case .answered(let answer) = event {
+                    state.answered.append(answer.mailIds)
+                }
+            }
+        }
+    }
+
     /// The message that each test sends to a run.
     private static let message = "message-key: also check the error paths"
 
     /// The reply of the answer of the task prompt.
     private static let taskReply = "I reviewed the diff."
+
+    /// The session that sends the message in the tests of a session sender.
+    private static let senderSession = ULID()
 
     /// Bytes that are not UTF-8 text.
     private static let invalidUTF8: [UInt8] = [0xFF, 0xFE, 0xFD]
@@ -27,13 +83,13 @@ struct AgentRunMessageTests {
         return AgentRunTests.script([.finalText(taskReply)] + hold + [.finalTextOfLastPrompt])
     }
 
-    /// `true` when `text` is the prompt of ``message`` from the caller.
+    /// `true` when `text` is the prompt of ``message`` from a user sender.
     ///
     /// - Parameter text: The text of a prompt or a reply.
     /// - Returns: `true` when the text holds the caller prefix and the
     ///   message.
     private static func isCallerMessage(_ text: String) -> Bool {
-        text.contains(AgentsToolText.callerMessagePrefix) && text.contains(message)
+        text.contains("Message from your caller: \(message)")
     }
 
     /// Makes a run of the reviewer with the idle hooks `hooks`, then begins
@@ -93,7 +149,7 @@ struct AgentRunMessageTests {
 
         let run = try await harness.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
         await gate.waitForArrival()
-        let outcome = await run.deliver(Self.message)
+        let outcome = try run.deliver(Self.message, from: .user)
         gate.open()
         let result = try await run.result()
 
@@ -127,7 +183,7 @@ struct AgentRunMessageTests {
 
         let lead = try await runner.start(NestedRunTests.lead, prompt: NestedRunTests.leadKey)
         try await Self.waitForChildren(of: lead)
-        let outcome = await lead.deliver(Self.message)
+        let outcome = try lead.deliver(Self.message, from: .user)
         try await NestedRunTests.arrival(ofPromptContaining: Self.message, in: harness.script)
         childGate.open()
         let result = try await lead.result()
@@ -146,7 +202,7 @@ struct AgentRunMessageTests {
         let run = try await harness.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
         _ = try await run.result()
 
-        #expect(await run.deliver(Self.message) == .ended(.finished(Self.taskReply)))
+        #expect(try run.deliver(Self.message, from: .user) == .ended(.finished(Self.taskReply)))
         #expect(!harness.script.prompts.contains(where: Self.isCallerMessage))
     }
 
@@ -159,7 +215,7 @@ struct AgentRunMessageTests {
         let final = await run.finalState()
 
         #expect(Self.isFailure(final))
-        #expect(await run.deliver(Self.message) == .ended(final))
+        #expect(try run.deliver(Self.message, from: .user) == .ended(final))
     }
 
     @Test("a message to a cancelled run tells that it was cancelled", .timeLimit(.minutes(1)))
@@ -174,7 +230,7 @@ struct AgentRunMessageTests {
         let final = await run.finalState()
 
         #expect(final == .cancelled)
-        #expect(await run.deliver(Self.message) == .ended(.cancelled))
+        #expect(try run.deliver(Self.message, from: .user) == .ended(.cancelled))
     }
 
     @Test("a message after a cancel request, before the run settles, tells that it was cancelled",
@@ -186,11 +242,11 @@ struct AgentRunMessageTests {
 
         let run = await harness.makeRun(request)
         run.cancel()
-        let outcome = await run.deliver(Self.message)
+        let outcome = try run.deliver(Self.message, from: .user)
         run.begin(request, environment: harness.environment)
         let final = await run.finalState()
 
-        #expect(outcome == .ended(.cancelled))
+        #expect(outcome == AgentRunMessageOutcome.ended(.cancelled))
         #expect(final == .cancelled)
         #expect(harness.script.prompts.isEmpty)
     }
@@ -203,7 +259,7 @@ struct AgentRunMessageTests {
         let request = try harness.request(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
 
         let run = await harness.makeRun(request)
-        let outcome = await run.deliver(Self.message)
+        let outcome = try run.deliver(Self.message, from: .user)
         run.begin(request, environment: harness.environment)
         let result = try await run.result()
         let prompts = harness.script.prompts
@@ -216,9 +272,10 @@ struct AgentRunMessageTests {
         #expect(Self.isCallerMessage(result))
     }
 
-    /// `begin` starts the task that sends the task prompt, and returns before
-    /// that task sends it. The run holds the message until the task answer
-    /// starts, thus the result does not depend on the time of that send.
+    /// `begin` starts the task that mails the task prompt, and returns before
+    /// that task mails it. The run holds the message until the task prompt
+    /// is in the mail queue, thus the result does not depend on the time of
+    /// that mail.
     @Test("a message right after begin is held, and the session gets it after the task prompt",
         .timeLimit(.minutes(1)))
     func messageRightAfterBeginComesAfterTaskPrompt() async throws {
@@ -226,7 +283,7 @@ struct AgentRunMessageTests {
         defer { try? harness.delete() }
 
         let run = try await harness.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
-        let outcome = await run.deliver(Self.message)
+        let outcome = try run.deliver(Self.message, from: .user)
         let result = try await run.result()
         let prompts = harness.script.prompts
 
@@ -247,7 +304,7 @@ struct AgentRunMessageTests {
         let run = try await harness.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
 
         #expect(run.isSetupFailure)
-        #expect(await run.deliver(Self.message) == .ended(run.state))
+        #expect(try run.deliver(Self.message, from: .user) == .ended(run.state))
     }
 
     @Test("a message between the idle signal and the settle of the run is answered before the run ends",
@@ -260,7 +317,7 @@ struct AgentRunMessageTests {
         let run = try await Self.startRun(
             in: harness, hooks: AgentRunIdleHooks(beforeIdleSettle: { try? await settleGate.wait() }))
         await settleGate.waitForArrival()
-        let outcome = await run.deliver(Self.message)
+        let outcome = try run.deliver(Self.message, from: .user)
         settleGate.open()
         let result = try await run.result()
 
@@ -279,7 +336,7 @@ struct AgentRunMessageTests {
         let run = try await Self.startRun(
             in: harness, hooks: AgentRunIdleHooks(beforeIdleCheck: { try? await checkGate.wait() }))
         await checkGate.waitForArrival()
-        let outcome = await run.deliver(Self.message)
+        let outcome = try run.deliver(Self.message, from: .user)
         await messageGate.waitForArrival()
         checkGate.open()
         try await Self.waitForOpenAnswer(of: run)
@@ -288,5 +345,78 @@ struct AgentRunMessageTests {
 
         #expect(outcome == .delivered)
         #expect(Self.isCallerMessage(result))
+    }
+
+    /// The order is fixed: the test delivers the message after `make` and
+    /// before `begin`, thus before the run mails its task prompt. The run
+    /// holds the message, and mails it at once after the task prompt. The run
+    /// event observer records the `mailDelivered` events and the mail ids of
+    /// each answer. The test finds the two mails by their sender, not by a
+    /// search of the text.
+    @Test("a message before the task prompt is mailed comes after the task prompt in the queue, and the run answers it")
+    func heldMessageIsDeliveredAfterTheTaskPrompt() async throws {
+        let ledger = MailLedger()
+        let harness = try await AgentRunHarness.make(
+            script: Self.taskThenMessage(), runEventObserver: { _, output in ledger.observe(output.event) })
+        defer { try? harness.delete() }
+        let request = try harness.request(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
+
+        let run = await harness.makeRun(request)
+        let outcome = try run.deliver(Self.message, from: .session(Self.senderSession))
+        run.begin(request, environment: harness.environment)
+        let result = try await run.result()
+        let mailed = run.mailedUserTypeMail
+        let taskID = try #require(mailed.first { $0.sender == .user }?.id)
+        let messageID = try #require(mailed.first { $0.sender == .session(Self.senderSession) }?.id)
+        let delivered = ledger.delivered
+        let taskPosition = try #require(delivered.firstIndex(of: taskID))
+        let messagePosition = try #require(delivered.firstIndex(of: messageID))
+
+        #expect(outcome == .delivered)
+        #expect(mailed.map(\.id) == [taskID, messageID])
+        #expect(taskPosition < messagePosition)
+        #expect(ledger.answered.contains { $0.contains(messageID) })
+        #expect(result == "[message from session \(Self.senderSession.ulidString)]\n\(Self.message)")
+    }
+
+    @Test("a message from a sender that is not a session and not a user throws, and the run mails nothing")
+    func unsupportedSenderThrowsAndMailsNothing() async throws {
+        let harness = try await AgentRunHarness.make(script: AgentRunTests.script([.finalText(Self.taskReply)]))
+        defer { try? harness.delete() }
+        let request = try harness.request(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
+        let sender = MailSender.run(correlationID: "run-sender-token")
+
+        let run = await harness.makeRun(request)
+        #expect(throws: AgentRunMessageError.unsupportedSender(sender)) {
+            try run.deliver(Self.message, from: sender)
+        }
+        run.begin(request, environment: harness.environment)
+        let result = try await run.result()
+
+        #expect(result == Self.taskReply)
+        #expect(run.mailedUserTypeMail.map(\.sender) == [.user])
+        #expect(harness.script.prompts == [AgentRunTests.prompt])
+    }
+
+    @Test("a message from a user is mailed as a user message with the caller prefix")
+    func userMessageHoldsTheCallerPrefix() async throws {
+        let harness = try await AgentRunHarness.make(script: Self.taskThenMessage())
+        defer { try? harness.delete() }
+        let request = try harness.request(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
+
+        let run = await harness.makeRun(request)
+        let outcome = try run.deliver(Self.message, from: .user)
+        run.begin(request, environment: harness.environment)
+        let result = try await run.result()
+        let mailed = run.mailedUserTypeMail
+
+        #expect(outcome == .delivered)
+        #expect(mailed.count == 2)
+        #expect(mailed.last?.sender == .user)
+        #expect(
+            mailed.last?.body
+                == .userMessage(
+                    prompt: "Message from your caller: \(Self.message)", options: UserMessageOptions()))
+        #expect(result == "Message from your caller: \(Self.message)")
     }
 }

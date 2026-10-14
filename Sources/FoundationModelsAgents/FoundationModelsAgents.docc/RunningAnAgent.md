@@ -87,13 +87,20 @@ and it is the name of the recording directory of the session. A run whose
 setup fails has no session: it gets a new ULID, no recording directory, and
 the state ``AgentRunState/failed(_:)``.
 
-Then the run sends the prompt as the first message of its session, and the
+Then the run mails the prompt as the first mail of its session, and the
 session answers it in the background. A run with a caller can send messages
 to that caller with `send caller` while it works. A caller can send messages
-to the run with `send agent`, and a host calls ``AgentRun/deliver(_:)`` for
-a run that it started: the run holds a message that comes before the
-answer of the task prompt starts, and the session gets the message after the
-task prompt. The run answers each message that it accepted before it ends. A
+to the run with `send agent`, and a host calls ``AgentRun/deliver(_:from:)``
+for a run that it started. A session sends with `MailSender.session(_:)`, and
+the run mails an agent message: the prompt holds the line
+"[message from session <id>]" and the message. A host that is not a session
+sends with `MailSender.user`, and the prompt holds
+``AgentsToolText/callerMessage(_:)``. Each other sender throws
+``AgentRunMessageError/unsupportedSender(_:)``. The run holds a message that
+comes before the task prompt is in the mail queue, and mails it at once after
+the task prompt. After that time the mail queue is first in, first out, thus
+the session gets each message after the task prompt. The run answers each
+message that it accepted before it ends. A
 run that started no agents and got no message ends when this answer ends,
 and the reply of this answer is its result.
 

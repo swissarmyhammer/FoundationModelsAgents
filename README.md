@@ -149,17 +149,16 @@ let root = profile.standard.makeSession(
         tools: [agentsTool, environment.skillsTool],
         inlineSettleGrace: 0))
 let events = await root.streamSessionEvents()   // subscribe before the first message
-_ = try await root.respond(to: "Ask code-reviewer to review Sources/Parser.swift.")
+let askID = try root.send("Ask code-reviewer to review Sources/Parser.swift.")
+_ = try await root.awaitAnswer(of: askID)       // wait on an id only after send returned it
 
 // The run works in the background. When it ends, the Router gives its
 // final message to the root session as mail, and the root answers it.
-// The first submission of an answer that mail alone started has the cause `.mail`.
+// An answer to mail alone holds none of the ids that the host sent.
+let hostMailIDs: Set<MailID> = [askID]
 var answer: String?
-var answersMail = false
 for await output in events {
-    if case .submissionStarted(let start) = output.event, start.cause != .continuation {
-        answersMail = start.cause == .mail
-    } else if case .answered(let mailAnswer) = output.event, answersMail {
+    if case .answered(let mailAnswer) = output.event, !mailAnswer.mailIds.contains(where: hostMailIDs.contains) {
         answer = mailAnswer.reply
         break
     }
@@ -215,12 +214,16 @@ start is one slash command.
 
 A caller can send a message to a run that is still running. A model calls
 `{"op": "send agent", "id": "<id>", "message": "<text>"}`, and the run answers
-the message before it ends. A host calls `await run.deliver("<text>")` for a
-run that it started. The call gives `.delivered`, or `.ended(state)` for a
-run that ended.
+the message before it ends. A host calls
+`try run.deliver("<text>", from: .user)` for a run that it started, and a
+session uses `from: .session(id)`. The call gives `.delivered`, or
+`.ended(state)` for a run that ended. Each other sender throws
+`AgentRunMessageError.unsupportedSender`.
 
-The run holds a message that comes before its task prompt starts, and the
-session of the run gets it after the task prompt. A run that ended gets no
+The run holds a message that comes before its task prompt is in the mail
+queue, and mails it at once after the task prompt. The mail queue is first
+in, first out, thus the session of the run gets each message after the task
+prompt. A run that ended gets no
 message, and the call gives a corrective: "The run `id` ended (`state`), and
 it gets no more messages. Start a new run." A run with a caller sends a
 message to that caller with `send caller`. The message comes to the caller as
