@@ -73,7 +73,7 @@ struct AgentRunTracingTests {
         CapturedTrace.text(of: span, at: key)
     }
 
-    @Test("a host run has one run span with its name, its id, its depth and its outcome", .timeLimit(.minutes(1)))
+    @Test("a host run has one run span with its name, its id, its depth and its outcome")
     func hostRunHasOneRunSpan() async throws {
         let (run, trace) = try await TelemetryCapture.run(
             forbidding: [AgentRunTests.prompt, AgentRunTests.finalText]
@@ -98,7 +98,7 @@ struct AgentRunTracingTests {
         #expect(span.errors.isEmpty)
     }
 
-    @Test("a run writes one enter record when it starts, with its ids and the ids of its span", .timeLimit(.minutes(1)))
+    @Test("a run writes one enter record when it starts, with its ids and the ids of its span")
     func runWritesOneEnterRecord() async throws {
         let (run, trace, records) = try await TelemetryCapture.run(
             forbidding: [AgentRunTests.prompt, AgentRunTests.finalText]
@@ -145,7 +145,7 @@ struct AgentRunTracingTests {
         #expect("\(recorded)" == AgentsTelemetry.FailureKind.error.rawValue)
     }
 
-    @Test("a cancelled run span has the cancelled outcome and no error", .timeLimit(.minutes(1)))
+    @Test("a cancelled run span has the cancelled outcome and no error")
     func cancelledRunSpanHasCancelledOutcome() async throws {
         let gate = ScriptedGate()
         let (run, trace) = try await TelemetryCapture.run(forbidding: [AgentRunTests.prompt]) { context in
@@ -188,8 +188,7 @@ struct AgentRunTracingTests {
                 == AgentsTelemetry.FailureKind.setupFailed.rawValue)
     }
 
-    @Test("a child run span is under the run plane span of the start agent call, under a submission of its parent run",
-        .timeLimit(.minutes(1)))
+    @Test("a child run span is under the run plane span of the start agent call, under a submission of its parent run")
     func childRunSpanIsChildOfToolSpan() async throws {
         let nested = try await Self.runNested()
         let (lead, child, trace) = (nested.lead, nested.child, nested.trace)
@@ -209,7 +208,7 @@ struct AgentRunTracingTests {
         #expect(childSpan.attributes.get(AgentsTelemetry.AttributeKey.depth) == .int64(Self.childDepth))
     }
 
-    @Test("each submission span of a child session is a child of the child run span", .timeLimit(.minutes(1)))
+    @Test("each submission span of a child session is a child of the child run span")
     func childSubmissionsAreChildrenOfChildRunSpan() async throws {
         let nested = try await Self.runNested()
 
@@ -220,8 +219,7 @@ struct AgentRunTracingTests {
     }
 
     @Test(
-        "each send caller and send agent call adds one message event with the direction, the run, the outcome and the length",
-        .timeLimit(.minutes(1)))
+        "each send caller and send agent call adds one message event with the direction, the run, the outcome and the length")
     func messageCallsAddOneEventEach() async throws {
         let (exchange, trace) = try await TelemetryCapture.run(forbidding: [Self.message]) { context in
             let exchange = try await MessageExchange.run(

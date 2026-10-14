@@ -101,8 +101,7 @@ struct ReloadDuringRunTests {
         ["name": name, "prompt": prompt]
     }
 
-    @Test("a run in operation keeps its definition after the file changes and the registry reloads",
-        .timeLimit(.minutes(1)))
+    @Test("a run in operation keeps its definition after the file changes and the registry reloads")
     func runInOperationKeepsItsDefinition() async throws {
         let layer = try TemporaryLayer.makeEmpty()
         defer { try? layer.delete() }

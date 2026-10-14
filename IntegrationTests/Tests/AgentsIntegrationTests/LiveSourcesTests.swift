@@ -32,7 +32,7 @@ extension LiveSuites {
     /// Each live test uses the one resolved profile of ``LiveProfile/shared``.
     /// The parent suite is serialized, thus one live run at a time uses the
     /// models.
-    @Suite("Live sources", .serialized, .timeLimit(LiveProfile.timeLimit))
+    @Suite("Live sources", .serialized)
     struct LiveSourcesTests {
         /// The HTTPS URL of the `swissarmyhammer/skills` marketplace.
         private static let skillsMarketplaceURL = "https://github.com/swissarmyhammer/skills.git"

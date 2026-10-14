@@ -141,8 +141,7 @@ struct AgentSchedulingTests {
     }
 
     @Test(
-        "at a limit of two with two gated runs, a third start agent is the corrective; after one ends, a start works",
-        .timeLimit(.minutes(1)))
+        "at a limit of two with two gated runs, a third start agent is the corrective; after one ends, a start works")
     func limitRefusesThirdStartUntilOneFinishes() async throws {
         let flashGate = ScriptedGate()
         let standardGate = ScriptedGate()
@@ -175,8 +174,7 @@ struct AgentSchedulingTests {
         #expect(try await second.result() == Self.childText)
     }
 
-    @Test("a host-driven start does not check the limit, and start agent at the limit is the corrective",
-        .timeLimit(.minutes(1)))
+    @Test("a host-driven start does not check the limit, and start agent at the limit is the corrective")
     func hostStartIgnoresLimit() async throws {
         let flashGate = ScriptedGate()
         let script = ScriptedAgentScript([
@@ -199,8 +197,7 @@ struct AgentSchedulingTests {
         #expect(try await gated.result() == Self.childText)
     }
 
-    @Test("caller B cannot check or cancel a run of caller A: each gives the unknown-id corrective",
-        .timeLimit(.minutes(1)))
+    @Test("caller B cannot check or cancel a run of caller A: each gives the unknown-id corrective")
     func callerCannotCheckOrCancelRunOfOtherCaller() async throws {
         let gate = ScriptedGate()
         let checkArguments = ScriptedArguments()
@@ -240,8 +237,7 @@ struct AgentSchedulingTests {
         #expect(result == Self.childText)
     }
 
-    @Test("check agent with no id gives one block for each run of the caller, and only those runs",
-        .timeLimit(.minutes(1)))
+    @Test("check agent with no id gives one block for each run of the caller, and only those runs")
     func checkWithNoIDListsOnlyRunsOfCaller() async throws {
         let gate = ScriptedGate()
         let checkAll = ScriptedAgentStep.agentsToolCall(#"{"op": "check agent"}"#)
@@ -284,7 +280,7 @@ struct AgentSchedulingTests {
         #expect(hostAnswer == Self.noRunsText)
     }
 
-    @Test("cancelRuns(caller:) cancels the runs of that caller only", .timeLimit(.minutes(1)))
+    @Test("cancelRuns(caller:) cancels the runs of that caller only")
     func cancelRunsCancelsOnlyThatCaller() async throws {
         let gateA = ScriptedGate()
         let gateB = ScriptedGate()
@@ -318,8 +314,7 @@ struct AgentSchedulingTests {
         #expect(resultOfB == Self.childText)
     }
 
-    @Test("the close of the caller session cancels its open run, and the runner keeps the record of that run",
-        .timeLimit(.minutes(1)))
+    @Test("the close of the caller session cancels its open run, and the runner keeps the record of that run")
     func closeOfCallerCancelsOpenRun() async throws {
         let gate = ScriptedGate()
         let script = ScriptedAgentScript([

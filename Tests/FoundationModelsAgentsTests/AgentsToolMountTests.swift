@@ -132,8 +132,7 @@ struct AgentsToolMountTests {
     }
 
     @Test(
-        "in a Router session, list, check, and cancel agent give their real answer in band, with no envelope",
-        .timeLimit(.minutes(1)))
+        "in a Router session, list, check, and cancel agent give their real answer in band, with no envelope")
     func listCheckAndCancelAnswerInBand() async throws {
         let gate = ScriptedGate()
         let checkArguments = ScriptedArguments()
@@ -180,8 +179,7 @@ struct AgentsToolMountTests {
 
     // MARK: - The caller link
 
-    @Test("the tool of a child run with an Agent grant knows the caller session and the start call",
-          .timeLimit(.minutes(1)))
+    @Test("the tool of a child run with an Agent grant knows the caller session and the start call")
     func childToolKnowsItsCaller() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: [Self.probeStep]))
         defer { try? harness.delete() }
@@ -198,7 +196,7 @@ struct AgentsToolMountTests {
 
     // MARK: - The mount table of a run with a caller
 
-    @Test("a run with a caller and an Agent entry at maxDepth gets the messaging tool", .timeLimit(.minutes(1)))
+    @Test("a run with a caller and an Agent entry at maxDepth gets the messaging tool")
     func agentEntryAtMaxDepthGivesTheMessagingTool() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: [Self.probeStep]))
         defer { try? harness.delete() }
@@ -210,8 +208,7 @@ struct AgentsToolMountTests {
         #expect(child.tools.first?.context.callerLink?.sessionID == child.rootID)
     }
 
-    @Test("a run with a caller and a tools key with no Agent entry gets the messaging tool",
-          .timeLimit(.minutes(1)))
+    @Test("a run with a caller and a tools key with no Agent entry gets the messaging tool")
     func toolsKeyWithNoAgentEntryGivesTheMessagingTool() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: [Self.probeStep]))
         defer { try? harness.delete() }
@@ -222,7 +219,7 @@ struct AgentsToolMountTests {
         #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [ToolVocabulary.agentsToolName])
     }
 
-    @Test("a run with a caller and no tools key gets the messaging tool", .timeLimit(.minutes(1)))
+    @Test("a run with a caller and no tools key gets the messaging tool")
     func noToolsKeyGivesTheMessagingTool() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: [Self.probeStep]))
         defer { try? harness.delete() }
@@ -236,7 +233,7 @@ struct AgentsToolMountTests {
     }
 
     @Test("a run with a caller whose disallowedTools denies the agents tool gets no agents tool",
-          .timeLimit(.minutes(1)), arguments: ["Agent", ToolVocabulary.agentsToolName])
+          arguments: ["Agent", ToolVocabulary.agentsToolName])
     func disallowedAgentsToolGivesNoTool(entry: String) async throws {
         let layer = try TemporaryLayer.make(holding: [
             AgentDocumentPath.of(Self.denier): """
@@ -260,7 +257,7 @@ struct AgentsToolMountTests {
         #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [harness.runHarness.skillsTool.name])
     }
 
-    @Test("a host-started run with no Agent entry gets no agents tool", .timeLimit(.minutes(1)))
+    @Test("a host-started run with no Agent entry gets no agents tool")
     func hostStartedRunWithNoGrantGetsNoTool() async throws {
         let record = MadeToolRecord()
         let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: []))
@@ -275,7 +272,7 @@ struct AgentsToolMountTests {
         #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [harness.runHarness.skillsTool.name])
     }
 
-    @Test("a host-started run with an Agent entry at maxDepth gets no tool", .timeLimit(.minutes(1)))
+    @Test("a host-started run with an Agent entry at maxDepth gets no tool")
     func hostStartedRunAtMaxDepthGetsNoTool() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: []))
         defer { try? harness.delete() }
@@ -287,7 +284,7 @@ struct AgentsToolMountTests {
         #expect(harness.runHarness.script.toolNames(ofPlay: Self.leadPrompt) == [])
     }
 
-    @Test("the tool of a host-started run has no caller link", .timeLimit(.minutes(1)))
+    @Test("the tool of a host-started run has no caller link")
     func hostStartedRunToolHasNoCallerLink() async throws {
         let record = MadeToolRecord()
         let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: []))

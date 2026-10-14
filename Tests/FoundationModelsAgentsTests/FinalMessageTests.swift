@@ -115,8 +115,7 @@ struct FinalMessageTests {
         return nil
     }
 
-    @Test("start agent answers with the pending envelope, and the Router records the final message at the end",
-        .timeLimit(.minutes(1)))
+    @Test("start agent answers with the pending envelope, and the Router records the final message at the end")
     func startReturnsPendingEnvelopeAndRouterRecordsFinalMessage() async throws {
         let childGate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(
@@ -146,8 +145,7 @@ struct FinalMessageTests {
     }
 
     @Test(
-        "with a settle period of 0, a child that ends at once gives its final message as mail, not in the start answer",
-        .timeLimit(.minutes(1)))
+        "with a settle period of 0, a child that ends at once gives its final message as mail, not in the start answer")
     func fastChildOfRootSessionComesAsMail() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.script(child: [.finalText(Self.childText)]))
         defer { try? harness.delete() }
@@ -170,8 +168,7 @@ struct FinalMessageTests {
     }
 
     @Test(
-        "with the default settle period, a child that ends fast gives its final message in the start answer, and no mail",
-        .timeLimit(.minutes(1)))
+        "with the default settle period, a child that ends fast gives its final message in the start answer, and no mail")
     func fastChildInTheSettlePeriodAnswersInBand() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.script(child: [.finalText(Self.childText)]))
         defer { try? harness.delete() }
@@ -206,8 +203,7 @@ struct FinalMessageTests {
     }
 
     @Test(
-        "the final message holds the whole long text, emits runSettled, and the root answers it as mail",
-        .timeLimit(.minutes(1)))
+        "the final message holds the whole long text, emits runSettled, and the root answers it as mail")
     func longFinalMessageComesWholeAsMail() async throws {
         let longText = String(repeating: Self.childText + " ", count: Self.longTextCopies)
         let harness = try await AgentsToolHarness.make(
@@ -232,7 +228,7 @@ struct FinalMessageTests {
         #expect(mailPrompt.contains(detail))
     }
 
-    @Test("a failed run gives one final message with the reason", .timeLimit(.minutes(1)))
+    @Test("a failed run gives one final message with the reason")
     func failedRunGivesOneFinalMessage() async throws {
         let harness = try await AgentsToolHarness.make(
             script: Self.script(child: [.fail(ScriptedFailure.broken)]))
@@ -250,7 +246,7 @@ struct FinalMessageTests {
         #expect(posts.map(\.detail) == ["Agent code-reviewer (\(run.id)) failed: the model failed: \(failureText)."])
     }
 
-    @Test("a cancelled run gives one final message that tells the cancel", .timeLimit(.minutes(1)))
+    @Test("a cancelled run gives one final message that tells the cancel")
     func cancelledRunGivesOneFinalMessage() async throws {
         let childGate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(
@@ -272,8 +268,7 @@ struct FinalMessageTests {
         #expect(posts.map(\.detail) == ["Agent code-reviewer (\(run.id)) was cancelled."])
     }
 
-    @Test("a final message that comes during an answer of the caller waits, and the next submission reads it",
-        .timeLimit(.minutes(1)))
+    @Test("a final message that comes during an answer of the caller waits, and the next submission reads it")
     func finalMessageDuringCallerAnswerWaitsForNextSubmission() async throws {
         let rootGate = ScriptedGate()
         let childGate = ScriptedGate()

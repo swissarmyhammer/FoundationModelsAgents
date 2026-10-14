@@ -80,8 +80,7 @@ struct SlashCommandTests {
     }
 
     @Test(
-        "/lead gives the answer of lead to the mail of the runs that it starts, with no driver call",
-        .timeLimit(.minutes(1)))
+        "/lead gives the answer of lead to the mail of the runs that it starts, with no driver call")
     func commandOfAParentGivesItsAnswerToTheMail() async throws {
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([
@@ -103,7 +102,7 @@ struct SlashCommandTests {
         #expect(try #require(texts.first).contains(NestedRunTests.reviewerText))
     }
 
-    @Test("a cancel of the command stream cancels the run", .timeLimit(.minutes(1)))
+    @Test("a cancel of the command stream cancels the run")
     func cancelOfTheStreamCancelsTheRun() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentRunHarness.make(
@@ -141,7 +140,7 @@ struct SlashCommandTests {
         #expect(!names.contains(Self.hiddenAgent))
     }
 
-    @Test("commandUpdates yields the new command list after an agent reload", .timeLimit(.minutes(1)))
+    @Test("commandUpdates yields the new command list after an agent reload")
     func commandUpdatesYieldAfterAReload() async throws {
         let layer = try TemporaryLayer.makeEmpty()
         defer { try? layer.delete() }

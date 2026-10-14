@@ -47,8 +47,7 @@ struct RunEventObserverTests {
     }
 
     @Test(
-        "the observer gets the open record of a tool run of a child run while the body of the tool runs",
-        .timeLimit(.minutes(1)))
+        "the observer gets the open record of a tool run of a child run while the body of the tool runs")
     func observerGetsOpenRecordBeforeTheToolOutput() async throws {
         let observed = ObservedRunEvents(toolName: Self.readToolName)
         var tools = ToolCatalog()

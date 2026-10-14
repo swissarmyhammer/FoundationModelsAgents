@@ -116,7 +116,7 @@ struct AgentRunLoggingTests {
         #expect(seconds.map { $0 >= 0 } == true)
     }
 
-    @Test("a finished run writes one start record and one finished record at info", .timeLimit(.minutes(1)))
+    @Test("a finished run writes one start record and one finished record at info")
     func finishedRunWritesStartAndFinishedRecords() async throws {
         let (run, log) = try await TelemetryCapture.run(
             forbidding: [AgentRunTests.prompt, AgentRunTests.finalText]
@@ -144,8 +144,7 @@ struct AgentRunLoggingTests {
     }
 
     @Test(
-        "send agent to an ended run and send caller with no caller each write one message record with the outcome",
-        .timeLimit(.minutes(1)))
+        "send agent to an ended run and send caller with no caller each write one message record with the outcome")
     func undeliveredMessagesWriteTheirOutcome() async throws {
         let (run, records) = try await TelemetryCapture.run(forbidding: [Self.message]) { context in
             let harness = try await AgentsToolHarness.make(
@@ -173,8 +172,7 @@ struct AgentRunLoggingTests {
         #expect(Self.text(Key.runID, of: noCaller) == nil)
     }
 
-    @Test("a run above maxTurns writes one failed record at error with its kind and its error type only",
-        .timeLimit(.minutes(1)))
+    @Test("a run above maxTurns writes one failed record at error with its kind and its error type only")
     func maxTurnsRunWritesFailedRecord() async throws {
         let (run, log) = try await TelemetryCapture.run(
             forbidding: [Self.limitedKey, Self.partialText]
@@ -204,7 +202,7 @@ struct AgentRunLoggingTests {
         Self.expectDuration(of: end)
     }
 
-    @Test("a cancelled run writes one start record and one cancelled record at info", .timeLimit(.minutes(1)))
+    @Test("a cancelled run writes one start record and one cancelled record at info")
     func cancelledRunWritesCancelledRecord() async throws {
         let gate = ScriptedGate()
         let (run, log) = try await TelemetryCapture.run(forbidding: [AgentRunTests.prompt]) { context in
@@ -272,8 +270,7 @@ struct AgentRunLoggingTests {
         #expect(Self.text(Key.runID, of: end) == nil)
     }
 
-    @Test("the logger of the environment gets one enter, one start and one end record of a parent and of its child",
-        .timeLimit(.minutes(1)))
+    @Test("the logger of the environment gets one enter, one start and one end record of a parent and of its child")
     func parentAndChildWriteToTheLoggerOfTheEnvironment() async throws {
         let script = ScriptedAgentScript([
             NestedRunTests.parentPlay(

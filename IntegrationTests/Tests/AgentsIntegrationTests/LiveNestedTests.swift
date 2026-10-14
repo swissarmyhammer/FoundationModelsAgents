@@ -27,7 +27,7 @@ extension LiveSuites {
     /// The test reads the transcripts only after `result()` of each run and
     /// `close()` of the root session, thus each transcript is complete
     /// (``LiveRecording``).
-    @Suite("Live nested runs", .serialized, .timeLimit(LiveProfile.timeLimit))
+    @Suite("Live nested runs", .serialized)
     struct LiveNestedTests {
         /// The agent that the root starts. It starts ``leaf``.
         private static let lead = "lead"

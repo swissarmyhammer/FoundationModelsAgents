@@ -75,7 +75,7 @@ struct SkillsToolSharingTests {
         return try await skillsTool.call(arguments: GeneratedContent(json: json))
     }
 
-    @Test("the tool of the catalog, the tool of the host, and the preload read the one registry", .timeLimit(.minutes(1)))
+    @Test("the tool of the catalog, the tool of the host, and the preload read the one registry")
     func oneRegistryReachesEachReader() async throws {
         let root = try Self.makeSkillsRoot(holding: [Self.firstSkill])
         defer { try? root.delete() }

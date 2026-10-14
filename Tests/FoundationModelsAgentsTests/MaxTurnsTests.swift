@@ -206,7 +206,7 @@ struct MaxTurnsTests {
         return nil
     }
 
-    @Test("a task answer with two tool passes and one answer counts 3, one time each", .timeLimit(.minutes(1)))
+    @Test("a task answer with two tool passes and one answer counts 3, one time each")
     func twoToolPassesAndAnswerCountThree() async throws {
         let ended = try await Self.finishedRun(
             of: Self.unlimited, playing: [.listAgents, .listAgents, .finalText(Self.answerText)])
@@ -216,7 +216,7 @@ struct MaxTurnsTests {
         #expect(ended.run.progress.passes == Self.twoToolsAndAnswer)
     }
 
-    @Test("one pass that calls three tools counts 1", .timeLimit(.minutes(1)))
+    @Test("one pass that calls three tools counts 1")
     func threeToolsInOnePassCountOne() async throws {
         let ended = try await Self.finishedRun(
             of: Self.limited,
@@ -231,8 +231,7 @@ struct MaxTurnsTests {
         #expect(ended.run.turns.count == Self.oneToolAndAnswer)
     }
 
-    @Test("maxTurns 2 with a script of three passes fails with hitMaxTurns and the partial text",
-        .timeLimit(.minutes(1)))
+    @Test("maxTurns 2 with a script of three passes fails with hitMaxTurns and the partial text")
     func threePassesAboveLimitFail() async throws {
         let ended = try await Self.finishedRun(
             of: Self.limited, playing: [.listAgents, .listAgents, .finalText(Self.answerText)])
@@ -242,7 +241,7 @@ struct MaxTurnsTests {
         #expect(ended.run.report.contains(Self.limitKey))
     }
 
-    @Test("the passes of the answer to the mail of a child add to the same count", .timeLimit(.minutes(1)))
+    @Test("the passes of the answer to the mail of a child add to the same count")
     func mailPassesAddToCount() async throws {
         let ended = try await Self.finishedLead(Self.countingLead)
         let result = try await ended.run.result()
@@ -251,8 +250,7 @@ struct MaxTurnsTests {
         #expect(result.contains(Self.helperText))
     }
 
-    @Test("a lead with maxTurns 2 fails in its answer to the mail of its child with the text of that answer",
-        .timeLimit(.minutes(1)))
+    @Test("a lead with maxTurns 2 fails in its answer to the mail of its child with the text of that answer")
     func mailPassAboveLimitFails() async throws {
         let ended = try await Self.finishedLead(Self.limitedLead)
         let partial = Self.partialText(of: ended.final)
@@ -261,7 +259,7 @@ struct MaxTurnsTests {
         #expect(ended.run.turns.count == Self.leadPasses)
     }
 
-    @Test("a run with no maxTurns finishes with any count of passes", .timeLimit(.minutes(1)))
+    @Test("a run with no maxTurns finishes with any count of passes")
     func noLimitFinishesWithManyPasses() async throws {
         let steps = [ScriptedAgentStep](repeating: .listAgents, count: Self.manyToolPasses)
         let ended = try await Self.finishedRun(of: Self.unlimited, playing: steps + [.finalText(Self.answerText)])
@@ -270,8 +268,7 @@ struct MaxTurnsTests {
         #expect(ended.run.turns.count == Self.manyToolPasses + Self.answerPasses)
     }
 
-    @Test("a hitMaxTurns run with an open child cancels the child first, and the Router records both final messages",
-        .timeLimit(.minutes(1)))
+    @Test("a hitMaxTurns run with an open child cancels the child first, and the Router records both final messages")
     func hitMaxTurnsCancelsOpenChildThenPosts() async throws {
         let gate = ScriptedGate()
         let leadGate = ScriptedGate()

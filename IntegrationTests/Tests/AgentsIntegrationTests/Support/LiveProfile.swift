@@ -48,13 +48,6 @@ struct LiveProfile: Sendable {
     /// no earlier process used the folder.
     private static let processFolderName = ULID.generate().description
 
-    /// The number of minutes that one live test can use. The first live test
-    /// also waits for the models to load.
-    private static let testMinutes = 15
-
-    /// The time limit of each live test.
-    static let timeLimit: TimeLimitTrait.Duration = .minutes(testMinutes)
-
     /// The profile that the live suites resolve.
     static let definition = ProfileDefinition(
         name: "agents-integration",

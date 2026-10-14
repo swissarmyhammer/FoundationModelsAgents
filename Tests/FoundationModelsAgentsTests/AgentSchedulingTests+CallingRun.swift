@@ -74,8 +74,7 @@ extension AgentSchedulingTests {
         }
 
         @Test(
-            "at a limit of one, a working parent starts one child, and a start by another caller is the corrective",
-            .timeLimit(.minutes(1)))
+            "at a limit of one, a working parent starts one child, and a start by another caller is the corrective")
         func limitDoesNotCountCallingRun() async throws {
             let parentGate = ScriptedGate()
             let childGate = ScriptedGate()

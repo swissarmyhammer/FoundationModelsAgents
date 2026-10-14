@@ -4,35 +4,6 @@ import FoundationModelsAgents
 import FoundationModelsRouter
 import Synchronization
 
-/// Waits for a condition with a time limit.
-///
-/// The live tools use it, thus a tool that waits for another event never
-/// waits for ever. When the time limit ends, the tool gives its answer, and
-/// the test sees the failed condition in the record of the tool.
-enum LivePolling {
-    /// The number of milliseconds between two reads of the condition.
-    private static let intervalMilliseconds = 100
-
-    /// The time between two reads of the condition.
-    private static let interval: Duration = .milliseconds(intervalMilliseconds)
-
-    /// Waits until `condition` is true, or until `timeout` ends.
-    ///
-    /// - Parameters:
-    ///   - timeout: The longest time to wait.
-    ///   - condition: The condition to wait for.
-    /// - Returns: `true` when the condition became true in the time limit.
-    /// - Throws: `CancellationError` when the task is cancelled.
-    static func wait(upTo timeout: Duration, until condition: () -> Bool) async throws -> Bool {
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: timeout)
-        while !condition() && clock.now < deadline {
-            try await Task.sleep(for: interval)
-        }
-        return condition()
-    }
-}
-
 /// A tool that gives a secret word, and counts its calls.
 ///
 /// Only the tool knows the word, thus an agent that answers with the word
@@ -88,52 +59,105 @@ final class LiveHoldTool: Tool {
     /// The word that the tool gives when it lets a call end.
     static let word = "APPLE"
 
-    /// The number of seconds that a test waits for a run to call the tool.
-    private static let arrivalSeconds = 300
-
-    /// The number of seconds that one call waits for ``open()``.
-    private static let timeoutSeconds = 600
-
-    /// The longest time that a test waits for a run to call the tool.
-    static let arrivalTimeout: Duration = .seconds(arrivalSeconds)
-
-    /// The longest time that one call waits for ``open()``. A test that
-    /// fails before it opens the tool stops its runner, and the cancel ends
-    /// the wait before this limit.
-    private static let timeout: Duration = .seconds(timeoutSeconds)
-
     /// The name of the tool.
     let name = toolName
 
     /// The description of the tool.
     let description = "Waits for the signal to continue, then gives the word."
 
-    /// The record of the calls of the tool.
+    /// The record of the calls of the tool, and of the tasks that wait.
     private struct Record {
-        /// The count of calls that came.
-        var arrivals = 0
+        /// `true` after the first call came.
+        var hasArrival = false
 
         /// `true` after ``LiveHoldTool/open()``.
         var isOpen = false
+
+        /// The id that the next wait gets.
+        var nextID = 0
+
+        /// Each task that waits in ``LiveHoldTool/waitForArrival(orEndOf:)``,
+        /// by the id of its wait.
+        var arrivalWaiters: [Int: CheckedContinuation<Bool, Never>] = [:]
+
+        /// The id of each arrival wait whose run ended before the wait
+        /// started.
+        var endedArrivalWaits: Set<Int> = []
+
+        /// Each call that waits for ``LiveHoldTool/open()``, by the id of
+        /// its wait.
+        var openWaiters: [Int: CheckedContinuation<Void, any Error>] = [:]
+
+        /// The id of each call wait that was cancelled before the wait
+        /// started.
+        var cancelledOpenWaits: Set<Int> = []
+
+        /// Gives a new wait id.
+        ///
+        /// - Returns: The id.
+        mutating func takeID() -> Int {
+            defer { nextID += 1 }
+            return nextID
+        }
     }
 
-    /// The record of the calls, under a lock.
+    /// The record, under a lock.
     private let state = Mutex(Record())
 
     /// Lets each held call and each later call end.
     func open() {
-        state.withLock { $0.isOpen = true }
+        let waiters = state.withLock { record in
+            record.isOpen = true
+            defer { record.openWaiters = [:] }
+            return Array(record.openWaiters.values)
+        }
+        for waiter in waiters {
+            waiter.resume()
+        }
     }
 
-    /// Waits until a call has come.
+    /// Waits until a call has come, or until `run` ends. Thus a model that
+    /// never calls the tool cannot make the test wait for ever.
     ///
-    /// - Parameter timeout: The longest time to wait.
-    /// - Returns: `true` when a call came in the time limit.
-    /// - Throws: `CancellationError` when the task is cancelled.
-    func waitForArrival(upTo timeout: Duration) async throws -> Bool {
-        try await LivePolling.wait(upTo: timeout) {
-            state.withLock { $0.arrivals > 0 }
+    /// The wait starts a task that waits for the end of `run`. The test does
+    /// not cancel that task, because a cancel of a task in `result()` cancels
+    /// the run. The task ends when the run ends.
+    ///
+    /// - Parameter run: The run that must call the tool.
+    /// - Returns: `true` when a call came, `false` when `run` ended first.
+    func waitForArrival(orEndOf run: AgentRun) async -> Bool {
+        let id = state.withLock { $0.takeID() }
+        Task {
+            _ = try? await run.result()
+            self.endArrivalWait(id)
         }
+        return await withCheckedContinuation { continuation in
+            let answer: Bool? = state.withLock { record in
+                if record.hasArrival { return true }
+                if record.endedArrivalWaits.remove(id) != nil { return false }
+                record.arrivalWaiters[id] = continuation
+                return nil
+            }
+            if let answer {
+                continuation.resume(returning: answer)
+            }
+        }
+    }
+
+    /// Ends the arrival wait `id` with `false`, because its run ended. When
+    /// the wait did not start yet, the record keeps the id, and the wait
+    /// ends at once when it starts.
+    ///
+    /// - Parameter id: The id of the arrival wait.
+    private func endArrivalWait(_ id: Int) {
+        let waiter = state.withLock { record in
+            guard let waiter = record.arrivalWaiters.removeValue(forKey: id) else {
+                record.endedArrivalWaits.insert(id)
+                return CheckedContinuation<Bool, Never>?.none
+            }
+            return waiter
+        }
+        waiter?.resume(returning: false)
     }
 
     /// Waits until the test opens the tool, then gives the word.
@@ -142,11 +166,46 @@ final class LiveHoldTool: Tool {
     /// - Returns: A sentence that holds ``word``.
     /// - Throws: `CancellationError` when the run is cancelled.
     func call(arguments: Arguments) async throws -> String {
-        state.withLock { $0.arrivals += 1 }
-        _ = try await LivePolling.wait(upTo: Self.timeout) {
-            state.withLock { $0.isOpen }
+        let (id, arrivalWaiters) = state.withLock { record in
+            record.hasArrival = true
+            defer { record.arrivalWaiters = [:] }
+            return (record.takeID(), Array(record.arrivalWaiters.values))
+        }
+        for waiter in arrivalWaiters {
+            waiter.resume(returning: true)
+        }
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                let answer: Result<Void, any Error>? = state.withLock { record in
+                    if record.isOpen { return .success(()) }
+                    if record.cancelledOpenWaits.remove(id) != nil { return .failure(CancellationError()) }
+                    record.openWaiters[id] = continuation
+                    return nil
+                }
+                if let answer {
+                    continuation.resume(with: answer)
+                }
+            }
+        } onCancel: {
+            cancelOpenWait(id)
         }
         return "Continue now. The word is \(Self.word)."
+    }
+
+    /// Ends the call wait `id` with `CancellationError`. When the wait did
+    /// not start yet, the record keeps the id, and the wait ends at once when
+    /// it starts.
+    ///
+    /// - Parameter id: The id of the call wait.
+    private func cancelOpenWait(_ id: Int) {
+        let waiter = state.withLock { record in
+            guard let waiter = record.openWaiters.removeValue(forKey: id) else {
+                record.cancelledOpenWaits.insert(id)
+                return CheckedContinuation<Void, any Error>?.none
+            }
+            return waiter
+        }
+        waiter?.resume(throwing: CancellationError())
     }
 }
 

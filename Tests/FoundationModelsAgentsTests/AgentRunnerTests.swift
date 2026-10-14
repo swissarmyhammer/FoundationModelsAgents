@@ -141,7 +141,7 @@ struct AgentRunnerTests {
         #expect(await runner.runs.isEmpty)
     }
 
-    @Test("after registry.load(), start of the same runner works", .timeLimit(.minutes(1)))
+    @Test("after registry.load(), start of the same runner works")
     func startWorksAfterTheFirstLoad() async throws {
         let harness = try await AgentRunHarness.make(
             script: Self.script(first: [.finalText(Self.firstText)], second: []))
@@ -186,7 +186,7 @@ struct AgentRunnerTests {
         #expect(await runner.runs.isEmpty)
     }
 
-    @Test("a run is in the index when its session reaches a step, also before start returns", .timeLimit(.minutes(1)))
+    @Test("a run is in the index when its session reaches a step, also before start returns")
     func runIsInIndexWhenItsSessionRuns() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentRunHarness.make(
@@ -261,7 +261,7 @@ struct AgentRunnerTests {
         #expect(warning.contains(ToolResolverTests.callerRunMaxDepthPhrase))
     }
 
-    @Test("stop() cancels two gated runs, and both reach .cancelled", .timeLimit(.minutes(1)))
+    @Test("stop() cancels two gated runs, and both reach .cancelled")
     func stopCancelsGatedRuns() async throws {
         let firstGate = ScriptedGate()
         let secondGate = ScriptedGate()

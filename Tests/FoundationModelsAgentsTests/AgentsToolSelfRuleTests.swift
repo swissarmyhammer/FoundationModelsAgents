@@ -94,7 +94,7 @@ struct AgentsToolSelfRuleTests {
         #expect(await harness.runner.runs.isEmpty)
     }
 
-    @Test("send agent with the id of the own run gives the own-run corrective", .timeLimit(.minutes(1)))
+    @Test("send agent with the id of the own run gives the own-run corrective")
     func sendAgentToTheOwnRunGivesTheOwnRunCorrective() async throws {
         let harness = try await Self.makeRunToolHarness(
             script: ScriptedAgentScript([

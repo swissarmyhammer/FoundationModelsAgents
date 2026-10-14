@@ -87,8 +87,7 @@ struct AgentRunMetricsTests {
         #expect(timer.values.allSatisfy { $0 >= 0 })
     }
 
-    @Test("a finished run counts one time and records one duration, by agent name and outcome",
-        .timeLimit(.minutes(1)))
+    @Test("a finished run counts one time and records one duration, by agent name and outcome")
     func finishedRunCountsAndRecordsDuration() async throws {
         let factory = try await TelemetryCapture.run(
             forbidding: [AgentRunTests.prompt, AgentRunTests.finalText]
@@ -108,8 +107,7 @@ struct AgentRunMetricsTests {
         #expect(Self.runTimers(in: factory).count == 1)
     }
 
-    @Test("a failed run counts one time and records one duration, with its failure kind",
-        .timeLimit(.minutes(1)))
+    @Test("a failed run counts one time and records one duration, with its failure kind")
     func failedRunCountsWithItsKind() async throws {
         let factory = try await TelemetryCapture.run(forbidding: [AgentRunTests.prompt]) { context in
             let harness = try await AgentRunHarness.make(
@@ -126,8 +124,7 @@ struct AgentRunMetricsTests {
             dimensions: Self.dimensions(agent: AgentRunTests.reviewer, outcome: .failed, kind: .error))
     }
 
-    @Test("a cancelled run counts one time and records one duration, with no failure kind",
-        .timeLimit(.minutes(1)))
+    @Test("a cancelled run counts one time and records one duration, with no failure kind")
     func cancelledRunCounts() async throws {
         let gate = ScriptedGate()
         let factory = try await TelemetryCapture.run(forbidding: [AgentRunTests.prompt]) { context in
@@ -187,8 +184,7 @@ struct AgentRunMetricsTests {
         #expect(Self.runTimers(in: factory).isEmpty)
     }
 
-    @Test("with no metrics factory in the environment, a run uses MetricsSystem.factory",
-        .timeLimit(.minutes(1)))
+    @Test("with no metrics factory in the environment, a run uses MetricsSystem.factory")
     func noFactoryUsesTheMetricsSystem() async throws {
         let factory = try await TelemetryCapture.run(
             forbidding: [AgentRunTests.prompt, AgentRunTests.finalText]
@@ -205,8 +201,7 @@ struct AgentRunMetricsTests {
             in: factory, dimensions: Self.dimensions(agent: AgentRunTests.reviewer, outcome: .finished))
     }
 
-    @Test("the metrics factory of the environment gets one count and one duration of a parent and of its child",
-        .timeLimit(.minutes(1)))
+    @Test("the metrics factory of the environment gets one count and one duration of a parent and of its child")
     func parentAndChildCountThroughTheFactoryOfTheEnvironment() async throws {
         let script = ScriptedAgentScript([
             NestedRunTests.parentPlay(

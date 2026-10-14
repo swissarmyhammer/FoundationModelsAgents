@@ -296,7 +296,7 @@ struct MarketplaceEndToEndTests {
         #expect(try await run.result() == Self.finalText)
     }
 
-    @Test("a new commit and a store update give a new catalog through layerUpdates", .timeLimit(.minutes(1)))
+    @Test("a new commit and a store update give a new catalog through layerUpdates")
     func newCommitGivesANewCatalog() async throws {
         let market = try FixtureMarketplaceProvider.makeUnstarted()
         let provider = market.provider

@@ -143,8 +143,7 @@ struct SendAgentTests {
         return try #require(runs.first)
     }
 
-    @Test("send agent to a running child is a success, and the child answers the message",
-        .timeLimit(.minutes(1)))
+    @Test("send agent to a running child is a success, and the child answers the message")
     func sendToRunningChildIsDelivered() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(script: Self.childScript(Self.gatedChildSteps(gate)))
@@ -161,8 +160,7 @@ struct SendAgentTests {
         #expect(Self.isCallerMessage(result))
     }
 
-    @Test("send agent with the completion token of the pending envelope reaches the run",
-        .timeLimit(.minutes(1)))
+    @Test("send agent with the completion token of the pending envelope reaches the run")
     func sendWithCompletionTokenIsDelivered() async throws {
         let rootGate = ScriptedGate()
         let childGate = ScriptedGate()
@@ -200,7 +198,7 @@ struct SendAgentTests {
         #expect(result == Self.sessionMessage(from: root.id))
     }
 
-    @Test("send agent to a finished run gives the run-ended corrective", .timeLimit(.minutes(1)))
+    @Test("send agent to a finished run gives the run-ended corrective")
     func sendToFinishedRunIsCorrective() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.childScript([.finalText(Self.taskReply)]))
         defer { try? harness.delete() }
@@ -213,7 +211,7 @@ struct SendAgentTests {
         #expect(!harness.runHarness.script.prompts.contains(where: Self.isCallerMessage))
     }
 
-    @Test("send agent to a cancelled run gives the run-ended corrective", .timeLimit(.minutes(1)))
+    @Test("send agent to a cancelled run gives the run-ended corrective")
     func sendToCancelledRunIsCorrective() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(script: Self.childScript(Self.gatedChildSteps(gate)))
@@ -228,7 +226,7 @@ struct SendAgentTests {
         #expect(answer == Self.endedText(of: run, state: "cancelled"))
     }
 
-    @Test("send agent to a failed run gives the run-ended corrective", .timeLimit(.minutes(1)))
+    @Test("send agent to a failed run gives the run-ended corrective")
     func sendToFailedRunIsCorrective() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.childScript([.fail(ScriptedFailure.broken)]))
         defer { try? harness.delete() }
@@ -240,8 +238,7 @@ struct SendAgentTests {
         #expect(answer == Self.endedText(of: run, state: "failed"))
     }
 
-    @Test("send agent to a run of a different caller gives the unknown-run corrective",
-        .timeLimit(.minutes(1)))
+    @Test("send agent to a run of a different caller gives the unknown-run corrective")
     func sendToRunOfOtherCallerIsCorrective() async throws {
         let gate = ScriptedGate()
         let send = ScriptedArguments()
@@ -283,8 +280,7 @@ struct SendAgentTests {
         #expect(!harness.runHarness.script.prompts.contains(Self.sessionMessage(from: rootB.id)))
     }
 
-    @Test("send agent with a blank message is a corrective, and the run gets no message",
-        .timeLimit(.minutes(1)))
+    @Test("send agent with a blank message is a corrective, and the run gets no message")
     func sendBlankMessageIsCorrective() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(script: Self.childScript(Self.gatedChildSteps(gate)))

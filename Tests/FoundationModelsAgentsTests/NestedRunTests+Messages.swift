@@ -156,18 +156,16 @@ extension NestedRunTests {
             return try await body(parent, script)
         }
 
-        /// Waits until `parent` started its child, and gives the child.
+        /// Gives the child of `parent`. Call it only after an event that
+        /// tells that the child began: a child adds itself to the children of
+        /// its parent before its answers start, thus before it can send a
+        /// message or settle.
         ///
         /// - Parameter parent: The parent run.
         /// - Returns: The child.
-        /// - Throws: `CancellationError` when the test is cancelled.
-        private static func child(of parent: AgentRun) async throws -> AgentRun {
-            while true {
-                if let child = parent.children.runs.first {
-                    return child
-                }
-                try await Task.sleep(for: NestedRunTests.pollInterval)
-            }
+        /// - Throws: The error of `#require` when the parent has no child.
+        private static func child(of parent: AgentRun) throws -> AgentRun {
+            try #require(parent.children.runs.first)
         }
 
         /// Gives the line that the Router puts in a prompt for the mail of
@@ -196,29 +194,21 @@ extension NestedRunTests {
             try #require(script.prompts.firstIndex { $0.contains(text) })
         }
 
-        /// Waits until the report of `parent` tells `message` as the last
-        /// event of a child, and gives the report.
+        /// Waits until `parent` recorded that it waits for its child after an
+        /// answer, and that its report tells `message` as the last event of a
+        /// child (``NestedRunTests/waitUntil(_:_:)``). Then it gives the
+        /// report.
         ///
         /// - Parameters:
         ///   - message: The text of the message.
         ///   - parent: The parent run.
         /// - Returns: The report.
         /// - Throws: `CancellationError` when the test is cancelled.
-        private static func report(telling message: String, of parent: AgentRun) async throws -> String {
-            while !parent.report.contains("message: \(message)") {
-                try await Task.sleep(for: NestedRunTests.pollInterval)
+        private static func waitingReport(telling message: String, of parent: AgentRun) async throws -> String {
+            try await NestedRunTests.waitUntil(parent) { run in
+                run.phase == .waitingForChildren && run.report.contains("message: \(message)")
             }
             return parent.report
-        }
-
-        /// Waits until `parent` waits for its child after an answer.
-        ///
-        /// - Parameter parent: The parent run.
-        /// - Throws: `CancellationError` when the test is cancelled.
-        private static func waitingPhase(of parent: AgentRun) async throws {
-            while parent.phase != .waitingForChildren {
-                try await Task.sleep(for: NestedRunTests.pollInterval)
-            }
         }
 
         /// `true` when `state` failed because the Router paused the mail.
@@ -231,13 +221,12 @@ extension NestedRunTests {
         }
 
         @Test(
-            "a child that sends a message and ends at once: the parent answers the message and the final message, then ends",
-            .timeLimit(.minutes(1)))
+            "a child that sends a message and ends at once: the parent answers the message and the final message, then ends")
         func messageThenEndAtOnce() async throws {
             try await Self.withParent(childSteps: [Self.send(Self.firstMessage), .finalText(Self.childText)]) {
                 parent, script in
                 let result = try await parent.result()
-                let child = try await Self.child(of: parent)
+                let child = try Self.child(of: parent)
                 let message = try Self.position(ofPromptHolding: Self.mailLine(Self.firstMessage, of: child), in: script)
                 let final = try Self.position(ofPromptHolding: child.report, in: script)
 
@@ -247,12 +236,12 @@ extension NestedRunTests {
             }
         }
 
-        @Test("a child that sends two messages: the parent answers both before it ends", .timeLimit(.minutes(1)))
+        @Test("a child that sends two messages: the parent answers both before it ends")
         func twoMessagesAreAnswered() async throws {
             let childSteps = [Self.send(Self.firstMessage), Self.send(Self.secondMessage), .finalText(Self.childText)]
             try await Self.withParent(childSteps: childSteps) { parent, script in
                 let result = try await parent.result()
-                let child = try await Self.child(of: parent)
+                let child = try Self.child(of: parent)
                 let first = try Self.position(ofPromptHolding: Self.mailLine(Self.firstMessage, of: child), in: script)
                 let second = try Self.position(ofPromptHolding: Self.mailLine(Self.secondMessage, of: child), in: script)
                 let final = try Self.position(ofPromptHolding: child.report, in: script)
@@ -264,18 +253,25 @@ extension NestedRunTests {
         }
 
         @Test(
-            "a message in the task turn of the parent waits until that answer ends, and the parent then answers it",
-            .timeLimit(.minutes(1)))
+            "a message in the task turn of the parent waits until that answer ends, and the parent then answers it")
         func messageInTaskTurnWaitsForTheAnswer() async throws {
             let taskGate = ScriptedGate()
             let mailGate = ScriptedGate()
             let childGate = ScriptedGate()
+            let messageArrived = ScriptedGate()
             try await Self.withParent(
                 parentPlay: Self.parentPlay(holdingTaskAt: taskGate, holdingMailAt: mailGate),
-                childSteps: [Self.send(Self.firstMessage), .wait(childGate), .finalText(Self.childText)]
+                childSteps: [Self.send(Self.firstMessage), .wait(childGate), .finalText(Self.childText)],
+                runEventObserver: { run, output in
+                    if run.agent.id == Self.parent, case .runMessage = output.event {
+                        messageArrived.open()
+                    }
+                }
             ) { parent, script in
-                _ = try await Self.report(telling: Self.firstMessage, of: parent)
-                let child = try await Self.child(of: parent)
+                // The session sends the `runMessage` output after the mail of
+                // the message is in the queue. The task answer still holds.
+                try await messageArrived.wait()
+                let child = try Self.child(of: parent)
                 let line = try Self.mailLine(Self.firstMessage, of: child)
                 let heldInTaskTurn = script.prompts.contains { $0.contains(line) }
                 taskGate.open()
@@ -298,18 +294,16 @@ extension NestedRunTests {
         }
 
         @Test(
-            "message mail and the final message in two submissions: check agent tells the message while the child runs",
-            .timeLimit(.minutes(1)))
+            "message mail and the final message in two submissions: check agent tells the message while the child runs")
         func messageAndFinalMessageInTwoSubmissions() async throws {
             let childGate = ScriptedGate()
             try await Self.withParent(
                 childSteps: [Self.send(Self.firstMessage), .wait(childGate), .finalText(Self.childText)]
             ) { parent, script in
-                let child = try await Self.child(of: parent)
+                try await NestedRunTests.arrival(ofPromptContaining: Self.firstMessage, in: script)
+                let child = try Self.child(of: parent)
                 let line = try Self.mailLine(Self.firstMessage, of: child)
-                try await NestedRunTests.arrival(ofPromptContaining: line, in: script)
-                try await Self.waitingPhase(of: parent)
-                let report = try await Self.report(telling: Self.firstMessage, of: parent)
+                let report = try await Self.waitingReport(telling: Self.firstMessage, of: parent)
                 let token = try #require(child.context?.completionToken)
                 childGate.open()
                 let result = try await parent.result()
@@ -331,8 +325,7 @@ extension NestedRunTests {
         /// wait in the queue when the test opens the task gate, and one
         /// submission takes both.
         @Test(
-            "message mail and the final message in one submission: one prompt holds both, and the parent then ends",
-            .timeLimit(.minutes(1)))
+            "message mail and the final message in one submission: one prompt holds both, and the parent then ends")
         func messageAndFinalMessageInOneSubmission() async throws {
             let taskGate = ScriptedGate()
             let settledGate = ScriptedGate()
@@ -345,8 +338,8 @@ extension NestedRunTests {
                     }
                 }
             ) { parent, script in
-                let child = try await Self.child(of: parent)
                 try await settledGate.wait()
+                let child = try Self.child(of: parent)
                 taskGate.open()
                 let result = try await parent.result()
                 let line = try Self.mailLine(Self.firstMessage, of: child)
@@ -383,8 +376,7 @@ extension NestedRunTests {
         }
 
         @Test(
-            "message mail above mailOnlyAnswerLimit ends the parent with the paused outcome, and it does not hang",
-            .timeLimit(.minutes(1)))
+            "message mail above mailOnlyAnswerLimit ends the parent with the paused outcome, and it does not hang")
         func messagesAboveTheLimitPauseTheParent() async throws {
             let childGate = ScriptedGate()
             try await Self.withParent(
@@ -394,9 +386,8 @@ extension NestedRunTests {
                 ],
                 mailOnlyAnswerLimit: Self.pausedLimit
             ) { parent, script in
-                let child = try await Self.child(of: parent)
-                try await NestedRunTests.arrival(
-                    ofPromptContaining: Self.mailLine(Self.firstMessage, of: child), in: script)
+                try await NestedRunTests.arrival(ofPromptContaining: Self.firstMessage, in: script)
+                let child = try Self.child(of: parent)
                 childGate.open()
                 let final = await parent.finalState()
                 let secondLine = try Self.mailLine(Self.secondMessage, of: child)

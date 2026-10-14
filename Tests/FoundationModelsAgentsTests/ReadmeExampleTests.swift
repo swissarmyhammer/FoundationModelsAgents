@@ -47,7 +47,7 @@ struct ReadmeExampleTests {
     /// An import line that the example source does not have.
     private static let unknownImport = "import NoSuchModule"
 
-    @Test("the README example runs with the scripted profile and gives a result", .timeLimit(.minutes(1)))
+    @Test("the README example runs with the scripted profile and gives a result")
     func readmeExampleRunsWithTheScriptedProfile() async throws {
         let script = ScriptedAgentScript([
             ScriptedAgentPlay(

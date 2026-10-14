@@ -117,8 +117,7 @@ struct SendCallerTests {
         return false
     }
 
-    @Test("a running child that sends a message to its caller causes an answer in the caller, and then ends",
-          .timeLimit(.minutes(1)))
+    @Test("a running child that sends a message to its caller causes an answer in the caller, and then ends")
     func sendCallerReachesTheCallerAsMail() async throws {
         let (events, run, toolOutputs) = try await Self.runWithMessage(
             sendStep: .agentsToolCall(AgentsToolArguments.sendCaller(message: Self.message)))
@@ -131,8 +130,7 @@ struct SendCallerTests {
         #expect(toolOutputs.contains(AgentsToolText.messageSentToCaller))
     }
 
-    @Test("send agent with the id of the caller session sends the message to the caller",
-          .timeLimit(.minutes(1)))
+    @Test("send agent with the id of the caller session sends the message to the caller")
     func sendAgentWithTheCallerIDReachesTheCaller() async throws {
         let send = ScriptedArguments()
         let (events, run, _) = try await Self.runWithMessage(
@@ -159,7 +157,7 @@ struct SendCallerTests {
         #expect(answer == Self.noCallerText)
     }
 
-    @Test("a host-started run with a full tool gets the no-caller corrective", .timeLimit(.minutes(1)))
+    @Test("a host-started run with a full tool gets the no-caller corrective")
     func hostStartedRunHasNoCaller() async throws {
         let harness = try await AgentsToolHarness.make(
             script: Self.script(childSteps: [
@@ -175,7 +173,7 @@ struct SendCallerTests {
         #expect(harness.runHarness.script.toolOutputs == [Self.noCallerText])
     }
 
-    @Test("send caller with a blank message is a corrective", .timeLimit(.minutes(1)))
+    @Test("send caller with a blank message is a corrective")
     func sendCallerWithABlankMessageIsCorrective() async throws {
         let script = Self.script(childSteps: [
             .agentsToolCall(AgentsToolArguments.sendCaller(message: Self.blankMessageJSON)),

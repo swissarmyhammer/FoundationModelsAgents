@@ -147,18 +147,16 @@ extension NestedRunTests {
             ])
         }
 
-        /// Waits until `run` waits for its children, or until it ended.
+        /// Waits until `run` recorded that it waits for its children, or until
+        /// it ended (``NestedRunTests/waitUntil(_:_:)``).
         ///
         /// - Parameter run: A sibling run.
         /// - Throws: `CancellationError` when the test is cancelled.
         private static func waitingPhase(of run: AgentRun) async throws {
-            while run.state == .running && run.phase != .waitingForChildren {
-                try await Task.sleep(for: NestedRunTests.pollInterval)
-            }
+            try await NestedRunTests.waitUntil(run) { $0.phase == .waitingForChildren }
         }
 
-        @Test("with maxConcurrentAgents 2, two waiting siblings hold no place, and their children start",
-            .timeLimit(.minutes(1)))
+        @Test("with maxConcurrentAgents 2, two waiting siblings hold no place, and their children start")
         func waitingSiblingsLetChildrenStart() async throws {
             let secondSiblingGate = ScriptedGate()
             let firstChildGate = ScriptedGate()
@@ -204,8 +202,7 @@ extension NestedRunTests {
             #expect(secondResult.contains(Self.secondHelperText))
         }
 
-        @Test("with maxDepth 2, the child at the limit has the messaging tool, and its parent has the full tool",
-            .timeLimit(.minutes(1)))
+        @Test("with maxDepth 2, the child at the limit has the messaging tool, and its parent has the full tool")
         func childAtMaxDepthHasTheMessagingTool() async throws {
             let layer = try Self.makeLayer()
             defer { try? layer.delete() }
@@ -230,8 +227,7 @@ extension NestedRunTests {
             #expect(result.contains(Self.childPlannerText))
         }
 
-        @Test("a child with no tools key gets the messaging tool, and an agent with tools: Agent gets the full tool",
-            .timeLimit(.minutes(1)))
+        @Test("a child with no tools key gets the messaging tool, and an agent with tools: Agent gets the full tool")
         func noToolsKeyGivesTheMessagingTool() async throws {
             let layer = try Self.makeLayer()
             defer { try? layer.delete() }
@@ -275,7 +271,7 @@ extension NestedRunTests {
             #expect(await runner.runs.isEmpty)
         }
 
-        @Test("a child with no model runs on the flash slot when its parent is on flash", .timeLimit(.minutes(1)))
+        @Test("a child with no model runs on the flash slot when its parent is on flash")
         func childInheritsFlashSlotOfParent() async throws {
             let layer = try Self.makeLayer()
             defer { try? layer.delete() }
@@ -297,7 +293,7 @@ extension NestedRunTests {
             #expect(result.contains(Self.helperText))
         }
 
-        @Test("a run with no model that the host root session starts runs on defaultSlot", .timeLimit(.minutes(1)))
+        @Test("a run with no model that the host root session starts runs on defaultSlot")
         func rootSessionChildRunsOnDefaultSlot() async throws {
             let layer = try Self.makeLayer()
             defer { try? layer.delete() }

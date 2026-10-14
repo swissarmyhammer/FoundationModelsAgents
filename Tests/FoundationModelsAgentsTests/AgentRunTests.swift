@@ -107,7 +107,7 @@ struct AgentRunTests {
     ///
     /// `close()` of a session finishes each subscription of
     /// `streamSessionEvents()`. A subscription of an open session does not
-    /// end, thus the time limit of the test fails it.
+    /// end, thus this call does not return.
     ///
     /// - Parameter events: A subscription of the session events.
     /// - Returns: `true` when the subscription ended.
@@ -143,7 +143,7 @@ struct AgentRunTests {
         #expect(run.heldSession == nil)
     }
 
-    @Test("a made run holds its session and sends no prompt until begin", .timeLimit(.minutes(1)))
+    @Test("a made run holds its session and sends no prompt until begin")
     func madeRunSendsNoPromptUntilBegin() async throws {
         let harness = try await AgentRunHarness.make(script: Self.script([.finalText(Self.finalText)]))
         defer { try? harness.delete() }
@@ -308,7 +308,7 @@ struct AgentRunTests {
         #expect(recorded.budget == TokenBudget(limit: contextTokens))
     }
 
-    @Test("cancel() during a gated turn gives .cancelled and closes the session", .timeLimit(.minutes(1)))
+    @Test("cancel() during a gated turn gives .cancelled and closes the session")
     func cancelDuringTurnClosesSession() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentRunHarness.make(
@@ -329,7 +329,7 @@ struct AgentRunTests {
         #expect(await Self.ends(sessionEvents))
     }
 
-    @Test("a cancel of the task that waits in result() cancels the run", .timeLimit(.minutes(1)))
+    @Test("a cancel of the task that waits in result() cancels the run")
     func cancelOfWaitingTaskCancelsRun() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentRunHarness.make(

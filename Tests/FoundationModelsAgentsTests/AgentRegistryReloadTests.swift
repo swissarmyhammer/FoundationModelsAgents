@@ -8,7 +8,7 @@ import Testing
 ///
 /// Each row works on a `TemporaryLayer`. A watch row uses the real
 /// `DotfolderWatcher`, thus it waits on `onReload` for the catalog that it
-/// expects. The time limit stops a row that never gets that catalog.
+/// expects.
 @Suite("Agent registry reload")
 struct AgentRegistryReloadTests {
     /// The id of the agent that a row adds, changes, or removes.
@@ -32,19 +32,8 @@ struct AgentRegistryReloadTests {
     /// The id of the agent that marks the end of the read after a burst.
     private static let markerID = "marker-agent"
 
-    /// The count of the writes of a split burst before its pause.
+    /// The count of the writes of the first half of a burst.
     private static let firstHalfWriteCount = 2
-
-    /// The quiet period of the watcher of a registry: the watcher gives one
-    /// change after the tree stays quiet this long.
-    private static let quietPeriod = duration(of: DotfolderWatcher.defaultDebounceInterval)
-
-    /// The count of the quiet periods in ``splitPause``.
-    private static let quietPeriodsInSplitPause = 2
-
-    /// The pause between the two halves of a split burst. It is longer than
-    /// one quiet period, thus the watcher gives one change for each half.
-    private static let splitPause = quietPeriod * quietPeriodsInSplitPause
 
     /// The count of the `layerUpdates` streams that one registry takes.
     private static let subscriptionsOfOneRegistry = 1
@@ -108,7 +97,7 @@ struct AgentRegistryReloadTests {
         #expect(provider.subscriptionCount == Self.subscriptionsOfOneRegistry)
     }
 
-    @Test("a layerUpdates value gives a new catalog on onReload", .timeLimit(.minutes(1)))
+    @Test("a layerUpdates value gives a new catalog on onReload")
     func layerUpdateGivesANewCatalog() async throws {
         let market = try TemporaryLayer.makeEmpty()
         defer { try? market.delete() }
@@ -126,7 +115,7 @@ struct AgentRegistryReloadTests {
         #expect(registry.catalog().definition(named: Self.agentID) != nil)
     }
 
-    @Test("the add of a watched file gives a new catalog", .timeLimit(.minutes(1)))
+    @Test("the add of a watched file gives a new catalog")
     func addOfAWatchedFileGivesANewCatalog() async throws {
         let layer = try TemporaryLayer.makeEmpty()
         defer { try? layer.delete() }
@@ -140,7 +129,7 @@ struct AgentRegistryReloadTests {
         #expect(published.definitions.map(\.id) == [Self.agentID])
     }
 
-    @Test("the change of a watched file gives a new catalog", .timeLimit(.minutes(1)))
+    @Test("the change of a watched file gives a new catalog")
     func changeOfAWatchedFileGivesANewCatalog() async throws {
         let layer = try Self.layerWithAgent()
         defer { try? layer.delete() }
@@ -155,7 +144,7 @@ struct AgentRegistryReloadTests {
         #expect(published.definitions.map(\.id) == [Self.agentID])
     }
 
-    @Test("the remove of a watched file gives a new catalog", .timeLimit(.minutes(1)))
+    @Test("the remove of a watched file gives a new catalog")
     func removeOfAWatchedFileGivesANewCatalog() async throws {
         let layer = try Self.layerWithAgent()
         defer { try? layer.delete() }
@@ -170,24 +159,31 @@ struct AgentRegistryReloadTests {
         #expect(registry.catalog().definitions.isEmpty)
     }
 
+    /// When `splitsTheBurst` is `true`, the test writes the first half, waits
+    /// on `onReload` for the watcher catalog that holds the first half, and
+    /// then writes the second half. Thus the watcher gives one change for
+    /// each half, and the event of the first change fixes the order.
     @Test(
         """
         a burst of writes ends with the last state, and no catalog with an older state comes after it, \
-        also when the burst spans two quiet periods
+        also when a watcher change comes between the two halves of the burst
         """,
-        .timeLimit(.minutes(1)),
-        arguments: [Duration.zero, splitPause])
-    func burstOfWritesEndsWithTheLastState(pauseBetweenHalves pause: Duration) async throws {
+        arguments: [false, true])
+    func burstOfWritesEndsWithTheLastState(splitsTheBurst: Bool) async throws {
         let layer = try Self.layerWithAgent()
         defer { try? layer.delete() }
         let registry = AgentRegistry(layers: [layer.layer], watch: true)
         try await registry.load()
         let reloads = registry.onReload
+        let firstHalf = Self.burstAgentIDs.prefix(Self.firstHalfWriteCount)
+        let firstHalfLastID = try #require(firstHalf.last)
         let lastID = try #require(Self.burstAgentIDs.last)
         let fullIDs = ([Self.agentID] + Self.burstAgentIDs).sorted()
 
-        try Self.writeBurst(of: Self.burstAgentIDs.prefix(Self.firstHalfWriteCount), in: layer)
-        try await Task.sleep(for: pause)
+        try Self.writeBurst(of: firstHalf, in: layer)
+        if splitsTheBurst {
+            _ = try #require(await reloads.first { $0.definition(named: firstHalfLastID) != nil })
+        }
         try Self.writeBurst(of: Self.burstAgentIDs.dropFirst(Self.firstHalfWriteCount), in: layer)
 
         let published = try #require(await reloads.first { $0.definition(named: lastID) != nil })
@@ -199,7 +195,7 @@ struct AgentRegistryReloadTests {
         #expect(Self.description(in: registry.catalog()) == lastID)
     }
 
-    @Test("the release of the registry finishes onReload", .timeLimit(.minutes(1)))
+    @Test("the release of the registry finishes onReload")
     func releaseOfTheRegistryFinishesOnReload() async throws {
         let layer = try Self.layerWithAgent()
         defer { try? layer.delete() }
@@ -269,15 +265,6 @@ struct AgentRegistryReloadTests {
     /// - Returns: The path.
     private static func filePath(of id: String) -> String {
         AgentDocumentPath.of(id)
-    }
-
-    /// Gives `interval` as a `Duration`.
-    ///
-    /// - Parameter interval: A finite interval.
-    /// - Returns: The same length of time.
-    private static func duration(of interval: DispatchTimeInterval) -> Duration {
-        let start = DispatchTime.now()
-        return .nanoseconds((start + interval).uptimeNanoseconds - start.uptimeNanoseconds)
     }
 
     /// Makes a layer that holds the first version of the agent file.

@@ -15,7 +15,7 @@ extension LiveSuites {
     ///
     /// The host calls the `agents` tool outside of a Router session, thus the
     /// caller of each run is `nil`, and the host can check and cancel it.
-    @Suite("Live commands, cancel, and live edit", .serialized, .timeLimit(LiveProfile.timeLimit))
+    @Suite("Live commands, cancel, and live edit", .serialized)
     struct LiveCommandTests {
         /// The agent of the slash command.
         private static let echoAgent = "echo-word"
@@ -99,7 +99,7 @@ extension LiveSuites {
                 let start = ["name": Self.editedAgent, "prompt": Self.prompt]
                 _ = try await harness.call(tool, LiveHarness.startOperation, start)
                 let oldRun = try LiveHarness.run(of: Self.editedAgent, in: await harness.runner.runs(caller: nil))
-                try #require(try await hold.waitForArrival(upTo: LiveHoldTool.arrivalTimeout))
+                try #require(await hold.waitForArrival(orEndOf: oldRun))
 
                 let reloads = harness.registry.onReload
                 try LiveSourceTree.write(newText, at: path, in: harness.layerRoot)

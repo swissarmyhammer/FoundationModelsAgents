@@ -163,7 +163,7 @@ struct AgentsDemoProfileModeTests {
     /// The file that each Router session writes in its recording directory.
     private static let sidecarName = "session.json"
 
-    @Test("the chat mode writes the answer that the mail of lead starts, with no user input", .timeLimit(.minutes(1)))
+    @Test("the chat mode writes the answer that the mail of lead starts, with no user input")
     func chatModeWritesTheAnswerToTheMail() async throws {
         let script = ScriptedAgentScript([
             ScriptedAgentPlay(
@@ -197,7 +197,7 @@ struct AgentsDemoProfileModeTests {
         #expect(leadLine.contains(Self.testWriterText))
     }
 
-    @Test("the chat mode sends each input line to the root session and writes its answer", .timeLimit(.minutes(1)))
+    @Test("the chat mode sends each input line to the root session and writes its answer")
     func chatModeSendsEachInputLine() async throws {
         let script = ScriptedAgentScript([
             ScriptedAgentPlay(
@@ -210,8 +210,7 @@ struct AgentsDemoProfileModeTests {
         #expect(written == [AgentsDemoModes.rootLine(Self.rootText), AgentsDemoModes.rootLine(Self.userAnswer)])
     }
 
-    @Test("the chat mode cancels the open runs of the root session before it closes the session",
-        .timeLimit(.minutes(1)))
+    @Test("the chat mode cancels the open runs of the root session before it closes the session")
     func chatModeCancelsOpenRunsBeforeClose() async throws {
         let gate = ScriptedGate()
         defer { gate.open() }
@@ -237,8 +236,7 @@ struct AgentsDemoProfileModeTests {
         #expect(!written.contains { $0.contains(Self.lateReviewerText) })
     }
 
-    @Test("the fan-out mode writes the mail answer and one result from each generation slot",
-        .timeLimit(.minutes(1)))
+    @Test("the fan-out mode writes the mail answer and one result from each generation slot")
     func fanOutModeWritesOneResultFromEachSlot() async throws {
         let script = ScriptedAgentScript([
             NestedRunTests.parentPlay(

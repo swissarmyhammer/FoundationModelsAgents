@@ -95,8 +95,27 @@ final class ScriptedAgentScript: Sendable {
     /// The plays, in match order. The first play that matches wins.
     let plays: [ScriptedAgentPlay]
 
-    /// The prompts that the model got, in arrival order.
-    private let promptLog = Mutex<[String]>([])
+    /// The prompts that the model got, and the tests that wait for a prompt.
+    private struct PromptLog {
+        /// One test that waits for a prompt that holds `text`.
+        struct Waiter {
+            /// The text that the prompt holds.
+            let text: String
+
+            /// The continuation of the test.
+            let continuation: CheckedContinuation<Void, Never>
+        }
+
+        /// The prompts that the model got, in arrival order.
+        var prompts: [String] = []
+
+        /// The tests that wait for a prompt.
+        var waiters: [Waiter] = []
+    }
+
+    /// The prompts that the model got, in arrival order, and the tests that
+    /// wait for a prompt (``waitForPrompt(containing:)``).
+    private let promptLog = Mutex(PromptLog())
 
     /// The tool outputs that the model got, in arrival order.
     private let toolOutputLog = Mutex<[String]>([])
@@ -115,14 +134,44 @@ final class ScriptedAgentScript: Sendable {
     /// The prompts that the model got, in arrival order. A tool round of a
     /// turn gives no new prompt, thus each turn records its prompt one time.
     var prompts: [String] {
-        promptLog.withLock { $0 }
+        promptLog.withLock { $0.prompts }
     }
 
-    /// Records `prompt`.
+    /// Records `prompt`, and resumes each test that waits for a prompt that
+    /// holds a text of `prompt`.
     ///
     /// - Parameter prompt: The prompt that the model got.
     func record(prompt: String) {
-        promptLog.withLock { $0.append(prompt) }
+        let arrived = promptLog.withLock { log in
+            log.prompts.append(prompt)
+            let arrived = log.waiters.filter { prompt.contains($0.text) }
+            log.waiters.removeAll { prompt.contains($0.text) }
+            return arrived
+        }
+        for waiter in arrived {
+            waiter.continuation.resume()
+        }
+    }
+
+    /// Waits until the model got a prompt that holds `text`. Returns at once
+    /// when the model got such a prompt already.
+    ///
+    /// The wait is an event: ``record(prompt:)`` resumes it. It uses no clock.
+    ///
+    /// - Parameter text: The text that the prompt holds.
+    func waitForPrompt(containing text: String) async {
+        await withCheckedContinuation { continuation in
+            let hasArrived = promptLog.withLock { log in
+                guard !log.prompts.contains(where: { $0.contains(text) }) else {
+                    return true
+                }
+                log.waiters.append(PromptLog.Waiter(text: text, continuation: continuation))
+                return false
+            }
+            if hasArrived {
+                continuation.resume()
+            }
+        }
     }
 
     /// The text of each tool output that the model got, in arrival order.

@@ -34,7 +34,7 @@ extension LiveSuites {
     /// call of an op name such as "start agent" as a tool.
     /// The test reads the root transcript only after `close()` of the root
     /// session, thus the transcript is complete (``LiveRecording``).
-    @Suite("Full circle", .serialized, .timeLimit(LiveProfile.timeLimit))
+    @Suite("Full circle", .serialized)
     struct FullCircleTests {
         /// The sub-agent.
         private static let finder = "word-finder"

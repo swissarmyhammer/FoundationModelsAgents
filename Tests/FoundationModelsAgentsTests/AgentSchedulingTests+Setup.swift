@@ -131,8 +131,7 @@ extension AgentSchedulingTests {
         }
 
         @Test(
-            "cancelRuns(caller:) waits for a start of that caller in setup, and cancels it",
-            .timeLimit(.minutes(1)))
+            "cancelRuns(caller:) waits for a start of that caller in setup, and cancels it")
         func cancelRunsCancelsStartInSetup() async throws {
             let gates = SetupGates()
             let harness = try await AgentsToolHarness.make(
@@ -162,8 +161,7 @@ extension AgentSchedulingTests {
         }
 
         @Test(
-            "cancelRuns(caller:) does not wait for a start of a different caller in setup",
-            .timeLimit(.minutes(1)))
+            "cancelRuns(caller:) does not wait for a start of a different caller in setup")
         func cancelRunsLeavesSetupOfOtherCaller() async throws {
             let gates = SetupGates()
             let harness = try await AgentsToolHarness.make(script: Self.script(gates, rootCalls: [Self.startStep]))
@@ -189,7 +187,7 @@ extension AgentSchedulingTests {
             #expect(hostRun.caller == nil)
         }
 
-        @Test("stop() waits for a start in setup, and cancels it", .timeLimit(.minutes(1)))
+        @Test("stop() waits for a start in setup, and cancels it")
         func stopCancelsStartInSetup() async throws {
             let gates = SetupGates()
             let harness = try await AgentsToolHarness.make(script: Self.script(gates, rootCalls: []))

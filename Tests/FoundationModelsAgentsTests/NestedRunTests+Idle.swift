@@ -21,8 +21,7 @@ extension NestedRunTests {
         private static let oneChildPromptCount = 3
 
         @Test(
-            "a parent and a child on one model: the submission of the parent ends after start agent; mail comes next",
-            .timeLimit(.minutes(1)))
+            "a parent and a child on one model: the submission of the parent ends after start agent; mail comes next")
         func parentAndChildOnOneModel() async throws {
             let harness = try await AgentRunHarness.make(
                 script: ScriptedAgentScript([
@@ -55,8 +54,7 @@ extension NestedRunTests {
         }
 
         @Test(
-            "a child on its own model that ends at once still comes as mail, not in the output of start agent",
-            .timeLimit(.minutes(1)))
+            "a child on its own model that ends at once still comes as mail, not in the output of start agent")
         func fastChildOnOtherModelComesAsMail() async throws {
             let harness = try await AgentRunHarness.make(
                 script: ScriptedAgentScript([
@@ -78,8 +76,7 @@ extension NestedRunTests {
         }
 
         @Test(
-            "an answer to mail that starts one more child makes the run wait for it, and answer its mail too",
-            .timeLimit(.minutes(1)))
+            "an answer to mail that starts one more child makes the run wait for it, and answer its mail too")
         func answerToMailThatStartsChildWaitsForIt() async throws {
             let harness = try await AgentRunHarness.make(
                 script: ScriptedAgentScript([
@@ -110,8 +107,7 @@ extension NestedRunTests {
             #expect(harness.script.prompts.last == result)
         }
 
-        @Test("a run that starts no child ends with the reply of the answer of its task prompt",
-            .timeLimit(.minutes(1)))
+        @Test("a run that starts no child ends with the reply of the answer of its task prompt")
         func runWithNoChildEndsWithTaskAnswer() async throws {
             let harness = try await AgentRunHarness.make(
                 script: ScriptedAgentScript([

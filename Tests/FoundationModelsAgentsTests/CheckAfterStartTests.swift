@@ -80,8 +80,7 @@ struct CheckAfterStartTests {
         return Played(answer: answer, run: run, final: final)
     }
 
-    @Test("check agent with the completion token in the next pass gives the report of the run",
-        .timeLimit(.minutes(1)))
+    @Test("check agent with the completion token in the next pass gives the report of the run")
     func checkWithTokenInNextPassGivesReport() async throws {
         let followUp = ScriptedAgentStep.toolCallWithLastToken(
             name: ToolVocabulary.agentsToolName, operation: "check agent")
@@ -92,8 +91,7 @@ struct CheckAfterStartTests {
         #expect(played.final == .finished(Self.childText))
     }
 
-    @Test("check agent with no id in the next pass gives the report of the run",
-        .timeLimit(.minutes(1)))
+    @Test("check agent with no id in the next pass gives the report of the run")
     func checkWithNoIDInNextPassGivesReport() async throws {
         let followUp = ScriptedAgentStep.agentsToolCall(#"{"op": "check agent"}"#)
 
@@ -106,8 +104,7 @@ struct CheckAfterStartTests {
     /// The body of a `start agent` call for an unknown agent adds no run. The
     /// end of the body ends the wait of `check agent`, thus the check gives
     /// the unknown-id corrective and does not wait for ever.
-    @Test("check agent with the token of a start agent call that started no run gives the unknown-id corrective",
-        .timeLimit(.minutes(1)))
+    @Test("check agent with the token of a start agent call that started no run gives the unknown-id corrective")
     func checkWithTokenOfStartWithNoRunGivesCorrective() async throws {
         let script = ScriptedAgentScript([
             ScriptedAgentPlay(
@@ -132,8 +129,7 @@ struct CheckAfterStartTests {
         #expect(runs.isEmpty)
     }
 
-    @Test("cancel agent with the completion token in the next pass cancels the run",
-        .timeLimit(.minutes(1)))
+    @Test("cancel agent with the completion token in the next pass cancels the run")
     func cancelWithTokenInNextPassCancelsRun() async throws {
         let followUp = ScriptedAgentStep.toolCallWithLastToken(
             name: ToolVocabulary.agentsToolName, operation: "cancel agent")

@@ -1,5 +1,6 @@
 @testable import FoundationModelsAgents
 import FoundationModelsRouter
+import Synchronization
 import Testing
 
 /// Pins the live progress that `check agent` gives for a run in operation:
@@ -9,8 +10,64 @@ import Testing
 ///
 /// Each run is `lead` on the `standard` slot. Its child code-reviewer is on
 /// the `flash` slot.
+///
+/// The order of each step is fixed. The run event observer counts the open
+/// tool records of the lead (``ToolOpenWatch``). The run calls the observer of
+/// an event only after it recorded each event before it. Thus the first
+/// event of the lead after the last open tool record tells that the progress
+/// holds that record. The test reads the progress after that event and after
+/// the arrival of the model at its gate. The test uses no clock and no poll.
 @Suite("Check agent progress")
 struct CheckAgentProgressTests {
+    /// Opens a gate at the first event of one agent after a count of open
+    /// tool records of that agent.
+    ///
+    /// A class, because the observer and the test share it. A `Mutex` guards
+    /// the count, thus the `Sendable` conformance is compiler-checked.
+    private final class ToolOpenWatch: Sendable {
+        /// The id of the agent whose events count.
+        private let agentID: String
+
+        /// The count of open tool records before the gate opens.
+        private let openCount: Int
+
+        /// The count of open tool records so far.
+        private let opens = Mutex(0)
+
+        /// Opens at the first event after ``openCount`` open tool records.
+        let recorded = ScriptedGate()
+
+        /// Makes a watch.
+        ///
+        /// - Parameters:
+        ///   - agentID: The id of the agent whose events count.
+        ///   - openCount: The count of open tool records before the gate
+        ///     opens.
+        init(agentID: String, openCount: Int) {
+            self.agentID = agentID
+            self.openCount = openCount
+        }
+
+        /// Counts one event of a run.
+        ///
+        /// - Parameters:
+        ///   - run: The run of the event.
+        ///   - output: The event.
+        func observe(_ run: AgentRun, _ output: SessionOutput) {
+            guard run.agent.id == agentID else { return }
+            let isAfterLastOpen = opens.withLock { opens in
+                guard opens < openCount else { return true }
+                if case .toolInvocation(let record, _) = output.event, record.closedAt == nil {
+                    opens += 1
+                }
+                return false
+            }
+            if isAfterLastOpen {
+                recorded.open()
+            }
+        }
+    }
+
     /// The key of the play of the lead in the task-answer test.
     private static let taskKey = "progress-task-key: list the agents"
 
@@ -46,38 +103,21 @@ struct CheckAgentProgressTests {
     /// mail: `start agent`, then `list agents`.
     private static let mailToolCallsAtGate = 2
 
-    /// The time between two reads of the progress of a run.
-    private static let pollInterval = Duration.milliseconds(10)
-
-    /// Reads the progress of `run` until it holds `toolCount` tool names.
-    /// The live record of a tool call arrives while the submission runs.
-    ///
-    /// - Parameters:
-    ///   - run: A run whose submission is in a gate.
-    ///   - toolCount: The count of tool calls before the gate.
-    /// - Returns: The progress.
-    /// - Throws: `CancellationError` when the test is cancelled.
-    private static func progress(
-        of run: AgentRun, reachingToolCount toolCount: Int
-    ) async throws -> AgentRunProgress {
-        while run.progress.toolNames.count < toolCount {
-            try await Task.sleep(for: pollInterval)
-        }
-        return run.progress
-    }
-
-    @Test("check agent in the task answer gives the phase, the passes, and the tool names", .timeLimit(.minutes(1)))
+    @Test("check agent in the task answer gives the phase, the passes, and the tool names")
     func taskTurnGivesProgress() async throws {
         let gate = ScriptedGate()
+        let watch = ToolOpenWatch(agentID: NestedRunTests.lead, openCount: Self.taskToolCallsAtGate)
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([
                 ScriptedAgentPlay(key: Self.taskKey, steps: [.listAgents, .wait(gate), .finalText(Self.answerText)])
-            ]))
+            ]),
+            runEventObserver: watch.observe)
         defer { try? harness.delete() }
 
         let run = try await harness.makeRunner().start(NestedRunTests.lead, prompt: Self.taskKey)
         await gate.waitForArrival()
-        let progress = try await Self.progress(of: run, reachingToolCount: Self.taskToolCallsAtGate)
+        try await watch.recorded.wait()
+        let progress = run.progress
         let report = run.report
         gate.open()
         let result = try await run.result()
@@ -89,11 +129,10 @@ struct CheckAgentProgressTests {
         #expect(result == Self.answerText)
     }
 
-    @Test(
-        "check agent in an answer to mail gives the mail phase and the new passes; the tail updates at its end",
-        .timeLimit(.minutes(1)))
+    @Test("check agent in an answer to mail gives the mail phase and the new passes; the tail updates at its end")
     func answerToMailGivesProgress() async throws {
         let gate = ScriptedGate()
+        let watch = ToolOpenWatch(agentID: NestedRunTests.lead, openCount: Self.mailToolCallsAtGate)
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([
                 ScriptedAgentPlay(
@@ -106,12 +145,14 @@ struct CheckAgentProgressTests {
                         .finalTextOfLaterPrompts
                     ]),
                 ScriptedAgentPlay(key: Self.reviewerKey, steps: [.finalText(Self.reviewerText)])
-            ]))
+            ]),
+            runEventObserver: watch.observe)
         defer { try? harness.delete() }
 
         let lead = try await harness.makeRunner().start(NestedRunTests.lead, prompt: Self.leadKey)
         await gate.waitForArrival()
-        let progress = try await Self.progress(of: lead, reachingToolCount: Self.mailToolCallsAtGate)
+        try await watch.recorded.wait()
+        let progress = lead.progress
         let report = lead.report
         gate.open()
         let result = try await lead.result()

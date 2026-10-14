@@ -61,6 +61,30 @@ struct AgentRunMessageTests {
         }
     }
 
+    /// The count of the `submissionStarted` events of one run that the run
+    /// event observer got.
+    ///
+    /// A class, because the observer and the test share it. A `Mutex` guards
+    /// the count, thus the `Sendable` conformance is compiler-checked.
+    private final class SubmissionStartCount: Sendable {
+        /// The count.
+        private let count = Mutex(0)
+
+        /// Adds one start.
+        ///
+        /// - Returns: The count after this start.
+        func increment() -> Int {
+            count.withLock { count in
+                count += 1
+                return count
+            }
+        }
+    }
+
+    /// The number of the submission start of the answer to the message: the
+    /// task answer has the first start.
+    private static let messageAnswerStart = 2
+
     /// The message that each test sends to a run.
     private static let message = "message-key: also check the error paths"
 
@@ -109,28 +133,6 @@ struct AgentRunMessageTests {
         return run
     }
 
-    /// Reads the phase of `run` until the run waits for its children.
-    ///
-    /// - Parameter run: A run that started a child.
-    /// - Throws: `CancellationError` when the test is cancelled.
-    private static func waitForChildren(of run: AgentRun) async throws {
-        while run.phase != .waitingForChildren {
-            try await Task.sleep(for: NestedRunTests.pollInterval)
-        }
-    }
-
-    /// Reads the answers of `run` until the run read the start of an answer.
-    /// The run reads its session events in order, thus the run is then past
-    /// each check of the events before that start.
-    ///
-    /// - Parameter run: A run whose session started an answer.
-    /// - Throws: `CancellationError` when the test is cancelled.
-    private static func waitForOpenAnswer(of run: AgentRun) async throws {
-        while !run.answers.isAnswerOpen {
-            try await Task.sleep(for: NestedRunTests.pollInterval)
-        }
-    }
-
     /// `true` when `state` is ``AgentRunState/failed(_:)``.
     ///
     /// - Parameter state: The state of a run.
@@ -140,8 +142,7 @@ struct AgentRunMessageTests {
         return false
     }
 
-    @Test("a message in the task turn is delivered, and the run answers it before it ends",
-        .timeLimit(.minutes(1)))
+    @Test("a message in the task turn is delivered, and the run answers it before it ends")
     func deliveredInTaskTurn() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentRunHarness.make(
@@ -161,10 +162,14 @@ struct AgentRunMessageTests {
 
     /// The child is the reviewer: it runs on its own model, thus its held
     /// answer does not hold the answer of the parent to the message.
-    @Test("a message to a run that waits for its children is delivered and answered",
-        .timeLimit(.minutes(1)))
+    ///
+    /// The run event observer opens a gate at the `answered` event of the
+    /// task answer of the lead. The test delivers the message after that
+    /// event, thus after the task answer ended and while the child holds.
+    @Test("a message to a run that waits for its children is delivered and answered")
     func deliveredWhileWaitingForChildren() async throws {
         let childGate = ScriptedGate()
+        let taskAnswered = ScriptedGate()
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([
                 ScriptedAgentPlay(
@@ -178,12 +183,17 @@ struct AgentRunMessageTests {
                 ScriptedAgentPlay(
                     key: NestedRunTests.reviewerKey,
                     steps: [.wait(childGate), .finalText(NestedRunTests.reviewerText)])
-            ]))
+            ]),
+            runEventObserver: { run, output in
+                if run.agent.id == NestedRunTests.lead, case .answered = output.event {
+                    taskAnswered.open()
+                }
+            })
         defer { try? harness.delete() }
         let runner = harness.makeRunner()
 
         let lead = try await runner.start(NestedRunTests.lead, prompt: NestedRunTests.leadKey)
-        try await Self.waitForChildren(of: lead)
+        try await taskAnswered.wait()
         let outcome = try lead.deliver(Self.message, from: .user)
         try await NestedRunTests.arrival(ofPromptContaining: Self.message, in: harness.script)
         childGate.open()
@@ -195,7 +205,7 @@ struct AgentRunMessageTests {
         #expect(result.contains(child.report))
     }
 
-    @Test("a message to a finished run tells the final state", .timeLimit(.minutes(1)))
+    @Test("a message to a finished run tells the final state")
     func endedAfterFinish() async throws {
         let harness = try await AgentRunHarness.make(script: AgentRunTests.script([.finalText(Self.taskReply)]))
         defer { try? harness.delete() }
@@ -207,7 +217,7 @@ struct AgentRunMessageTests {
         #expect(!harness.script.prompts.contains(where: Self.isCallerMessage))
     }
 
-    @Test("a message to a failed run tells the failure", .timeLimit(.minutes(1)))
+    @Test("a message to a failed run tells the failure")
     func endedAfterFailure() async throws {
         let harness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
         defer { try? harness.delete() }
@@ -219,7 +229,7 @@ struct AgentRunMessageTests {
         #expect(try run.deliver(Self.message, from: .user) == .ended(final))
     }
 
-    @Test("a message to a cancelled run tells that it was cancelled", .timeLimit(.minutes(1)))
+    @Test("a message to a cancelled run tells that it was cancelled")
     func endedAfterCancel() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentRunHarness.make(script: AgentRunTests.script([.wait(gate)]))
@@ -234,8 +244,7 @@ struct AgentRunMessageTests {
         #expect(try run.deliver(Self.message, from: .user) == .ended(.cancelled))
     }
 
-    @Test("a message after a cancel request, before the run settles, tells that it was cancelled",
-        .timeLimit(.minutes(1)))
+    @Test("a message after a cancel request, before the run settles, tells that it was cancelled")
     func endedAfterCancelRequest() async throws {
         let harness = try await AgentRunHarness.make(script: AgentRunTests.script([.finalText(Self.taskReply)]))
         defer { try? harness.delete() }
@@ -252,8 +261,7 @@ struct AgentRunMessageTests {
         #expect(harness.script.prompts.isEmpty)
     }
 
-    @Test("a message before begin is held, and the session gets it after the task prompt",
-        .timeLimit(.minutes(1)))
+    @Test("a message before begin is held, and the session gets it after the task prompt")
     func messageBeforeBeginComesAfterTaskPrompt() async throws {
         let harness = try await AgentRunHarness.make(script: Self.taskThenMessage())
         defer { try? harness.delete() }
@@ -277,8 +285,7 @@ struct AgentRunMessageTests {
     /// that task mails it. The run holds the message until the task prompt
     /// is in the mail queue, thus the result does not depend on the time of
     /// that mail.
-    @Test("a message right after begin is held, and the session gets it after the task prompt",
-        .timeLimit(.minutes(1)))
+    @Test("a message right after begin is held, and the session gets it after the task prompt")
     func messageRightAfterBeginComesAfterTaskPrompt() async throws {
         let harness = try await AgentRunHarness.make(script: Self.taskThenMessage())
         defer { try? harness.delete() }
@@ -308,8 +315,7 @@ struct AgentRunMessageTests {
         #expect(try run.deliver(Self.message, from: .user) == .ended(run.state))
     }
 
-    @Test("a message between the idle signal and the settle of the run is answered before the run ends",
-        .timeLimit(.minutes(1)))
+    @Test("a message between the idle signal and the settle of the run is answered before the run ends")
     func messageBetweenIdleSignalAndSettleIsAnswered() async throws {
         let settleGate = ScriptedGate()
         let harness = try await AgentRunHarness.make(script: Self.taskThenMessage())
@@ -326,12 +332,23 @@ struct AgentRunMessageTests {
         #expect(Self.isCallerMessage(result))
     }
 
-    @Test("a message that the pump took, before the run read the start of its answer, keeps the run alive",
-        .timeLimit(.minutes(1)))
+    @Test("a message that the pump took, before the run read the start of its answer, keeps the run alive")
     func messageThatThePumpTookKeepsTheRunAlive() async throws {
         let checkGate = ScriptedGate()
         let messageGate = ScriptedGate()
-        let harness = try await AgentRunHarness.make(script: Self.taskThenMessage(holdingMessageAt: messageGate))
+        let messageAnswerRead = ScriptedGate()
+        let starts = SubmissionStartCount()
+        let harness = try await AgentRunHarness.make(
+            script: Self.taskThenMessage(holdingMessageAt: messageGate),
+            runEventObserver: { _, output in
+                guard case .submissionStarted = output.event else { return }
+                // The run calls the observer of an event only after it handled
+                // each event before it. Thus at the start of the second answer,
+                // the idle check of the task answer is done.
+                if starts.increment() == Self.messageAnswerStart {
+                    messageAnswerRead.open()
+                }
+            })
         defer { try? harness.delete() }
 
         let run = try await Self.startRun(
@@ -340,7 +357,7 @@ struct AgentRunMessageTests {
         let outcome = try run.deliver(Self.message, from: .user)
         await messageGate.waitForArrival()
         checkGate.open()
-        try await Self.waitForOpenAnswer(of: run)
+        try await messageAnswerRead.wait()
         messageGate.open()
         let result = try await run.result()
 

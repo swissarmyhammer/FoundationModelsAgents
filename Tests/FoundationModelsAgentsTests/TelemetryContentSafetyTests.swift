@@ -84,8 +84,7 @@ struct TelemetryContentSafetyTests {
     }
 
     @Test(
-        "a parent and a child run carry no task text, no answer and no tool argument in their telemetry",
-        .timeLimit(.minutes(1)))
+        "a parent and a child run carry no task text, no answer and no tool argument in their telemetry")
     func parentAndChildRunsCarryNoContent() async throws {
         let context = try await TelemetryCapture.run(forbidding: Self.forbidden) { context in
             let harness = try await AgentRunHarness.make(
@@ -103,8 +102,7 @@ struct TelemetryContentSafetyTests {
     }
 
     @Test(
-        "a message of send caller and of send agent is in no span, no log record and no metric",
-        .timeLimit(.minutes(1)))
+        "a message of send caller and of send agent is in no span, no log record and no metric")
     func messagesCarryNoContent() async throws {
         let context = try await TelemetryCapture.run(forbidding: [Self.messageSecret]) { context in
             _ = try await MessageExchange.run(

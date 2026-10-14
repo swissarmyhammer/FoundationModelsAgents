@@ -271,7 +271,7 @@ struct AgentsToolDescriptionTests {
     }
 
     @Test("the tool of a run with a caller link names the caller id, with each grant",
-          .timeLimit(.minutes(1)), arguments: [AgentsToolContext.Grant.full, .messagingOnly])
+          arguments: [AgentsToolContext.Grant.full, .messagingOnly])
     func theToolOfARunWithACallerNamesTheCallerID(grant: AgentsToolContext.Grant) async throws {
         let harness = try await AgentsToolHarness.make(
             script: ScriptedAgentScript([

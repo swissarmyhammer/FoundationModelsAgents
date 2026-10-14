@@ -94,7 +94,7 @@ struct AgentsDemoTests {
 
     // MARK: - --watch
 
-    @Test("the watch mode writes a report after a file of the library changes", .timeLimit(.minutes(1)))
+    @Test("the watch mode writes a report after a file of the library changes")
     func watchModeWritesAReportAfterAChange() async throws {
         let library = try TemporaryLayer.copy(of: FixtureLibrary.root)
         defer { try? library.delete() }

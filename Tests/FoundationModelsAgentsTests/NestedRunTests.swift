@@ -61,9 +61,41 @@ struct NestedRunTests {
     /// child.
     private static let waitingForOneText = "It waits for 1 agents that it started."
 
-    /// The time between two reads of a value that a test waits for: the
-    /// prompts of a script, or the report or the phase of a run.
-    static let pollInterval = Duration.milliseconds(10)
+    /// Waits until `condition` is true for `run`, or until `run` ends.
+    ///
+    /// The run calls its idle hook (``AgentRunIdleHooks/beforeIdleCheck``)
+    /// after it records the end of each answer and each run event of a
+    /// child. Thus the hook reads the recorded phase and report. The helper
+    /// installs the hook first, and then reads the condition one time. A
+    /// record before the install is in that read, and a record after the
+    /// install is in a call of the hook. The end of the run also ends the
+    /// wait. Thus a run that ends before the condition does not hold the test,
+    /// and the expectations of the test then fail.
+    ///
+    /// The helper replaces the idle hooks of `run`. Do not use it on a run
+    /// that has other idle hooks.
+    ///
+    /// - Parameters:
+    ///   - run: The run.
+    ///   - condition: The condition on the recorded state of the run.
+    /// - Throws: `CancellationError` when the test is cancelled.
+    static func waitUntil(_ run: AgentRun, _ condition: @escaping @Sendable (AgentRun) -> Bool) async throws {
+        let gate = ScriptedGate()
+        run.install(
+            AgentRunIdleHooks(beforeIdleCheck: { [weak run] in
+                if let run, condition(run) {
+                    gate.open()
+                }
+            }))
+        if condition(run) {
+            gate.open()
+        }
+        Task {
+            _ = await run.finalState()
+            gate.open()
+        }
+        try await gate.wait()
+    }
 
     /// A scripted call of `start agent`.
     ///
@@ -93,16 +125,17 @@ struct NestedRunTests {
         return ScriptedAgentPlay(key: key, steps: starts + [.finalText(startedText)] + deliveries)
     }
 
-    /// Waits until the model got a prompt that contains `text`.
+    /// Waits until the model got a prompt that contains `text`. The script
+    /// resumes the wait when it records that prompt
+    /// (``ScriptedAgentScript/waitForPrompt(containing:)``).
     ///
     /// - Parameters:
     ///   - text: The text of the prompt.
     ///   - script: The script that records the prompts.
-    /// - Throws: `CancellationError` when the test is cancelled.
+    /// - Throws: Never. The callers keep `try`, thus the helper keeps
+    ///   `throws`.
     static func arrival(ofPromptContaining text: String, in script: ScriptedAgentScript) async throws {
-        while !script.prompts.contains(where: { $0.contains(text) }) {
-            try await Task.sleep(for: pollInterval)
-        }
+        await script.waitForPrompt(containing: text)
     }
 
     /// The play of the root session: it starts one run, answers, then
@@ -193,22 +226,19 @@ struct NestedRunTests {
         return false
     }
 
-    /// Reads the report of `run` until it holds the waiting sentence for one
-    /// child.
+    /// Waits until the recorded report of `run` holds the waiting sentence
+    /// for one child (``waitUntil(_:_:)``), and gives the report.
     ///
     /// - Parameter run: A run that waits for one child after its task answer.
     /// - Returns: The report.
     /// - Throws: `CancellationError` when the test is cancelled.
     private static func waitingReport(of run: AgentRun) async throws -> String {
-        while !run.report.contains(waitingForOneText) {
-            try await Task.sleep(for: pollInterval)
-        }
+        try await waitUntil(run) { $0.report.contains(Self.waitingForOneText) }
         return run.report
     }
 
     @Test(
-        "a run with two children ends after both final messages were delivered and answered",
-        .timeLimit(.minutes(1)))
+        "a run with two children ends after both final messages were delivered and answered")
     func leadJoinsBothResults() async throws {
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([
@@ -232,8 +262,7 @@ struct NestedRunTests {
         #expect(prompts.last.map(result.contains) == true)
     }
 
-    @Test("the parent finishes only after its child, and check agent tells that it waits",
-        .timeLimit(.minutes(1)))
+    @Test("the parent finishes only after its child, and check agent tells that it waits")
     func parentFinishesAfterChild() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentRunHarness.make(
@@ -258,8 +287,7 @@ struct NestedRunTests {
         #expect(result.contains(Self.reviewerText))
     }
 
-    @Test("a failing parent cancels its open child first, and the Router records both final messages",
-        .timeLimit(.minutes(1)))
+    @Test("a failing parent cancels its open child first, and the Router records both final messages")
     func failingParentCancelsChildThenPosts() async throws {
         let gate = ScriptedGate()
         let failGate = ScriptedGate()
@@ -295,8 +323,7 @@ struct NestedRunTests {
         #expect(leadPosts.map(\.detail) == [lead.report])
     }
 
-    @Test("cancel() on a parent with an open child cancels the child and waits for it",
-        .timeLimit(.minutes(1)))
+    @Test("cancel() on a parent with an open child cancels the child and waits for it")
     func cancelledParentCancelsChildThenPosts() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(
@@ -328,8 +355,7 @@ struct NestedRunTests {
         #expect(leadPosts.map(\.detail) == ["\(lead.subject) was cancelled."])
     }
 
-    @Test("a root session answers the mail of a finished run with no call of the host",
-        .timeLimit(.minutes(1)))
+    @Test("a root session answers the mail of a finished run with no call of the host")
     func rootAnswersMailOfFinishedRun() async throws {
         let harness = try await AgentsToolHarness.make(
             script: ScriptedAgentScript([
@@ -350,8 +376,7 @@ struct NestedRunTests {
         #expect(harness.runHarness.script.prompts.last == mailAnswer.reply)
     }
 
-    @Test("agentSpawn links three sessions, and parentToolCallId is the completion token of start agent",
-        .timeLimit(.minutes(1)))
+    @Test("agentSpawn links three sessions, and parentToolCallId is the completion token of start agent")
     func agentSpawnLinksThreeSessions() async throws {
         let harness = try await AgentsToolHarness.make(
             script: ScriptedAgentScript([

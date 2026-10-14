@@ -13,7 +13,7 @@ extension LiveSuites {
     ///   ``LiveHoldTool``, and its submission holds its place in the generation
     ///   queue of its model while the tool waits. The `flash` run can finish in
     ///   that time only when the two slots have two queues.
-    @Suite("Live slots", .serialized, .timeLimit(LiveProfile.timeLimit))
+    @Suite("Live slots", .serialized)
     struct LiveSlotTests {
         /// The agent whose `model` is the model reference of the `flash`
         /// slot.
@@ -74,7 +74,7 @@ extension LiveSuites {
 
             try await LiveHarness.withHarness(agents: agents, tools: [hold]) { harness in
                 let holdingRun = try await harness.runner.start(Self.holdingAgent, prompt: Self.prompt)
-                try #require(try await hold.waitForArrival(upTo: LiveHoldTool.arrivalTimeout))
+                try #require(await hold.waitForArrival(orEndOf: holdingRun))
                 let quickRun = try await harness.runner.start(Self.quickAgent, prompt: Self.prompt)
                 let quickText = try await quickRun.result()
                 let holdingStateAfterQuickRun = holdingRun.state

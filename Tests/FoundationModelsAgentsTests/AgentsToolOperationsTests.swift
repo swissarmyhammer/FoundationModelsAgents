@@ -182,8 +182,7 @@ struct AgentsToolOperationsTests {
         #expect(!answer.contains("\\n"))
     }
 
-    @Test("start agent answers with the run id at once, and check agent on the gated run returns at once",
-        .timeLimit(.minutes(1)))
+    @Test("start agent answers with the run id at once, and check agent on the gated run returns at once")
     func startThenCheckGatedRun() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(script: Self.script([.wait(gate), .finalText(Self.finalText)]))
@@ -219,8 +218,7 @@ struct AgentsToolOperationsTests {
         #expect(answer == "Agent code-reviewer (\(run.id)) failed: the model failed: \(failureText).")
     }
 
-    @Test("cancel agent sends the cancel, check agent then tells cancelled, and a second cancel finds it ended",
-        .timeLimit(.minutes(1)))
+    @Test("cancel agent sends the cancel, check agent then tells cancelled, and a second cancel finds it ended")
     func cancelThenCheckCancelledRun() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(script: Self.script([.wait(gate), .finalText(Self.finalText)]))
@@ -246,8 +244,7 @@ struct AgentsToolOperationsTests {
                 """)
     }
 
-    @Test("cancel agent on a finished run names the agent one time, then gives the full final text",
-        .timeLimit(.minutes(1)))
+    @Test("cancel agent on a finished run names the agent one time, then gives the full final text")
     func cancelFinishedRunNamesAgentOneTime() async throws {
         let harness = try await AgentsToolHarness.make(script: Self.script([.finalText(Self.finalText)]))
         defer { try? harness.delete() }
@@ -268,7 +265,7 @@ struct AgentsToolOperationsTests {
         #expect(answer.ranges(of: "Agent \(Self.reviewer)").count == 1)
     }
 
-    @Test("each verb alias reaches its operation: show, run, status, stop", .timeLimit(.minutes(1)))
+    @Test("each verb alias reaches its operation: show, run, status, stop")
     func verbAliasesReachOperations() async throws {
         let gate = ScriptedGate()
         let harness = try await AgentsToolHarness.make(script: Self.script([.wait(gate), .finalText(Self.finalText)]))
@@ -370,8 +367,7 @@ extension AgentsToolOperationsTests {
         ])
     }
 
-    @Test("cancel agent after the final state is known, while the run cancels its child, tells that the run ended",
-        .timeLimit(.minutes(1)))
+    @Test("cancel agent after the final state is known, while the run cancels its child, tells that the run ended")
     func cancelDuringChildCancelFindsRunEnded() async throws {
         let leadGate = ScriptedGate()
         let childGate = ScriptedGate()

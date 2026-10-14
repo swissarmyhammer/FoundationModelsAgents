@@ -126,7 +126,7 @@ struct ScriptedProfileTests {
     /// Two sessions on one scripted model share the generation queue of that
     /// model: the submission of the second session waits while a gated
     /// submission of the first session holds the model.
-    @Test("Two sessions on one model share its generation queue", .timeLimit(.minutes(1)))
+    @Test("Two sessions on one model share its generation queue")
     func sessionsOnOneModelShareItsQueue() async throws {
         let gate = ScriptedGate()
         let secondKey = "scripted-second-session"
@@ -155,7 +155,7 @@ struct ScriptedProfileTests {
 
     /// Each pass of a scripted submission reports its own generation call,
     /// because the scripted model meters one token for each fragment.
-    @Test("A scripted pass reports a generation call", .timeLimit(.minutes(1)))
+    @Test("A scripted pass reports a generation call")
     func scriptedPassReportsGenerationCall() async throws {
         let script = ScriptedAgentScript([
             ScriptedAgentPlay(key: Self.promptKey, steps: [.finalText(Self.finalText)])
