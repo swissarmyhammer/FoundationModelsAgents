@@ -2,9 +2,9 @@
 assignees:
 - claude-code
 depends_on:
-- 01M4X3BP68B0YHSQ13V18TZJEH
-position_column: todo
-position_ordinal: '8580'
+- 01M4X4089T4V96E2VYRC8JP5CS
+position_column: done
+position_ordinal: db80
 title: 'Mail step 3, T5: full suite one time, final commit and report'
 ---
 ## Plan (from the step 3 message)
