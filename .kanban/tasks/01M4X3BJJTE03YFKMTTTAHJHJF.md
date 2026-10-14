@@ -10,10 +10,17 @@ comments:
   id: 01m4x64j7m04mgwzdge0wmjfph
   text: 'Gap from T2, for T3: a failed answer to a caller message, after the task answer ended, gives no signal. Its `mailIds` holds a user-type id of the run, thus it is not "mail alone", and nothing awaits that id. The old rule (`messageIds` not empty) had the same gap. T3 has the ids and the subscriptions of each user-type mail of the run (`mailedUserTypeMail`, `mailedUserTypeMailSubscriptions` in AgentRun Storage, task prompt first), and can end the run on the terminal of such a mail.'
   timestamp: 2026-10-14T12:28:02.164245+00:00
+- actor: claude-code
+  id: 01m4x6664sceh5vj5tsh3n8cf6
+  text: |-
+    Decisions at the start of T3 (from the peer session, after T2 was accepted):
+    1. The stored `mailedUserTypeMailSubscriptions` are not read. An unread subscription keeps each event of its mail until `end(in:)`, thus a long run with many caller messages keeps all those events in memory. Remove them. Keep the ordered `[Mail]` list, and use `awaitAnswer(of:)` / `awaitTerminal(of:)` on the ids.
+    2. Close the gap: a failed answer to a caller message after the task answer ended ends the run the same way as a failed task answer: CancellationError gives `.cancelled`, else `.failed(turnFailure)`. Add a fixed-order test for it.
+  timestamp: 2026-10-14T12:28:55.321855+00:00
 depends_on:
 - 01M4X3BB85J8JKMBXTYX0ZJQHD
-position_column: todo
-position_ordinal: '8380'
+position_column: done
+position_ordinal: d880
 title: 'Mail step 3, T3: the idle rule by MailID (waits for Router part G)'
 ---
 ## Wait
