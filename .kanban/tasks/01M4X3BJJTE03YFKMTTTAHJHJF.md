@@ -6,6 +6,10 @@ comments:
   id: 01m4x3h1wj654fbhthkqrqaenv
   text: 'Router part G is pushed: Router main head 18caf922 (part G is bc313dff). Move the Router pin to it after the T1 commit. T3 starts when T2 is done. Part H (awaitAnswer(of:)) is in progress.'
   timestamp: 2026-10-14T11:42:25.682473+00:00
+- actor: claude-code
+  id: 01m4x64j7m04mgwzdge0wmjfph
+  text: 'Gap from T2, for T3: a failed answer to a caller message, after the task answer ended, gives no signal. Its `mailIds` holds a user-type id of the run, thus it is not "mail alone", and nothing awaits that id. The old rule (`messageIds` not empty) had the same gap. T3 has the ids and the subscriptions of each user-type mail of the run (`mailedUserTypeMail`, `mailedUserTypeMailSubscriptions` in AgentRun Storage, task prompt first), and can end the run on the terminal of such a mail.'
+  timestamp: 2026-10-14T12:28:02.164245+00:00
 depends_on:
 - 01M4X3BB85J8JKMBXTYX0ZJQHD
 position_column: todo
