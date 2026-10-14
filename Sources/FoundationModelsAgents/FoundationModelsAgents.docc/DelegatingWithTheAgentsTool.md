@@ -31,8 +31,9 @@ call:
 {"op": "send agent", "id": "<id>", "message": "Also check the error paths."}
 ```
 
-The run holds a message that comes before its task prompt starts. Then the
-session of the run gets the message after the task prompt. The run answers
+The run holds a message that comes before its task prompt is in the mail
+queue, and mails it at once after the task prompt. Thus the session of the
+run gets the message after the task prompt. The run answers
 each message that it accepted before it ends, and its final message still
 comes to the caller as mail. A run that ended gets no message: the call gives
 the corrective "The run `id` ended (`state`), and it gets no more messages.
@@ -179,9 +180,9 @@ A run that starts agents finishes only after each of them ends. While it
 waits, it holds no place in the run limit. The final message of each child
 comes to the session of the parent as mail, and the pump of the Router starts
 an answer of the parent to it. The parent can start more agents in that
-answer. The parent ends when its session is idle: no child is open, the
-parent answered each final message and each message of a child, and no
-message waits. The reply of its last answer is its result. A cancel, or a
+answer. The parent ends when its session is idle: no child is open, each
+final message and each message of a child has a terminal event (usually its
+answer), and no message waits. The reply of its last answer is its result. A cancel, or a
 failure of the parent, cancels its children first.
 
 ### Skills through an agent

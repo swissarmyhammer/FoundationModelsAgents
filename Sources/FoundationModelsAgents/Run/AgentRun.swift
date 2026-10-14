@@ -155,7 +155,7 @@ public final class AgentRun: Sendable {
     let context: ToolContext?
 
     /// The runs that this run started. The run finishes only after each of
-    /// them ends and its final message was answered.
+    /// them ends and each mail of its call has a terminal event.
     let children: AgentRunChildren
 
     /// The watch of the session of the run. The follower of the run feeds
@@ -714,8 +714,8 @@ public final class AgentRun: Sendable {
     }
 
     /// The count of messages that ``deliver(_:from:)`` accepted, for the start of
-    /// an idle check, or `nil` while a message is on its way to the message
-    /// queue of the session. The session is not idle then.
+    /// an idle check, or `nil` while a message is held or on its way to the
+    /// mail queue of the session. The session is not idle then.
     var acceptedMessagesWhenNoneInbound: Int? {
         storage.withLock { storage in
             storage.inboundMessages == 0 ? storage.acceptedMessages : nil

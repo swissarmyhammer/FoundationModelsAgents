@@ -22,7 +22,7 @@ struct AgentRunSignals: Sendable {
 /// no test changes has hooks that do nothing.
 struct AgentRunIdleHooks: Sendable {
     /// Runs at the start of each idle check, before the run reads the
-    /// message queue of its session.
+    /// mail queue of its session.
     var beforeIdleCheck: @Sendable () async -> Void = {}
 
     /// Runs after the run got an idle signal, before the run decides to end

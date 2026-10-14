@@ -77,8 +77,10 @@ extension LiveSuites {
                 let agentsTool = try await harness.makeAgentsTool()
                 let probe = LiveAgentsToolProbe(wrapping: agentsTool)
                 let root = harness.makeRootSession(tools: [probe])
-                var finalMailReplies = await Self.finalMailReplies(of: root).makeAsyncIterator()
-                _ = try await root.respond(to: rootPrompt)
+                let events = await root.streamSessionEvents()
+                let promptID = try root.send(rootPrompt)
+                var finalMailReplies = Self.finalMailReplies(in: events, hostMailIDs: [promptID]).makeAsyncIterator()
+                _ = try await root.awaitAnswer(of: promptID)
                 let finderRun = try LiveHarness.run(of: finder, in: await harness.runner.runs(caller: root.id))
                 let text = try await finderRun.result()
                 let reply = await finalMailReplies.next()
@@ -122,31 +124,34 @@ extension LiveSuites {
         /// The Router posts the final message as a `.runSettled` event. The
         /// next submission start after that event takes the final message.
         /// That submission starts a new answer, or continues an answer that is
-        /// in progress. Thus the first answer to mail that has a submission
-        /// start after the `.runSettled` event reads the final message.
+        /// in progress. Thus the first answer to mail alone that has a
+        /// submission start after the `.runSettled` event reads the final
+        /// message. An answer to mail alone is an answer whose mail ids hold
+        /// none of the ids that the host sent.
         ///
-        /// - Parameter root: The root session.
+        /// - Parameters:
+        ///   - events: The session-event subscription of the root session,
+        ///     made before the host sent its first mail.
+        ///   - hostMailIDs: The id of each mail that the host sent, from
+        ///     `send(_:)` or `mail(_:)`.
         /// - Returns: The replies, in the order of the answers.
-        private static func finalMailReplies(of root: any RoutedSession) async -> AsyncStream<String> {
-            let events = await root.streamSessionEvents()
-            return AsyncStream { continuation in
+        private static func finalMailReplies(
+            in events: AsyncStream<SessionOutput>, hostMailIDs: Set<MailID>
+        ) -> AsyncStream<String> {
+            AsyncStream { continuation in
                 let task = Task {
                     var isSettled = false
                     var readsFinalMessage = false
-                    // The first submission of an answer that mail alone started has the cause `.mail`.
-                    var answersMail = false
                     for await output in events {
                         switch output.event {
                         case .runSettled:
                             isSettled = true
-                        case .submissionStarted(let start):
-                            if start.cause != .continuation {
-                                answersMail = start.cause == .mail
-                            }
+                        case .submissionStarted:
                             if isSettled {
                                 readsFinalMessage = true
                             }
-                        case .answered(let answer) where answersMail && readsFinalMessage:
+                        case .answered(let answer)
+                        where readsFinalMessage && !answer.mailIds.contains(where: hostMailIDs.contains):
                             readsFinalMessage = false
                             continuation.yield(answer.reply)
                         default:

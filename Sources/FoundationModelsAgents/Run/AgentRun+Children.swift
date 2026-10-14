@@ -75,7 +75,8 @@ struct ParentRun: Sendable {
 /// The runs that one run started.
 ///
 /// A child adds itself before its answers start. The run finishes only after
-/// each child ended and its final message was answered.
+/// each child ended and each mail of its call has a terminal event: usually
+/// the answer of the final message, or the cancel of that mail.
 ///
 /// A class, because the run, its `agents` tool, and each child share one
 /// list. A `Mutex` guards the list, thus the `Sendable` conformance is

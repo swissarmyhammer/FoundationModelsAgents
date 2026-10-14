@@ -7,7 +7,20 @@ import Synchronization
 /// In each pass the model generates. Then it calls tools, and the loop goes
 /// around again, or it answers, and the loop ends. The count holds the passes
 /// of each submission of the session of the run: the answer of the task
-/// prompt, and each answer to the final message of a run that it started.
+/// prompt, each answer to a message from the caller, and each answer to run
+/// mail (a message or the final message of a run that it started). The pump
+/// can put more than one mail in one answer, and that answer counts one time.
+/// A summarizer call of a compaction opens no submission and sends no
+/// ``SessionEvent/generationCall(_:)``, thus it does not count.
+///
+/// When the count goes above the limit, the follower of the run stops its
+/// session with `cancelAll()` at once. The open answer then ends with
+/// ``SessionEvent/answerFailed(_:)``, and the run ends as
+/// ``AgentRunFailure/hitMaxTurns(partial:)``. The session sends no more
+/// events of the stopped answer, also not its
+/// ``SessionEvent/submissionEnded(_:)``. Thus the count of that submission
+/// stays its live count. The run ends at that time, thus this does not change
+/// the result.
 ///
 /// The run reads its one session-event subscription, and gives each event to
 /// ``apply(_:)``. Two kinds of events feed the count:
@@ -78,7 +91,8 @@ final class AgentRunTurns: Sendable {
     }
 
     /// `true` after the count went above the limit. The run then stops its
-    /// session, and ends as ``AgentRunFailure/hitMaxTurns(partial:)``.
+    /// session with `cancelAll()`, and ends as
+    /// ``AgentRunFailure/hitMaxTurns(partial:)``.
     var isLimitHit: Bool {
         state.withLock { $0.isLimitHit }
     }

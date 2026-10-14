@@ -83,21 +83,19 @@ extension LiveSuites {
             try await LiveHarness.withHarness(agents: agents, inlineSettleGrace: Self.backgroundAtOnce) { harness in
                 let root = harness.makeRootSession(tools: [try await harness.makeAgentsTool()])
                 let rootEvents = await root.streamSessionEvents()
-                _ = try await root.respond(
-                    to: try LiveHarness.agentsCallText([
+                let promptID = try root.send(
+                    try LiveHarness.agentsCallText([
                         "op": LiveHarness.startOperation, "name": Self.lead, "prompt": Self.leadTask
                     ]))
+                _ = try await root.awaitAnswer(of: promptID)
                 let lead = try LiveHarness.run(of: Self.lead, in: await harness.runner.runs(caller: root.id))
                 let leadText = try await lead.result()
                 let leaf = try LiveHarness.run(of: Self.leaf, in: await harness.runner.runs(caller: lead.id))
                 let leafText = try await leaf.result()
-                // Wait for the first answer to mail. The first submission of an answer
-                // that mail alone started has the cause `.mail`.
-                var answersMail = false
+                // Wait for the first answer to mail alone: an answer whose mail ids
+                // hold none of the ids that the host sent.
                 for await output in rootEvents {
-                    if case .submissionStarted(let start) = output.event, start.cause != .continuation {
-                        answersMail = start.cause == .mail
-                    } else if case .answered = output.event, answersMail {
+                    if case .answered(let answer) = output.event, !answer.mailIds.contains(promptID) {
                         break
                     }
                 }
