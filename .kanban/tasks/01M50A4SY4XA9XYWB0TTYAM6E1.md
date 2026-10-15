@@ -1,8 +1,8 @@
 ---
 assignees:
 - claude-code
-position_column: todo
-position_ordinal: '80'
+position_column: done
+position_ordinal: df80
 title: 'mailDeliveryPaused: a better rule than cancelAll() of the whole run tree'
 ---
 Found by the Router review of mailOnlyAnswerLimit.
