@@ -176,7 +176,10 @@ public struct AgentEnvironment: Sendable {
     /// The most answers in a row that mail alone starts in the session of a
     /// run, with no caller message between them. Message mail and final
     /// messages both count. When the Router holds the mail at this limit,
-    /// the run fails with ``AgentRunFailure/mailDeliveryPaused(_:)``.
+    /// the run pauses: it waits until each run that it started ended, then it
+    /// fails with ``AgentRunFailure/mailDeliveryPaused(_:)`` and the held
+    /// results (``AgentRun/pause``). The limit is a guard against a chain of
+    /// mail with no end, thus the run does not end the hold itself.
     ///
     /// The default is the default of the Router,
     /// `SessionConfiguration.defaultMailOnlyAnswerLimit`.

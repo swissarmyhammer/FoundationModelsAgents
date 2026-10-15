@@ -8,7 +8,8 @@ extension NestedRunTests {
     /// `send caller`: the Router gives each message to the parent as mail,
     /// the parent answers each message before it ends, `check agent` on the
     /// parent tells the last message of the child, and mail that reaches
-    /// `mailOnlyAnswerLimit` ends the parent with the paused outcome.
+    /// `mailOnlyAnswerLimit` pauses the parent: it waits for its child, then
+    /// ends with the paused outcome and the held result.
     ///
     /// The parent runs on the `standard` slot, and the child on the `flash`
     /// slot. A slot has one generation queue, and a run that waits on a gate
@@ -220,6 +221,17 @@ extension NestedRunTests {
             return false
         }
 
+        /// Gives the text of the failure when `state` failed because the
+        /// Router paused the mail: the description of the hold and the held
+        /// results.
+        ///
+        /// - Parameter state: The final state of a run.
+        /// - Returns: The text, or `nil` for each other state.
+        private static func pausedText(of state: AgentRunState) -> String? {
+            if case .failed(.mailDeliveryPaused(let text)) = state { return text }
+            return nil
+        }
+
         @Test(
             "a child that sends a message and ends at once: the parent answers the message and the final message, then ends")
         func messageThenEndAtOnce() async throws {
@@ -376,7 +388,7 @@ extension NestedRunTests {
         }
 
         @Test(
-            "message mail above mailOnlyAnswerLimit ends the parent with the paused outcome, and it does not hang")
+            "message mail above mailOnlyAnswerLimit pauses the parent: it waits for its child, then ends with the held result")
         func messagesAboveTheLimitPauseTheParent() async throws {
             let childGate = ScriptedGate()
             try await Self.withParent(
@@ -394,6 +406,8 @@ extension NestedRunTests {
 
                 #expect(Self.isPaused(final))
                 #expect(!script.prompts.contains { $0.contains(secondLine) })
+                #expect(child.state == .finished(Self.childText))
+                #expect(Self.pausedText(of: final)?.contains(Self.childText) == true)
             }
         }
     }

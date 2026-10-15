@@ -92,6 +92,11 @@ enum AgentRunSignal: Sendable {
     /// The text is the description of the hold.
     case mailDeliveryPaused(String)
 
+    /// An event that can end the wait of a paused run came: a run event of a
+    /// child, or the close record of a tool call. The run then ends when the
+    /// hold is still in force and each run that it started ended.
+    case pauseDrained
+
     /// The session-event subscription finished.
     case sessionClosed
 }

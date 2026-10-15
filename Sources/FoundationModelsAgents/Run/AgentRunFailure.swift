@@ -43,8 +43,10 @@ public enum AgentRunFailure: Error, Sendable, Equatable {
 
     /// The Router held the final messages of the runs that this run started,
     /// and started no answer for them (`SessionEvent.mailDeliveryPaused`).
-    /// The run cannot finish without these answers. The text is the
-    /// description of the hold.
+    /// The run then did not stop those runs: it waited until each of them
+    /// ended, and no message from its caller ended the hold. The text is the
+    /// description of the hold, then the final message of each run whose
+    /// mail the Router held, thus the caller gets those results.
     case mailDeliveryPaused(String)
 
     /// The reason of the failure as a clause for a model or a person: for

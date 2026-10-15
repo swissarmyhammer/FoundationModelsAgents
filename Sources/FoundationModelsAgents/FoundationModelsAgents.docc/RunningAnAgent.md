@@ -119,8 +119,12 @@ its loss. The rule goes by mail id, and it reads no text of a prompt. When the
 answer of a message from the caller fails, the run fails with the failure of
 that answer, also after the answer of its task prompt.
 The reply of the last answer is the result of the run. When the Router holds
-the mail and starts no answer for it, the run fails with
-``AgentRunFailure/mailDeliveryPaused(_:)``.
+the mail and starts no answer for it, the run pauses: it does not stop the
+runs that it started, and ``AgentRun/pause`` tells the hold and the count of
+runs that it waits for. When each of them ended, the run fails with
+``AgentRunFailure/mailDeliveryPaused(_:)`` and the held results. A message
+from the caller (``AgentRun/deliver(_:from:)``) ends the hold, and the run
+goes on.
 
 When the run ends, it closes its session. A finished run holds no session.
 

@@ -97,9 +97,17 @@ event is the answer of the mail, its failed answer, its cancel, or its loss.
 The rule goes by mail id, and it reads no text of a prompt. The
 reply of the last answer is the result of the run.
 The passes of each answer, also each answer to mail, count toward
-`maxTurns`. When the Router holds the mail and starts no answer for it
-(`SessionEvent.mailDeliveryPaused(_:)`), the run fails with
-``AgentRunFailure/mailDeliveryPaused(_:)``.
+`maxTurns`.
+
+When the Router holds the mail and starts no answer for it
+(`SessionEvent.mailDeliveryPaused(_:)`), the run pauses. It does not stop the
+runs that it started, and it starts no answer and no new run.
+``AgentRun/pause`` and `check agent` tell the hold and the count of runs that
+it waits for. When each of these runs ended, the run fails with
+``AgentRunFailure/mailDeliveryPaused(_:)``. The text of the failure holds the
+final message of each run whose mail the Router held, thus the caller gets
+those results. A message from the caller ends the hold, and the run goes on.
+A cancel stops the run and the runs that it started.
 
 ### A run with no calling session
 

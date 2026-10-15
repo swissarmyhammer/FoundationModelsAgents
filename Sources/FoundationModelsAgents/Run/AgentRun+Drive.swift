@@ -22,7 +22,8 @@ struct AgentRunSignals: Sendable {
 /// no test changes has hooks that do nothing.
 struct AgentRunIdleHooks: Sendable {
     /// Runs at the start of each idle check, before the run reads the
-    /// mail queue of its session.
+    /// mail queue of its session. The check of a paused run, whether its
+    /// wait ended, also runs it.
     var beforeIdleCheck: @Sendable () async -> Void = {}
 
     /// Runs after the run got an idle signal, before the run decides to end
@@ -192,13 +193,70 @@ extension AgentRun {
             return turns.isLimitHit ? nil : Self.endState(afterAnswerFailure: error)
         case .mailAnswerFailed(let reason):
             return turns.isLimitHit ? nil : Self.endState(afterMailFailure: reason)
-        case .mailDeliveryPaused(let text):
-            session.cancelAll()
-            return .failed(.mailDeliveryPaused(text))
+        case .mailDeliveryPaused, .pauseDrained:
+            return await endStateIfDrained(on: session)
         case .sessionClosed:
             return .cancelled
         }
     }
+
+    /// Gives the final state of a paused run when its wait ended, or `nil`
+    /// when the run goes on.
+    ///
+    /// While the Router holds the mail (``pauseDescription``), the run starts
+    /// no answer and no new run, and it does not stop its children. It waits
+    /// until each run that it started ended and each call closed. Then it
+    /// ends as ``AgentRunFailure/mailDeliveryPaused(_:)``, with the held
+    /// results (``heldResults(after:)``). The wait goes on while an answer is
+    /// open, or while a message from the caller is on its way to the queue
+    /// or waits in it: that message ends the hold, and the run goes on. The
+    /// record of the final state goes through
+    /// ``settle(idle:acceptedMessages:)``, thus a message that the run
+    /// accepts after the check keeps the run in operation.
+    ///
+    /// - Parameter session: The session of the run.
+    /// - Returns: The final state, or `nil`.
+    private func endStateIfDrained(on session: any RoutedSession) async -> AgentRunState? {
+        await idleHooks.beforeIdleCheck()
+        guard let pause = pauseDescription, !isSettled, !answers.isAnswerOpen, children.openCount == 0,
+            sessionWatch.isEachCallClosed, let acceptedMessages = acceptedMessagesWhenNoneInbound
+        else {
+            return nil
+        }
+        let depth = await session.mailQueueDepth()
+        guard Self.userTypeKinds.allSatisfy({ (depth.depthByKind[$0] ?? 0) == 0 }) else {
+            return nil
+        }
+        return settle(idle: .failed(.mailDeliveryPaused(heldResults(after: pause))), acceptedMessages: acceptedMessages)
+    }
+
+    /// Gives the text of a paused run at its end: the description of the
+    /// hold, then the final message of each run that it started whose mail
+    /// the Router held, in the order of the starts.
+    ///
+    /// The mail of a child is held when the mail of the call of that child
+    /// has no terminal event (``ParentSessionWatch/hasTerminal(forEachMailOfCalls:and:)``).
+    /// The text of each held child is its ``report``: "Agent `name` (`id`)
+    /// finished.", then its final text, or the text of its failure or of its
+    /// cancel.
+    ///
+    /// - Parameter pause: The description of the hold.
+    /// - Returns: The text.
+    private func heldResults(after pause: String) -> String {
+        let held = children.runs.filter { child in
+            guard let token = child.context?.completionToken else {
+                return false
+            }
+            return !sessionWatch.hasTerminal(forEachMailOfCalls: [token], and: [MailID]())
+        }
+        guard !held.isEmpty else {
+            return pause
+        }
+        return ([pause, Self.heldResultsHeading] + held.map(\.report)).joined(separator: "\n\n")
+    }
+
+    /// The line before the held results in the text of a paused run.
+    static let heldResultsHeading = "The final messages that the session held:"
 
     /// Gives the final state of a run whose answer to the task prompt or to
     /// a message from the caller failed.
@@ -311,6 +369,10 @@ extension AgentRun {
     ///   prompt or of a message from the caller gives nothing here: the wait
     ///   for its id gives its error.
     /// - A hold of the mail gives ``AgentRunSignal/mailDeliveryPaused(_:)``.
+    ///   While the hold is in force, a run event of a child and the close
+    ///   record of a tool call give ``AgentRunSignal/pauseDrained``, not an
+    ///   idle check: the held mail has no terminal event, thus the session is
+    ///   not idle.
     ///
     /// - Parameters:
     ///   - event: The event, already recorded.
@@ -324,9 +386,9 @@ extension AgentRun {
             }
             return await idleSignal(reply: answer.reply, on: session)
         case .runSettled, .runMessage, .cancelled, .lost:
-            return await idleSignalAfterRunEvent(on: session)
+            return await signalAfterRunEvent(on: session)
         case .toolInvocation(let record, _) where record.closedAt != nil:
-            return await idleSignalAfterRunEvent(on: session)
+            return await signalAfterRunEvent(on: session)
         case .answerFailed(let failure):
             if turns.isLimitHit {
                 return .limitHit(partial: answers.partial)
@@ -337,6 +399,19 @@ extension AgentRun {
         default:
             return nil
         }
+    }
+
+    /// Gives the signal after a run event of a child or the close record of a
+    /// tool call: ``AgentRunSignal/pauseDrained`` while the Router holds the
+    /// mail, else the idle signal (``idleSignalAfterRunEvent(on:)``).
+    ///
+    /// - Parameter session: The session of the run.
+    /// - Returns: The signal, or `nil`.
+    private func signalAfterRunEvent(on session: any RoutedSession) async -> AgentRunSignal? {
+        guard pauseDescription == nil else {
+            return .pauseDrained
+        }
+        return await idleSignalAfterRunEvent(on: session)
     }
 
     /// Gives ``AgentRunSignal/idle(_:acceptedMessages:)`` when the session is

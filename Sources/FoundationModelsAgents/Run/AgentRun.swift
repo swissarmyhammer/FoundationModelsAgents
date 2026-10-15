@@ -39,6 +39,13 @@ public final class AgentRun: Sendable {
         /// The answers of the session so far.
         var answers = AgentRunAnswers()
 
+        /// The description of the hold of the mail while the Router holds the
+        /// final messages of the children (`SessionEvent.mailDeliveryPaused`),
+        /// or `nil` when no hold is in force. The start of a submission ends
+        /// the hold: only user-type mail starts an answer while the Router
+        /// holds the mail.
+        var pause: String?
+
         /// `true` after a caller cancelled the run.
         var isCancelRequested = false
 
@@ -190,6 +197,31 @@ public final class AgentRun: Sendable {
     /// The state of the run.
     public var state: AgentRunState {
         storage.withLock { $0.state }
+    }
+
+    /// The hold of the mail of a run in operation, or `nil` when the run is
+    /// not paused.
+    ///
+    /// The Router holds the final messages of the runs that this run started
+    /// when too many answers in a row came from mail alone
+    /// (`SessionEvent.mailDeliveryPaused`). The run then starts no answer and
+    /// no new run. It waits until each run that it started ends, then it ends
+    /// as ``AgentRunFailure/mailDeliveryPaused(_:)`` with the held results. A
+    /// message from the caller (``deliver(_:from:)``) ends the hold, and the
+    /// run goes on. While the run waits, this value tells the hold and the
+    /// count of runs that it waits for, thus a host can see that the run does
+    /// not hang.
+    public var pause: AgentRunPause? {
+        let description = storage.withLock { storage in
+            storage.state == .running ? storage.pause : nil
+        }
+        return description.map { AgentRunPause(description: $0, openChildren: children.openCount) }
+    }
+
+    /// The description of the hold of the mail, or `nil` when no hold is in
+    /// force.
+    var pauseDescription: String? {
+        storage.withLock { $0.pause }
     }
 
     /// The session that the run holds: the session of the answers in
@@ -685,7 +717,11 @@ public final class AgentRun: Sendable {
     }
 
     /// Adds one event of the session to the record of the run: its progress,
-    /// its answers, and its phase.
+    /// its answers, its phase, and the hold of its mail.
+    ///
+    /// `mailDeliveryPaused` starts a hold. The start of a submission ends it:
+    /// while the Router holds the mail, only user-type mail starts an answer,
+    /// for example a message from the caller.
     ///
     /// - Parameter event: An event of the session-event subscription.
     func record(_ event: SessionEvent) {
@@ -693,6 +729,12 @@ public final class AgentRun: Sendable {
             storage.progress.apply(event)
             storage.answers.apply(event)
             storage.progress.phase = AgentRunPhase(after: storage.answers, current: storage.progress.phase)
+            if case .mailDeliveryPaused(let hold) = event {
+                storage.pause = hold.description
+            }
+            if case .submissionStarted = event {
+                storage.pause = nil
+            }
         }
     }
 

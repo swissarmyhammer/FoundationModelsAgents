@@ -51,8 +51,10 @@ The message comes to the session of the caller as mail
 to it. The run continues to work. A run that started agents answers each
 message of a child before it ends. The answers to messages count toward
 `mailOnlyAnswerLimit` in the same way as the answers to final messages. When
-the Router holds that mail and starts no answer for it, the run fails with
-``AgentRunFailure/mailDeliveryPaused(_:)``. A session that has no caller, for
+the Router holds that mail and starts no answer for it, the run pauses: it
+waits until each run that it started ended, then it fails with
+``AgentRunFailure/mailDeliveryPaused(_:)`` and the held results (see
+<doc:TheFinalMessage>). A message from its caller ends the hold. A session that has no caller, for
 example a host session or a host-started run, gets the corrective "You have
 no caller."
 

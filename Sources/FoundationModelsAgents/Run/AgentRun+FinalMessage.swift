@@ -17,7 +17,8 @@ extension AgentRun {
     ///
     /// - A run in operation: "Agent `name` (`id`) is running." After the
     ///   answer of its task prompt, while runs that it started are open,
-    ///   then "It waits for `N` agents that it started." Then the lines of
+    ///   then "It waits for `N` agents that it started." While the Router
+    ///   holds the mail of the run, then ``pausedSentence``. Then the lines of
     ///   its progress (``AgentRunProgress/text``): the phase, the passes, the
     ///   last tool names, and the text so far. The text reads only the lock
     ///   of the run, thus it never waits for an answer.
@@ -48,8 +49,20 @@ extension AgentRun {
     /// The text of a run in operation: the heading line, then the lines of
     /// its progress.
     private var runningText: String {
-        let heading = ["\(subject) is running.", waitingSentence].compactMap(\.self).joined(separator: " ")
+        let heading = ["\(subject) is running.", waitingSentence, pausedSentence].compactMap(\.self)
+            .joined(separator: " ")
         return "\(heading)\n\(progress.text)"
+    }
+
+    /// The sentence that `check agent` adds while the Router holds the mail
+    /// of the run (``pause``): "It is paused: `description`. It waits for `N`
+    /// agents that it started, then it ends with their results. A message
+    /// from its caller lets it continue." `nil` when the run is not paused.
+    var pausedSentence: String? {
+        pause.map { pause in
+            "It is paused: \(pause.description). It waits for \(pause.openChildren) agents that it started, "
+                + "then it ends with their results. A message from its caller lets it continue."
+        }
     }
 
     /// The text of a cancelled run: "Agent `name` (`id`) was cancelled."
