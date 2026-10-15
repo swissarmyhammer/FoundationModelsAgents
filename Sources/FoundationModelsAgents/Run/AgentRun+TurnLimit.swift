@@ -178,3 +178,80 @@ final class AgentRunTurns: Sendable {
         }
     }
 }
+
+/// The rule that decides when a run stops its session with `cancelAll()`
+/// after the count of passes went above the `maxTurns` limit.
+///
+/// The follower of the run gives the rule each event, and each signal of an
+/// event. The rule has no other part beside it.
+///
+/// - A generation call that ended with response text ended its attempt, thus
+///   no more pass can start in that answer. When that call makes the count go
+///   above the limit, the stop comes with the
+///   ``AgentRunSignal/limitHit(partial:)`` signal at the end of that answer.
+///   The partial text is then the reply of that answer. The Router sends the
+///   generation call before `answered`, thus a stop at the generation call can
+///   drop the reply, and the partial text is then the reply of an earlier
+///   answer.
+/// - Each other event that makes the count go above the limit stops the
+///   session at once, for example a generation call that ended with a tool
+///   call: the tool and the next pass must not run.
+struct AgentRunLimitStop: Sendable {
+    /// What the follower does after one step of the rule.
+    enum Action: Sendable, Equatable {
+        /// The follower does not stop the session.
+        case none
+
+        /// The follower stops the session with `cancelAll()`.
+        case stop
+    }
+
+    /// `true` after a generation call that ended with response text made the
+    /// count go above the limit, until the end of its answer.
+    private var isStopAtAnswerEnd = false
+
+    /// Gives the action after the count of passes applied one event.
+    ///
+    /// - Parameters:
+    ///   - event: The event.
+    ///   - wentAboveLimit: `true` when this event made the count go above the
+    ///     limit the first time (``AgentRunTurns/apply(_:)``).
+    /// - Returns: ``Action/stop`` for an event above the limit that is not a
+    ///   generation call with response text, else ``Action/none``.
+    mutating func action(after event: SessionEvent, wentAboveLimit: Bool) -> Action {
+        guard wentAboveLimit else {
+            return .none
+        }
+        if Self.endsAttemptWithText(event) {
+            isStopAtAnswerEnd = true
+            return .none
+        }
+        return .stop
+    }
+
+    /// Gives the action at one signal of the run.
+    ///
+    /// - Parameter signal: The signal of an event.
+    /// - Returns: ``Action/stop`` for the ``AgentRunSignal/limitHit(partial:)``
+    ///   signal after a generation call with response text went above the
+    ///   limit, else ``Action/none``.
+    mutating func action(at signal: AgentRunSignal) -> Action {
+        guard case .limitHit = signal, isStopAtAnswerEnd else {
+            return .none
+        }
+        isStopAtAnswerEnd = false
+        return .stop
+    }
+
+    /// Tells if `event` is a generation call that ended with response text.
+    ///
+    /// - Parameter event: A session event.
+    /// - Returns: `true` for a ``SessionEvent/generationCall(_:)`` whose entry
+    ///   kind is `.text`.
+    static func endsAttemptWithText(_ event: SessionEvent) -> Bool {
+        if case .generationCall(let usage) = event {
+            return usage.entryKind == .text
+        }
+        return false
+    }
+}
