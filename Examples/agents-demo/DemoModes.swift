@@ -254,7 +254,7 @@ enum AgentsDemoModes {
             .submissionQueued, .submissionStarted, .submissionEnded, .repetitionStopped,
             .elicitationRequested, .generationCall, .compactionStarted, .compactionFailed,
             .reasoningStopped, .runProgress, .mailDelivered, .cancelled, .signalDone, .lost,
-            .workStarted, .workEnded, .elicitationEnded:
+             .workStarted, .workEnded, .elicitationEnded, .elicitationCompleted:
             []
         }
     }
