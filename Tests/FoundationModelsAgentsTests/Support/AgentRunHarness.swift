@@ -1,6 +1,7 @@
 import Foundation
 import FoundationModels
 @testable import FoundationModelsAgents
+import FoundationModelsExtras
 import FoundationModelsRouter
 import FoundationModelsSkills
 import Logging
@@ -115,13 +116,16 @@ struct AgentRunHarness {
     ///     `SessionConfiguration.defaultMailOnlyAnswerLimit`.
     ///   - inlineSettleGrace: The settle period of the session of each run.
     ///     The default is ``settleGrace``.
+    ///   - runUserPresence: The user presence of the session of each run. The
+    ///     default is `.headless`, the value of each run outside the tests.
     /// - Returns: The environment.
     func environment(
         maxRetainedRuns: Int,
         maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents,
         maxDepth: Int = AgentEnvironment.defaultMaxDepth,
         mailOnlyAnswerLimit: Int = SessionConfiguration.defaultMailOnlyAnswerLimit,
-        inlineSettleGrace: TimeInterval = settleGrace
+        inlineSettleGrace: TimeInterval = settleGrace,
+        runUserPresence: UserPresence = .headless
     ) -> AgentEnvironment {
         var environment = AgentEnvironment(
             profile: profile, skills: skills, skillsTool: skillsTool,
@@ -131,6 +135,7 @@ struct AgentRunHarness {
             metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace,
             runEventObserver: runEventObserver)
         environment.mailOnlyAnswerLimit = mailOnlyAnswerLimit
+        environment.runUserPresence = runUserPresence
         return environment
     }
 
@@ -150,19 +155,23 @@ struct AgentRunHarness {
     ///     `SessionConfiguration.defaultMailOnlyAnswerLimit`.
     ///   - inlineSettleGrace: The settle period of the session of each run.
     ///     The default is ``settleGrace``.
+    ///   - runUserPresence: The user presence of the session of each run. The
+    ///     default is `.headless`.
     /// - Returns: The runner.
     func makeRunner(
         maxRetainedRuns: Int = AgentEnvironment.defaultMaxRetainedRuns,
         maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents,
         maxDepth: Int = AgentEnvironment.defaultMaxDepth,
         mailOnlyAnswerLimit: Int = SessionConfiguration.defaultMailOnlyAnswerLimit,
-        inlineSettleGrace: TimeInterval = settleGrace
+        inlineSettleGrace: TimeInterval = settleGrace,
+        runUserPresence: UserPresence = .headless
     ) -> AgentRunner {
         AgentRunner(
             registry: registry,
             environment: environment(
                 maxRetainedRuns: maxRetainedRuns, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
-                mailOnlyAnswerLimit: mailOnlyAnswerLimit, inlineSettleGrace: inlineSettleGrace))
+                mailOnlyAnswerLimit: mailOnlyAnswerLimit, inlineSettleGrace: inlineSettleGrace,
+                runUserPresence: runUserPresence))
     }
 
     /// Makes a root session of a host on `model`, with ``settleGrace`` as its
@@ -182,7 +191,8 @@ struct AgentRunHarness {
     ) -> any RoutedSession {
         model.makeSession(
             configuration: SessionConfiguration(
-                instructions: instructions, tools: tools, inlineSettleGrace: inlineSettleGrace))
+                instructions: instructions, tools: tools, inlineSettleGrace: inlineSettleGrace,
+                userPresence: .headless))
     }
 
     /// Makes a harness.

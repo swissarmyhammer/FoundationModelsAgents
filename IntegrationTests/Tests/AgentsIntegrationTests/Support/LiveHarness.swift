@@ -169,7 +169,7 @@ struct LiveHarness {
         live.profile.standard.makeSession(
             configuration: SessionConfiguration(
                 instructions: Self.rootInstructions, workingDirectory: workingDirectory, tools: tools,
-                inlineSettleGrace: inlineSettleGrace))
+                inlineSettleGrace: inlineSettleGrace, userPresence: .headless))
     }
 
     /// Calls `tool` as the host, outside of a Router session. The caller of

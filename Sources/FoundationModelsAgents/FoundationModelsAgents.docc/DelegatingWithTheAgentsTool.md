@@ -88,9 +88,15 @@ answer in the same answer of the model.
 
 ```swift
 let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
-let root = profile.standard.makeSession(instructions: "…", workingDirectory: projectURL,
-                                        tools: [agentsTool] + otherTools)
+let root = profile.standard.makeSession(
+    configuration: SessionConfiguration(instructions: "…", workingDirectory: projectURL,
+                                        tools: [agentsTool] + otherTools, userPresence: .headless))
 ```
+
+A host with no UI for questions makes its root session headless: a question
+of the session then ends at once with a cancel and a reason. The session of
+each run is always headless, because no user can answer a question of a run
+session yet.
 
 ``AgentsTool/make(context:catalogCharacterLimit:)`` reads the catalog of the
 runner one time. The model-visible agents go into two places:

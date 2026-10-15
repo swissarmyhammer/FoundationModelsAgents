@@ -1,4 +1,5 @@
 import Foundation
+import FoundationModels
 import FoundationModelsAgents
 import FoundationModelsRouter
 import FoundationModelsSkills
@@ -383,7 +384,7 @@ enum AgentsDemoModes {
     ) async throws -> ULID {
         let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
         let root = conversation.profile.standard.makeSession(
-            configuration: SessionConfiguration(
+            configuration: rootConfiguration(
                 instructions: conversation.instructions, workingDirectory: conversation.workingDirectory,
                 tools: [agentsTool], inlineSettleGrace: conversation.inlineSettleGrace))
         let events = await root.streamSessionEvents()
@@ -398,6 +399,28 @@ enum AgentsDemoModes {
         await root.close()
         await writer.value
         return root.id
+    }
+
+    /// The configuration of the root session of one conversation mode.
+    ///
+    /// The session is headless: the demo reads each line of the user as a
+    /// message, and it has no UI that shows a question and reads an answer.
+    /// Thus a question of the root session ends at once with a cancel that
+    /// gives `RunPlane.noUserPresentReason`, and no question waits.
+    ///
+    /// - Parameters:
+    ///   - instructions: The instructions of the root session.
+    ///   - workingDirectory: The working directory of the root session.
+    ///   - tools: The tools of the root session.
+    ///   - inlineSettleGrace: The settle period of the root session, in
+    ///     seconds.
+    /// - Returns: The configuration.
+    static func rootConfiguration(
+        instructions: String, workingDirectory: URL, tools: [any Tool], inlineSettleGrace: TimeInterval
+    ) -> SessionConfiguration {
+        SessionConfiguration(
+            instructions: instructions, workingDirectory: workingDirectory, tools: tools,
+            inlineSettleGrace: inlineSettleGrace, userPresence: .headless)
     }
 
     /// Writes the ``lines(for:)`` of each event of `events`, until the stream

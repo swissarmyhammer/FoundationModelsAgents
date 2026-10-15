@@ -141,13 +141,15 @@ let review = try await run.result()
 let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
 // A `start agent` call waits for the run up to `inlineSettleGrace` seconds. A run that
 // ends in that time gives its final message as the output of the call. With 0, each
-// run goes to the background at once.
+// run goes to the background at once. This host has no UI for questions, thus the
+// session is headless: a question ends at once with a cancel and a reason.
 let root = profile.standard.makeSession(
     configuration: SessionConfiguration(
         instructions: "You give work to agents with the agents tool.",
         workingDirectory: projectDirectory,
         tools: [agentsTool, environment.skillsTool],
-        inlineSettleGrace: 0))
+        inlineSettleGrace: 0,
+        userPresence: .headless))
 let events = await root.streamSessionEvents()   // subscribe before the first message
 let askID = try root.send("Ask code-reviewer to review Sources/Parser.swift.")
 _ = try await root.awaitAnswer(of: askID)       // wait on an id only after send returned it

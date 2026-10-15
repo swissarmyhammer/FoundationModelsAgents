@@ -253,6 +253,9 @@ extension AgentRun {
             let event = output.event
             record(event)
             sessionWatch.observe(output)
+            if case .elicitationRequested(let operation) = event {
+                await answerQuestion(of: operation, on: session)
+            }
             if limitStop.action(after: event, wentAboveLimit: turns.apply(event)) == .stop {
                 session.cancelAll()
             }
@@ -265,6 +268,31 @@ extension AgentRun {
         }
         signals.continuation.yield(.sessionClosed)
         signals.continuation.finish()
+    }
+
+    /// Answers one question of the session of the run at once, with a cancel
+    /// that gives `RunPlane.noUserPresentReason`.
+    ///
+    /// No user can answer a question of a run session: its events go only to
+    /// the run and to the observer of the host. The session of each run is
+    /// headless (``AgentEnvironment/runUserPresence``), thus a question of the
+    /// run ends at once and sends no event. This guard answers a question
+    /// that still comes, for example from a run session that a test made
+    /// interactive. Thus no run waits for an answer that cannot come.
+    ///
+    /// Phase 4 of the elicitation plan (tasks 45 and 46) replaces this guard
+    /// with a forward of the question to the parent of the run.
+    ///
+    /// - Parameters:
+    ///   - operation: The event of the question.
+    ///   - session: The session of the run.
+    func answerQuestion(of operation: OperationEvent, on session: any RoutedSession) async {
+        guard let question = operation.elicitation else {
+            return
+        }
+        await session.respond(
+            elicitationId: question.elicitationId.ulidString,
+            response: .cancel(reason: RunPlane.noUserPresentReason))
     }
 
     /// Gives the signal of one session event, or `nil` for an event that

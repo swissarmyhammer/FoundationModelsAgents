@@ -10,7 +10,9 @@ import FoundationModelsRouter
 ///    body of each skill of the `skills` key, in the order of the key
 ///    (``AgentSkillsPreload``).
 /// 3. Resolve the tools.
-/// 4. Match the model, and make the session on the slot of the match.
+/// 4. Match the model, and make the session on the slot of the match. The
+///    session is headless (``AgentEnvironment/runUserPresence``): a question
+///    of the run ends at once with a cancel and a reason.
 ///
 /// The model match comes before the tools, because the `agents` tool of the
 /// run gives the slot of the run to each child with `model: inherit`. Each
@@ -69,7 +71,8 @@ struct AgentSessionMaker: Sendable {
                     prompt: definition.compactionPrompt ?? .default),
                 agentSpawn: request.agentSpawn,
                 mailOnlyAnswerLimit: environment.mailOnlyAnswerLimit,
-                inlineSettleGrace: environment.inlineSettleGrace))
+                inlineSettleGrace: environment.inlineSettleGrace,
+                userPresence: environment.runUserPresence))
         return Made(session: session, slot: slot)
     }
 

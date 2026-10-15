@@ -24,7 +24,8 @@ import Tracing
 ///                                           workingDirectory: projectURL, tools: tools,
 ///                                           defaultSlot: .standard, maxConcurrentAgents: 4, maxDepth: 3)
 /// let root = profile.standard.makeSession(
-///     configuration: SessionConfiguration(instructions: instructions, tools: [env.skillsTool, agentsTool]))
+///     configuration: SessionConfiguration(
+///         instructions: instructions, tools: [env.skillsTool, agentsTool], userPresence: .headless))
 /// ```
 public struct AgentEnvironment: Sendable {
     /// Tells if the `skills` tool shows a skill. The `skills:` preload uses
@@ -180,6 +181,17 @@ public struct AgentEnvironment: Sendable {
     /// The default is the default of the Router,
     /// `SessionConfiguration.defaultMailOnlyAnswerLimit`.
     var mailOnlyAnswerLimit = SessionConfiguration.defaultMailOnlyAnswerLimit
+
+    /// The user presence of the session of each run. It is `.headless`:
+    /// nothing can answer a question of a run session, thus a question of a
+    /// run ends at once with a cancel that gives
+    /// `RunPlane.noUserPresentReason`, and the run goes on. Phase 4 of the
+    /// elicitation plan (tasks 45 and 46) sends the questions of a run to its
+    /// parent.
+    ///
+    /// Only tests change this value: an interactive run session lets a test
+    /// reach the question guard of the run (``AgentRun/answerQuestion(of:on:)``).
+    var runUserPresence = UserPresence.headless
 
     /// Makes an environment, and makes its `skills` tool from `skills`.
     ///
