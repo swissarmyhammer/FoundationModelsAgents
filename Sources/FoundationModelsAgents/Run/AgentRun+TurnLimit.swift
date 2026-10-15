@@ -14,13 +14,16 @@ import Synchronization
 /// ``SessionEvent/generationCall(_:)``, thus it does not count.
 ///
 /// When the count goes above the limit, the follower of the run stops its
-/// session with `cancelAll()` at once. The open answer then ends with
-/// ``SessionEvent/answerFailed(_:)``, and the run ends as
-/// ``AgentRunFailure/hitMaxTurns(partial:)``. The session sends no more
-/// events of the stopped answer, also not its
-/// ``SessionEvent/submissionEnded(_:)``. Thus the count of that submission
-/// stays its live count. The run ends at that time, thus this does not change
-/// the result.
+/// session with `cancelAll()`, and the run ends as
+/// ``AgentRunFailure/hitMaxTurns(partial:)``. When a generation call that
+/// ended with response text makes the count go above the limit, the stop
+/// comes at the end of that answer: no more pass can start in it, and the
+/// partial text is its reply. Each other event that makes the count go above
+/// the limit stops the session at once. The open answer then ends with
+/// ``SessionEvent/answerFailed(_:)``. The session sends no more events of
+/// the stopped answer, also not its ``SessionEvent/submissionEnded(_:)``.
+/// Thus the count of that submission stays its live count. The run ends at
+/// that time, thus this does not change the result.
 ///
 /// The run reads its one session-event subscription, and gives each event to
 /// ``apply(_:)``. Two kinds of events feed the count:

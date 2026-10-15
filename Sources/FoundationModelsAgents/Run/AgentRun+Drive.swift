@@ -230,9 +230,17 @@ extension AgentRun {
     /// the run uses it. Each event then feeds the progress and the answers of
     /// the run (``record(_:)``), the watch of the mail and of the tool calls
     /// of the session (``ParentSessionWatch/observe(_:)``), and the count of
-    /// passes. When the count goes above the limit, the run stops its session
-    /// at once. Then each event that decides the end of the run gives its
+    /// passes. Then each event that decides the end of the run gives its
     /// signal (``signal(after:on:)``).
+    ///
+    /// When the count goes above the limit, the run stops its session with
+    /// `cancelAll()`. A generation call that ended with response text ended
+    /// its attempt, thus no more pass can start in that answer. The stop then
+    /// comes with the ``AgentRunSignal/limitHit(partial:)`` signal at the end
+    /// of that answer, thus the partial text is the reply of that answer. A
+    /// stop before that end can drop the reply, and the partial text is then
+    /// the reply of an earlier answer. Each other event stops the session at
+    /// once.
     ///
     /// - Parameters:
     ///   - events: The session-event subscription of the run, made before
@@ -244,15 +252,24 @@ extension AgentRun {
         _ events: AsyncStream<SessionOutput>, on session: any RoutedSession,
         observer: AgentEnvironment.RunEventObserver?
     ) async {
+        var isStopAtAnswerEnd = false
         for await output in events {
             observer?(self, output)
             let event = output.event
             record(event)
             sessionWatch.observe(output)
             if turns.apply(event) {
-                session.cancelAll()
+                if Self.endsAttemptWithText(event) {
+                    isStopAtAnswerEnd = true
+                } else {
+                    session.cancelAll()
+                }
             }
             if let signal = await signal(after: event, on: session) {
+                if case .limitHit = signal, isStopAtAnswerEnd {
+                    isStopAtAnswerEnd = false
+                    session.cancelAll()
+                }
                 signals.continuation.yield(signal)
             }
         }
@@ -415,4 +432,17 @@ extension AgentRun {
     /// The kinds of mail that keep the session from idle while they wait in
     /// the queue: each kind except run mail.
     static let userTypeKinds: [MailKind] = MailKind.allCases.filter { $0 != .runEvent }
+
+    /// Tells if `event` is a generation call that ended with response text.
+    /// That call ended its attempt, thus no more pass can start in its answer.
+    ///
+    /// - Parameter event: A session event.
+    /// - Returns: `true` for a ``SessionEvent/generationCall(_:)`` whose entry
+    ///   kind is `.text`.
+    static func endsAttemptWithText(_ event: SessionEvent) -> Bool {
+        if case .generationCall(let usage) = event {
+            return usage.entryKind == .text
+        }
+        return false
+    }
 }
