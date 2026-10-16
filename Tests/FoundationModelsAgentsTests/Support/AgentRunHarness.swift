@@ -257,6 +257,36 @@ struct AgentRunHarness {
             metricsFactory: metricsFactory, runEventObserver: runEventObserver, scratch: scratch)
     }
 
+    /// Makes a temporary layer that holds `agentFiles` and a harness over it,
+    /// runs `body` with the harness, then deletes the harness and the layer.
+    ///
+    /// - Parameters:
+    ///   - agentFiles: The text of each file of the layer, by its path
+    ///     relative to the root of the layer.
+    ///   - plays: The plays of the script.
+    ///   - tools: The tool catalog of each run. The default is an empty
+    ///     catalog.
+    ///   - runEventObserver: The observer of the session events of each run,
+    ///     or `nil` (the default) for no observer.
+    ///   - body: Reads the harness.
+    /// - Returns: The value of `body`.
+    /// - Throws: The error of the file system, of the harness, or of `body`.
+    static func withLayer<Value>(
+        holding agentFiles: [String: String],
+        plays: [ScriptedAgentPlay],
+        tools: ToolCatalog = ToolCatalog(),
+        runEventObserver: AgentEnvironment.RunEventObserver? = nil,
+        _ body: (AgentRunHarness) async throws -> Value
+    ) async throws -> Value {
+        let layer = try TemporaryLayer.make(holding: agentFiles)
+        defer { try? layer.delete() }
+        let harness = try await make(
+            script: ScriptedAgentScript(plays), registry: AgentRegistry(layers: [layer.layer]), tools: tools,
+            runEventObserver: runEventObserver)
+        defer { try? harness.delete() }
+        return try await body(harness)
+    }
+
     /// Makes the request of a host-started run of `agent` with `prompt`.
     ///
     /// - Parameters:

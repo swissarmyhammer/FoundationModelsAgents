@@ -148,15 +148,14 @@ extension NestedRunTests {
             runEventObserver: AgentEnvironment.RunEventObserver? = nil,
             body: (AgentRun, ScriptedAgentScript) async throws -> Value
         ) async throws -> Value {
-            let layer = try TemporaryLayer.make(holding: agentFiles)
-            defer { try? layer.delete() }
-            let script = ScriptedAgentScript([parentPlay, ScriptedAgentPlay(key: childKey, steps: childSteps)])
-            let harness = try await AgentRunHarness.make(
-                script: script, registry: AgentRegistry(layers: [layer.layer]), runEventObserver: runEventObserver)
-            defer { try? harness.delete() }
-            let parent = try await harness.makeRunner(mailOnlyAnswerLimit: mailOnlyAnswerLimit)
-                .start(Self.parent, prompt: parentKey)
-            return try await body(parent, script)
+            try await AgentRunHarness.withLayer(
+                holding: agentFiles, plays: [parentPlay, ScriptedAgentPlay(key: childKey, steps: childSteps)],
+                runEventObserver: runEventObserver
+            ) { harness in
+                let parent = try await harness.makeRunner(mailOnlyAnswerLimit: mailOnlyAnswerLimit)
+                    .start(Self.parent, prompt: parentKey)
+                return try await body(parent, harness.script)
+            }
         }
 
         /// Gives the child of `parent`. Call it only after an event that

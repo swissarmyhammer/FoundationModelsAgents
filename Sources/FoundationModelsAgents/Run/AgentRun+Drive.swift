@@ -235,6 +235,10 @@ extension AgentRun {
     /// results (``heldResults(after:)``). The wait goes on while an answer is
     /// open, or while a message from the caller is on its way to the queue
     /// or waits in it: that message ends the hold, and the run goes on. The
+    /// wait also goes on while user-type mail waits in the queue or a
+    /// question of the session is open
+    /// (``waitsForNoUserInput(on:requiringNoRunningMail:callsAreDone:)``).
+    /// This check does not look at the mail that the pump runs. The
     /// record of the final state goes through
     /// ``settle(idle:acceptedMessages:)``, thus a message that the run
     /// accepts after the check keeps the run in operation.
@@ -248,10 +252,7 @@ extension AgentRun {
         else {
             return nil
         }
-        let depth = await session.mailQueueDepth()
-        guard Self.userTypeKinds.allSatisfy({ (depth.depthByKind[$0] ?? 0) == 0 }),
-            await session.openElicitationIds().isEmpty
-        else {
+        guard await waitsForNoUserInput(on: session, requiringNoRunningMail: false) else {
             return nil
         }
         return settle(idle: .failed(.mailDeliveryPaused(heldResults(after: pause))), acceptedMessages: acceptedMessages)
@@ -501,7 +502,10 @@ extension AgentRun {
     /// - No user-type mail waits in the queue (``userTypeKinds``), and the
     ///   pump runs no mail. Run mail in the queue does not keep the session
     ///   from idle: progress mail starts no answer, thus it can wait after
-    ///   the last answer.
+    ///   the last answer. One call makes this check, the check of the tool
+    ///   calls, the check of the terminal events, and the check of the open
+    ///   questions, in that order
+    ///   (``waitsForNoUserInput(on:requiringNoRunningMail:callsAreDone:)``).
     /// - Each tool call of the session closed
     ///   (``ParentSessionWatch/isEachCallClosed``). A call posts its open
     ///   record before it gives the model the pending envelope of a
@@ -543,19 +547,46 @@ extension AgentRun {
         else {
             return nil
         }
-        let depth = await session.mailQueueDepth()
-        guard Self.userTypeKinds.allSatisfy({ (depth.depthByKind[$0] ?? 0) == 0 }), depth.running.isEmpty else {
-            return nil
+        let isIdle = await waitsForNoUserInput(on: session, requiringNoRunningMail: true) {
+            sessionWatch.isEachCallClosed
+                && sessionWatch.hasTerminal(
+                    forEachMailOfCalls: children.runs.compactMap { $0.context?.completionToken },
+                    and: mailedUserTypeMail.map(\.id))
         }
-        guard sessionWatch.isEachCallClosed,
-            sessionWatch.hasTerminal(
-                forEachMailOfCalls: children.runs.compactMap { $0.context?.completionToken },
-                and: mailedUserTypeMail.map(\.id)),
-            await session.openElicitationIds().isEmpty
-        else {
+        guard isIdle else {
             return nil
         }
         return acceptedMessages
+    }
+
+    /// Tells if the session waits for no input of the user: no user-type
+    /// mail waits in the queue (``userTypeKinds``), and no question of the
+    /// session is open (`openElicitationIds()`). A question that a child sent
+    /// up through this session counts as a question of the session.
+    ///
+    /// The check reads the queue first. Then it calls `callsAreDone`, and it
+    /// reads the open questions last. It stops at the first check that is
+    /// false.
+    ///
+    /// - Parameters:
+    ///   - session: The session of the run.
+    ///   - requiringNoRunningMail: `true` when the pump must also run no mail.
+    ///     The idle check of a run gives `true`. The drain check of a paused
+    ///     run gives `false`.
+    ///   - callsAreDone: The checks of the caller between the queue and the
+    ///     open questions. The default is no check.
+    /// - Returns: `true` when the session waits for no input of the user.
+    private func waitsForNoUserInput(
+        on session: any RoutedSession, requiringNoRunningMail: Bool, callsAreDone: () -> Bool = { true }
+    ) async -> Bool {
+        let depth = await session.mailQueueDepth()
+        guard Self.userTypeKinds.allSatisfy({ (depth.depthByKind[$0] ?? 0) == 0 }),
+            !requiringNoRunningMail || depth.running.isEmpty,
+            callsAreDone()
+        else {
+            return false
+        }
+        return await session.openElicitationIds().isEmpty
     }
 
     /// The kinds of mail that keep the session from idle while they wait in

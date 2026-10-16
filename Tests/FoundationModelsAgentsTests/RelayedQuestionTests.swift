@@ -166,8 +166,6 @@ struct RelayedQuestionTests {
     ///   - body: The test.
     /// - Throws: The error of the setup, or of `body`.
     private static func withParts(plays: [ScriptedAgentPlay], _ body: (Parts) async throws -> Void) async throws {
-        let layer = try TemporaryLayer.make(holding: agentFiles)
-        defer { try? layer.delete() }
         let answers = AskedAnswers()
         let askerEnds = EndRecord(agent: asker)
         let leadEnds = EndRecord(agent: lead)
@@ -175,20 +173,21 @@ struct RelayedQuestionTests {
         tools.register(askToolName) {
             AskingTool(name: askToolName, answers: answers)
         }
-        let harness = try await AgentRunHarness.make(
-            script: ScriptedAgentScript(plays), registry: AgentRegistry(layers: [layer.layer]), tools: tools,
+        try await AgentRunHarness.withLayer(
+            holding: agentFiles, plays: plays, tools: tools,
             runEventObserver: { run, output in
                 askerEnds.observe(run, output)
                 leadEnds.observe(run, output)
-            })
-        defer { try? harness.delete() }
-        let runner = harness.makeRunner()
-        let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
-        let root = AgentRunHarness.makeRootSession(
-            on: harness.profile.standard, instructions: rootKey, tools: [agentsTool], userPresence: .interactive)
-        try await body(
-            Parts(root: root, runner: runner, answers: answers, askerEnds: askerEnds, leadEnds: leadEnds))
-        await root.close()
+            }
+        ) { harness in
+            let runner = harness.makeRunner()
+            let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
+            let root = AgentRunHarness.makeRootSession(
+                on: harness.profile.standard, instructions: rootKey, tools: [agentsTool], userPresence: .interactive)
+            try await body(
+                Parts(root: root, runner: runner, answers: answers, askerEnds: askerEnds, leadEnds: leadEnds))
+            await root.close()
+        }
     }
 
     /// Reads `events` up to the first question, and gives it. It stops with

@@ -149,29 +149,28 @@ extension NestedRunTests {
         ///   - body: Reads the lead.
         /// - Throws: The error of the harness, of the start, or of `body`.
         private static func withLead(parts: [Part], _ body: (AgentRun) async throws -> Void) async throws {
-            let layer = try TemporaryLayer.make(holding: agentFiles)
-            defer { try? layer.delete() }
             let leadPlay = NestedRunTests.parentPlay(leadKey, children: parts.map { (name: child, prompt: $0.key) })
-            let script = ScriptedAgentScript([leadPlay] + parts.map(\.play))
             var tools = ToolCatalog()
             for part in parts {
                 tools.register(part.toolName) { GateTool(name: part.toolName, gate: part.gate) }
             }
-            let harness = try await AgentRunHarness.make(
-                script: script, registry: AgentRegistry(layers: [layer.layer]), tools: tools)
-            defer { try? harness.delete() }
-            let lead = try await harness.makeRunner(mailOnlyAnswerLimit: pausedLimit).start(Self.lead, prompt: leadKey)
-            do {
-                try await NestedRunTests.waitUntil(lead) { run in
-                    !run.answers.isAnswerOpen && run.answers.lastReply == NestedRunTests.startedText
+            try await AgentRunHarness.withLayer(
+                holding: agentFiles, plays: [leadPlay] + parts.map(\.play), tools: tools
+            ) { harness in
+                let lead = try await harness.makeRunner(mailOnlyAnswerLimit: pausedLimit)
+                    .start(Self.lead, prompt: leadKey)
+                do {
+                    try await NestedRunTests.waitUntil(lead) { run in
+                        !run.answers.isAnswerOpen && run.answers.lastReply == NestedRunTests.startedText
+                    }
+                    try await body(lead)
+                } catch {
+                    for part in parts {
+                        part.gate.open()
+                    }
+                    _ = await lead.finalState()
+                    throw error
                 }
-                try await body(lead)
-            } catch {
-                for part in parts {
-                    part.gate.open()
-                }
-                _ = await lead.finalState()
-                throw error
             }
         }
 
