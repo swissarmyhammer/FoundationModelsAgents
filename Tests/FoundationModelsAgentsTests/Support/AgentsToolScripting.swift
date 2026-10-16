@@ -70,6 +70,23 @@ extension ScriptedAgentScript {
             outputs.count(where: { $0.contains(Self.pendingMark) }) == count, "The tool outputs were: \(outputs)",
             sourceLocation: sourceLocation)
     }
+
+    /// Requires that a tool output that the models got is
+    /// ``AgentsToolText/messageSentToCaller``: a `send caller` call of the
+    /// test sent its message, and did not get a corrective.
+    ///
+    /// Call it when the run that sent the message holds at its own gate
+    /// after the call. The test then waits for the mail of the message, and
+    /// must first know that the message went out.
+    ///
+    /// - Parameter sourceLocation: The place of the call in the test.
+    /// - Throws: The error of `#require` when no tool output is that text.
+    func requireMessageSentToCaller(sourceLocation: SourceLocation = #_sourceLocation) throws {
+        let outputs = toolOutputs
+        try #require(
+            outputs.contains(AgentsToolText.messageSentToCaller), "The tool outputs were: \(outputs)",
+            sourceLocation: sourceLocation)
+    }
 }
 
 /// One event of a root session that the message suites read.
@@ -208,5 +225,24 @@ struct StartedRootRun {
     /// - Throws: The error of `#require` when the events end.
     mutating func nextEvent() async throws -> RootSessionEvent {
         try #require(await events.next())
+    }
+
+    /// Waits until the run arrives at `gate` after its `send caller` call,
+    /// or until the run ends. Then it requires that the message went out
+    /// (``ScriptedAgentScript/requireMessageSentToCaller(sourceLocation:)``).
+    ///
+    /// The run cannot end while it holds at its gate. Thus a test calls this
+    /// before it waits for the events of the message.
+    ///
+    /// - Parameters:
+    ///   - gate: The gate of the run after its `send caller` call.
+    ///   - sourceLocation: The place of the call in the test.
+    /// - Throws: The error of `#require` when the run ended before the gate,
+    ///   or when the message did not go out.
+    func requireMessageSent(beforeGate gate: ScriptedGate, sourceLocation: SourceLocation = #_sourceLocation)
+        async throws
+    {
+        try #require(await gate.waitForArrival(orEndOf: run), sourceLocation: sourceLocation)
+        try harness.runHarness.script.requireMessageSentToCaller(sourceLocation: sourceLocation)
     }
 }

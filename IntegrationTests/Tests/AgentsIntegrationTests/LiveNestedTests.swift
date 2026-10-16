@@ -93,9 +93,13 @@ extension LiveSuites {
                 let leaf = try LiveHarness.run(of: Self.leaf, in: await harness.runner.runs(caller: lead.id))
                 let leafText = try await leaf.result()
                 // Wait for the first answer to mail alone: an answer whose mail ids
-                // hold none of the ids that the host sent.
+                // hold none of the ids that the host sent. A failed answer to mail
+                // alone also ends the wait, because no reply comes for that mail.
                 for await output in rootEvents {
                     if case .answered(let answer) = output.event, !answer.mailIds.contains(promptID) {
+                        break
+                    }
+                    if case .answerFailed(let failure) = output.event, !failure.mailIds.contains(promptID) {
                         break
                     }
                 }

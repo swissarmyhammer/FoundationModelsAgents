@@ -166,6 +166,8 @@ struct AgentRunMessageTests {
     /// The run event observer opens a gate at the `answered` event of the
     /// task answer of the lead. The test delivers the message after that
     /// event, thus after the task answer ended and while the child holds.
+    /// The end of the lead also opens the gate, thus a lead that fails
+    /// before that event does not hold the test.
     @Test("a message to a run that waits for its children is delivered and answered")
     func deliveredWhileWaitingForChildren() async throws {
         let childGate = ScriptedGate()
@@ -193,14 +195,14 @@ struct AgentRunMessageTests {
         let runner = harness.makeRunner()
 
         let lead = try await runner.start(NestedRunTests.lead, prompt: NestedRunTests.leadKey)
-        try await taskAnswered.wait()
+        try await taskAnswered.wait(orEndOf: lead)
         let outcome = try lead.deliver(Self.message, from: .user)
+        try #require(outcome == .delivered)
         try await NestedRunTests.arrival(ofPromptContaining: Self.message, in: harness.script)
         childGate.open()
         let result = try await lead.result()
         let child = try await NestedRunTests.onlyRun(of: runner, caller: lead.id)
 
-        #expect(outcome == .delivered)
         #expect(harness.script.prompts.contains(where: Self.isCallerMessage))
         #expect(result.contains(child.report))
     }
@@ -355,13 +357,13 @@ struct AgentRunMessageTests {
             in: harness, hooks: AgentRunIdleHooks(beforeIdleCheck: { try? await checkGate.wait() }))
         await checkGate.waitForArrival()
         let outcome = try run.deliver(Self.message, from: .user)
+        try #require(outcome == .delivered)
         await messageGate.waitForArrival()
         checkGate.open()
         try await messageAnswerRead.wait()
         messageGate.open()
         let result = try await run.result()
 
-        #expect(outcome == .delivered)
         #expect(Self.isCallerMessage(result))
     }
 

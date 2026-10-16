@@ -94,11 +94,7 @@ struct NestedRunTests {
         if condition(run) {
             gate.open()
         }
-        Task {
-            _ = await run.finalState()
-            gate.open()
-        }
-        try await gate.wait()
+        try await gate.wait(orEndOf: run)
     }
 
     /// A scripted call of `start agent`.

@@ -1,4 +1,5 @@
 import FoundationModelsRouter
+import Testing
 
 @testable import FoundationModelsAgents
 
@@ -57,6 +58,7 @@ struct MessageExchange {
             script: script(message: message, gate: gate, send: send), telemetry: telemetry,
             rootKey: rootKey, rootPrompt: rootPrompt
         ) { started in
+            try await started.requireMessageSent(beforeGate: gate)
             _ = try await started.nextEvent()
             _ = try await started.nextEvent()
             send.set(AgentsToolArguments.sendAgent(id: started.run.id.description, message: message))

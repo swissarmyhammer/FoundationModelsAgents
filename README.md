@@ -159,12 +159,16 @@ _ = try await root.awaitAnswer(of: askID)       // wait on an id only after send
 
 // The run works in the background. When it ends, the Router gives its
 // final message to the root session as mail, and the root answers it.
-// An answer to mail alone holds none of the ids that the host sent.
+// An answer to mail alone holds none of the ids that the host sent. A failed
+// answer to mail alone also ends the wait: no reply comes for that mail.
 let hostMailIDs: Set<MailID> = [askID]
 var answer: String?
 for await output in events {
     if case .answered(let mailAnswer) = output.event, !mailAnswer.mailIds.contains(where: hostMailIDs.contains) {
         answer = mailAnswer.reply
+        break
+    }
+    if case .answerFailed(let failure) = output.event, !failure.mailIds.contains(where: hostMailIDs.contains) {
         break
     }
 }

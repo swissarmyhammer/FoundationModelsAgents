@@ -314,7 +314,9 @@ struct AgentRunTests {
             try await run.result()
         }
         #expect(run.state == .cancelled)
-        #expect(run.heldSession == nil)
+        // A run that still holds its session did not close it, thus its
+        // events do not end. The test fails here, before it reads them.
+        try #require(run.heldSession == nil)
         #expect(await Self.ends(sessionEvents))
     }
 

@@ -85,6 +85,7 @@ struct SendCallerTests {
             script: script(childSteps: [sendStep, .wait(gate), .finalText(childText)]),
             rootKey: rootKey, rootPrompt: rootPrompt, setUp: setUp
         ) { started in
+            try await started.requireMessageSent(beforeGate: gate)
             let runMessage = try await started.nextEvent()
             let messageAnswer = try await started.nextEvent()
             gate.open()

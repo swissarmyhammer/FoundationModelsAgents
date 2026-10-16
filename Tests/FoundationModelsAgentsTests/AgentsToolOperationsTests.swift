@@ -226,6 +226,9 @@ struct AgentsToolOperationsTests {
 
         let (_, run) = try await Self.startGatedRun(in: harness, gate: gate)
         let cancelled = try await harness.call("cancel agent", Self.idFields(run))
+        // A cancelled run stays cancelled when its gate opens. A run that did
+        // not get the cancel finishes, thus the wait ends also then.
+        gate.open()
         #expect(await run.finalState() == .cancelled)
         let checked = try await harness.call("check agent", Self.idFields(run))
         let second = try await harness.call("cancel agent", Self.idFields(run))
@@ -275,6 +278,9 @@ struct AgentsToolOperationsTests {
         let (started, run) = try await Self.startGatedRun(in: harness, gate: gate, operation: "run agent")
         let status = try await harness.call("status agent", Self.idFields(run))
         let stopped = try await harness.call("stop agent", Self.idFields(run))
+        // A cancelled run stays cancelled when its gate opens. A run that did
+        // not get the cancel finishes, thus the wait ends also then.
+        gate.open()
 
         #expect(shown == (try await harness.call("list agents")))
         #expect(started.hasPrefix("Agent code-reviewer started with the id \(run.id)."))

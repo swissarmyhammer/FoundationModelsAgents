@@ -101,6 +101,9 @@ struct AgentsDemoTests {
         let registry = AgentRegistry(stack: AgentsDemoLibrary.stack(libraryRoot: library.root), watch: true)
         let (lines, continuation) = AsyncStream.makeStream(of: String.self)
         let watch = Task {
+            // A watch that ends or throws ends the lines, thus each wait for a
+            // line also ends.
+            defer { continuation.finish() }
             try await AgentsDemoModes.watch(registry: registry) { continuation.yield($0) }
         }
         defer { watch.cancel() }

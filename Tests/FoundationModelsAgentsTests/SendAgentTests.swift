@@ -182,17 +182,29 @@ struct SendAgentTests {
         let root = harness.makeRootSession(instructions: Self.rootAKey)
 
         async let rootAnswer = root.respond(to: Self.rootPrompt)
-        await rootGate.waitForArrival()
-        let envelope = try #require(harness.runHarness.script.toolOutputs.first)
-        let token = try #require(ScriptedTranscriptText.completionToken(in: envelope))
-        send.set(AgentsToolArguments.sendAgent(id: token, message: Self.message))
-        rootGate.open()
-        _ = try await rootAnswer
-        let answer = harness.runHarness.script.toolOutputs.last
-        let run = try await Self.onlyRun(in: harness, of: root)
-        childGate.open()
-        let result = try await run.result()
-        await root.close()
+        let answer: String?
+        let run: AgentRun
+        let result: String
+        do {
+            await rootGate.waitForArrival()
+            let envelope = try #require(harness.runHarness.script.toolOutputs.first)
+            let token = try #require(ScriptedTranscriptText.completionToken(in: envelope))
+            send.set(AgentsToolArguments.sendAgent(id: token, message: Self.message))
+            rootGate.open()
+            _ = try await rootAnswer
+            answer = harness.runHarness.script.toolOutputs.last
+            run = try await Self.onlyRun(in: harness, of: root)
+            childGate.open()
+            result = try await run.result()
+            await root.close()
+        } catch {
+            // The answer of the root and the child must end also on a failure:
+            // the scope waits for the answer of the root before it throws.
+            rootGate.open()
+            childGate.open()
+            await root.close()
+            throw error
+        }
 
         #expect(answer == Self.sentText(to: run))
         #expect(result == Self.sessionMessage(from: root.id))

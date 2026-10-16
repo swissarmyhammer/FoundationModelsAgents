@@ -129,6 +129,10 @@ extension LiveSuites {
         /// message. An answer to mail alone is an answer whose mail ids hold
         /// none of the ids that the host sent.
         ///
+        /// A failed answer to mail alone that reads the final message ends the
+        /// stream: no reply comes for that mail. Thus a failure does not make
+        /// the test wait for ever.
+        ///
         /// - Parameters:
         ///   - events: The session-event subscription of the root session,
         ///     made before the host sent its first mail.
@@ -154,6 +158,9 @@ extension LiveSuites {
                         where readsFinalMessage && !answer.mailIds.contains(where: hostMailIDs.contains):
                             readsFinalMessage = false
                             continuation.yield(answer.reply)
+                        case .answerFailed(let failure)
+                        where readsFinalMessage && !failure.mailIds.contains(where: hostMailIDs.contains):
+                            continuation.finish()
                         default:
                             break
                         }

@@ -102,13 +102,24 @@ struct AgentsDemoProfileModeTests {
 
     /// Ends the input after the root answer to the mail, when the gated run
     /// waits on its gate.
+    ///
+    /// The root session calls `start agent` for the gated run before that
+    /// answer. The reader waits for the gate only when each start of the case
+    /// gave the pending envelope. Else the gated run did not start, and the
+    /// reader ends the input at once.
     private struct GatedRunReader: LineReading {
         /// The gate that the late run waits on.
         let gate: ScriptedGate
 
+        /// The script of the case. It records the output of each start.
+        let script: ScriptedAgentScript
+
         func didWrite(_ written: [String], input: AgentsDemoInput.Continuation) async {
             if written.last == AgentsDemoModes.rootLine(AgentsDemoProfileModeTests.deliveredText) {
-                await gate.waitForArrival()
+                if script.toolOutputs.count(where: { $0.contains(ScriptedAgentScript.pendingMark) })
+                    == AgentsDemoProfileModeTests.startsBeforeTheGate {
+                    await gate.waitForArrival()
+                }
                 input.finish()
             }
         }
@@ -147,6 +158,12 @@ struct AgentsDemoProfileModeTests {
 
     /// The text that the gated run gives when its gate opens.
     private static let lateReviewerText = "The parser is still correct."
+
+    /// The count of `start agent` calls in the gated case before the root
+    /// answers the mail: the root starts the lead, the lead starts its child,
+    /// and the root starts the gated run. The settle period is `0`, thus each
+    /// start gives the pending envelope.
+    private static let startsBeforeTheGate = 3
 
     /// The answer of the root session to the first prompt.
     private static let rootText = "I started the lead agent."
@@ -228,7 +245,8 @@ struct AgentsDemoProfileModeTests {
             ScriptedAgentPlay(key: Self.lateReviewerKey, steps: [.wait(gate), .finalText(Self.lateReviewerText)])
         ])
 
-        let written = try await Self.run(.chat, script: script, reader: GatedRunReader(gate: gate)).written
+        let reader = GatedRunReader(gate: gate, script: script)
+        let written = try await Self.run(.chat, script: script, reader: reader).written
         let cancelledLine = AgentsDemoModes.runLine(
             agent: AgentsDemoModes.reviewerAgent, status: AgentsDemoModes.status(of: .cancelled), level: 0)
 
@@ -311,6 +329,12 @@ struct AgentsDemoProfileModeTests {
         var written: [String] = []
         for await line in lines {
             written.append(line)
+            // After a failed root answer, the line that a reader waits for
+            // can never come. Thus the input ends, and the mode ends.
+            if line.hasPrefix(AgentsDemoModes.failedPrefix) {
+                inputContinuation.finish()
+                continue
+            }
             await reader.didWrite(written, input: inputContinuation)
         }
         try await run.value

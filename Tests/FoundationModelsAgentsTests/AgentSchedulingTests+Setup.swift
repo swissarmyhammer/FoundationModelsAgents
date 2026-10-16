@@ -10,7 +10,8 @@ private struct SetupGates {
     /// Holds the turn of the code-reviewer run.
     let reviewer = ScriptedGate()
 
-    /// Holds the turn of the lead run. The test never opens it.
+    /// Holds the turn of the lead run. The test opens it only when its body
+    /// throws.
     let lead = ScriptedGate()
 }
 
@@ -143,19 +144,33 @@ extension AgentSchedulingTests {
             let root = harness.makeRootSession(instructions: Self.rootKey, adding: [probe])
 
             async let rootAnswer = root.respond(to: Self.rootPrompt)
-            await gates.setup.waitForArrival()
-            await harness.tool.context.startedRuns.waitForStarts()
-            let reviewerRun = try await Self.run(of: Self.reviewer, caller: root.id, in: harness)
-            await gates.reviewer.waitForArrival()
-            async let cancelling: Void = harness.runner.cancelRuns(caller: root.id)
-            let reviewerState = await reviewerRun.finalState()
-            gates.setup.open()
-            await cancelling
-            let leadRun = try await Self.run(of: Self.lead, caller: root.id, in: harness)
-            let leadState = leadRun.state
-            await harness.runner.stop()
-            _ = try await rootAnswer
-            await root.close()
+            let reviewerState: AgentRunState
+            let leadState: AgentRunState
+            do {
+                await gates.setup.waitForArrival()
+                await harness.tool.context.startedRuns.waitForStarts()
+                let reviewerRun = try await Self.run(of: Self.reviewer, caller: root.id, in: harness)
+                await gates.reviewer.waitForArrival()
+                async let cancelling: Void = harness.runner.cancelRuns(caller: root.id)
+                reviewerState = await reviewerRun.finalState()
+                gates.setup.open()
+                await cancelling
+                let leadRun = try await Self.run(of: Self.lead, caller: root.id, in: harness)
+                leadState = leadRun.state
+                await harness.runner.stop()
+                _ = try await rootAnswer
+                await root.close()
+            } catch {
+                // The answer of the root waits for the setup of the lead, and
+                // the scope waits for that answer before it throws. Thus each
+                // gate opens, the runner stops, and the root closes.
+                gates.setup.open()
+                gates.reviewer.open()
+                gates.lead.open()
+                await harness.runner.stop()
+                await root.close()
+                throw error
+            }
 
             #expect(reviewerState == .cancelled)
             #expect(leadState == .cancelled)

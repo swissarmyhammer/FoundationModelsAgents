@@ -17,10 +17,12 @@ import Testing
 ///
 /// The test calls `cancelAll()` only after the task answer of the lead ended.
 /// The run event observer opens a gate at the `answered` event of the lead.
-/// A `cancelAll()` in an answer stops that answer, and the session then
-/// sends no live event that the work of that answer posts. The `start agent`
-/// call is work of the task answer. Thus the order of the end of the answer
-/// and of `cancelAll()` must be fixed. The test uses no clock and no poll.
+/// The end of the lead also opens that gate, thus a lead that fails before
+/// that event does not hold the test. A `cancelAll()` in an answer stops that
+/// answer, and the session then sends no live event that the work of that
+/// answer posts. The `start agent` call is work of the task answer. Thus the
+/// order of the end of the answer and of `cancelAll()` must be fixed. The
+/// test uses no clock and no poll.
 @Suite("cancelAll() and the final message of a child")
 struct CancelAllFinalMessageTests {
     @Test("cancelAll() returns its SignalID before the child ends, and the recorded terminal of the start agent call has the final message")
@@ -43,7 +45,7 @@ struct CancelAllFinalMessageTests {
         let runner = harness.makeRunner()
 
         let lead = try await runner.start(NestedRunTests.lead, prompt: NestedRunTests.leadKey)
-        try await leadAnswered.wait()
+        try await leadAnswered.wait(orEndOf: lead)
         try #require(await gate.waitForArrival(orEndOf: lead))
         let child = try await NestedRunTests.onlyRun(of: runner, caller: lead.id)
         let leadSession = try #require(lead.heldSession)
@@ -106,7 +108,7 @@ struct CancelAllFinalMessageTests {
         let runner = harness.makeRunner()
 
         let lead = try await runner.start(NestedRunTests.lead, prompt: NestedRunTests.leadKey)
-        try await leadAnswered.wait()
+        try await leadAnswered.wait(orEndOf: lead)
         try #require(await gate.waitForArrival(orEndOf: lead))
         let child = try await NestedRunTests.onlyRun(of: runner, caller: lead.id)
         let leadSession = try #require(lead.heldSession)

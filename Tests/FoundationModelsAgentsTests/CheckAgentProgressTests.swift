@@ -1,4 +1,5 @@
 @testable import FoundationModelsAgents
+import FoundationModelsExtras
 import FoundationModelsRouter
 import Synchronization
 import Testing
@@ -22,20 +23,40 @@ struct CheckAgentProgressTests {
     /// Opens a gate at the first event of one agent after a count of open
     /// tool records of that agent.
     ///
+    /// The gate also opens when the agent closed that count of tool calls:
+    /// each tool call of the agent before its gate then ended. Thus a missing
+    /// open record does not hold the test, and the test then requires the
+    /// count of open records (``openRecordCount``).
+    ///
     /// A class, because the observer and the test share it. A `Mutex` guards
-    /// the count, thus the `Sendable` conformance is compiler-checked.
+    /// the counts, thus the `Sendable` conformance is compiler-checked.
     private final class ToolOpenWatch: Sendable {
+        /// The counts of tool records so far.
+        private struct Counts {
+            /// The count of open tool records.
+            var opens = 0
+
+            /// The count of closed tool records.
+            var closes = 0
+        }
+
         /// The id of the agent whose events count.
         private let agentID: String
 
         /// The count of open tool records before the gate opens.
-        private let openCount: Int
+        let openCount: Int
+
+        /// The counts of tool records so far.
+        private let counts = Mutex(Counts())
+
+        /// Opens at the first event after ``openCount`` open tool records, or
+        /// at the closed tool record that makes ``openCount`` closed records.
+        let recorded = ScriptedGate()
 
         /// The count of open tool records so far.
-        private let opens = Mutex(0)
-
-        /// Opens at the first event after ``openCount`` open tool records.
-        let recorded = ScriptedGate()
+        var openRecordCount: Int {
+            counts.withLock { $0.opens }
+        }
 
         /// Makes a watch.
         ///
@@ -55,15 +76,28 @@ struct CheckAgentProgressTests {
         ///   - output: The event.
         func observe(_ run: AgentRun, _ output: SessionOutput) {
             guard run.agent.id == agentID else { return }
-            let isAfterLastOpen = opens.withLock { opens in
-                guard opens < openCount else { return true }
-                if case .toolInvocation(let record, _) = output.event, record.closedAt == nil {
-                    opens += 1
+            let isRecorded = counts.withLock { counts in
+                guard counts.opens < openCount else { return true }
+                if case .toolInvocation(let record, _) = output.event {
+                    count(record, in: &counts)
                 }
-                return false
+                return counts.closes >= openCount
             }
-            if isAfterLastOpen {
+            if isRecorded {
                 recorded.open()
+            }
+        }
+
+        /// Counts one tool record as open or as closed.
+        ///
+        /// - Parameters:
+        ///   - record: The tool record.
+        ///   - counts: The counts, under the lock.
+        private func count(_ record: ToolInvocationRecord, in counts: inout Counts) {
+            if record.closedAt == nil {
+                counts.opens += 1
+            } else {
+                counts.closes += 1
             }
         }
     }
@@ -120,6 +154,7 @@ struct CheckAgentProgressTests {
         let progress = run.progress
         let report = run.report
         gate.open()
+        try #require(watch.openRecordCount == watch.openCount)
         let result = try await run.result()
 
         #expect(progress.phase == .taskTurn)
@@ -155,6 +190,7 @@ struct CheckAgentProgressTests {
         let progress = lead.progress
         let report = lead.report
         gate.open()
+        try #require(watch.openRecordCount == watch.openCount)
         let result = try await lead.result()
 
         #expect(progress.phase == .answeringMail)

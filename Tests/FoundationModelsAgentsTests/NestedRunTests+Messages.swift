@@ -281,6 +281,13 @@ extension NestedRunTests {
                     }
                 }
             ) { parent, script in
+                // The parent holds its task answer, thus it cannot end. The
+                // test first requires that the child started and sent its
+                // message, and only then waits for the event of the message.
+                try #require(await taskGate.waitForArrival(orEndOf: parent))
+                try script.requirePendingStarts()
+                await childGate.waitForArrival()
+                try script.requireMessageSentToCaller()
                 // The session sends the `runMessage` output after the mail of
                 // the message is in the queue. The task answer still holds.
                 try await messageArrived.wait()
@@ -313,6 +320,8 @@ extension NestedRunTests {
             try await Self.withParent(
                 childSteps: [Self.send(Self.firstMessage), .wait(childGate), .finalText(Self.childText)]
             ) { parent, script in
+                try #require(await childGate.waitForArrival(orEndOf: parent))
+                try script.requireMessageSentToCaller()
                 try await NestedRunTests.arrival(ofPromptContaining: Self.firstMessage, in: script)
                 let child = try Self.child(of: parent)
                 let line = try Self.mailLine(Self.firstMessage, of: child)
@@ -351,6 +360,10 @@ extension NestedRunTests {
                     }
                 }
             ) { parent, script in
+                // The parent holds its task answer, thus it cannot end. A
+                // started child always settles, also when it fails.
+                try #require(await taskGate.waitForArrival(orEndOf: parent))
+                try script.requirePendingStarts()
                 try await settledGate.wait()
                 let child = try Self.child(of: parent)
                 taskGate.open()

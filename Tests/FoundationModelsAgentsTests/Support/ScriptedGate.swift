@@ -149,6 +149,28 @@ final class ScriptedGate: Sendable {
         }
     }
 
+    /// Holds the caller until the gate opens, or until `run` ends. The end of
+    /// `run` opens the gate. Thus a run that fails before the event that
+    /// opens the gate cannot make the test wait for ever.
+    ///
+    /// Use it only for a gate that the test or a run event observer opens,
+    /// not for the gate of a scripted step: the end of `run` releases each
+    /// waiter of the gate.
+    ///
+    /// The wait starts a task that waits for the final state of `run`. That
+    /// task does not cancel the run, and it ends when the run ends.
+    ///
+    /// - Parameter run: The run whose end also opens the gate.
+    /// - Throws: `CancellationError` when the task of the caller is cancelled
+    ///   before the gate opens.
+    func wait(orEndOf run: AgentRun) async throws {
+        Task {
+            _ = await run.finalState()
+            self.open()
+        }
+        try await wait()
+    }
+
     /// Opens the gate, and releases each held waiter.
     func open() {
         let released = state.withLock { state in

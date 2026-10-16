@@ -166,6 +166,9 @@ struct AgentsToolMountTests {
         let checkText = run.report
         _ = try await root.respond(to: Self.nextPrompt)
         let outputs = harness.runHarness.script.toolOutputs
+        // A cancelled run stays cancelled when its gate opens. A run that did
+        // not get the cancel finishes, thus it also settles.
+        gate.open()
         _ = try await NestedRunTests.settlement(of: run, in: events)
         await root.close()
 
