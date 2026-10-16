@@ -16,10 +16,11 @@ struct AgentRunSignals: Sendable {
     }
 }
 
-/// Two points in the idle rule of a run where a test can hold the run
-/// (``AgentRun/install(_:)``). A test uses them to put a message at an
-/// exact point of the idle rule, with no dependency on timing. A run that
-/// no test changes has hooks that do nothing.
+/// The points in a run where a test can hold the run or act on its session
+/// (``AgentRun/install(_:)``): two points in the idle rule, and one after
+/// each question of the session. A test uses them to put a message or an
+/// answer at an exact point of the run, with no dependency on timing. A run
+/// that no test changes has hooks that do nothing.
 struct AgentRunIdleHooks: Sendable {
     /// Runs at the start of each idle check, before the run reads the
     /// mail queue of its session. The check of a paused run, whether its
@@ -29,6 +30,12 @@ struct AgentRunIdleHooks: Sendable {
     /// Runs after the run got an idle signal, before the run decides to end
     /// on it.
     var beforeIdleSettle: @Sendable () async -> Void = {}
+
+    /// Runs after the run read one question of its session
+    /// (`elicitationRequested`), with the event and the session. A run that
+    /// answers its questions itself answered the question before this
+    /// time (``AgentRun/answerQuestion(of:on:)``).
+    var afterQuestion: @Sendable (OperationEvent, any RoutedSession) async -> Void = { _, _ in }
 }
 
 extension AgentRun {
@@ -70,7 +77,9 @@ extension AgentRun {
     /// A run with an interactive question target sends each question of its
     /// session one level up (`SubagentQuestionRelay`). Under a headless
     /// target the session of the run is headless too: each question ends at
-    /// once with a cancel, thus the run starts no relay. The relay subscribes
+    /// once with a cancel, thus the run starts no relay. A run that starts no
+    /// relay answers each question that still comes itself
+    /// (``answerQuestion(of:on:)``). The relay subscribes
     /// to the session before the task prompt, thus it gets each question. An
     /// answer at the target goes down to the session, and each end of the
     /// question ends it at each level. After the close of the session, the run waits
@@ -84,7 +93,8 @@ extension AgentRun {
     ///   - prompt: The task prompt.
     ///   - questionTarget: The run of the session that started this run,
     ///     where the run sends the questions of its session, or `nil` (the
-    ///     default). A run with no target answers each question itself
+    ///     default). A run that starts no relay, with no target or with a
+    ///     headless target, answers each question itself
     ///     (``answerQuestion(of:on:)``).
     ///   - observer: The observer of the session events of the host
     ///     (``AgentEnvironment/runEventObserver``), or `nil`.
@@ -101,7 +111,7 @@ extension AgentRun {
             relay = await SubagentQuestionRelay.start(child: session, agentName: agent.id, target: questionTarget)
         }
         async let following: Void = follow(
-            events, on: session, answersQuestions: questionTarget == nil, observer: observer)
+            events, on: session, answersQuestions: relay == nil, observer: observer)
         let final = settle(await outcome(of: prompt, on: session))
         await children.cancelOpenRuns()
         await sessionWatch.waitForSettlement(ofCalls: children.runs.compactMap(\.context))
@@ -327,7 +337,7 @@ extension AgentRun {
     ///   - events: The session-event subscription of the run, made before
     ///     the task prompt. The session finishes it when the run closes it.
     ///   - session: The session of the run.
-    ///   - answersQuestions: `true` when the run has no question target, and
+    ///   - answersQuestions: `true` when the run started no relay, and
     ///     answers each question of its session itself
     ///     (``answerQuestion(of:on:)``). `false` when the relay sends each
     ///     question to the target.
@@ -343,8 +353,11 @@ extension AgentRun {
             let event = output.event
             record(event)
             sessionWatch.observe(output)
-            if answersQuestions, case .elicitationRequested(let operation) = event {
-                await answerQuestion(of: operation, on: session)
+            if case .elicitationRequested(let operation) = event {
+                if answersQuestions {
+                    await answerQuestion(of: operation, on: session)
+                }
+                await idleHooks.afterQuestion(operation, session)
             }
             if limitStop.action(after: event, wentAboveLimit: turns.apply(event)) == .stop {
                 session.cancelAll()
@@ -363,15 +376,17 @@ extension AgentRun {
     /// Answers one question of the session of the run at once, with a cancel
     /// that gives `RunPlane.noUserPresentReason`.
     ///
-    /// A run that a `start agent` call started sends its questions to the
-    /// session of that call (``drive(_:prompt:questionTarget:observer:)``),
-    /// and does not use this guard. The session of a run with no question
-    /// target, for example a host-started run, is headless
-    /// (``AgentEnvironment/runUserPresence``): no user can answer its
-    /// question, thus the question ends at once and sends no event. This
-    /// guard answers a question that still comes, for example from a run
-    /// session that a test made interactive. Thus no run waits for an answer
-    /// that cannot come.
+    /// A run with an interactive question target sends its questions to the
+    /// session of the `start agent` call that started it
+    /// (``drive(_:prompt:questionTarget:observer:)``),
+    /// and does not use this guard. Each other run starts no relay and uses
+    /// this guard. The session of a run with no question target, for example
+    /// a host-started run, is headless (``AgentEnvironment/runUserPresence``),
+    /// and the session of a run with a headless target is headless too: no
+    /// user can answer its question, thus the question ends at once and
+    /// sends no event. This guard answers a question that still comes, for
+    /// example from a run session that a test made interactive. Thus no run
+    /// waits for an answer that cannot come.
     ///
     /// - Parameters:
     ///   - operation: The event of the question.

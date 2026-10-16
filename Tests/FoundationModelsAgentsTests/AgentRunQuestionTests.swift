@@ -1,7 +1,9 @@
 import Foundation
+import FoundationModels
 @testable import FoundationModelsAgents
 import FoundationModelsExtras
 import FoundationModelsRouter
+import Synchronization
 import Testing
 
 @testable import agents_demo
@@ -12,8 +14,9 @@ import Testing
 /// A host-started run is headless, and a child of a headless session is
 /// headless too: a question ends at once with a cancel that gives
 /// `RunPlane.noUserPresentReason`, and the run goes on. A question event
-/// that still comes gets the same cancel from the guard of the run. The root
-/// session of `agents-demo` is headless too. ``RelayedQuestionTests`` pins
+/// that still comes gets the same cancel from the guard of the run, also in
+/// a run with a headless question target. The root session of `agents-demo`
+/// is headless too. ``RelayedQuestionTests`` pins
 /// the questions of a run under an interactive session.
 ///
 /// A headless question ends at once, and the guard answers in the loop of
@@ -73,6 +76,123 @@ struct AgentRunQuestionTests {
     /// The step of the asker that calls the asking tool.
     private static let askStep = ScriptedAgentStep.toolCall(
         name: askToolName, argumentsJSON: #"{"text": "parser.swift"}"#)
+
+    /// The name of the tool of the headless root that keeps its question
+    /// target.
+    private static let keepTargetToolName = "keep-target"
+
+    /// The instructions of the headless root session. It is also the key of
+    /// its play.
+    private static let rootKey = "question-root-key: keep the question target"
+
+    /// The first prompt of the headless root session.
+    private static let rootPrompt = "Keep the question target."
+
+    /// The answer of the headless root to its first prompt.
+    private static let rootText = "I kept the question target."
+
+    /// The step of the headless root that calls ``keepTargetToolName``.
+    private static let keepTargetStep = ScriptedAgentStep.toolCall(
+        name: keepTargetToolName, argumentsJSON: #"{"text": "keep"}"#)
+
+    /// The answer that the test gives to a question after the run read it.
+    private static let lateAnswer = ElicitationResponse.decline
+
+    /// A tool that keeps the question target of its call
+    /// (`SubagentQuestionTarget.current`).
+    struct TargetKeepingTool: Tool {
+        /// The arguments of the tool: one text.
+        @Generable
+        struct Arguments {
+            /// A text that the tool ignores.
+            let text: String
+        }
+
+        /// The name of the tool.
+        let name = keepTargetToolName
+
+        /// The description of the tool.
+        let description = "A tool that keeps the question target of its call."
+
+        /// The target of the last call.
+        let kept = KeptTarget()
+
+        /// Keeps the question target of the call.
+        ///
+        /// - Parameter arguments: The arguments, which the tool ignores.
+        /// - Returns: A fixed output.
+        func call(arguments: Arguments) async throws -> String {
+            kept.keep(SubagentQuestionTarget.current)
+            return "The target is kept."
+        }
+    }
+
+    /// The question target that ``TargetKeepingTool`` kept.
+    ///
+    /// A class, because the tool and the test share it. A `Mutex` guards the
+    /// target, thus the `Sendable` conformance is compiler-checked.
+    final class KeptTarget: Sendable {
+        /// The target, or `nil` before the call.
+        private let target = Mutex<SubagentQuestionTarget?>(nil)
+
+        /// The target, or `nil` before the call.
+        var value: SubagentQuestionTarget? {
+            target.withLock { $0 }
+        }
+
+        /// Keeps `target`.
+        ///
+        /// - Parameter target: The target of the call.
+        func keep(_ target: SubagentQuestionTarget?) {
+            self.target.withLock { $0 = target }
+        }
+    }
+
+    /// The deliveries of the answers that a test gave, in order.
+    ///
+    /// A class, because the hook of the run and the test share it. A `Mutex`
+    /// guards the deliveries, thus the `Sendable` conformance is
+    /// compiler-checked.
+    private final class DeliveryRecord: Sendable {
+        /// The deliveries, in order.
+        private let deliveries = Mutex<[ElicitationAnswerDelivery]>([])
+
+        /// The deliveries so far.
+        var all: [ElicitationAnswerDelivery] {
+            deliveries.withLock { $0 }
+        }
+
+        /// Adds one delivery.
+        ///
+        /// - Parameter delivery: The delivery.
+        func append(_ delivery: ElicitationAnswerDelivery) {
+            deliveries.withLock { $0.append(delivery) }
+        }
+    }
+
+    /// Makes a headless root session with ``TargetKeepingTool``, gets the
+    /// question target of its tool call, and runs `body` with the target.
+    /// Then it closes the root, also when `body` throws.
+    ///
+    /// - Parameters:
+    ///   - harness: The harness. Its script holds the play of ``rootKey``.
+    ///   - body: The test.
+    /// - Throws: The error of the root, of `#require` when the call gave no
+    ///   target, or of `body`.
+    private static func withHeadlessTarget(
+        in harness: AgentRunHarness, _ body: (SubagentQuestionTarget) async throws -> Void
+    ) async throws {
+        let tool = TargetKeepingTool()
+        let root = AgentRunHarness.makeRootSession(on: harness.profile.standard, instructions: rootKey, tools: [tool])
+        do {
+            _ = try await root.awaitAnswer(of: root.send(rootPrompt))
+            try await body(try #require(tool.kept.value))
+        } catch {
+            await root.close()
+            throw error
+        }
+        await root.close()
+    }
 
     /// The parts of one test: the harness, the answers of the tool, and the
     /// count of the question events that the observer got.
@@ -170,6 +290,43 @@ struct AgentRunQuestionTests {
             if case .finished = final {
             } else {
                 Issue.record("The run did not finish: \(final)")
+            }
+        }
+    }
+
+    @Test("a run with a headless question target answers a question of an interactive session itself")
+    func headlessTargetGuardAnswersQuestion() async throws {
+        let plays = [
+            ScriptedAgentPlay(
+                key: Self.askerKey, steps: [Self.askStep, .finalText(Self.askerText), .finalText(Self.afterAnswerText)]),
+            ScriptedAgentPlay(key: Self.rootKey, steps: [Self.keepTargetStep, .finalText(Self.rootText)]),
+        ]
+        try await Self.withParts(plays: plays) { parts in
+            try await Self.withHeadlessTarget(in: parts.harness) { target in
+                let environment = parts.harness.environment(
+                    maxRetainedRuns: AgentEnvironment.defaultMaxRetainedRuns, runUserPresence: .interactive)
+                var request = try parts.harness.request(Self.asker, prompt: Self.askerKey)
+                let run = await AgentRun.make(
+                    request, environment: environment, renderer: AgentBodyRenderer(registry: parts.harness.registry))
+                let lateDeliveries = DeliveryRecord()
+                run.install(
+                    AgentRunIdleHooks(afterQuestion: { operation, session in
+                        guard let question = operation.elicitation else { return }
+                        lateDeliveries.append(
+                            await session.respond(
+                                elicitationId: question.elicitationId.ulidString, response: Self.lateAnswer))
+                    }))
+                request.questionTarget = target
+                run.begin(request, environment: environment)
+                let final = await run.finalState()
+
+                #expect(target.userPresence == .headless)
+                #expect(parts.answers.all == [Self.noUserCancel])
+                #expect(lateDeliveries.all == [.noPendingElicitation])
+                if case .finished = final {
+                } else {
+                    Issue.record("The run did not finish: \(final)")
+                }
             }
         }
     }
