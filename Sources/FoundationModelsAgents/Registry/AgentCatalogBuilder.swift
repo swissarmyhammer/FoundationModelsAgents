@@ -197,9 +197,9 @@ enum AgentCatalogBuilder {
     ///
     /// A placeholder, and a document of an agent-folder source that the build
     /// cannot read, give one `skip` with `notLocalMessage`. A sync engine then
-    /// downloads the file, and the next build loads it. The read of a
-    /// document of an agent-folder source is coordinated
-    /// (`NSFileCoordinator`), thus a sync engine can give the current file.
+    /// downloads the file, and the next build loads it. A coordinated read
+    /// that fails gives one `skip` with `coordinationFailedMessage(_:)`, which
+    /// states the cause of the failure.
     ///
     /// - Parameters:
     ///   - winner: The winning copy.
@@ -213,22 +213,17 @@ enum AgentCatalogBuilder {
         _ winner: AgentCopy, of layer: AgentCatalogLayer, provenance: AgentDiagnostic.Provenance,
         marketplaceLayer: MarketplaceLayer?
     ) -> AgentFolderLoad {
-        let decodeFailures = DecodeFailureLog()
-        let documents = FrontmatterDocumentStack(
-            base: DotfolderStack(layers: [layer.layer]), decode: AgentFrontmatter.decode,
-            onDiagnostic: decodeFailures.record)
-        let document: Located<FrontmatterDocument<AgentFrontmatter>>? =
-            switch (winner.state, layer.layout) {
-            case (.notLocal, _): nil
-            case (.document, .dotfolder): documents.item(at: winner.path)
-            case (.document, .agentFolder):
-                coordinatedRead(of: provenance.url) { documents.item(at: winner.path) }
-            }
         let agent = AgentDefinitionRules.isValidID(winner.id) ? winner.id : nil
+        let decodeFailures = DecodeFailureLog()
+        let document: Located<FrontmatterDocument<AgentFrontmatter>>?
+        switch readDocument(of: winner, in: layer, at: provenance.url, decodeFailures: decodeFailures) {
+        case .failure(let failure):
+            return skip(agent: agent, provenance: provenance, message: coordinationFailedMessage(failure))
+        case .success(let read):
+            document = read
+        }
         guard document != nil || layer.layout == .dotfolder else {
-            let notLocal = AgentDiagnostic(
-                severity: .skip, agent: agent, provenance: provenance, message: notLocalMessage)
-            return AgentFolderLoad(definition: nil, diagnostics: [notLocal])
+            return skip(agent: agent, provenance: provenance, message: notLocalMessage)
         }
         var diagnostics = decodeFailures.removeAll().map { failure in
             AgentDiagnostic(severity: .advisory, agent: agent, provenance: provenance, message: failure.message)
@@ -239,16 +234,74 @@ enum AgentCatalogBuilder {
         return AgentFolderLoad(definition: definition, diagnostics: diagnostics)
     }
 
+    /// A coordinated read that the file coordinator could not do.
+    struct CoordinatedReadFailure: Error {
+        /// The description of the error of the file coordinator.
+        let reason: String
+    }
+
+    /// The text of the skip for an agent document that a coordinated read
+    /// could not get.
+    ///
+    /// - Parameter failure: The failure of the coordinated read.
+    /// - Returns: The message, with the reason of `failure`.
+    static func coordinationFailedMessage(_ failure: CoordinatedReadFailure) -> String {
+        "the coordinated read of the agent document failed: \(failure.reason)"
+    }
+
+    /// Reads the document of a copy from a stack of its layer only.
+    ///
+    /// A placeholder gives no document. The read of a document of an
+    /// agent-folder source is coordinated (`NSFileCoordinator`), thus a sync
+    /// engine can give the current file.
+    ///
+    /// - Parameters:
+    ///   - copy: The copy.
+    ///   - layer: The layer of the copy.
+    ///   - url: The URL of the file of the copy.
+    ///   - decodeFailures: The log that gets each decode failure of the read.
+    /// - Returns: The document, or `nil`, or the failure of the coordinated
+    ///   read.
+    private static func readDocument(
+        of copy: AgentCopy, in layer: AgentCatalogLayer, at url: URL, decodeFailures: DecodeFailureLog
+    ) -> Result<Located<FrontmatterDocument<AgentFrontmatter>>?, CoordinatedReadFailure> {
+        let documents = FrontmatterDocumentStack(
+            base: DotfolderStack(layers: [layer.layer]), decode: AgentFrontmatter.decode,
+            onDiagnostic: decodeFailures.record)
+        return switch (copy.state, layer.layout) {
+        case (.notLocal, _): .success(nil)
+        case (.document, .dotfolder): .success(documents.item(at: copy.path))
+        case (.document, .agentFolder): coordinatedRead(of: url) { documents.item(at: copy.path) }
+        }
+    }
+
+    /// Gives the load of an agent that the build skips.
+    ///
+    /// - Parameters:
+    ///   - agent: The id of the agent, or `nil` when the id is not valid.
+    ///   - provenance: The file of the agent.
+    ///   - message: The reason for the skip.
+    /// - Returns: No agent, and one `skip` diagnostic.
+    private static func skip(
+        agent: String?, provenance: AgentDiagnostic.Provenance, message: String
+    ) -> AgentFolderLoad {
+        AgentFolderLoad(
+            definition: nil,
+            diagnostics: [AgentDiagnostic(severity: .skip, agent: agent, provenance: provenance, message: message)])
+    }
+
     /// Runs `read` in a coordinated read of the file at `url`.
     ///
     /// A sync engine that presents the file can give the current version
-    /// before the read. A coordination that fails gives `nil`.
+    /// before the read. When the coordination fails, `read` does not run.
     ///
     /// - Parameters:
     ///   - url: The file to read.
     ///   - read: The read. The stack of Extras opens the file in it.
-    /// - Returns: What `read` gave, or `nil`.
-    private static func coordinatedRead<Value>(of url: URL, _ read: () -> Value?) -> Value? {
+    /// - Returns: What `read` gave, or the failure of the coordination.
+    private static func coordinatedRead<Value>(
+        of url: URL, _ read: () -> Value?
+    ) -> Result<Value?, CoordinatedReadFailure> {
         var value: Value?
         var coordinationError: NSError?
         NSFileCoordinator(filePresenter: nil).coordinate(
@@ -256,7 +309,10 @@ enum AgentCatalogBuilder {
         ) { _ in
             value = read()
         }
-        return value
+        if let coordinationError {
+            return .failure(CoordinatedReadFailure(reason: coordinationError.localizedDescription))
+        }
+        return .success(value)
     }
 
     /// Gives one warning for each agent file of the old format: a `.md` file

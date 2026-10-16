@@ -81,15 +81,21 @@ a resource and does not change the agent. Each of these gives one `skip`,
 "the agent document is not local yet", with the URL of the file, and never
 fails the catalog:
 
-- A hidden placeholder that holds the name `AGENT.md`, for example
-  `.AGENT.md.<suffix>`, in place of `AGENT.md`.
-- A hidden placeholder `.<name>.<suffix>` directly in `<url>`, in place of the
-  agent folder `<name>`.
+- A placeholder `.AGENT.md.<suffix>`, with a suffix that is not empty, in
+  place of `<url>/AGENT.md` or `<url>/<name>/AGENT.md`.
 - An `AGENT.md` that the build cannot read as text.
 
-The host starts the download, and the next build loads the file. The build
-reads each document of an agent folder in a coordinated read
-(`NSFileCoordinator`), thus a sync service can give the current file.
+The host starts the download, and the next build loads the file. A sync
+service keeps each folder and writes a placeholder only in place of a file.
+Thus a different hidden file is a resource. For example, `.env.local` in `<url>`
+gives no agent `env`, no diagnostic, and does not hide an agent `env` of a lower
+layer.
+
+The build reads each document of an agent folder in a coordinated read
+(`NSFileCoordinator`), thus a sync service can give the current file. A
+coordinated read that fails gives one `skip` with the cause of the failure:
+"the coordinated read of the agent document failed", then the description of
+the error.
 
 ### Make the registry, then load it
 

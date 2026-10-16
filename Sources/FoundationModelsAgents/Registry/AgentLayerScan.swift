@@ -37,7 +37,7 @@ struct AgentCopy: Sendable, Equatable {
 /// The scan lists the files of the layer and reads no text. A dotfolder
 /// layer gives each `agents/<id>/AGENT.md`. An agent-folder source gives each
 /// `<id>/AGENT.md`, its root `AGENT.md` as the agent `default`, and each
-/// placeholder of a document or of an agent folder.
+/// placeholder of one of these documents.
 struct AgentLayerScan: Sendable {
     /// One copy for each id that the layer holds.
     let copies: [AgentCopy]
@@ -61,7 +61,6 @@ struct AgentLayerScan: Sendable {
             let root = scan.rootCopy
             let isHiddenByRoot = { (copy: AgentCopy) in root != nil && copy.id == AgentCatalog.defaultAgentID }
             copies = (root.map { [$0] } ?? []) + scan.folderCopies.filter { !isHiddenByRoot($0) }
-                + scan.folderPlaceholderCopies
             hiddenDefaultFolders = scan.folderCopies.filter(isHiddenByRoot)
         }
     }
@@ -90,6 +89,10 @@ struct AgentLayerScan: Sendable {
 /// The scan makes one walk of the files of the source with
 /// `DotfolderStack.urls(_:)`, which lists the hidden files too. It reads no
 /// text. A source root that does not exist gives no copy.
+///
+/// A sync engine keeps each folder, and writes a placeholder only in place of
+/// a file. Thus a hidden file directly in the source root is never an agent
+/// folder. For example, `.env.local` gives no agent `env`.
 private struct AgentFolderSourceScan {
     /// The copy of the default agent: the root `AGENT.md`, or its
     /// placeholder.
@@ -98,10 +101,6 @@ private struct AgentFolderSourceScan {
     /// One copy for each agent folder `<id>/` that holds `AGENT.md` or its
     /// placeholder.
     let folderCopies: [AgentCopy]
-
-    /// One copy for each placeholder `.<id>.<suffix>` of a whole agent
-    /// folder, when the source has no copy of that id.
-    let folderPlaceholderCopies: [AgentCopy]
 
     /// Scans one agent-folder source.
     ///
@@ -118,14 +117,6 @@ private struct AgentFolderSourceScan {
             layerIndex: layerIndex)
         folderCopies = namesByFolder.compactMap { folder, names in
             Self.copy(of: folder, kind: .agentFolder, names: names, folder: folder, layerIndex: layerIndex)
-        }
-        let knownIDs = Set(folderCopies.map(\.id) + [rootCopy?.id].compactMap { $0 })
-        folderPlaceholderCopies = rootNames.sorted().compactMap { name in
-            AgentPlaceholderName.folderID(of: name).flatMap { id in
-                knownIDs.contains(id)
-                    ? nil
-                    : AgentCopy(id: id, layerIndex: layerIndex, path: name, kind: .agentFolder, state: .notLocal)
-            }
         }
     }
 
@@ -149,9 +140,10 @@ private struct AgentFolderSourceScan {
 
     /// Gives the copy of one agent from the file names of its folder.
     ///
-    /// Only the exact name `AGENT.md` is the document. A hidden name that
-    /// holds `AGENT.md` is its placeholder. Each other name, for example a
-    /// conflict copy `AGENT 2.md`, is a resource.
+    /// Only the exact name `AGENT.md` is the document. Only a name
+    /// `.AGENT.md.<suffix>` is its placeholder. Each other name, for example
+    /// a conflict copy `AGENT 2.md` or a hidden file `.AGENT.md`, is a
+    /// resource.
     ///
     /// - Parameters:
     ///   - id: The id of the agent.
@@ -183,29 +175,19 @@ private struct AgentFolderSourceScan {
 /// of one.
 private enum AgentPlaceholderName {
     /// The first character of a hidden name, and the character between the
-    /// parts of a placeholder name.
-    private static let dot: Character = "."
+    /// document name and the suffix of a placeholder name.
+    private static let dot = "."
 
-    /// Tells whether `name` is a placeholder of an agent document: a hidden
-    /// name that holds `AGENT.md`, for example `.AGENT.md.<suffix>`.
+    /// The start of each placeholder name of an agent document:
+    /// `.AGENT.md.`.
+    private static let documentPrefix = dot + MarketplaceLayer.agentDocumentName + dot
+
+    /// Tells whether `name` is a placeholder of an agent document: the name
+    /// `.AGENT.md.<suffix>`, with a suffix that is not empty.
     ///
     /// - Parameter name: A file name.
     /// - Returns: `true` for a placeholder of `AGENT.md`.
     static func standsForDocument(_ name: String) -> Bool {
-        name.first == dot && name.contains(MarketplaceLayer.agentDocumentName)
-    }
-
-    /// Gives the agent folder that a placeholder name stands for: the `<id>`
-    /// of a hidden name `.<id>.<suffix>`.
-    ///
-    /// - Parameter name: The name of a file directly in the source root.
-    /// - Returns: The id, or `nil` when the name is not hidden, has no
-    ///   suffix, stands for a document, or holds no valid id.
-    static func folderID(of name: String) -> String? {
-        guard name.first == dot, !standsForDocument(name) else { return nil }
-        let stem = name.dropFirst()
-        guard let suffixStart = stem.lastIndex(of: dot) else { return nil }
-        let id = String(stem[..<suffixStart])
-        return AgentDefinitionRules.isValidID(id) ? id : nil
+        name.hasPrefix(documentPrefix) && name.count > documentPrefix.count
     }
 }

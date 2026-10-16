@@ -50,6 +50,56 @@ comments:
     - blocker: no code change in this package can remove the warning. A person must decide how to handle it (dependency update or accept).
     - next: person decides on the mlx-swift build warning.
   timestamp: 2026-10-16T17:20:50.639059+00:00
+- actor: claude-code
+  id: 01m52w0mpkj9f966zhw0s5h5cy
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (commit 0f03c75). Engine: 2 confirmed, 2 refuted. Design check against the task description: 1 more finding (the placeholder rule). 3 open findings: Sources/FoundationModelsAgents/Registry/AgentCatalogBuilder.swift:253, Sources/FoundationModelsAgents/Registry/AgentLayerScan.swift:204, Tests/FoundationModelsAgentsTests/Support/AgentFolderFixture.swift:60.
+    - next: implement the 3 findings in the "Review Findings (2026-10-16 12:21)" section, then review again.
+  timestamp: 2026-10-16T17:26:34.451786+00:00
+- actor: claude-code
+  id: 01m52w1amwdrwjfxgmk8xqx3dn
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 17 files (3 new + 6 changed Sources, 2 docs, 6 new test files)
+    - test: green — swift test, 554 tests in 78 suites passed, 0 failed, 0 skipped. The only warning is the old SwiftPM line "missing creator for mutated node" for the mlx-swift_Cmlx bundle of a dependency. It was there before this change, as the earlier done tasks record.
+    - commit: 0f03c75
+    - review: findings — Sources/FoundationModelsAgents/Registry/AgentCatalogBuilder.swift:253, Sources/FoundationModelsAgents/Registry/AgentLayerScan.swift:204, Tests/FoundationModelsAgentsTests/Support/AgentFolderFixture.swift:60
+  timestamp: 2026-10-16T17:26:56.924572+00:00
+- actor: claude-code
+  id: 01m52w60kqbkdgpr48htd4b4a6
+  text: |-
+    Research for the 3 review findings (implement step, pass 2):
+    - Finding 1: `NSFileCoordinator.coordinate(readingItemAt:)` does not fail for a URL that does not exist, an https URL, or a data URL (a probe proved it: the accessor runs and the error stays nil). It fails when a file presenter of the file gives an error from `savePresentedItemChanges(completionHandler:)`: the accessor does not run and the error is that presenter error. A unit test can use a real `NSFilePresenter` that refuses. No test seam in production code is necessary.
+    - Finding 2: a name alone cannot tell `.env.local` from a placeholder `.<id>.<suffix>` of a whole folder, and the package must not name the suffix of a sync service (guard `NoCloudSyncCodeTests`). A sync engine keeps each folder and writes a placeholder only for a file. Thus the strict rule is: a hidden root file never stands for an agent folder. Only `.AGENT.md.<suffix>` (exact prefix `.AGENT.md.` and a suffix that is not empty) stands for a document, at the root or directly in `<id>/`. The old rule `name.contains("AGENT.md")` was also too wide (for example `.oldAGENT.md`); the same cause, thus the same fix.
+    - Finding 3: the private `agentText` helpers are in `AgentRegistryReloadTests.swift` (`agentText(named:description:)`) and `AgentRegistryMarketplaceTests.swift` (`agentText(named:)`). Both build the same frontmatter as `AgentFolderFixture.agentText(name:body:)`.
+  timestamp: 2026-10-16T17:29:30.487806+00:00
+- actor: claude-code
+  id: 01m52wnghc2w80fmq60nnez0fj
+  text: |-
+    The 3 review findings are fixed (not committed). All 3 are now `- [x]`.
+    - Finding 1 (`swift/error-handling`): `coordinatedRead` now returns `Result<Value?, CoordinatedReadFailure>`. `CoordinatedReadFailure` is a typed `Error` struct with the `reason` text of the coordinator error. The `NSError` stays only as the inout parameter that the `NSFileCoordinator` API requires. A new `readDocument(of:in:at:decodeFailures:)` gives the result. `readWinner` gives one `skip` with `coordinationFailedMessage(_:)` ("the coordinated read of the agent document failed: <reason>"). Thus a failed coordination no longer reads as "not local yet". A new `skip(agent:provenance:message:)` helper builds both skip loads. No other error in the file was dropped.
+    - Finding 2 (`design-check/task-description`): `AgentPlaceholderName.folderID(of:)` and `folderPlaceholderCopies` are deleted. A hidden root file never stands for an agent folder, because a sync engine keeps each folder and writes a placeholder only for a file. The same cause was also in `standsForDocument`, which accepted each hidden name that held `AGENT.md`. Now only `.AGENT.md.<suffix>`, with a suffix that is not empty, is a placeholder. The old test `folderPlaceholderGivesOneDiagnostic` tested the removed rule, thus it is replaced.
+    - Finding 3 (`reuse/reuse`): `AgentFolderFixture.agentText(name:description:body:)` is now the one source of the text. Its defaults are `AgentFolderFixture.description` and the new `AgentFolderFixture.body`. The private helpers `AgentRegistryReloadTests.agentText(named:description:)` and `AgentRegistryMarketplaceTests.agentText(named:)` now call it. `AgentRegistryMarketplaceTests.agentBody` is now `AgentFolderFixture.body`.
+    - Discovery: when a file presenter refuses with a Swift `LocalizedError`, the coordinator does not keep its `errorDescription`. You get "The operation couldn't be completed". The test presenter uses `CustomNSError` with `NSLocalizedDescriptionKey` in `errorUserInfo`, and that text gets through.
+    - Docs: `LoadingTheCatalog.md` and `docs/skills-and-agents.md` now give the strict placeholder form, say that `.env.local` is a resource, and tell about the skip for a failed coordinated read.
+  timestamp: 2026-10-16T17:37:58.316938+00:00
+- actor: claude-code
+  id: 01m52wnmve4svxgsxq62rkyxb8
+  text: |-
+    ### implement — changed
+    - evidence: 9 files — Sources/FoundationModelsAgents/Registry/AgentCatalogBuilder.swift, Sources/FoundationModelsAgents/Registry/AgentLayerScan.swift, Sources/FoundationModelsAgents/FoundationModelsAgents.docc/LoadingTheCatalog.md, docs/skills-and-agents.md, Tests/FoundationModelsAgentsTests/AgentFolderPlaceholderTests.swift, Tests/FoundationModelsAgentsTests/Support/AgentFolderFixture.swift, Tests/FoundationModelsAgentsTests/AgentRegistryReloadTests.swift, Tests/FoundationModelsAgentsTests/AgentRegistryMarketplaceTests.swift (plus the task card). RED first: `swift test --filter AgentFolderPlaceholderTests` gave 7 issues in 4 new tests (the false `env` copy hid the user agent; the coordination failure read as "not local yet"). GREEN: 8 tests in 1 suite passed. Then `swift build --build-tests` was clean (the only warning is the known mlx-swift "missing creator for mutated node" line from a dependency). `swift test --filter 'AgentFolder|NoCloudSyncCode|AgentRegistryReload|AgentRegistryMarketplace|LoadingBoundary'` passed 57 tests in 10 suites. Full suite one time: `swift test` passed 557 tests in 78 suites, with 0 failures.
+    - next: /review
+  timestamp: 2026-10-16T17:38:02.734328+00:00
+- actor: claude-code
+  id: 01m52wqrpx7gr49280pw3twm14
+  text: |-
+    ### test — green
+    - evidence: `swift test` ran the full suite. Result: 557 tests in 78 suites passed, 0 failed, 0 skipped. Exit code 0.
+    - warnings: 0 compiler warnings. One known SwiftPM line remains: "missing creator for mutated node" for the mlx-swift_Cmlx bundle. It is accepted and it is not a compiler warning.
+    - changes: no file was changed in this step. No commit was made.
+    - next: review.
+  timestamp: 2026-10-16T17:39:12.221904+00:00
 position_column: doing
 position_ordinal: '80'
 title: 'Agent folder source: an optional extra folder of agent folders (the app sets its iCloud Agents/ folder) (D61)'
@@ -101,3 +151,18 @@ The user said: "this iCloud location is an option to FoundationModelsAgents". Th
 - Tests with a temporary folder in the agent-folder layout: no option gives the current catalog; load; a root `AGENT.md` gives `default` and `defaultAgent`; no root file gives `defaultAgent == nil`; the root and a `default/` subfolder; a project `default` agent wins; precedence; hidden-copy advisory; partials; a placeholder file; a conflict copy; a root that does not exist; a watch event.
 - The docs `LoadingTheCatalog.md` and `docs/skills-and-agents.md` tell the option and the default agent.
 - A guard test: the package source has no `ubiquity`, `iCloud`, or container id text.
+
+## Review Findings (2026-10-16 12:21)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 15 file(s) reviewed, 14 not reviewed.
+
+> 12 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 12 file(s)
+
+> 2 file(s) not reviewed — no validator matched:
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/LoadingTheCatalog.md` — no validator matches this file
+> - `docs/skills-and-agents.md` — no validator matches this file
+
+- [x] `Sources/FoundationModelsAgents/Registry/AgentCatalogBuilder.swift:253` `swift/error-handling` — The error from the coordinated read is stored in coordinationError and never read. A failed coordination returns nil. readWinner then reports that the document is not local yet (lines 228-232). The real cause is lost, and the user gets a wrong reason for the skip. Return the coordination error to the caller, for example as a Result or a throwing function, so the skip diagnostic states the real failure. If a nil return must stay, pass coordinationError to a log and call assertionFailure when it is set, so the failure is not silent.
+- [x] `Sources/FoundationModelsAgents/Registry/AgentLayerScan.swift:204` `design-check/task-description` — `AgentPlaceholderName.folderID(of:)` reads only the file name. Each hidden root file `.<id>.<suffix>` with a valid id becomes a placeholder of the agent folder `<id>`. Thus the usual hidden file `.env.local` at the source root gives a `notLocal` copy of an agent `env`, and a root resource placeholder such as `.notes.icloud` gives a copy of an agent `notes`. The task description (Plan item 5) accepts a hidden name only as a placeholder of an agent document or folder. Also, the agent-folder layer is above `defaults` and `user`, thus this false copy wins over a real `env` agent of a lower layer: `AgentCatalogBuilder.readWinner` gives a `skip`, the real agent goes out of the catalog, and the real copy gets only a hidden-copy advisory. Make the folder-placeholder rule strict so that a hidden file that is not a placeholder does not become an agent, and so that a folder placeholder cannot hide a real copy of a lower layer. Add a test in `AgentFolderPlaceholderTests.swift`: a source root with `.env.local` gives no agent `env` and no diagnostic, and a lower-layer agent with the same id still loads.
+- [x] `Tests/FoundationModelsAgentsTests/Support/AgentFolderFixture.swift:60` `reuse/reuse` — The new `agentText(name:body:)` builds the same valid agent file text as private helpers that already exist in other test files. The new fixture adds one more copy instead of being the one shared helper those files call. Over time the copies can drift apart. Make this fixture function the single source of the agent file text. Point the existing private `agentText` helpers in those test files at it, or parameterize the existing copies so the differing parts are arguments to this function. Keep the fixture's fixed `description` and default body as the defaults.

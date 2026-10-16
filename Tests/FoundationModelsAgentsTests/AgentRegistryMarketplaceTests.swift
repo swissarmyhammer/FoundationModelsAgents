@@ -47,7 +47,7 @@ struct AgentRegistryMarketplaceTests {
     private static let skillPath = "review/SKILL.md"
 
     /// The body of each agent file that a test writes.
-    private static let agentBody = "You are an agent of a test."
+    private static let agentBody = AgentFolderFixture.body
 
     /// A skill file of a marketplace with no `agents/` folder.
     private static let skillText = """
@@ -211,14 +211,7 @@ struct AgentRegistryMarketplaceTests {
     /// - Parameter id: The agent id.
     /// - Returns: The text of the file.
     private static func agentText(named id: String) -> String {
-        """
-        ---
-        name: \(id)
-        description: An agent of a test.
-        ---
-
-        \(agentBody)
-        """
+        AgentFolderFixture.agentText(name: id, body: agentBody)
     }
 
     /// The `file://` URL of a folder, with no `.git` suffix, thus a local

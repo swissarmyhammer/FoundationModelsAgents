@@ -301,13 +301,6 @@ struct AgentRegistryReloadTests {
     ///   - description: The description of the agent.
     /// - Returns: The text of the file.
     private static func agentText(named id: String = agentID, description: String) -> String {
-        """
-        ---
-        name: \(id)
-        description: \(description)
-        ---
-
-        You are an agent of a test.
-        """
+        AgentFolderFixture.agentText(name: id, description: description)
     }
 }

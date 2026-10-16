@@ -187,9 +187,11 @@ URL is a folder of agent folders, with no `agents/` level and no dot folder:
 - An include of an agent-folder agent walks `<name>/_partials/`, then
   `_partials/` of the agent folder. The default agent uses `_partials/` of the
   agent folder. An agent folder never shares a partial with a different layer.
-- A placeholder of a sync service, or an `AGENT.md` that the build cannot read,
-  gives one `skip`: "the agent document is not local yet". Only the exact name
-  `AGENT.md` is an agent document; a conflict copy `AGENT 2.md` is a resource.
+- A placeholder `.AGENT.md.<suffix>` of a sync service, or an `AGENT.md` that
+  the build cannot read, gives one `skip`: "the agent document is not local
+  yet". Only the exact name `AGENT.md` is an agent document; a conflict copy
+  `AGENT 2.md` and each different hidden file, for example `.env.local`, is a
+  resource. A coordinated read that fails gives one `skip` with its cause.
 - With `watch: true`, the watcher watches each agent-folder root. A URL that
   does not exist gives no agent and no diagnostic.
 

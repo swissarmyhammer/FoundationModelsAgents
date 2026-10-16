@@ -51,13 +51,23 @@ enum AgentFolderFixture {
         return folder.map { "\($0)/\(partial)" } ?? partial
     }
 
+    /// The body of each agent file that does not name a body.
+    static let body = "You are an agent of a test."
+
     /// Gives the text of a valid agent file.
+    ///
+    /// This is the one source of the text of a valid agent file for each test
+    /// suite that writes one with only `name`, `description`, and a body.
     ///
     /// - Parameters:
     ///   - name: The value of the `name` key.
-    ///   - body: The body of the file.
+    ///   - description: The value of the `description` key. The default is
+    ///     ``description``.
+    ///   - body: The body of the file. The default is ``body``.
     /// - Returns: The text of the file.
-    static func agentText(name: String, body: String = "You are an agent of a test.") -> String {
+    static func agentText(
+        name: String, description: String = AgentFolderFixture.description, body: String = AgentFolderFixture.body
+    ) -> String {
         """
         ---
         name: \(name)
