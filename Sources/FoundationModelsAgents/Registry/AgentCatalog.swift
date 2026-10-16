@@ -5,6 +5,13 @@
 /// and `AgentRegistry.load()` or `AgentRegistry.reload()` swaps in a new
 /// one. A catalog that a caller holds does not change.
 public struct AgentCatalog: Sendable {
+    /// The fixed id of the default agent: the root `AGENT.md` of an
+    /// agent-folder source, or `agents/default/AGENT.md` of a layer.
+    ///
+    /// The id does not come from the name of a folder, thus the precedence
+    /// of the layers applies to the default agent as to each other agent.
+    public static let defaultAgentID = "default"
+
     /// Each agent that loaded, sorted by id.
     public let definitions: [AgentDefinition]
 
@@ -25,6 +32,17 @@ public struct AgentCatalog: Sendable {
     /// Each agent that the model can see and start, sorted by id.
     public var modelVisible: [AgentDefinition] {
         definitions.filter(\.isModelVisible)
+    }
+
+    /// The default agent: the agent with the id ``defaultAgentID``, or `nil`
+    /// when no layer gives it.
+    ///
+    /// A host starts its root session from this agent when it is present,
+    /// and uses its own instructions when it is `nil`. Thus the root
+    /// `AGENT.md` of an agent-folder source replaces the built-in
+    /// instructions of the host.
+    public var defaultAgent: AgentDefinition? {
+        definition(named: Self.defaultAgentID)
     }
 
     /// Each agent that the user can start as a slash command, sorted by id.

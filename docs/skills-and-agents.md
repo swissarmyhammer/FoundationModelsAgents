@@ -3,7 +3,8 @@
 This document tells how the agents of this package relate to the skills of
 FoundationModelsSkills. It gives the decisions that transfer from skills to
 agents, it tells how one marketplace plugin gives skills and agents, and it
-gives the access rule of the `agents` tool and the rule for partials.
+gives the access rule of the `agents` tool, the rule for partials, and the
+agent folders with the default agent.
 
 ## Skills and agents are separate
 
@@ -151,6 +152,7 @@ over the root of a higher layer.
 - A marketplace agent sees the partials of its own marketplace and of the
   local layers.
 - A local agent sees the partials of the local layers only.
+- An agent of an agent folder sees the partials of its own agent folder only.
 - The `defaults` layer renders trusted. All other layers render untrusted.
 - An include that does not resolve fails the run with `bodyRenderFailed`.
 
@@ -159,3 +161,39 @@ The agent
 includes the partial
 [house-rules.md](../Examples/agent-library/marketplace/plugins/code-tools/_partials/house-rules.md)
 of its plugin.
+
+## Agent folders and the default agent
+
+An agent folder is an optional input of `AgentRegistry`: `agentFolders: [URL]`.
+The default is `[]`, and then the catalog and the layers do not change. Each
+URL is a folder of agent folders, with no `agents/` level and no dot folder:
+
+```
+<url>/
+  AGENT.md                    the default agent: the id `default`
+  _partials/house-rules.md    the partials of the agents of this folder
+  helper/AGENT.md             the agent `helper`
+```
+
+- The layers are `marketplace[0] < … < marketplace[n] < defaults < user <
+  agent folders < project`. Of two agent folders, the later URL wins.
+- `<url>/AGENT.md` is the default agent. Its id is the fixed id `default`, and
+  `AgentCatalog.defaultAgent` gives it. A host starts its root session from it
+  when it is present, and uses its own instructions when it is `nil`. Its
+  `name` is a display name, and the rule table does not compare it with the id.
+- The root `AGENT.md` wins over `<url>/default/AGENT.md`, which gives one
+  warning. A `default` agent of a higher layer, for example
+  `agents/default/AGENT.md` of the project, wins over the root file.
+- An include of an agent-folder agent walks `<name>/_partials/`, then
+  `_partials/` of the agent folder. The default agent uses `_partials/` of the
+  agent folder. An agent folder never shares a partial with a different layer.
+- A placeholder of a sync service, or an `AGENT.md` that the build cannot read,
+  gives one `skip`: "the agent document is not local yet". Only the exact name
+  `AGENT.md` is an agent document; a conflict copy `AGENT 2.md` is a resource.
+- With `watch: true`, the watcher watches each agent-folder root. A URL that
+  does not exist gives no agent and no diagnostic.
+
+The package holds no code of a sync service: no container id, no path of the
+service, and no ubiquity API. The SwissArmyHammer app gives its iCloud
+`Agents/` folder as one agent folder. The guard suite `No cloud sync code` holds
+the package source to this rule.

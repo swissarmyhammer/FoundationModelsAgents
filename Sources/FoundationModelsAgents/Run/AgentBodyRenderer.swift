@@ -13,8 +13,12 @@ import Marketplace
 ///    text as the document `agents/<id>/AGENT.md` of the winning layer, with
 ///    the `variables` of the registry. An include walks from
 ///    `agents/<id>/_partials/` of the agent folder, to `agents/_partials/`,
-///    up to `_partials/` of the layer root. The trust comes from the layer:
-///    `defaults` renders trusted, and each other layer renders untrusted.
+///    up to `_partials/` of the layer root. The document of an agent-folder
+///    source is `<id>/AGENT.md`, and its include walks from `<id>/_partials/`
+///    to `_partials/` of the source root. The default agent `AGENT.md` of the
+///    source uses `_partials/` of the source root. The trust comes from the
+///    layer: `defaults` renders trusted, and each other layer renders
+///    untrusted.
 ///
 /// A render error becomes `AgentRunFailure.bodyRenderFailed`.
 struct AgentBodyRenderer: Sendable {
@@ -61,21 +65,25 @@ struct AgentBodyRenderer: Sendable {
     /// The layers that the render of `definition` reads partials from.
     ///
     /// A marketplace document sees its own marketplace layer and the local
-    /// layers. A local document sees the local layers only.
+    /// layers. A local document sees the local layers only. A document of an
+    /// agent-folder source sees its own source only, thus a partial of a
+    /// dotfolder layer and a partial of a different source stay out of it.
     ///
     /// - Parameter definition: The agent whose body to render.
     /// - Returns: The layers, lowest precedence first.
     private func scopedLayers(of definition: AgentDefinition) -> [DotfolderStack.Layer] {
-        (definition.marketplaceLayer.map { [$0.layer] } ?? []) + localLayers
+        guard !definition.kind.isInAgentFolderSource else { return [definition.layer] }
+        return (definition.marketplaceLayer.map { [$0.layer] } ?? []) + localLayers
     }
 
     /// The path of the agent document, relative to the root of its layer:
-    /// `agents/<id>/AGENT.md`.
+    /// `agents/<id>/AGENT.md`, or `<id>/AGENT.md` or `AGENT.md` for an
+    /// agent-folder source.
     ///
     /// - Parameter definition: The agent.
     /// - Returns: The document path of the render.
     private static func documentPath(of definition: AgentDefinition) -> String {
-        AgentCatalogBuilder.documentPath(of: definition.id)
+        definition.kind.documentPath(of: definition.id)
     }
 
     /// Cuts `body` at each `$ARGUMENTS`, and puts `prompt` in each cut as a

@@ -1,0 +1,49 @@
+import Marketplace
+
+/// Where an agent document sits in its layer.
+///
+/// The kind gives the path of the document relative to the layer root, the
+/// rule for the `name` key, and the layers that the render of the body reads
+/// partials from.
+enum AgentDocumentKind: Sendable, Equatable {
+    /// `agents/<id>/AGENT.md` of a dotfolder layer or of a marketplace layer.
+    case agentsFolder
+
+    /// `<id>/AGENT.md` of an agent-folder source: a folder of agent folders
+    /// with no `agents/` level.
+    case agentFolder
+
+    /// `AGENT.md` at the root of an agent-folder source: the default agent.
+    case rootDocument
+
+    /// Whether the rule table compares the `name` key with the id.
+    ///
+    /// The `name` of the root document is a display name, thus the rule
+    /// table does not check it.
+    var checksName: Bool {
+        self != .rootDocument
+    }
+
+    /// Whether the document is in an agent-folder source.
+    ///
+    /// The render of such a document reads the partials of its own source
+    /// only.
+    var isInAgentFolderSource: Bool {
+        self != .agentsFolder
+    }
+
+    /// Gives the path of the document of `id`, relative to the layer root.
+    ///
+    /// - Parameter id: The id of the agent: the name of its folder.
+    /// - Returns: `agents/<id>/AGENT.md`, `<id>/AGENT.md`, or `AGENT.md`.
+    func documentPath(of id: String) -> String {
+        switch self {
+        case .agentsFolder:
+            "\(MarketplaceLayer.agentsDirectoryName)/\(id)/\(MarketplaceLayer.agentDocumentName)"
+        case .agentFolder:
+            "\(id)/\(MarketplaceLayer.agentDocumentName)"
+        case .rootDocument:
+            MarketplaceLayer.agentDocumentName
+        }
+    }
+}

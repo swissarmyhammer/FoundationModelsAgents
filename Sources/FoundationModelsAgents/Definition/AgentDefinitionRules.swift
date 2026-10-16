@@ -41,9 +41,16 @@ enum AgentDefinitionRules {
     /// first, then the advisories. The access key warnings come before each
     /// other warning, thus an incorrect `disallowedTools` is the first
     /// finding.
-    static let frontmatterRules: [Rule] = [
-        accessKeyFindings,
-        nameFindings,
+    static let frontmatterRules: [Rule] = [accessKeyFindings, nameFindings] + rulesAfterName
+
+    /// The frontmatter rules of a document whose `name` is a display name:
+    /// each rule of `frontmatterRules` other than the `name` rule, in the
+    /// same order.
+    static let displayNameRules: [Rule] = [accessKeyFindings] + rulesAfterName
+
+    /// The frontmatter rules that come after the `name` rule, in the order
+    /// of their findings.
+    private static let rulesAfterName: [Rule] = [
         descriptionFindings,
         modelFindings,
         unsupportedKeyFindings,
@@ -101,9 +108,11 @@ enum AgentDefinitionRules {
     /// - Parameters:
     ///   - id: The name of the agent folder.
     ///   - frontmatter: The decoded frontmatter.
+    ///   - checksName: Whether the `name` rule applies. The default is
+    ///     `true`. With `false`, the rules are `displayNameRules`.
     /// - Returns: The findings of all the rules, in order.
-    static func findings(id: String, frontmatter: AgentFrontmatter) -> [AgentFinding] {
-        frontmatterRules.flatMap { rule in rule(id, frontmatter) }
+    static func findings(id: String, frontmatter: AgentFrontmatter, checksName: Bool = true) -> [AgentFinding] {
+        (checksName ? frontmatterRules : displayNameRules).flatMap { rule in rule(id, frontmatter) }
     }
 
     /// Tells if `text` holds a character that is not white space.

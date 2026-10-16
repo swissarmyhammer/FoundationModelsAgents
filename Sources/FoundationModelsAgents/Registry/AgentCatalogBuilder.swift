@@ -3,8 +3,8 @@ import FoundationModelsExtras
 import Marketplace
 import Synchronization
 
-/// Builds one `AgentCatalog` from the marketplace layers and the local
-/// layers.
+/// Builds one `AgentCatalog` from the marketplace layers, the local layers,
+/// and the agent-folder sources.
 ///
 /// The stack of Extras does each read, and `FrontmatterDocumentStack` does
 /// each split. `AgentFrontmatter.decode` decodes the frontmatter, and
@@ -14,50 +14,53 @@ enum AgentCatalogBuilder {
     /// The suffix of an agent file of the old format: `agents/<id>.md`.
     static let oldFormatSuffix = ".md"
 
-    /// Builds the catalog of the marketplace layers and the local layers.
+    /// The text of the skip for an agent document that the build cannot read
+    /// yet: a placeholder, or a file that does not read as text.
+    static let notLocalMessage =
+        "the agent document is not local yet; the next build loads it when the file is local"
+
+    /// Builds the catalog of the marketplace layers, the local layers, and
+    /// the agent-folder sources.
     ///
-    /// The layers are `marketplace[0] < … < marketplace[n] < local layers`.
-    /// An agent is a child folder of `agents/` of the combined view that
-    /// holds `AGENT.md`: `agents/<id>/AGENT.md`. The folder name is the id,
-    /// and the other files of the folder are the resources of the agent. The
-    /// highest layer that holds the document wins it, and each lower copy
-    /// gives one advisory on the diagnostics of the winner. A bad agent does
-    /// not stop a good agent next to it. A definition from a marketplace
-    /// layer keeps that layer and its provenance.
+    /// The layers are `marketplace[0] < … < marketplace[n] < defaults < user
+    /// < agent folders < project` (`AgentCatalogLayer.ordered`). A dotfolder
+    /// layer or a marketplace layer holds an agent as `agents/<id>/AGENT.md`.
+    /// An agent-folder source holds an agent as `<id>/AGENT.md`, and its root
+    /// `AGENT.md` is the agent `default`. The folder name is the id, and the
+    /// other files of the folder are the resources of the agent. The highest
+    /// layer that holds a copy of an id wins it, and each lower copy gives
+    /// one advisory on the diagnostics of the winner. A bad agent does not
+    /// stop a good agent next to it. A definition from a marketplace layer
+    /// keeps that layer and its provenance.
     ///
-    /// A `.md` file directly in `agents/` has the old format. It gives no
-    /// agent. Each such file of each layer gives one warning, after the
-    /// diagnostics of the agent folders.
+    /// A `.md` file directly in `agents/` of a dotfolder layer or a
+    /// marketplace layer has the old format. It gives no agent. Each such
+    /// file of each layer gives one warning, after the diagnostics of the
+    /// agent folders.
     ///
     /// - Parameters:
     ///   - marketplaceLayers: The marketplace layers, lowest precedence
     ///     first.
     ///   - localLayers: The local layers, lowest precedence first.
+    ///   - agentFolderLayers: The layers of the agent-folder sources, in the
+    ///     order of their URLs.
     /// - Returns: The catalog.
     static func build(
-        marketplaceLayers: [MarketplaceLayer], localLayers: [DotfolderStack.Layer]
+        marketplaceLayers: [MarketplaceLayer], localLayers: [DotfolderStack.Layer],
+        agentFolderLayers: [DotfolderStack.Layer]
     ) -> AgentCatalog {
-        let plain = DotfolderStack(layers: marketplaceLayers.map(\.layer) + localLayers)
-        let decodeFailures = DecodeFailureLog()
-        let documents = FrontmatterDocumentStack(
-            base: plain, decode: AgentFrontmatter.decode, onDiagnostic: decodeFailures.record)
-        let loads = agentFolders(in: plain).map { folder in
+        let layers = AgentCatalogLayer.ordered(
+            marketplaceLayers: marketplaceLayers, localLayers: localLayers, agentFolderLayers: agentFolderLayers)
+        let scans = layers.indices.map { index in AgentLayerScan(layers[index], at: index) }
+        let loads = agentFolders(in: scans).map { folder in
             load(
-                folder, marketplaceLayer: marketplaceLayer(at: folder.winnerIndex, in: marketplaceLayers),
-                documents: documents, decodeFailures: decodeFailures)
+                folder, layers: layers,
+                marketplaceLayer: marketplaceLayer(at: folder.winner.layerIndex, in: marketplaceLayers))
         }
-        let oldFormatWarnings = oldFormatWarnings(in: plain.layers, marketplaceLayers: marketplaceLayers)
+        let oldFormatWarnings = oldFormatWarnings(in: layers, marketplaceLayers: marketplaceLayers)
         return AgentCatalog(
             definitions: loads.compactMap(\.definition),
             diagnostics: loads.flatMap(\.diagnostics) + oldFormatWarnings)
-    }
-
-    /// The path of the document of an agent, relative to a layer root.
-    ///
-    /// - Parameter id: The id of the agent: the name of its folder.
-    /// - Returns: `agents/<id>/AGENT.md`.
-    static func documentPath(of id: String) -> String {
-        "\(MarketplaceLayer.agentsDirectoryName)/\(id)/\(MarketplaceLayer.agentDocumentName)"
     }
 
     /// The text of the advisory for a lower copy of an agent document that a
@@ -71,22 +74,24 @@ enum AgentCatalogBuilder {
         "the copy at \(url.path) in layer \(layerIndex) is hidden by this higher copy"
     }
 
-    /// One agent folder of the combined view: the id, the path of the
-    /// document, and the layers that hold a copy of the document.
+    /// The text of the warning for `<url>/default/AGENT.md` of an
+    /// agent-folder source that also holds a root `AGENT.md`.
+    static let hiddenDefaultFolderMessage =
+        "the folder '\(AgentCatalog.defaultAgentID)/' is hidden by the root \(MarketplaceLayer.agentDocumentName) "
+            + "of the same agent folder; the root \(MarketplaceLayer.agentDocumentName) is the default agent"
+
+    /// One agent of the combined view: the winning copy, and the copies that
+    /// it hides.
     private struct AgentFolder {
-        /// The folder name: the id of the agent.
-        let id: String
+        /// The copy in the highest layer that holds the id.
+        let winner: AgentCopy
 
-        /// The path of the document relative to a layer root:
-        /// `agents/<id>/AGENT.md`.
-        let path: String
+        /// Each lower copy of the id, lowest first.
+        let hiddenCopies: [AgentCopy]
 
-        /// The position of the layer that wins the document.
-        let winnerIndex: Int
-
-        /// The position of each lower layer that holds a copy of the
-        /// document, lowest first.
-        let hiddenIndices: [Int]
+        /// Each `<url>/default/AGENT.md` that a root `AGENT.md` hides, in
+        /// layer order. Empty for each id other than `default`.
+        let hiddenDefaultFolders: [AgentCopy]
     }
 
     /// One agent file of the old format in one layer.
@@ -110,35 +115,20 @@ enum AgentCatalogBuilder {
         let diagnostics: [AgentDiagnostic]
     }
 
-    /// Finds each agent folder of the combined view, sorted by id.
+    /// Groups the copies of the scans by id, sorted by id.
     ///
-    /// A child folder of `agents/` that no layer fills with `AGENT.md` is not
-    /// an agent, for example `agents/_partials/`. A name that no single layer
-    /// holds when this type looks at the layers one by one is left out. That
-    /// occurs only when the document went away between the two reads; the
-    /// next build reads the folder again.
-    ///
-    /// - Parameter plain: The stack of the layers.
-    /// - Returns: The agent folders.
-    private static func agentFolders(in plain: DotfolderStack) -> [AgentFolder] {
-        plain.childDirectories(of: MarketplaceLayer.agentsDirectoryName).keys.sorted().compactMap { id in
-            let path = documentPath(of: id)
-            let indices = layerIndices(holding: path, in: plain.layers)
-            return indices.last.map { winnerIndex in
-                AgentFolder(id: id, path: path, winnerIndex: winnerIndex, hiddenIndices: Array(indices.dropLast()))
+    /// - Parameter scans: The scan of each layer, lowest precedence first.
+    /// - Returns: One agent folder for each id that a layer holds.
+    private static func agentFolders(in scans: [AgentLayerScan]) -> [AgentFolder] {
+        let copiesByID = Dictionary(grouping: scans.flatMap(\.copies), by: \.id)
+        let hiddenDefaultFoldersByID = Dictionary(grouping: scans.flatMap(\.hiddenDefaultFolders), by: \.id)
+        return copiesByID.keys.sorted().compactMap { id in
+            let copies = copiesByID[id] ?? []
+            return copies.last.map { winner in
+                AgentFolder(
+                    winner: winner, hiddenCopies: Array(copies.dropLast()),
+                    hiddenDefaultFolders: hiddenDefaultFoldersByID[id] ?? [])
             }
-        }
-    }
-
-    /// Finds the position of each layer that holds `path`.
-    ///
-    /// - Parameters:
-    ///   - path: A path relative to a layer root.
-    ///   - layers: The layers, lowest precedence first.
-    /// - Returns: The positions, lowest first.
-    private static func layerIndices(holding path: String, in layers: [DotfolderStack.Layer]) -> [Int] {
-        layers.indices.filter { index in
-            DotfolderStack(layers: [layers[index]]).exists(path)
         }
     }
 
@@ -155,64 +145,142 @@ enum AgentCatalogBuilder {
         marketplaceLayers.indices.contains(layerIndex) ? marketplaceLayers[layerIndex] : nil
     }
 
-    /// Loads one agent folder: the decode failures, the rule table, and one
-    /// advisory for each hidden copy.
+    /// Gives the URL of the file of a copy.
+    ///
+    /// - Parameters:
+    ///   - copy: The copy.
+    ///   - layers: The layers of the build.
+    /// - Returns: The layer root with the path of the copy.
+    private static func url(of copy: AgentCopy, in layers: [AgentCatalogLayer]) -> URL {
+        layers[copy.layerIndex].layer.root.appendingPathComponent(copy.path)
+    }
+
+    /// Loads one agent folder: the read of the winning copy, the rule table,
+    /// one advisory for each hidden copy, and one warning for each hidden
+    /// `default/` folder.
     ///
     /// - Parameters:
     ///   - folder: The agent folder.
+    ///   - layers: The layers of the build.
     ///   - marketplaceLayer: The marketplace layer that wins the folder, or
     ///     `nil` when a local layer wins it.
-    ///   - documents: The document stack of all the layers.
-    ///   - decodeFailures: The log that `documents` reports each decode
-    ///     failure to.
     /// - Returns: The agent, or `nil`, with the diagnostics of the document.
     private static func load(
-        _ folder: AgentFolder,
-        marketplaceLayer: MarketplaceLayer?,
-        documents: FrontmatterDocumentStack<DotfolderStack, AgentFrontmatter>,
-        decodeFailures: DecodeFailureLog
+        _ folder: AgentFolder, layers: [AgentCatalogLayer], marketplaceLayer: MarketplaceLayer?
     ) -> AgentFolderLoad {
-        let layers = documents.layers
+        let winner = folder.winner
         let provenance = AgentDiagnostic.Provenance(
-            layerIndex: folder.winnerIndex, layerRoot: layers[folder.winnerIndex].root,
-            url: layers[folder.winnerIndex].root.appendingPathComponent(folder.path),
-            marketplace: marketplaceLayer?.provenance)
-        let document = documents.item(at: folder.path)
-        let agent = AgentDefinitionRules.isValidID(folder.id) ? folder.id : nil
+            layerIndex: winner.layerIndex, layerRoot: layers[winner.layerIndex].layer.root,
+            url: url(of: winner, in: layers), marketplace: marketplaceLayer?.provenance)
+        let agent = AgentDefinitionRules.isValidID(winner.id) ? winner.id : nil
+        let read = readWinner(
+            winner, of: layers[winner.layerIndex], provenance: provenance, marketplaceLayer: marketplaceLayer)
+        let hiddenCopyAdvisories = folder.hiddenCopies.map { copy in
+            AgentDiagnostic(
+                severity: .advisory, agent: agent, provenance: provenance,
+                message: hiddenCopyMessage(url: url(of: copy, in: layers), layerIndex: copy.layerIndex))
+        }
+        let hiddenDefaultFolderWarnings = folder.hiddenDefaultFolders.map { copy in
+            AgentDiagnostic(
+                severity: .warning, agent: agent,
+                provenance: AgentDiagnostic.Provenance(
+                    layerIndex: copy.layerIndex, layerRoot: layers[copy.layerIndex].layer.root,
+                    url: url(of: copy, in: layers)),
+                message: hiddenDefaultFolderMessage)
+        }
+        return AgentFolderLoad(
+            definition: read.definition,
+            diagnostics: read.diagnostics + hiddenCopyAdvisories + hiddenDefaultFolderWarnings)
+    }
+
+    /// Reads the winning copy of one agent, and applies the rule table.
+    ///
+    /// A placeholder, and a document of an agent-folder source that the build
+    /// cannot read, give one `skip` with `notLocalMessage`. A sync engine then
+    /// downloads the file, and the next build loads it. The read of a
+    /// document of an agent-folder source is coordinated
+    /// (`NSFileCoordinator`), thus a sync engine can give the current file.
+    ///
+    /// - Parameters:
+    ///   - winner: The winning copy.
+    ///   - layer: The layer of the winning copy.
+    ///   - provenance: The file of the agent.
+    ///   - marketplaceLayer: The marketplace layer that gave the file, or
+    ///     `nil` for a local layer.
+    /// - Returns: The agent, or `nil`, with the diagnostics of the read and
+    ///   of the rule table.
+    private static func readWinner(
+        _ winner: AgentCopy, of layer: AgentCatalogLayer, provenance: AgentDiagnostic.Provenance,
+        marketplaceLayer: MarketplaceLayer?
+    ) -> AgentFolderLoad {
+        let decodeFailures = DecodeFailureLog()
+        let documents = FrontmatterDocumentStack(
+            base: DotfolderStack(layers: [layer.layer]), decode: AgentFrontmatter.decode,
+            onDiagnostic: decodeFailures.record)
+        let document: Located<FrontmatterDocument<AgentFrontmatter>>? =
+            switch (winner.state, layer.layout) {
+            case (.notLocal, _): nil
+            case (.document, .dotfolder): documents.item(at: winner.path)
+            case (.document, .agentFolder):
+                coordinatedRead(of: provenance.url) { documents.item(at: winner.path) }
+            }
+        let agent = AgentDefinitionRules.isValidID(winner.id) ? winner.id : nil
+        guard document != nil || layer.layout == .dotfolder else {
+            let notLocal = AgentDiagnostic(
+                severity: .skip, agent: agent, provenance: provenance, message: notLocalMessage)
+            return AgentFolderLoad(definition: nil, diagnostics: [notLocal])
+        }
         var diagnostics = decodeFailures.removeAll().map { failure in
             AgentDiagnostic(severity: .advisory, agent: agent, provenance: provenance, message: failure.message)
         }
         let definition = AgentDefinition(
-            id: folder.id, document: document, provenance: provenance, marketplaceLayer: marketplaceLayer,
-            diagnostics: &diagnostics)
-        diagnostics += folder.hiddenIndices.map { index in
-            let hiddenURL = layers[index].root.appendingPathComponent(folder.path)
-            return AgentDiagnostic(
-                severity: .advisory, agent: agent, provenance: provenance,
-                message: hiddenCopyMessage(url: hiddenURL, layerIndex: index))
-        }
+            id: winner.id, document: document, provenance: provenance, marketplaceLayer: marketplaceLayer,
+            kind: winner.kind, diagnostics: &diagnostics)
         return AgentFolderLoad(definition: definition, diagnostics: diagnostics)
     }
 
+    /// Runs `read` in a coordinated read of the file at `url`.
+    ///
+    /// A sync engine that presents the file can give the current version
+    /// before the read. A coordination that fails gives `nil`.
+    ///
+    /// - Parameters:
+    ///   - url: The file to read.
+    ///   - read: The read. The stack of Extras opens the file in it.
+    /// - Returns: What `read` gave, or `nil`.
+    private static func coordinatedRead<Value>(of url: URL, _ read: () -> Value?) -> Value? {
+        var value: Value?
+        var coordinationError: NSError?
+        NSFileCoordinator(filePresenter: nil).coordinate(
+            readingItemAt: url, options: [], error: &coordinationError
+        ) { _ in
+            value = read()
+        }
+        return value
+    }
+
     /// Gives one warning for each agent file of the old format: a `.md` file
-    /// directly in `agents/` of a layer.
+    /// directly in `agents/` of a dotfolder layer or a marketplace layer.
     ///
     /// The search looks at each layer by itself, thus a copy in a lower
     /// layer also gives its warning. The search lists the files and reads no
-    /// text.
+    /// text. An agent-folder source has no `agents/` level, thus its files
+    /// give no warning.
     ///
     /// - Parameters:
-    ///   - layers: The layers, lowest precedence first.
+    ///   - layers: The layers of the build, lowest precedence first.
     ///   - marketplaceLayers: The marketplace layers: the first positions of
     ///     `layers`.
     /// - Returns: The warnings, sorted by file name, then by layer position.
     private static func oldFormatWarnings(
-        in layers: [DotfolderStack.Layer], marketplaceLayers: [MarketplaceLayer]
+        in layers: [AgentCatalogLayer], marketplaceLayers: [MarketplaceLayer]
     ) -> [AgentDiagnostic] {
-        let files = layers.indices.flatMap { index in oldFormatFiles(in: layers[index], at: index) }
+        let files = layers.indices.filter { layers[$0].layout == .dotfolder }.flatMap { index in
+            oldFormatFiles(in: layers[index].layer, at: index)
+        }
         return files.sorted { ($0.name, $0.layerIndex) < ($1.name, $1.layerIndex) }.map { file in
             let provenance = AgentDiagnostic.Provenance(
-                layerIndex: file.layerIndex, layerRoot: layers[file.layerIndex].root, url: file.url,
+                layerIndex: file.layerIndex, layerRoot: layers[file.layerIndex].layer.root, url: file.url,
                 marketplace: marketplaceLayer(at: file.layerIndex, in: marketplaceLayers)?.provenance)
             let agent = AgentDefinitionRules.isValidID(file.name) ? file.name : nil
             return AgentDefinitionRules.oldFormatFinding(file.name).diagnostic(agent: agent, provenance: provenance)

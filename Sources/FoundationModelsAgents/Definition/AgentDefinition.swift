@@ -16,7 +16,9 @@ public struct AgentDefinition: Sendable {
     /// a warning.
     static let descriptionCharacterLimit = 1024
 
-    /// The id of the agent: the name of its folder.
+    /// The id of the agent: the name of its folder, or
+    /// ``AgentCatalog/defaultAgentID`` for the root `AGENT.md` of an
+    /// agent-folder source.
     public let id: String
 
     /// The `description` key. It tells the model when to use the agent.
@@ -81,17 +83,27 @@ public struct AgentDefinition: Sendable {
     /// document sees its own marketplace and the local layers.
     public let marketplaceLayer: MarketplaceLayer?
 
-    /// The URL of the agent document: `<layer root>/agents/<id>/AGENT.md`.
+    /// Where the document sits in its layer. The render of the body reads it
+    /// for the path of the document and for the partial scope.
+    let kind: AgentDocumentKind
+
+    /// The URL of the agent document: `<layer root>/agents/<id>/AGENT.md`,
+    /// or, for an agent-folder source, `<url>/<id>/AGENT.md` or
+    /// `<url>/AGENT.md`.
     public var url: URL {
         provenance.url
     }
 
     /// The URL of the agent folder of the winning layer:
-    /// `<layer root>/agents/<id>/`.
+    /// `<layer root>/agents/<id>/`, or, for an agent-folder source,
+    /// `<url>/<id>/`. The folder of the default agent of an agent-folder
+    /// source is `<url>` itself.
     ///
     /// The folder holds `AGENT.md` and the resources of the agent: each other
-    /// file of the folder. A copy of the folder in a lower layer is hidden,
-    /// thus this URL names the folder of the layer that gave the document.
+    /// file of the folder. The resources of the default agent are the files
+    /// of `<url>` other than `AGENT.md`, `_partials/`, and the agent
+    /// folders. A copy of the folder in a lower layer is hidden, thus this
+    /// URL names the folder of the layer that gave the document.
     public var folderURL: URL {
         provenance.url.deletingLastPathComponent()
     }
@@ -129,6 +141,36 @@ public struct AgentDefinition: Sendable {
         marketplaceLayer: MarketplaceLayer? = nil,
         diagnostics: inout [AgentDiagnostic]
     ) {
+        self.init(
+            id: id, document: document, provenance: provenance, marketplaceLayer: marketplaceLayer,
+            kind: .agentsFolder, diagnostics: &diagnostics)
+    }
+
+    /// Makes a definition from one located document of a known kind, and
+    /// applies the rule table.
+    ///
+    /// The rules are those of `init(id:document:provenance:marketplaceLayer:diagnostics:)`.
+    /// The one difference is the `name` rule: the root document of an
+    /// agent-folder source has a display name, thus the rule table does not
+    /// check its `name`.
+    ///
+    /// - Parameters:
+    ///   - id: The name of the agent folder, or `default` for the root
+    ///     document of an agent-folder source.
+    ///   - document: The winning copy of the file, or `nil`.
+    ///   - provenance: The file of the agent.
+    ///   - marketplaceLayer: The marketplace layer that gave the file, or
+    ///     `nil` for a local layer.
+    ///   - kind: Where the document sits in its layer.
+    ///   - diagnostics: The list that receives the diagnostics of the file.
+    init?(
+        id: String,
+        document: Located<FrontmatterDocument<AgentFrontmatter>>?,
+        provenance: AgentDiagnostic.Provenance,
+        marketplaceLayer: MarketplaceLayer?,
+        kind: AgentDocumentKind,
+        diagnostics: inout [AgentDiagnostic]
+    ) {
         guard AgentDefinitionRules.isValidID(id) else {
             diagnostics.append(
                 AgentDefinitionRules.invalidIDFinding(id).diagnostic(agent: nil, provenance: provenance))
@@ -139,12 +181,13 @@ public struct AgentDefinition: Sendable {
                 AgentDefinitionRules.noFrontmatterFinding.diagnostic(agent: id, provenance: provenance))
             return nil
         }
-        diagnostics += AgentDefinitionRules.findings(id: id, frontmatter: frontmatter).map { finding in
+        let findings = AgentDefinitionRules.findings(id: id, frontmatter: frontmatter, checksName: kind.checksName)
+        diagnostics += findings.map { finding in
             finding.diagnostic(agent: id, provenance: provenance)
         }
         self.init(
             id: id, frontmatter: frontmatter, body: document.value.content, layer: document.layer,
-            provenance: provenance, marketplaceLayer: marketplaceLayer)
+            provenance: provenance, marketplaceLayer: marketplaceLayer, kind: kind)
     }
 
     /// Makes a definition from a frontmatter that passed the skip rules.
@@ -157,13 +200,15 @@ public struct AgentDefinition: Sendable {
     ///   - provenance: The file of the agent.
     ///   - marketplaceLayer: The marketplace layer that gave the file, or
     ///     `nil` for a local layer.
+    ///   - kind: Where the document sits in its layer.
     private init(
         id: String,
         frontmatter: AgentFrontmatter,
         body: String,
         layer: DotfolderStack.Layer,
         provenance: AgentDiagnostic.Provenance,
-        marketplaceLayer: MarketplaceLayer?
+        marketplaceLayer: MarketplaceLayer?,
+        kind: AgentDocumentKind
     ) {
         let hasValidDescription = AgentDefinitionRules.holdsText(frontmatter.description)
         let incorrectKeys = AgentAccessKey.incorrectKeys(in: frontmatter)
@@ -187,6 +232,7 @@ public struct AgentDefinition: Sendable {
         self.layer = layer
         self.provenance = provenance
         self.marketplaceLayer = marketplaceLayer
+        self.kind = kind
     }
 
     /// Gives the `tools` entries that the agent gets, with the access key
