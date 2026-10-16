@@ -56,6 +56,34 @@ An unknown name throws ``AgentRunnerError/unknownAgent(name:available:)``.
 `result()` throws the ``AgentRunFailure`` of a failed run, or
 `CancellationError` for a cancelled run.
 
+### The working folder of a run
+
+Each run has one working folder. The session of the run gets it, and the
+`AGENTS.md` documents of the instructions come from it.
+``AgentRunner/start(_:prompt:workingDirectory:)`` gives the folder of a
+host-driven run:
+
+```swift
+let report = try await runner.start("code-reviewer", prompt: task, workingDirectory: repoURL).result()
+```
+
+The folder of a run is the first of these:
+
+1. The folder of the start request: the `workingDirectory` argument of
+   ``AgentRunner/start(_:prompt:workingDirectory:)``, or the
+   `workingDirectory` field of `start agent`. A relative path of
+   `start agent` starts from the folder of the calling run.
+2. For a child run, the folder of the parent run. A parent that gives a task
+   expects the child to work on the files of the parent.
+3. Only for an agent of an agent folder (`agentFolders` of the registry), the
+   folder of the agent: ``AgentDefinition/folderURL``.
+4. ``AgentEnvironment/workingDirectory``.
+
+An agent of the dot-folder stack (`agents/<id>/` of a marketplace, defaults,
+user, or project layer) never works in its own folder: that folder holds a
+definition in a configuration folder. ``AgentRunner/start(_:prompt:)`` names
+no folder.
+
 ### What a run does
 
 `start` does these steps before it returns:
@@ -64,7 +92,7 @@ An unknown name throws ``AgentRunnerError/unknownAgent(name:available:)``.
    quarantined span. Then the Stencil render runs on the body. A render
    failure fails the run with ``AgentRunFailure/bodyRenderFailed(_:)``.
 2. It puts the instructions in order: the `AGENTS.md` files of the working
-   directory, outermost first; the body; the body of each skill of the
+   folder of the run, outermost first; the body; the body of each skill of the
    `skills:` key.
 3. It resolves the tools. `disallowedTools` applies first, then `tools`. With
    no `tools` key, the run gets each tool of the ``ToolCatalog``.

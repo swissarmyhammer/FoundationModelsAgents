@@ -11,7 +11,7 @@ operations:
 | Operation | Parameters | Answer |
 |---|---|---|
 | `list agents` | `filter?` | One `- name: description` line for each model-visible agent that matches. |
-| `start agent` | `name`, `prompt` | In a Router session: the final message when the run ends in the settle period of the session, else the pending envelope of the Router. Outside one, at once: "Agent `name` started with the id `id`." |
+| `start agent` | `name`, `prompt`, `workingDirectory?` | In a Router session: the final message when the run ends in the settle period of the session, else the pending envelope of the Router. Outside one, at once: "Agent `name` started with the id `id`." |
 | `check agent` | `id?` | At once: the state of the run. With no `id`, one block for each run of the caller. |
 | `cancel agent` | `id` | What the cancel did. |
 | `send agent` | `id`, `message` | At once: "The message was sent to Agent `name` (`id`)." The run answers the message before it ends. |
@@ -20,6 +20,11 @@ operations:
 The verb aliases are `stop` for `cancel`, `run` for `start`, `status` for
 `check`, and `show` for `list`. The noun alias is `parent` for `caller`.
 `send parent` is the same call as `send caller`.
+
+The `workingDirectory` field of `start agent` names the working folder of the
+new run. A relative path starts from the folder of the calling run. With no
+field, a child of a run works in the folder of its parent. See "The working
+folder of a run" in <doc:RunningAnAgent>.
 
 ### Messages between a run and its caller
 

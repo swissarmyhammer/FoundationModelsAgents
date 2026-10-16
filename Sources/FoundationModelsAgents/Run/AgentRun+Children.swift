@@ -1,3 +1,4 @@
+import Foundation
 import FoundationModelsRouter
 import Synchronization
 
@@ -41,8 +42,9 @@ enum AgentRunPhase: Sendable, Equatable {
 
 /// The run that calls the `agents` tool, as the tool sees it.
 ///
-/// `start agent` uses it to give a child its depth and its inherited slot,
-/// and the child adds itself to ``children``. The tool also uses ``agentID``:
+/// `start agent` uses it to give a child its depth, its inherited slot, and
+/// its working folder, and the child adds itself to ``children``. The tool
+/// also uses ``agentID``:
 /// the tool of a run does not list, start, or send a message to its own
 /// agent. A root session that is not a run has no such value.
 struct ParentRun: Sendable {
@@ -65,6 +67,11 @@ struct ParentRun: Sendable {
 
     /// The children of the calling run.
     let family: Family
+
+    /// The working folder of the calling run. A child that names no folder
+    /// works in this folder, because the parent expects the child to work on
+    /// its files. A relative folder of `start agent` starts from it.
+    let workingDirectory: URL
 
     /// The runs that the calling run started.
     var children: AgentRunChildren {

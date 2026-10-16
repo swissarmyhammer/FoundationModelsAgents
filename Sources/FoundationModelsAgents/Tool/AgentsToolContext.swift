@@ -104,6 +104,33 @@ public struct AgentsToolContext: Sendable {
         parent?.slot ?? runner.environment.defaultSlot
     }
 
+    /// The folder that a relative path of `start agent` starts from: the
+    /// working folder of the calling run, or
+    /// ``AgentEnvironment/workingDirectory`` when the session is not a run.
+    private var baseDirectory: URL {
+        parent?.workingDirectory ?? runner.environment.workingDirectory
+    }
+
+    /// Gives the folder that the `workingDirectory` field of `start agent`
+    /// names.
+    ///
+    /// An absolute path names its folder. A relative path starts from the
+    /// working folder of the calling run. A path that holds no text names no
+    /// folder, thus the run gets its default folder
+    /// (``AgentRunRequest/workingDirectory(default:)``).
+    ///
+    /// - Parameter path: The text of the field, or `nil` when the call has
+    ///   no such field.
+    /// - Returns: The absolute folder, or `nil` when the call names no folder.
+    func requestedDirectory(at path: String?) -> URL? {
+        guard AgentDefinitionRules.holdsText(path), let path else {
+            return nil
+        }
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        return URL(filePath: trimmed, directoryHint: .isDirectory, relativeTo: baseDirectory)
+            .absoluteURL.standardizedFileURL
+    }
+
     /// Tells whether the tool can start `definition`.
     ///
     /// The tool of a run cannot start the agent of that run

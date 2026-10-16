@@ -62,7 +62,7 @@ struct AgentsToolSchemaTests {
         #expect(
             parameters == [
                 "list agents": ["filter?"],
-                "start agent": ["name", "prompt"],
+                "start agent": ["name", "prompt", "workingDirectory?"],
                 "check agent": ["id?"],
                 "cancel agent": ["id"],
                 "send agent": ["id", "message"],
@@ -76,7 +76,9 @@ struct AgentsToolSchemaTests {
 
         let properties = try Self.properties(in: harness.tool.parameters)
 
-        #expect(Set(properties.keys) == [OperationKeys.opFieldName, "filter", "name", "prompt", "id", "message"])
+        #expect(
+            Set(properties.keys)
+                == [OperationKeys.opFieldName, "filter", "name", "prompt", "workingDirectory", "id", "message"])
     }
 
     // MARK: - The name enum

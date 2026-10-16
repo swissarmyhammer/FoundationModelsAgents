@@ -30,7 +30,8 @@ extension AgentRunner: SlashCommandProviding {
     /// command before the load.
     ///
     /// - Parameter workingDirectory: The working directory of the session.
-    ///   Not used: each run uses ``AgentEnvironment/workingDirectory``.
+    ///   Not used: each run gets the default folder of its agent
+    ///   (``AgentRunner/start(_:prompt:)``).
     /// - Returns: One command for each user-invocable agent.
     public nonisolated func commands(workingDirectory: URL) async -> [SlashCommand] {
         makeSlashCommands(for: registry.catalog())

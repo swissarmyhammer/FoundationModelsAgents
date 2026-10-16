@@ -52,7 +52,9 @@ struct AgentsToolSelfRuleTests {
     ) async throws -> AgentsToolHarness {
         let runHarness = try await AgentRunHarness.make(script: script)
         let runner = runHarness.makeRunner()
-        let parent = ParentRun(depth: AgentRunner.hostDepth, slot: .standard, agentID: ownAgent, family: ParentRun.Family())
+        let parent = ParentRun(
+            depth: AgentRunner.hostDepth, slot: .standard, agentID: ownAgent, family: ParentRun.Family(),
+            workingDirectory: runHarness.workingDirectory)
         do {
             let tool = try await AgentsTool.make(
                 context: AgentsToolContext(

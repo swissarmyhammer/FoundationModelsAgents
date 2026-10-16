@@ -58,6 +58,15 @@ struct StartAgent {
     /// The full task for the agent.
     @Guide(description: "The full task. The agent sees only this text.")
     var prompt: String
+
+    /// The working folder of the run, or `nil` for the default folder
+    /// (``AgentsToolContext/requestedDirectory(at:)``).
+    @Guide(
+        description: """
+            Optional. The path of the folder for the agent to work in. \
+            A relative path starts from your working folder. Leave it out to keep the default folder.
+            """)
+    var workingDirectory: String?
 }
 
 extension StartAgent {
@@ -88,6 +97,12 @@ extension StartAgent {
     /// `maxDepth`. Else it gets the messaging tool, unless its
     /// `disallowedTools` key denies the `agents` tool.
     ///
+    /// The new run works in the folder of `workingDirectory` when the call
+    /// names one (``AgentsToolContext/requestedDirectory(at:)``). Else a
+    /// child of a run works in the folder of the calling run, and a run that
+    /// a session starts, and the session is not a run, gets the default
+    /// folder of its agent (``AgentRunRequest/workingDirectory(default:)``).
+    ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The final message text of the run in a Router session, or
     ///   the id of the run outside one. The report of a run whose setup
@@ -113,7 +128,8 @@ extension StartAgent {
             AgentRunRequest(
                 definition: definition, prompt: prompt, context: callContext,
                 inheritedSlot: context.inheritedSlot, depth: context.childDepth, parent: context.parent,
-                agentsTool: AgentRun.agentsTool(of: runner), questionTarget: SubagentQuestionTarget.current))
+                agentsTool: AgentRun.agentsTool(of: runner), questionTarget: SubagentQuestionTarget.current,
+                requestedDirectory: context.requestedDirectory(at: workingDirectory)))
         switch start {
         case .atLimit(let working):
             return .corrective(AgentsToolText.atLimit(working: working))

@@ -28,6 +28,9 @@ struct RecordedSidecar: Decodable {
     /// The lineage record of the session, or `nil`.
     let agentSpawn: SessionSidecar.AgentSpawn?
 
+    /// The working directory of the session.
+    let workingDirectory: URL
+
     /// The configuration of the session.
     let configuration: Configuration
 

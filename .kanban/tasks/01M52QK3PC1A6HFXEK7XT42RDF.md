@@ -100,8 +100,24 @@ comments:
     - changes: no file was changed in this step. No commit was made.
     - next: review.
   timestamp: 2026-10-16T17:39:12.221904+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m52wvsnd89fa6se1tejq6jqm
+  text: |-
+    ### review — clean
+    - evidence: `review sha HEAD~1..HEAD` (commit 29877c4): 0 findings (7 attempted, 0 failed, 0 refuted). The 3 prior findings are fixed: the coordinated read gives a `Result` with `CoordinatedReadFailure` and the real cause (AgentCatalogBuilder.swift); only the name `.AGENT.md.<suffix>` is a placeholder, and a `.env.local` test is added (AgentLayerScan.swift, AgentFolderPlaceholderTests.swift); `AgentFolderFixture.agentText` is the one source, and the private helpers in AgentRegistryMarketplaceTests.swift and AgentRegistryReloadTests.swift call it. All prior items are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-10-16T17:41:24.269782+00:00
+- actor: claude-code
+  id: 01m52wwb7rc4c242nb6thpqy5k
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — 8 files; the 3 findings fixed and checked
+    - test: green — swift test, 557 tests in 78 suites passed, 0 failed, 0 skipped
+    - commit: 29877c4
+    - review: clean — 0 findings; the task is in done
+  timestamp: 2026-10-16T17:41:42.264092+00:00
+position_column: done
+position_ordinal: e380
 title: 'Agent folder source: an optional extra folder of agent folders (the app sets its iCloud Agents/ folder) (D61)'
 ---
 ## Why

@@ -192,6 +192,11 @@ URL is a folder of agent folders, with no `agents/` level and no dot folder:
   yet". Only the exact name `AGENT.md` is an agent document; a conflict copy
   `AGENT 2.md` and each different hidden file, for example `.env.local`, is a
   resource. A coordinated read that fails gives one `skip` with its cause.
+- A root run of an agent-folder agent that names no working folder works in
+  the folder of the agent (`AgentDefinition.folderURL`). A request folder
+  (`AgentRunner.start(_:prompt:workingDirectory:)` or the `workingDirectory`
+  field of `start agent`) wins, and a child run works in the folder of its
+  parent. An agent of a dot folder never works in its own folder.
 - With `watch: true`, the watcher watches each agent-folder root. A URL that
   does not exist gives no agent and no diagnostic.
 

@@ -78,7 +78,9 @@ public struct AgentEnvironment: Sendable {
     /// skill that this rule hides.
     let skillsVisibility: SkillsVisibility
 
-    /// The working directory of each run.
+    /// The working directory of each run that has no other folder: no folder
+    /// of the start request, no parent run, and no agent folder of the
+    /// agent-folder source (``AgentRunner/start(_:prompt:workingDirectory:)``).
     public let workingDirectory: URL
 
     /// The tools that the `tools` and `disallowedTools` keys select from: the
@@ -221,8 +223,9 @@ public struct AgentEnvironment: Sendable {
     ///   - skillsVisibility: Tells if the `skills` tool shows a skill. The
     ///     `skills:` preload skips each skill that it hides. The default is
     ///     ``defaultSkillsVisibility``.
-    ///   - workingDirectory: The working directory of each run. The default
-    ///     is the current directory of the process.
+    ///   - workingDirectory: The working directory of each run that has no
+    ///     other folder (``workingDirectory``). The default is the current
+    ///     directory of the process.
     ///   - tools: The tool catalog of the host. It must not hold a `skills`
     ///     entry. The default is an empty catalog.
     ///   - defaultSlot: The slot of a host-started run with no `model`. It

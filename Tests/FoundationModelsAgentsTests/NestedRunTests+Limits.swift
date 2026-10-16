@@ -259,7 +259,8 @@ extension NestedRunTests {
             defer { try? runHarness.delete() }
             let runner = runHarness.makeRunner(maxDepth: Self.depthLimit)
             let atLimit = ParentRun(
-                depth: Self.depthLimit, slot: .standard, agentID: Self.planner, family: ParentRun.Family())
+                depth: Self.depthLimit, slot: .standard, agentID: Self.planner, family: ParentRun.Family(),
+                workingDirectory: runHarness.workingDirectory)
             let tool = try await AgentsTool.make(
                 context: AgentsToolContext(
                     runner: runner, allowedNames: nil, parent: atLimit, callerLink: nil, grant: .full))

@@ -1,3 +1,4 @@
+import Foundation
 import FoundationModels
 import FoundationModelsExtras
 import FoundationModelsRouter
@@ -6,7 +7,8 @@ import FoundationModelsRouter
 ///
 /// 1. Render the body with the prompt as `$ARGUMENTS`.
 /// 2. Put the instructions in order: the `AGENTS.md` files of the working
-///    directory, outermost first, then the rendered body, then the rendered
+///    folder of the run (``AgentRunRequest/workingDirectory(default:)``),
+///    outermost first, then the rendered body, then the rendered
 ///    body of each skill of the `skills` key, in the order of the key
 ///    (``AgentSkillsPreload``).
 /// 3. Resolve the tools.
@@ -54,20 +56,23 @@ struct AgentSessionMaker: Sendable {
         for request: AgentRunRequest, family: ParentRun.Family
     ) async throws(AgentRunFailure) -> Made {
         let definition = request.definition
+        let workingDirectory = request.workingDirectory(default: environment.workingDirectory)
         let body = try renderer.render(definition, prompt: request.prompt)
         let skillBodies = try await environment.skillsPreload.bodies(of: definition)
-        let instructions = try instructions(parts: [body] + skillBodies)
+        let instructions = try instructions(parts: [body] + skillBodies, in: workingDirectory)
         let slot = ModelMatch.match(
             definition.model, profile: environment.profile, inherited: request.inheritedSlot
         ).slot
         let tools = try await tools(
             for: request,
-            as: ParentRun(depth: request.depth, slot: slot, agentID: definition.id, family: family))
+            as: ParentRun(
+                depth: request.depth, slot: slot, agentID: definition.id, family: family,
+                workingDirectory: workingDirectory))
         let model = ModelMatch.model(of: slot, in: environment.profile)
         let session = model.makeSession(
             configuration: SessionConfiguration(
                 instructions: instructions,
-                workingDirectory: environment.workingDirectory,
+                workingDirectory: workingDirectory,
                 tools: tools,
                 compaction: CompactionSettings(
                     budget: environment.budget(model.contextTokens),
@@ -80,17 +85,19 @@ struct AgentSessionMaker: Sendable {
     }
 
     /// Puts the instructions of a run in order: the text of each `AGENTS.md`
-    /// file of the working directory, outermost first, then `parts`.
+    /// file of the working folder of the run, outermost first, then `parts`.
     ///
-    /// - Parameter parts: The rendered body of the agent, then the rendered
-    ///   bodies of its skills.
+    /// - Parameters:
+    ///   - parts: The rendered body of the agent, then the rendered bodies of
+    ///     its skills.
+    ///   - workingDirectory: The working folder of the run.
     /// - Returns: The instructions of the session.
     /// - Throws: ``AgentRunFailure/agentsMdUnreadable(_:)`` when a file is not
     ///   readable text.
-    private func instructions(parts: [String]) throws(AgentRunFailure) -> String {
+    private func instructions(parts: [String], in workingDirectory: URL) throws(AgentRunFailure) -> String {
         let documents: [AgentsMd.Document]
         do {
-            documents = try AgentsMd.documents(from: environment.workingDirectory)
+            documents = try AgentsMd.documents(from: workingDirectory)
         } catch {
             throw .agentsMdUnreadable(String(describing: error))
         }

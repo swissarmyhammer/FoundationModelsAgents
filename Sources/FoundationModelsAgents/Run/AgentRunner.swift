@@ -1,3 +1,4 @@
+import Foundation
 import FoundationModelsRouter
 import ULID
 
@@ -101,7 +102,25 @@ public actor AgentRunner {
         return openRuns.values.sorted { $0.id < $1.id }
     }
 
-    /// Starts a host-driven run of the agent `name`.
+    /// Starts a host-driven run of the agent `name` in its default working
+    /// folder.
+    ///
+    /// The call is ``start(_:prompt:workingDirectory:)`` with no folder:
+    /// an agent of the agent-folder source works in its own folder, and each
+    /// other agent works in ``AgentEnvironment/workingDirectory``.
+    ///
+    /// - Parameters:
+    ///   - name: The id of the agent in the catalog of the registry.
+    ///   - prompt: The prompt of the run. It is `$ARGUMENTS` of the body and
+    ///     the first user prompt of the session.
+    /// - Returns: The run. Its setup is done, thus it has its id.
+    /// - Throws: The errors of ``start(_:prompt:workingDirectory:)``.
+    public func start(_ name: String, prompt: String) async throws(AgentRunnerError) -> AgentRun {
+        try await start(name, prompt: prompt, workingDirectory: nil)
+    }
+
+    /// Starts a host-driven run of the agent `name` in the working folder
+    /// `workingDirectory`.
     ///
     /// The run has no caller and depth one. An agent with no `model`, or
     /// with `model: inherit`, runs on ``AgentEnvironment/defaultSlot``. The
@@ -109,17 +128,29 @@ public actor AgentRunner {
     /// explicit `Agent`, `Agent(a, b)`, or `agents` entry. The run is
     /// in the index when the call returns.
     ///
+    /// The working folder of the run is `workingDirectory`. With no folder,
+    /// an agent of the agent-folder source (`agentFolders` of the registry)
+    /// works in ``AgentDefinition/folderURL``, and an agent of the dotfolder
+    /// stack works in ``AgentEnvironment/workingDirectory``. The session of
+    /// the run gets this folder, and the `AGENTS.md` documents of its
+    /// instructions come from it. Each run that the run starts works in the
+    /// same folder, unless its `start agent` call names a folder.
+    ///
     /// - Parameters:
     ///   - name: The id of the agent in the catalog of the registry.
     ///   - prompt: The prompt of the run. It is `$ARGUMENTS` of the body and
     ///     the first user prompt of the session.
+    ///   - workingDirectory: The working folder of the run, or `nil` for the
+    ///     default folder of the agent.
     /// - Returns: The run. Its setup is done, thus it has its id.
     /// - Throws: ``AgentRunnerError/stopped`` after ``stop()``,
     ///   ``AgentRunnerError/catalogNotLoaded`` before the first
     ///   `AgentRegistry.load()`, or
     ///   ``AgentRunnerError/unknownAgent(name:available:)`` when the catalog
     ///   has no agent with the id `name`.
-    public func start(_ name: String, prompt: String) async throws(AgentRunnerError) -> AgentRun {
+    public func start(
+        _ name: String, prompt: String, workingDirectory: URL?
+    ) async throws(AgentRunnerError) -> AgentRun {
         guard !isStopped else {
             throw .stopped
         }
@@ -136,7 +167,7 @@ public actor AgentRunner {
             AgentRunRequest(
                 definition: definition, prompt: prompt, context: nil,
                 inheritedSlot: environment.defaultSlot, depth: Self.hostDepth, parent: nil,
-                agentsTool: AgentRun.agentsTool(of: self)))
+                agentsTool: AgentRun.agentsTool(of: self), requestedDirectory: workingDirectory))
     }
 
     /// Starts the run of `request`, and puts it in the index.
