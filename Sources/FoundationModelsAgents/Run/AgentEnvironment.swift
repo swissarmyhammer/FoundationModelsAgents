@@ -78,6 +78,11 @@ public struct AgentEnvironment: Sendable {
     /// skill that this rule hides.
     let skillsVisibility: SkillsVisibility
 
+    /// The model that chooses among the candidates of a `search skill` call
+    /// of ``skillsTool`` and of a `find agents` call of the `agents` tool, or
+    /// `nil` for the retrieval rank with no model.
+    let selectionModel: (any FoundationModels.LanguageModel)?
+
     /// The working directory of each run that has no other folder: no folder
     /// of the start request, no parent run, and no agent folder of the
     /// agent-folder source (``AgentRunner/start(_:prompt:workingDirectory:)``).
@@ -216,7 +221,9 @@ public struct AgentEnvironment: Sendable {
     ///   - skillsSelectionModel: The model that chooses among the candidate
     ///     skills of a `search skill` call (`SkillsTool.make(registry:model:)`),
     ///     or `nil` (the default) for a keyword search with no model
-    ///     (`SkillsTool.make(registry:)`).
+    ///     (`SkillsTool.make(registry:)`). The `find agents` operation of the
+    ///     `agents` tool uses the same model to choose among the candidate
+    ///     agents.
     ///   - skillsCatalogCharacterLimit: The most characters that the catalog
     ///     list in the description of the `skills` tool can have. The default
     ///     is `SkillsTool.defaultCatalogCharacterLimit`.
@@ -276,10 +283,10 @@ public struct AgentEnvironment: Sendable {
             catalogCharacterLimit: skillsCatalogCharacterLimit, visibility: skillsVisibility)
         return AgentEnvironment(
             profile: profile, skills: skills, skillsTool: skillsTool, skillsVisibility: skillsVisibility,
-            workingDirectory: workingDirectory, tools: tools, defaultSlot: defaultSlot,
-            maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth, maxRetainedRuns: maxRetainedRuns,
-            budget: budget, tracer: tracer, logger: logger, metricsFactory: metricsFactory,
-            inlineSettleGrace: inlineSettleGrace, runEventObserver: runEventObserver)
+            selectionModel: skillsSelectionModel, workingDirectory: workingDirectory, tools: tools,
+            defaultSlot: defaultSlot, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
+            maxRetainedRuns: maxRetainedRuns, budget: budget, tracer: tracer, logger: logger,
+            metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace, runEventObserver: runEventObserver)
     }
 
     /// Makes the `skills` tool from `skills`.
@@ -314,7 +321,9 @@ public struct AgentEnvironment: Sendable {
     /// tells each parameter. `skillsTool` must be the tool that
     /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:)``
     /// made from `skills` and `skillsVisibility`. The init adds it to `tools`
-    /// under its name.
+    /// under its name. `selectionModel` is the model of the selection tier of
+    /// `find agents`, and the default is `nil`. Give the model that made
+    /// `skillsTool`, thus both tools choose with one model.
     ///
     /// A value out of its range, and a `skills` entry in `tools`, are
     /// programmer errors and stop the process.
@@ -323,6 +332,7 @@ public struct AgentEnvironment: Sendable {
         skills: SkillsRegistry,
         skillsTool: SkillsCatalogTool,
         skillsVisibility: @escaping SkillsVisibility,
+        selectionModel: (any FoundationModels.LanguageModel)? = nil,
         workingDirectory: URL,
         tools: ToolCatalog,
         defaultSlot: ModelSlot,
@@ -351,6 +361,7 @@ public struct AgentEnvironment: Sendable {
         self.skills = skills
         self.skillsTool = skillsTool
         self.skillsVisibility = skillsVisibility
+        self.selectionModel = selectionModel
         self.workingDirectory = workingDirectory
         self.tools = catalog
         self.defaultSlot = defaultSlot

@@ -16,8 +16,9 @@
 ///   layers. The folder name is the id. The registry makes the catalog again
 ///   after a watch event or an update.
 /// - **Layer 3, the FM adapter:** `AgentsTool` is one `OperationTool` with the
-///   name "agents" and six operations: `list agents`, `start agent`,
-///   `check agent`, `cancel agent`, `send agent`, and `send caller`.
+///   name "agents" and seven operations: `list agents`, `find agents`,
+///   `start agent`, `check agent`, `cancel agent`, `send agent`, and
+///   `send caller`.
 ///   `AgentRunner` is an actor that keeps the run limit, the run index, and
 ///   the child runs. `AgentRun` drives one `RoutedSession` and keeps its
 ///   state and its result. A run and its caller can send messages to each
@@ -37,7 +38,8 @@
 ///   `MarketplaceStore`.
 /// - `FoundationModelsRouter`: the `LanguageModelProfile` slots,
 ///   `RoutedSession`, `ToolContext`, and the recording.
-/// - `FoundationModelsSkills`: `SkillsRegistry`.
+/// - `FoundationModelsSkills`: `SkillsRegistry`, and the search and selection
+///   seam that `find agents` uses (`MetadataSearcher`, `SelectionConfig`).
 ///
 /// The host makes the dependencies: the `DotfolderStack`, the
 /// `MarketplaceStore`, the `Router` and its resolved `LanguageModelProfile`,

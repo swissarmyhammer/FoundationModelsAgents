@@ -64,6 +64,15 @@ public actor AgentRunner {
     /// Renders the body of each agent.
     private let renderer: AgentBodyRenderer
 
+    /// The search of `find agents` over the model-visible agents of
+    /// ``registry``. It follows each catalog of `onReload`, and it chooses
+    /// with ``AgentEnvironment/selectionModel``.
+    ///
+    /// One search for each runner, thus the tools of the host session and
+    /// of each run use one index, and an embedder embeds each catalog one
+    /// time.
+    let agentSearch: AgentSearch
+
     /// The runs whose turn can be in operation, by id. Each run holds its
     /// caller, its slot, and its depth.
     private var openRuns: [ULID: AgentRun] = [:]
@@ -86,6 +95,11 @@ public actor AgentRunner {
 
     /// Makes a runner. It stores its inputs and does no I/O.
     ///
+    /// The init also makes ``agentSearch`` over the current catalog of
+    /// `registry`. The search embeds nothing here, and starts one task that
+    /// follows `registry.onReload`. Thus a runner made before the first
+    /// `registry.load()` gets the catalog of that load.
+    ///
     /// - Parameters:
     ///   - registry: The registry that gives the definitions. The host calls
     ///     its `load()` before the first run.
@@ -94,6 +108,9 @@ public actor AgentRunner {
         self.registry = registry
         self.environment = environment
         self.renderer = AgentBodyRenderer(registry: registry)
+        self.agentSearch = AgentSearch(
+            registry: registry, selectionModel: environment.selectionModel,
+            embedder: ProfileEmbedding(model: environment.profile.embedding))
     }
 
     /// The runs whose turn is in operation, sorted by id.

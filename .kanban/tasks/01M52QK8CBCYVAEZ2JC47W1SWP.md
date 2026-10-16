@@ -81,10 +81,26 @@ comments:
     - evidence: swift test (full suite) - 567 tests in 79 suites passed, 0 failed, 0 skipped. No compiler warning. The only warning line is the accepted SwiftPM line "missing creator for mutated node" for the mlx-swift_Cmlx bundle.
     - next: review. No commit was made.
   timestamp: 2026-10-16T18:04:19.696217+00:00
+- actor: claude-code
+  id: 01m52y935qntgkd81aqhtfenyg
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (5c4786c): 0 findings, 0 confirmed, 0 refuted; 8 files reviewed. The 2 prior findings are fixed: Tests/FoundationModelsAgentsTests/Support/URL+CanonicalPath.swift is the one canonicalPath helper (AgentRegistryMarketplaceTests and RunWorkingDirectoryTests use it), and Tests/FoundationModelsAgentsTests/Support/AgentRunTests+Sidecar.swift holds sidecar(of:) and instructions(of:) (SkillsPreloadTests and RunWorkingDirectoryTests use it).
+    - next: none. The task is in done.
+  timestamp: 2026-10-16T18:06:08.567336+00:00
+- actor: claude-code
+  id: 01m52y9f1j8p23tm06x31q7yjx
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — 8 test files; the 2 findings fixed and checked
+    - test: green — swift test, 567 tests in 79 suites passed, 0 failed, 0 skipped
+    - commit: 5c4786c
+    - review: clean — 0 findings; the task is in done
+  timestamp: 2026-10-16T18:06:20.722820+00:00
 depends_on:
 - 01M52QK3PC1A6HFXEK7XT42RDF
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: e480
 title: A working folder for each run, with the agent folder as the default (D61)
 ---
 ## Why

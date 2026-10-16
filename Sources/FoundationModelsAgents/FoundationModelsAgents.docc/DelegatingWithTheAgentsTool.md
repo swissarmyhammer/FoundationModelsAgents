@@ -1,16 +1,17 @@
 # Delegating with the agents tool
 
-Give a model the `agents` tool, so that the model can start agents, ask about
-them, cancel them, and send messages to them.
+Give a model the `agents` tool, so that the model can find agents, start them,
+ask about them, cancel them, and send messages to them.
 
 ## Overview
 
-``AgentsTool`` is one `OperationTool` with the name `agents` and six
+``AgentsTool`` is one `OperationTool` with the name `agents` and seven
 operations:
 
 | Operation | Parameters | Answer |
 |---|---|---|
 | `list agents` | `filter?` | One `- name: description` line for each model-visible agent that matches. |
+| `find agents` | `query`, `limit?` | One `- name: description` line for each agent that the search finds, best first. The default `limit` is 5. |
 | `start agent` | `name`, `prompt`, `workingDirectory?` | In a Router session: the final message when the run ends in the settle period of the session, else the pending envelope of the Router. Outside one, at once: "Agent `name` started with the id `id`." |
 | `check agent` | `id?` | At once: the state of the run. With no `id`, one block for each run of the caller. |
 | `cancel agent` | `id` | What the cancel did. |
@@ -25,6 +26,40 @@ The `workingDirectory` field of `start agent` names the working folder of the
 new run. A relative path starts from the folder of the calling run. With no
 field, a child of a run works in the folder of its parent. See "The working
 folder of a run" in <doc:RunningAnAgent>.
+
+### Find an agent
+
+`find agents` selects agents by a search of their descriptions (decision D61).
+A model calls it with the task, or the kind of work, as the query:
+
+```json
+{"op": "find agents", "query": "write unit tests for the parser"}
+```
+
+The search does the same steps as the `search skill` operation of the
+`skills` tool, with the same parts of FoundationModelsSkills:
+
+1. A `MetadataSearcher` ranks the descriptions with keywords and with the
+   cosine of the embedding. The embedding model is the `embedding` slot of the
+   profile.
+2. The selection model picks the best matches among the candidates. It is the
+   `skillsSelectionModel` of
+   ``AgentEnvironment/make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:)``.
+   With no selection model, the call gives the rank of step 1. When the answer
+   of the selection model does not decode, the rank of step 1 answers the call,
+   and the call does not fail.
+
+The index holds only the model-visible agents, thus an agent with no valid
+description, and an agent with `disable-model-invocation: true`, are never
+found. The call then keeps only the agents that the tool can start: the tool of
+a run does not give the agent of that run, and `Agent(a, b)` gives only `a` and
+`b`. The answer has one `- name: description` line for each match, best first,
+then the sentence that tells how to start an agent. With no match, the answer is
+"No agent matches this search. Do the task yourself."
+
+``AgentRunner`` holds one index for the tools of the host session and of each
+run. The index follows each catalog of `AgentRegistry.onReload`, thus an agent
+that a reload adds is found, also by a tool that was made before the reload.
 
 ### Messages between a run and its caller
 
@@ -87,9 +122,9 @@ result, or else it does nothing. The tool description does not tell the model
 to call `check agent` for a run in the background.
 The final message comes to the calling session as mail. The session injects
 it as a new message, and that message starts the model again (see
-<doc:TheFinalMessage>). `list agents`, `check agent`, `cancel agent`,
-`send agent`, and `send caller` are synchronous: each call gives its real
-answer in the same answer of the model.
+<doc:TheFinalMessage>). `list agents`, `find agents`, `check agent`,
+`cancel agent`, `send agent`, and `send caller` are synchronous: each call
+gives its real answer in the same answer of the model.
 
 ### Make the tool
 
@@ -162,6 +197,7 @@ wrong and what it can do now:
 - An unknown or removed name, with the names that the model can start.
 - A name outside `Agent(a, b)`.
 - A blank prompt.
+- A blank query of `find agents`, or a `limit` below one.
 - A start when ``AgentEnvironment/maxConcurrentAgents`` runs have a turn in
   operation. The count does not include the run that calls `start agent`:
   after its answer, that run waits for the new child, and a run that waits holds

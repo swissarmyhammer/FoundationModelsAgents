@@ -32,7 +32,8 @@ struct DocsTests {
         "To run a skill in its own context,",
         "a prompt tells an agent that has the `skills` tool to use the named skill.",
         "gives `skills/` and `agents/`",
-        "`<plugin root>/_partials/`"
+        "`<plugin root>/_partials/`",
+        "| `search skill` | Replaced by D61: `find agents`"
     ]
 
     /// A relative link to a file that the repository does not have.

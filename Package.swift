@@ -40,7 +40,9 @@ let commonDependencies: [Target.Dependency] = [
     .product(name: "Marketplace", package: "FoundationModelsExtras"),
     // `OperationTool`, `@Operation`, and `OperationResolver`.
     .product(name: "Operations", package: "FoundationModelsExtras"),
-    // `SkillsRegistry` and `SkillListing`.
+    // `SkillsRegistry` and `SkillListing`, and the search and selection seam
+    // of `find agents` that it re-exports: `MetadataSearcher` and
+    // `SelectionConfig`.
     .product(name: "FoundationModelsSkills", package: "FoundationModelsSkills"),
     // `AgentFrontmatter.decode` reads YAML with Yams.
     .product(name: "Yams", package: "Yams"),

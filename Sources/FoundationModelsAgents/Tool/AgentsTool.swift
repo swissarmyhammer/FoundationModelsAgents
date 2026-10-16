@@ -30,9 +30,9 @@ import Operations
 /// session gives its final message to the model as the answer of the call. A
 /// run that continues gives the pending envelope of the Router, and its
 /// final message comes to the caller as mail when the run ends. The tool
-/// states no `inlineSettleGrace` of its own. `list agents`, `check agent`, `cancel agent`,
-/// `send agent`, and `send caller` are synchronous calls: their real answer
-/// comes back in band.
+/// states no `inlineSettleGrace` of its own. `list agents`, `find agents`,
+/// `check agent`, `cancel agent`, `send agent`, and `send caller` are
+/// synchronous calls: their real answer comes back in band.
 ///
 /// This tool is not a code-mode surface. A host registers it directly on
 /// its session.
@@ -167,14 +167,15 @@ public struct AgentsTool: Tool {
     /// - Parameter grant: The grant of the tool.
     /// - Returns: The message operations for
     ///   ``AgentsToolContext/Grant/messagingOnly``. For
-    ///   ``AgentsToolContext/Grant/full``, the operations that list, start,
-    ///   check, and cancel agents, then the message operations.
+    ///   ``AgentsToolContext/Grant/full``, the operations that list, find,
+    ///   start, check, and cancel agents, then the message operations.
     private static func operations(of grant: AgentsToolContext.Grant) -> [AnyOperation<AgentsToolContext>] {
         let messageOperations = [AnyOperation(SendAgent.self), AnyOperation(SendCaller.self)]
         switch grant {
         case .full:
             return [
                 AnyOperation(ListAgents.self),
+                AnyOperation(FindAgents.self),
                 AnyOperation(StartAgent.self),
                 AnyOperation(CheckAgent.self),
                 AnyOperation(CancelAgent.self)
@@ -230,8 +231,9 @@ extension AgentsTool: BackgroundTool {
     /// on its `@Operation`.
     ///
     /// `start agent` is background, with no timeout, because a run can take
-    /// any time. `list agents`, `check agent`, `cancel agent`, `send agent`,
-    /// `send caller`, and an op that names no operation are synchronous.
+    /// any time. `list agents`, `find agents`, `check agent`, `cancel agent`,
+    /// `send agent`, `send caller`, and an op that names no operation are
+    /// synchronous.
     ///
     /// - Parameter arguments: The payload of the model.
     /// - Returns: The mount of the operation that `arguments` names.

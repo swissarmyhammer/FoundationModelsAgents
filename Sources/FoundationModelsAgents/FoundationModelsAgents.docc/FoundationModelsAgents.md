@@ -33,9 +33,9 @@ The package has three layers:
 - **``AgentRegistry``** keeps the catalog of the agent folders over the local
   layers and the marketplace layers.
 - **``AgentRunner``**, **``AgentRun``**, and **``AgentsTool``** start the runs,
-  drive each Router session, and give a model one tool, `agents`, with six
-  operations to delegate a task and to send messages between a run and its
-  caller.
+  drive each Router session, and give a model one tool, `agents`, with seven
+  operations to find an agent, to delegate a task, and to send messages
+  between a run and its caller.
 
 The host makes the dependencies: the `DotfolderStack`, the `MarketplaceStore`,
 the `Router` and its resolved `LanguageModelProfile`, and the `SkillsRegistry`.

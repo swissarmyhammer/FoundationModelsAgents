@@ -113,7 +113,7 @@ struct DocumentationTests {
 
     /// The operations of the `agents` tool, in tool order.
     private static let toolOperations = [
-        "list agents", "start agent", "check agent", "cancel agent", "send agent", "send caller"
+        "list agents", "find agents", "start agent", "check agent", "cancel agent", "send agent", "send caller"
     ]
 
     /// The rule of the mount of `start agent`.

@@ -3,8 +3,8 @@
 This document tells how the agents of this package relate to the skills of
 FoundationModelsSkills. It gives the decisions that transfer from skills to
 agents, it tells how one marketplace plugin gives skills and agents, and it
-gives the access rule of the `agents` tool, the rule for partials, and the
-agent folders with the default agent.
+gives the access rule of the `agents` tool, the search of `find agents`, the
+rule for partials, and the agent folders with the default agent.
 
 ## Skills and agents are separate
 
@@ -82,10 +82,40 @@ surface transfer. Decisions about text in the current context do not.
 | Shell injection; `RenderPolicy` | Not copied. A system prompt is static. |
 | `preload: true` into the host's instructions | Not copied. The `skills:` key preloads into the agent's own context. |
 | Resources and `run script` under the skill folder | The agent folder holds resources: each file of the folder other than `AGENT.md`. `AgentDefinition.folderURL` gives the folder of the winning layer. No operation gives the resources yet, and there is no `run script`. |
-| `search skill` | Not copied. `list agents` gives the full catalog. |
+| `search skill` | Replaced by D61: `find agents` of the `agents` tool. See "Find an agent" below. `list agents` still gives the full catalog. |
 | `OperationDescribing`, `ForkableTool` | Not copied. |
 | A slash command delivers the raw body as a prompt | Different: a slash command starts a run. |
 | Skills and agents | Separate things. An agent uses skills: the `skills:` preload and the `skills` tool. To run a skill in its own context, prompt an agent that has the `skills` tool to use the named skill. |
+
+## Find an agent
+
+Decision D61 of the SwissArmyHammer app replaces the earlier decision "`search
+skill`: not copied". A model finds an agent for a task in the same way that it
+finds a skill: `{"op": "find agents", "query": "<the task>"}`. The search
+first ranks the descriptions of the agents with keywords and with the
+embedding model of the profile. Then the selection model picks the best
+matches. The selection model is the `skillsSelectionModel` of
+`AgentEnvironment.make`, thus the `skills` tool and the `agents` tool choose
+with one model. With no selection model, the call gives the rank of the
+search.
+
+The search uses the selection parts of FoundationModelsSkills again, and does
+not copy them: `MetadataSearcher` in `.auto` mode with a `SelectionConfig`,
+and a second `MetadataSearcher` in `.retrieval` mode as the fallback. When the
+answer of the selection model does not decode, the fallback ranks the query,
+and the call does not fail. This is the assembly of
+`SkillsTool.make(registry:model:)`.
+
+- The index holds only the agents that the model can see
+  (`AgentDefinition.isModelVisible`). Thus an agent with no valid description,
+  and an agent with `disable-model-invocation: true`, are never found.
+- The call then keeps only the agents that the tool can start: not the agent
+  of the run, and only the names of `Agent(a, b)`.
+- `AgentRunner` holds one index. The index follows each catalog of
+  `AgentRegistry.onReload`, thus an agent that a reload adds is found.
+- The answer has one `- name: description` line for each match, best first,
+  then the sentence that tells how to start an agent. `limit` gives the most
+  lines, and the default is 5.
 
 ## One plugin gives skills and agents
 

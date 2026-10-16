@@ -17,7 +17,7 @@ struct AgentsToolSchemaTests {
 
     /// The op strings of the operations, in tool order.
     private static let opStrings = [
-        "list agents", "start agent", "check agent", "cancel agent", "send agent", "send caller"
+        "list agents", "find agents", "start agent", "check agent", "cancel agent", "send agent", "send caller"
     ]
 
     /// The op strings of a tool with the messaging grant, in tool order.
@@ -62,6 +62,7 @@ struct AgentsToolSchemaTests {
         #expect(
             parameters == [
                 "list agents": ["filter?"],
+                "find agents": ["query", "limit?"],
                 "start agent": ["name", "prompt", "workingDirectory?"],
                 "check agent": ["id?"],
                 "cancel agent": ["id"],
@@ -78,7 +79,10 @@ struct AgentsToolSchemaTests {
 
         #expect(
             Set(properties.keys)
-                == [OperationKeys.opFieldName, "filter", "name", "prompt", "workingDirectory", "id", "message"])
+                == [
+                    OperationKeys.opFieldName, "filter", "query", "limit", "name", "prompt", "workingDirectory", "id",
+                    "message"
+                ])
     }
 
     // MARK: - The name enum

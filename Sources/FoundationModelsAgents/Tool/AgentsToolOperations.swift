@@ -33,8 +33,71 @@ extension ListAgents {
         guard !matches.isEmpty else {
             return .success(AgentsToolText.noAgents)
         }
-        let lines = AgentsToolDescription.lines(for: matches.map(AgentsToolDescription.Entry.init))
-        return .success(lines + "\n\n" + AgentsToolDescription.delegationSentence)
+        return .success(AgentsToolText.listing(of: matches))
+    }
+}
+
+/// Finds the agents whose descriptions match a task (`find agents`, D61).
+///
+/// The search ranks the descriptions of the model-visible agents with
+/// keywords and the embedding, then the selection model picks the best
+/// matches (``AgentSearch``).
+@Generable
+@Operation(
+    verb: "find", noun: "agents",
+    description: "Find the agents whose descriptions match a task. You get the best matches first.")
+struct FindAgents {
+    /// The task, or the kind of work, to find agents for.
+    @Guide(description: "The task, or the kind of work, to find an agent for.")
+    var query: String
+
+    /// The most agents to give, or `nil` for ``defaultLimit``.
+    @Guide(description: "Optional. The most agents to give. Leave it out to get the default count.")
+    var limit: Int?
+
+    /// The count of agents that a call with no `limit` gives.
+    static let defaultLimit = 5
+}
+
+extension FindAgents {
+    /// Gives one `- name: description` line for each agent that the search
+    /// finds for `query` and that the tool can start, best first, then the
+    /// delegation sentence.
+    ///
+    /// The search holds only the model-visible agents, thus an agent with no
+    /// description, or with `disable-model-invocation: true`, is never
+    /// found. The call then keeps only the agents that the tool can start now
+    /// (``AgentsToolContext/startableAgents()``): not the agent of the run,
+    /// only the names of `Agent(a, b)`, and no agent that a reload removed.
+    /// The search ranks each agent of its index, and the call cuts the result
+    /// to `limit` after that filter. Thus a filter never gives fewer lines
+    /// than `limit` when more agents match.
+    ///
+    /// - Parameter context: The shared context of the tool.
+    /// - Returns: The lines and the delegation sentence. "No agents are
+    ///   available." when the tool can start no agent, and "No agent matches
+    ///   this search." when the search finds none. A corrective for a blank
+    ///   query, or for a limit below one.
+    /// - Throws: The error of ``AgentSearch/search(query:limit:)``.
+    func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
+        guard AgentDefinitionRules.holdsText(query) else {
+            return .corrective(AgentsToolText.blankQuery)
+        }
+        let count = limit ?? Self.defaultLimit
+        guard count >= 1 else {
+            return .corrective(AgentsToolText.limitBelowOne)
+        }
+        let startable = context.startableAgents()
+        guard !startable.isEmpty else {
+            return .success(AgentsToolText.noAgents)
+        }
+        let catalogCount = context.runner.registry.catalog().definitions.count
+        let found = try await context.runner.agentSearch.search(query: query, limit: catalogCount)
+        let matches = found.compactMap { id in startable.first { $0.id == id } }.prefix(count)
+        guard !matches.isEmpty else {
+            return .success(AgentsToolText.noMatchingAgents)
+        }
+        return .success(AgentsToolText.listing(of: Array(matches)))
     }
 }
 

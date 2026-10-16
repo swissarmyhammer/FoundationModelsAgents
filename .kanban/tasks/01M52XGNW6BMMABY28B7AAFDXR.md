@@ -1,6 +1,14 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m52y9kkwcqxx711dnj14jy2y
+  text: |-
+    ### finish — skipped
+    - reason: the acceptance of this card is "a person picks A or B". /finish must not make this decision.
+    - next: a person picks option A or option B. Then run /finish on this card.
+  timestamp: 2026-10-16T18:06:25.404200+00:00
 position_column: todo
 position_ordinal: '8680'
 title: 'Slash commands: decide if a command run uses SlashCommand.Invocation.workingDirectory as its request folder (D61)'

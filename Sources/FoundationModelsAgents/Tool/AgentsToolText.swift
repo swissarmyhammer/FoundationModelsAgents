@@ -10,6 +10,31 @@ enum AgentsToolText {
     /// corrective when the tool can start no agent.
     static let noAgents = "No agents are available."
 
+    /// The answer of `find agents` when the search finds no agent that the
+    /// tool can start.
+    static let noMatchingAgents = "No agent matches this search. Do the task yourself."
+
+    /// The corrective of `find agents` with a query that holds no text.
+    static let blankQuery = """
+        The query is blank. Put the task, or the kind of work, that you want an agent for in the query.
+        """
+
+    /// The corrective of `find agents` with a limit below one.
+    static let limitBelowOne = "The limit must be one or more. Leave it out to get the default count."
+
+    /// Gives the answer of `list agents` and `find agents`: one
+    /// `- name: description` line for each agent, then the delegation
+    /// sentence.
+    ///
+    /// - Parameter agents: The agents of the answer, in answer order. It is
+    ///   not empty.
+    /// - Returns: The lines, a blank line, and
+    ///   ``AgentsToolDescription/delegationSentence``.
+    static func listing(of agents: [AgentDefinition]) -> String {
+        AgentsToolDescription.lines(for: agents.map(AgentsToolDescription.Entry.init))
+            + blockSeparator + AgentsToolDescription.delegationSentence
+    }
+
     /// The corrective of `start agent` with a prompt that holds no text.
     static let blankPrompt = """
         The prompt is blank. An agent sees only its prompt, so put the full task in the prompt.
@@ -64,7 +89,9 @@ enum AgentsToolText {
     /// The text between two names or two ids of a list.
     private static let listSeparator = ", "
 
-    /// The text between two run blocks of `check agent` with no id.
+    /// The text between two blocks of an answer: two run blocks of
+    /// `check agent` with no id, or the agent lines and the delegation
+    /// sentence of ``listing(of:)``.
     private static let blockSeparator = "\n\n"
 
     /// Gives the corrective of `start agent` when the run limit is full.

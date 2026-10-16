@@ -14,11 +14,14 @@ An agent run is a new Router session in the same process. The run gets a task,
 works in the background with its own context and its own tools, and gives back
 one final text when it ends. While the run works, it and its caller can send
 messages to each other. The caller keeps its own context. A model starts
-agents through one tool, `agents`, with six operations: `list agents`,
-`start agent`, `check agent`, `cancel agent`, `send agent`, and `send caller`
-(`send parent` is the same call). An agent whose `tools` key lists `Agent`
-gets each operation, thus agents can start agents. Each other run that a
-`start agent` call started gets only `send agent` and `send caller`.
+agents through one tool, `agents`, with seven operations: `list agents`,
+`find agents`, `start agent`, `check agent`, `cancel agent`, `send agent`, and
+`send caller` (`send parent` is the same call). `find agents` searches the
+descriptions of the agents, and a small model picks the best matches, as the
+`search skill` operation of the `skills` tool does. An agent whose `tools` key
+lists `Agent` gets each operation, thus agents can start agents. Each other
+run that a `start agent` call started gets only `send agent` and
+`send caller`.
 
 The description of the `agents` tool lists the agents with their
 descriptions. It tells the model to compare each task with these
@@ -185,7 +188,8 @@ register a `skills` tool in the `ToolCatalog` of the host: that is a
 programmer error, and it stops the process. `AgentEnvironment.make` is
 `async throws` because it builds the search index of the tool. Its
 `skillsSelectionModel`, `skillsCatalogCharacterLimit`, and
-`skillsVisibility` parameters go to `SkillsTool.make`.
+`skillsVisibility` parameters go to `SkillsTool.make`. The `find agents`
+operation of the `agents` tool chooses with the same `skillsSelectionModel`.
 
 The registry reads the files in `load()`, not in its init. Call `load()` after
 `market.start()`, thus the catalog holds the agents of the marketplace. With
