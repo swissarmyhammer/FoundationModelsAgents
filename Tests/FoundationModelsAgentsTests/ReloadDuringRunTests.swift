@@ -113,7 +113,7 @@ struct ReloadDuringRunTests {
         defer { try? harness.delete() }
 
         let run = try await harness.start(Self.changedAgent, prompt: Self.prompt)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
         try Self.writeSecondVersion(of: Self.changedAgent, in: layer)
         try await harness.registry.reload()
         let current = try #require(harness.registry.catalog().definition(named: Self.changedAgent))

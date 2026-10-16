@@ -167,7 +167,7 @@ struct AgentRunnerTests {
         let runner = harness.makeRunner()
 
         let run = try await runner.start(Self.reviewer, prompt: Self.firstPrompt)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
         let running = try #require(await runner.run(id: run.id))
         #expect(running === run)
         #expect(running.state == .running)
@@ -273,8 +273,8 @@ struct AgentRunnerTests {
         let runner = harness.makeRunner()
         let first = try await runner.start(Self.reviewer, prompt: Self.firstPrompt)
         let second = try await runner.start(Self.testWriter, prompt: Self.secondPrompt)
-        await firstGate.waitForArrival()
-        await secondGate.waitForArrival()
+        try #require(await firstGate.waitForArrival(orEndOf: first))
+        try #require(await secondGate.waitForArrival(orEndOf: second))
 
         await runner.stop()
 

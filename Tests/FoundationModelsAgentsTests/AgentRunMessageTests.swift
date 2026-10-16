@@ -150,7 +150,7 @@ struct AgentRunMessageTests {
         defer { try? harness.delete() }
 
         let run = try await harness.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
         let outcome = try run.deliver(Self.message, from: .user)
         gate.open()
         let result = try await run.result()
@@ -238,7 +238,7 @@ struct AgentRunMessageTests {
         defer { try? harness.delete() }
 
         let run = try await harness.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
         run.cancel()
         let final = await run.finalState()
 
@@ -325,7 +325,7 @@ struct AgentRunMessageTests {
 
         let run = try await Self.startRun(
             in: harness, hooks: AgentRunIdleHooks(beforeIdleSettle: { try? await settleGate.wait() }))
-        await settleGate.waitForArrival()
+        try #require(await settleGate.waitForArrival(orEndOf: run))
         let outcome = try run.deliver(Self.message, from: .user)
         settleGate.open()
         let result = try await run.result()
@@ -355,7 +355,7 @@ struct AgentRunMessageTests {
 
         let run = try await Self.startRun(
             in: harness, hooks: AgentRunIdleHooks(beforeIdleCheck: { try? await checkGate.wait() }))
-        await checkGate.waitForArrival()
+        try #require(await checkGate.waitForArrival(orEndOf: run))
         let outcome = try run.deliver(Self.message, from: .user)
         try #require(outcome == .delivered)
         await messageGate.waitForArrival()
@@ -441,7 +441,7 @@ struct AgentRunMessageTests {
 
         let run = try await startRun(
             in: harness, hooks: AgentRunIdleHooks(beforeIdleSettle: { try? await settleGate.wait() }))
-        await settleGate.waitForArrival()
+        try #require(await settleGate.waitForArrival(orEndOf: run))
         let outcome = try run.deliver(message, from: .user)
         settleGate.open()
         let final = await run.finalState()

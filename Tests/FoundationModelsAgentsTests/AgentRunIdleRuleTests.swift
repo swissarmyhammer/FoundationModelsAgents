@@ -81,7 +81,7 @@ struct AgentRunIdleRuleTests {
             }))
 
         run.begin(request, environment: harness.environment)
-        await toolGate.waitForArrival()
+        try #require(await toolGate.waitForArrival(orEndOf: run))
         let session = try #require(run.heldSession)
         let depthInAnswer = await session.mailQueueDepth()
         toolGate.open()

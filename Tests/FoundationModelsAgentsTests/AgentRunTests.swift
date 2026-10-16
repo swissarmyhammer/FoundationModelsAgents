@@ -179,7 +179,7 @@ struct AgentRunTests {
 
         let run = try await harness.start(Self.reviewer, prompt: Self.prompt)
         let id = run.id
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
 
         #expect(run.state == .running)
         #expect(run.heldSession?.id == id)
@@ -306,7 +306,7 @@ struct AgentRunTests {
         let run = try await harness.start(Self.reviewer, prompt: Self.prompt)
         let session = try #require(run.heldSession)
         let sessionEvents = await session.streamSessionEvents()
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
 
         run.cancel()
 
@@ -327,7 +327,7 @@ struct AgentRunTests {
             script: Self.script([.wait(gate), .finalText(Self.finalText)]))
         defer { try? harness.delete() }
         let run = try await harness.start(Self.reviewer, prompt: Self.prompt)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
         let waiter = Task { try await run.result() }
 
         waiter.cancel()

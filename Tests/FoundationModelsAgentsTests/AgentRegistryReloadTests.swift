@@ -8,7 +8,9 @@ import Testing
 ///
 /// Each row works on a `TemporaryLayer`. A watch row uses the real
 /// `DotfolderWatcher`, thus it waits on `onReload` for the catalog that it
-/// expects.
+/// expects. A row that calls `load()` or `reload()` itself releases the
+/// registry before it reads `onReload`, thus the read does not wait (see
+/// ``releasingRegistry(over:watch:after:)``).
 @Suite("Agent registry reload")
 struct AgentRegistryReloadTests {
     /// The id of the agent that a row adds, changes, or removes.
@@ -45,10 +47,12 @@ struct AgentRegistryReloadTests {
     func loadPublishesItsCatalog() async throws {
         let layer = try Self.layerWithAgent()
         defer { try? layer.delete() }
-        let registry = AgentRegistry(layers: [layer.layer])
-        let reloads = registry.onReload
 
-        try await registry.load()
+        let reloads = try await Self.releasingRegistry(over: layer) { registry in
+            let reloads = registry.onReload
+            try await registry.load()
+            return reloads
+        }
 
         let published = try #require(await reloads.first { _ in true })
         #expect(published.definitions.map(\.id) == [Self.agentID])
@@ -58,12 +62,14 @@ struct AgentRegistryReloadTests {
     func reloadPublishesTheNewCatalog() async throws {
         let layer = try TemporaryLayer.makeEmpty()
         defer { try? layer.delete() }
-        let registry = AgentRegistry(layers: [layer.layer])
-        try await registry.load()
-        let reloads = registry.onReload
 
-        try layer.write(Self.agentText(description: Self.firstDescription), at: Self.agentPath)
-        try await registry.reload()
+        let reloads = try await Self.releasingRegistry(over: layer) { registry in
+            try await registry.load()
+            let reloads = registry.onReload
+            try layer.write(Self.agentText(description: Self.firstDescription), at: Self.agentPath)
+            try await registry.reload()
+            return reloads
+        }
 
         let published = try #require(await reloads.first { _ in true })
         #expect(published.definitions.map(\.id) == [Self.agentID])
@@ -73,11 +79,12 @@ struct AgentRegistryReloadTests {
     func twoReadersEachGetTheCatalog() async throws {
         let layer = try Self.layerWithAgent()
         defer { try? layer.delete() }
-        let registry = AgentRegistry(layers: [layer.layer])
-        let first = registry.onReload
-        let second = registry.onReload
 
-        try await registry.load()
+        let (first, second) = try await Self.releasingRegistry(over: layer) { registry in
+            let readers = (registry.onReload, registry.onReload)
+            try await registry.load()
+            return readers
+        }
 
         #expect(try #require(await first.first { _ in true }).definitions.map(\.id) == [Self.agentID])
         #expect(try #require(await second.first { _ in true }).definitions.map(\.id) == [Self.agentID])
@@ -200,24 +207,37 @@ struct AgentRegistryReloadTests {
         let layer = try Self.layerWithAgent()
         defer { try? layer.delete() }
 
-        let reloads = try await Self.onReloadOfAReleasedRegistry(over: layer)
+        let reloads = try await Self.releasingRegistry(over: layer, watch: true) { registry in
+            try await registry.load()
+            return registry.onReload
+        }
 
         var iterator = reloads.makeAsyncIterator()
         #expect(await iterator.next() == nil)
     }
 
-    /// Makes a watching registry over `layer`, loads it, and releases it.
+    /// Makes a registry over `layer`, runs `steps` on it, and then releases
+    /// it. The release finishes each `onReload` stream of the registry.
     ///
-    /// - Parameter layer: The layer of the registry.
-    /// - Returns: The `onReload` stream that the registry gave after its
-    ///   load.
-    /// - Throws: The error of `load()`.
-    private static func onReloadOfAReleasedRegistry(
-        over layer: TemporaryLayer
-    ) async throws -> AsyncStream<AgentCatalog> {
-        let registry = AgentRegistry(layers: [layer.layer], watch: true)
-        try await registry.load()
-        return registry.onReload
+    /// A read of a finished stream gives each catalog that the stream got
+    /// before the release, and then ends. `load()` and `reload()` publish
+    /// their catalog before they return. Thus a row that calls them in
+    /// `steps` reads its catalogs after this call, and the read does not
+    /// wait for a catalog that a failed build did not publish.
+    ///
+    /// - Parameters:
+    ///   - layer: The layer of the registry.
+    ///   - watch: Whether the registry watches the layer root. The default
+    ///     is `false`.
+    ///   - steps: The steps of the row on the registry. They give the
+    ///     `onReload` streams that the row reads. Only this call keeps the
+    ///     registry.
+    /// - Returns: The value that `steps` gave.
+    /// - Throws: The error of `steps`.
+    private static func releasingRegistry<Streams>(
+        over layer: TemporaryLayer, watch: Bool = false, after steps: (AgentRegistry) async throws -> Streams
+    ) async throws -> Streams {
+        try await steps(AgentRegistry(layers: [layer.layer], watch: watch))
     }
 
     /// Writes one part of a burst. For each id, it writes a new description

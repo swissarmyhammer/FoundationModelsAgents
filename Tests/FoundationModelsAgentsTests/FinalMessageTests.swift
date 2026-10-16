@@ -281,7 +281,7 @@ struct FinalMessageTests {
         let events = await root.streamSessionEvents()
 
         let firstAnswer = Task { try await root.respond(to: Self.rootPrompt) }
-        await rootGate.waitForArrival()
+        try #require(await rootGate.waitForArrival(orEndOf: firstAnswer))
         let run = try await Self.childRun(in: harness, of: root)
         let startAnswer = try #require(harness.runHarness.script.toolOutputs.first)
         try #require(startAnswer.contains(Self.pendingMark), "The start answer was: \(startAnswer)")

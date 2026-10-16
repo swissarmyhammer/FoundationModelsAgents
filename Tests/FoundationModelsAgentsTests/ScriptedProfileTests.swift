@@ -90,7 +90,7 @@ struct ScriptedProfileTests {
             finished.set()
             return answer
         }
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: turn))
 
         #expect(!finished.isSet)
         gate.open()
@@ -139,7 +139,7 @@ struct ScriptedProfileTests {
         let second = profile.flash.makeSession()
 
         let firstAnswer = Task { try await first.respond(to: Self.promptKey) }
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: firstAnswer))
         var secondEvents = await second.streamEvents(to: secondKey).makeAsyncIterator()
         // The Router sends the delivery of the mail first; the submission
         // event of the mail comes after it.

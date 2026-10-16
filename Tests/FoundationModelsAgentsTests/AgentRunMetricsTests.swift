@@ -133,7 +133,7 @@ struct AgentRunMetricsTests {
                 metricsFactory: context.metricsFactory)
             defer { try? harness.delete() }
             let run = try await harness.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
-            await gate.waitForArrival()
+            try #require(await gate.waitForArrival(orEndOf: run))
             run.cancel()
             _ = await run.finalState()
             return context.metricsFactory

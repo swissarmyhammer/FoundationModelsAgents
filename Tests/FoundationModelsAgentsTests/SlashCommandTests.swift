@@ -119,7 +119,7 @@ struct SlashCommandTests {
             try await action(invocation).reduce(into: []) { texts, text in texts.append(text) }
         }
 
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: reader))
         reader.cancel()
         let texts = try await reader.value
         let run = try #require(await runner.runs(caller: nil).first)

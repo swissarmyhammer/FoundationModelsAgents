@@ -149,7 +149,7 @@ struct CheckAgentProgressTests {
         defer { try? harness.delete() }
 
         let run = try await harness.makeRunner().start(NestedRunTests.lead, prompt: Self.taskKey)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
         try await watch.recorded.wait()
         let progress = run.progress
         let report = run.report
@@ -185,7 +185,7 @@ struct CheckAgentProgressTests {
         defer { try? harness.delete() }
 
         let lead = try await harness.makeRunner().start(NestedRunTests.lead, prompt: Self.leadKey)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: lead))
         try await watch.recorded.wait()
         let progress = lead.progress
         let report = lead.report

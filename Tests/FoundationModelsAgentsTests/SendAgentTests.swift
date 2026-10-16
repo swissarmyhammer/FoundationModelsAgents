@@ -150,7 +150,7 @@ struct SendAgentTests {
         defer { try? harness.delete() }
 
         let run = try await Self.startChild(in: harness)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
         let answer = try await harness.call("send agent", Self.sendFields(to: run))
         gate.open()
         let result = try await run.result()
@@ -230,7 +230,7 @@ struct SendAgentTests {
         defer { try? harness.delete() }
 
         let run = try await Self.startChild(in: harness)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
         run.cancel()
         #expect(await run.finalState() == .cancelled)
         let answer = try await harness.call("send agent", Self.sendFields(to: run))
@@ -299,7 +299,7 @@ struct SendAgentTests {
         defer { try? harness.delete() }
 
         let run = try await Self.startChild(in: harness)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
         let answer = try await harness.call("send agent", Self.sendFields(to: run, text: Self.blankMessage))
         gate.open()
         let result = try await run.result()

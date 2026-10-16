@@ -212,7 +212,7 @@ extension AgentSchedulingTests {
             let hostRequest = try Self.leadRequest(in: harness, context: nil, gate: gates.setup)
 
             let reviewerRun = try await harness.runner.start(Self.reviewer, prompt: Self.reviewerKey)
-            await gates.reviewer.waitForArrival()
+            try #require(await gates.reviewer.waitForArrival(orEndOf: reviewerRun))
             async let hostStart = harness.runner.start(hostRequest)
             await gates.setup.waitForArrival()
             async let stopping: Void = harness.runner.stop()

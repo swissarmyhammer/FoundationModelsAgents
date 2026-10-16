@@ -97,7 +97,7 @@ final class ScriptedGate: Sendable {
         var runWatchers: [UUID: CheckedContinuation<Bool, Never>] = [:]
 
         /// The id of each ``ScriptedGate/waitForArrival(orEndOf:)`` wait
-        /// whose run ended before the wait held its continuation.
+        /// whose run or task ended before the wait held its continuation.
         var endedRunWaits: Set<UUID> = []
 
         /// Fires when the task of a ``ScriptedGate/waitThroughCancel()``
@@ -207,9 +207,40 @@ final class ScriptedGate: Sendable {
     /// - Returns: `true` when a wait call arrived, `false` when `run` ended
     ///   first.
     func waitForArrival(orEndOf run: AgentRun) async -> Bool {
+        await waitForArrival(orEnd: { _ = await run.finalState() })
+    }
+
+    /// Holds the caller until a wait call arrives at the gate, or until
+    /// `task` ends. Thus a task that fails before it arrives at the gate
+    /// cannot make the test wait for ever.
+    ///
+    /// Use it when the test has no ``AgentRun`` before the wait: for example a
+    /// turn of a session, or a reader that starts its run itself.
+    ///
+    /// The wait starts a task that waits for the result of `task`. That task
+    /// does not cancel `task`, and it ends when `task` ends.
+    ///
+    /// - Parameter task: The task that must arrive at the gate, or start the
+    ///   run that arrives at the gate.
+    /// - Returns: `true` when a wait call arrived, `false` when `task` ended
+    ///   first.
+    func waitForArrival<Success: Sendable, Failure: Error>(orEndOf task: Task<Success, Failure>) async -> Bool {
+        await waitForArrival(orEnd: { _ = await task.result })
+    }
+
+    /// Holds the caller until a wait call arrives at the gate, or until `end`
+    /// returns.
+    ///
+    /// The wait starts a task that calls `end`.
+    ///
+    /// - Parameter end: Returns when the work that must arrive at the gate
+    ///   ended.
+    /// - Returns: `true` when a wait call arrived, `false` when `end` returned
+    ///   first.
+    private func waitForArrival(orEnd end: @escaping @Sendable () async -> Void) async -> Bool {
         let id = UUID()
         Task {
-            _ = await run.finalState()
+            await end()
             self.endRunWait(id)
         }
         return await withCheckedContinuation { continuation in
@@ -271,8 +302,8 @@ final class ScriptedGate: Sendable {
     }
 
     /// Ends the ``waitForArrival(orEndOf:)`` wait `id` with `false`, because
-    /// its run ended. When the wait does not hold its continuation yet, the
-    /// gate records the id, and the wait then ends at once.
+    /// its run or task ended. When the wait does not hold its continuation
+    /// yet, the gate records the id, and the wait then ends at once.
     ///
     /// - Parameter id: The id of the wait.
     private func endRunWait(_ id: UUID) {
