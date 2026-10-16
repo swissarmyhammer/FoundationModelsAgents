@@ -43,8 +43,26 @@ comments:
     - note: Two test names contain the word "skipped". They are tests of skill loading and they passed. They are not skipped tests.
     - next: review. No code changed in this step. No commit made.
   timestamp: 2026-10-16T18:25:04.618397+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m52zgee04fsg1036p9f97agc
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (d7a71a7): 0 findings, 0 confirmed, 0 refuted; 7 validator runs, 0 failed. 14 files reviewed. 6 .kanban files are excluded by .reviewignore. No validator matched README.md, docs/skills-and-agents.md, or the two DocC pages.
+    - task check: the docs/skills-and-agents.md `search skill` row is updated in the same commit. The index holds only `isModelVisible` agents (AgentSearchEntry.init). The index follows `onReload` (AgentSearch.init task). AgentRunner makes one AgentSearch. FindAgentsTests has a match test and a hidden-agent test.
+    - note: the selection-then-retrieval fallback in AgentSearch.search has the same logic as SkillSearchAgent.search in FoundationModelsSkills. SkillSearchAgent accepts only `MetadataSearcher<SkillMetadata>`, thus this package cannot use it for AgentSearchEntry. To use it, FoundationModelsSkills must first make SkillSearchAgent generic. SkillSearchAgent also writes a fallback log record. AgentSearch does not.
+    - next: none
+  timestamp: 2026-10-16T18:27:38.048953+00:00
+- actor: claude-code
+  id: 01m52zgwrrnhcckt4tpq3bp66g
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 18 files (3 new: Tool/AgentSearch.swift, FindAgentsTests.swift, Support/SignalingEmbedder.swift)
+    - test: green — swift test, 578 tests in 80 suites passed, 0 failed, 0 skipped
+    - commit: d7a71a7
+    - review: clean — 0 findings; the task is in done
+  timestamp: 2026-10-16T18:27:52.728225+00:00
+position_column: done
+position_ordinal: e580
 title: 'A find agents operation: select agents by a semantic search of the descriptions (D61)'
 ---
 ## Why

@@ -186,7 +186,7 @@ struct SlashCommandTests {
     ///
     /// - Parameter command: The command.
     /// - Returns: The action, or `nil` when the body is not `.action`.
-    private static func action(of command: SlashCommand) -> Action? {
+    static func action(of command: SlashCommand) -> Action? {
         switch command.body {
         case .action(let action):
             action

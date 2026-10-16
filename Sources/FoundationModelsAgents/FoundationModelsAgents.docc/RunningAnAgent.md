@@ -72,7 +72,11 @@ The folder of a run is the first of these:
 1. The folder of the start request: the `workingDirectory` argument of
    ``AgentRunner/start(_:prompt:workingDirectory:)``, or the
    `workingDirectory` field of `start agent`. A relative path of
-   `start agent` starts from the folder of the calling run.
+   `start agent` starts from the folder of the calling run. A slash command
+   of the runner is a request from the session that runs it: its folder is
+   the `workingDirectory` of the `SlashCommand.Invocation`, the folder of
+   that session. Thus a command run of an agent of an agent folder also works
+   in the folder of the session, not in its own folder.
 2. For a child run, the folder of the parent run. A parent that gives a task
    expects the child to work on the files of the parent.
 3. Only for an agent of an agent folder (`agentFolders` of the registry), the

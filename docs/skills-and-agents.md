@@ -226,7 +226,9 @@ URL is a folder of agent folders, with no `agents/` level and no dot folder:
   the folder of the agent (`AgentDefinition.folderURL`). A request folder
   (`AgentRunner.start(_:prompt:workingDirectory:)` or the `workingDirectory`
   field of `start agent`) wins, and a child run works in the folder of its
-  parent. An agent of a dot folder never works in its own folder.
+  parent. A slash command gives the folder of the session that runs it as the
+  request folder, thus a command run works in the folder of the session. An
+  agent of a dot folder never works in its own folder.
 - With `watch: true`, the watcher watches each agent-folder root. A URL that
   does not exist gives no agent and no diagnostic.
 

@@ -151,7 +151,9 @@ public actor AgentRunner {
     /// stack works in ``AgentEnvironment/workingDirectory``. The session of
     /// the run gets this folder, and the `AGENTS.md` documents of its
     /// instructions come from it. Each run that the run starts works in the
-    /// same folder, unless its `start agent` call names a folder.
+    /// same folder, unless its `start agent` call names a folder. A slash
+    /// command of the runner gives the folder of the session that runs the
+    /// command, thus a command run never gets the default folder.
     ///
     /// - Parameters:
     ///   - name: The id of the agent in the catalog of the registry.

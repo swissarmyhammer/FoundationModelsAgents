@@ -214,7 +214,8 @@ background at once. `AgentEnvironment.make(inlineSettleGrace:)` sets the settle
 period of the session of each run, thus of the runs that a run starts.
 
 `AgentRunner` is also a `SlashCommandProviding`: each agent that the user can
-start is one slash command.
+start is one slash command. The run of a command works in the folder of the
+session that runs the command.
 
 ### Messages to a run
 

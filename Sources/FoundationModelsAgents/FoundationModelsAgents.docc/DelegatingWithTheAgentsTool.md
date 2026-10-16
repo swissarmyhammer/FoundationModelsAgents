@@ -261,4 +261,7 @@ session as the caller. Register the tool directly on a session.
 
 ``AgentRunner`` conforms to `SlashCommandProviding`. It gives one command for
 each user-invocable agent. A command starts a host-driven run with the text
-after the name as the prompt, waits for it, and gives the final text.
+after the name as the prompt, waits for it, and gives the final text. The run
+works in the folder of the session that runs the command: the
+`workingDirectory` of the `SlashCommand.Invocation`. See "The working folder
+of a run" in <doc:RunningAnAgent>.

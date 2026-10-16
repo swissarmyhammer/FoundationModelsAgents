@@ -1,4 +1,5 @@
 import Foundation
+import FoundationModelsExtras
 import FoundationModelsRouter
 import Testing
 
@@ -9,8 +10,10 @@ import Testing
 /// The folder of a run is, in this order: the folder of the start request;
 /// for a child run, the folder of the parent run; only for an agent of the
 /// agent-folder source, the folder of the agent; else
-/// ``AgentEnvironment/workingDirectory``. The session of the run records the
-/// folder, and the `AGENTS.md` documents of the instructions come from it.
+/// ``AgentEnvironment/workingDirectory``. A slash command gives the folder of
+/// the session that runs it as the folder of the start request. The session
+/// of the run records the folder, and the `AGENTS.md` documents of the
+/// instructions come from it.
 ///
 /// Each folder of a test holds an `AGENTS.md` with a note of its own. Thus
 /// the instructions of a run tell which folder the run read.
@@ -175,6 +178,30 @@ struct RunWorkingDirectoryTests {
         return child
     }
 
+    /// Runs the slash command of `agent` from a session whose folder is the
+    /// request folder of `fixture`, and gives the run of the command.
+    ///
+    /// - Parameters:
+    ///   - agent: The agent of the command.
+    ///   - fixture: The folders and the harness.
+    /// - Returns: The run of the command.
+    /// - Throws: The error of the command, or of `#require` when the agent
+    ///   has no `.action` command or the command started no run.
+    private static func runCommand(of agent: String, in fixture: Fixture) async throws -> AgentRun {
+        let runner = fixture.harness.makeRunner()
+        let sessionFolder = fixture.requestFolder.root
+        let commands = await runner.commands(workingDirectory: sessionFolder)
+        let command = try #require(commands.first { $0.name == agent })
+        let action = try #require(SlashCommandTests.action(of: command))
+        let texts: [String] = try await action(
+            SlashCommand.Invocation(arguments: prompt, workingDirectory: sessionFolder)
+        ).reduce(into: []) { texts, text in texts.append(text) }
+        #expect(texts == [finalText])
+        let runs = await runner.runs(caller: nil)
+        #expect(runs.count == 1)
+        return try #require(runs.first)
+    }
+
     // MARK: - Host-started runs
 
     @Test("a host run with its own folder works in that folder and reads its AGENTS.md")
@@ -225,6 +252,34 @@ struct RunWorkingDirectoryTests {
 
         let run = try await runner.start(
             Self.folderAgent, prompt: Self.prompt, workingDirectory: fixture.requestFolder.root)
+
+        #expect(try await Self.recordedFolder(of: run) == fixture.requestFolder.root.canonicalPath)
+        let instructions = try AgentRunTests.instructions(of: run)
+        #expect(instructions.contains(Self.requestNote))
+        #expect(!instructions.contains(Self.agentFolderNote))
+    }
+
+    // MARK: - Slash-command runs
+
+    @Test("a command run of a dotfolder agent works in the folder of the session")
+    func commandRunOfDotfolderAgentUsesSessionFolder() async throws {
+        let fixture = try await Self.makeFixture()
+        defer { fixture.delete() }
+
+        let run = try await Self.runCommand(of: Self.dotAgent, in: fixture)
+
+        #expect(try await Self.recordedFolder(of: run) == fixture.requestFolder.root.canonicalPath)
+        let instructions = try AgentRunTests.instructions(of: run)
+        #expect(instructions.contains(Self.requestNote))
+        #expect(!instructions.contains(Self.environmentNote))
+    }
+
+    @Test("a command run of an agent-folder agent works in the folder of the session, not in the agent folder")
+    func commandRunOfAgentFolderAgentUsesSessionFolder() async throws {
+        let fixture = try await Self.makeFixture()
+        defer { fixture.delete() }
+
+        let run = try await Self.runCommand(of: Self.folderAgent, in: fixture)
 
         #expect(try await Self.recordedFolder(of: run) == fixture.requestFolder.root.canonicalPath)
         let instructions = try AgentRunTests.instructions(of: run)
