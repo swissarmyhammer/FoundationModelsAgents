@@ -271,7 +271,7 @@ struct MarketplaceEndToEndTests {
         let warnings = Self.catalogWarnings(of: Self.securityReviewer, in: harness)
         let run = try await harness.start(Self.securityReviewer, prompt: Self.prompt)
         let result = try await run.result()
-        let instructions = try #require(try AgentRunTests.sidecar(of: run).configuration.instructions)
+        let instructions = try AgentRunTests.instructions(of: run)
 
         #expect(warnings.isEmpty)
         #expect(result == Self.finalText)

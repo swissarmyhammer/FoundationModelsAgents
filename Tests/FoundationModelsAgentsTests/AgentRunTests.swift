@@ -58,17 +58,6 @@ struct AgentRunTests {
         (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
     }
 
-    /// Reads the `session.json` of the session of `run`.
-    ///
-    /// - Parameter run: A run that made a session.
-    /// - Returns: The decoded parts of the file.
-    /// - Throws: The error of `#require` when the run has no recording
-    ///   directory, or the error of the read.
-    static func sidecar(of run: AgentRun) throws -> RecordedSidecar {
-        let directory = try #require(run.recordingDirectory)
-        return try RecordedSidecar.read(in: directory)
-    }
-
     /// Gives the text of an agent file with a valid frontmatter, `extraKeys`,
     /// and `body`.
     ///
@@ -231,7 +220,7 @@ struct AgentRunTests {
 
         let run = try await harness.start(Self.reviewer, prompt: Self.prompt)
         _ = try await run.result()
-        let instructions = try #require(try Self.sidecar(of: run).configuration.instructions)
+        let instructions = try Self.instructions(of: run)
         let agentsMdRange = try #require(instructions.range(of: AgentRunHarness.agentsMdText))
         let bodyRange = try #require(instructions.range(of: Self.reviewerBodyText))
 

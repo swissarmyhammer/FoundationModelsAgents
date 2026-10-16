@@ -133,15 +133,6 @@ struct RunWorkingDirectoryTests {
 
     // MARK: - Support
 
-    /// Gives the path of `url` after the resolve of each symbolic link, with
-    /// no trailing slash.
-    ///
-    /// - Parameter url: A file URL.
-    /// - Returns: The path, for a compare of two folders.
-    private static func canonicalPath(_ url: URL) -> String {
-        url.standardizedFileURL.resolvingSymlinksInPath().path
-    }
-
     /// Waits for the end of `run`, and gives the working folder that its
     /// session recorded.
     ///
@@ -150,16 +141,7 @@ struct RunWorkingDirectoryTests {
     /// - Throws: The error of the run, or of the read of the recording.
     private static func recordedFolder(of run: AgentRun) async throws -> String {
         #expect(try await run.result() == finalText)
-        return canonicalPath(try AgentRunTests.sidecar(of: run).workingDirectory)
-    }
-
-    /// Gives the instructions that the session of `run` recorded.
-    ///
-    /// - Parameter run: A run that ended.
-    /// - Returns: The instructions.
-    /// - Throws: The error of the read of the recording, or of `#require`.
-    private static func instructions(of run: AgentRun) throws -> String {
-        try #require(try AgentRunTests.sidecar(of: run).configuration.instructions)
+        return try AgentRunTests.sidecar(of: run).workingDirectory.canonicalPath
     }
 
     /// Calls `start agent` of a tool whose session is a run in the parent
@@ -203,8 +185,8 @@ struct RunWorkingDirectoryTests {
 
         let run = try await runner.start(Self.dotAgent, prompt: Self.prompt, workingDirectory: fixture.requestFolder.root)
 
-        #expect(try await Self.recordedFolder(of: run) == Self.canonicalPath(fixture.requestFolder.root))
-        let instructions = try Self.instructions(of: run)
+        #expect(try await Self.recordedFolder(of: run) == fixture.requestFolder.root.canonicalPath)
+        let instructions = try AgentRunTests.instructions(of: run)
         #expect(instructions.contains(Self.requestNote))
         #expect(!instructions.contains(Self.environmentNote))
     }
@@ -217,8 +199,8 @@ struct RunWorkingDirectoryTests {
 
         let run = try await runner.start(Self.folderAgent, prompt: Self.prompt)
 
-        #expect(try await Self.recordedFolder(of: run) == Self.canonicalPath(fixture.agentFolder))
-        let instructions = try Self.instructions(of: run)
+        #expect(try await Self.recordedFolder(of: run) == fixture.agentFolder.canonicalPath)
+        let instructions = try AgentRunTests.instructions(of: run)
         #expect(instructions.contains(Self.agentFolderNote))
         #expect(!instructions.contains(Self.environmentNote))
     }
@@ -231,8 +213,8 @@ struct RunWorkingDirectoryTests {
 
         let run = try await runner.start(Self.dotAgent, prompt: Self.prompt)
 
-        #expect(try await Self.recordedFolder(of: run) == Self.canonicalPath(fixture.harness.workingDirectory))
-        #expect(try Self.instructions(of: run).contains(Self.environmentNote))
+        #expect(try await Self.recordedFolder(of: run) == fixture.harness.workingDirectory.canonicalPath)
+        #expect(try AgentRunTests.instructions(of: run).contains(Self.environmentNote))
     }
 
     @Test("a request folder wins over the folder of an agent-folder agent")
@@ -244,8 +226,8 @@ struct RunWorkingDirectoryTests {
         let run = try await runner.start(
             Self.folderAgent, prompt: Self.prompt, workingDirectory: fixture.requestFolder.root)
 
-        #expect(try await Self.recordedFolder(of: run) == Self.canonicalPath(fixture.requestFolder.root))
-        let instructions = try Self.instructions(of: run)
+        #expect(try await Self.recordedFolder(of: run) == fixture.requestFolder.root.canonicalPath)
+        let instructions = try AgentRunTests.instructions(of: run)
         #expect(instructions.contains(Self.requestNote))
         #expect(!instructions.contains(Self.agentFolderNote))
     }
@@ -259,8 +241,8 @@ struct RunWorkingDirectoryTests {
 
         let child = try await Self.startChild(Self.dotAgent, folder: nil, in: fixture)
 
-        #expect(try await Self.recordedFolder(of: child) == Self.canonicalPath(fixture.parentFolder.root))
-        #expect(try Self.instructions(of: child).contains(Self.parentNote))
+        #expect(try await Self.recordedFolder(of: child) == fixture.parentFolder.root.canonicalPath)
+        #expect(try AgentRunTests.instructions(of: child).contains(Self.parentNote))
     }
 
     @Test("a child of an agent-folder agent works in the folder of its parent, not in the agent folder")
@@ -270,8 +252,8 @@ struct RunWorkingDirectoryTests {
 
         let child = try await Self.startChild(Self.folderAgent, folder: nil, in: fixture)
 
-        #expect(try await Self.recordedFolder(of: child) == Self.canonicalPath(fixture.parentFolder.root))
-        let instructions = try Self.instructions(of: child)
+        #expect(try await Self.recordedFolder(of: child) == fixture.parentFolder.root.canonicalPath)
+        let instructions = try AgentRunTests.instructions(of: child)
         #expect(instructions.contains(Self.parentNote))
         #expect(!instructions.contains(Self.agentFolderNote))
     }
@@ -284,8 +266,8 @@ struct RunWorkingDirectoryTests {
         let child = try await Self.startChild(
             Self.folderAgent, folder: fixture.requestFolder.root.path, in: fixture)
 
-        #expect(try await Self.recordedFolder(of: child) == Self.canonicalPath(fixture.requestFolder.root))
-        let instructions = try Self.instructions(of: child)
+        #expect(try await Self.recordedFolder(of: child) == fixture.requestFolder.root.canonicalPath)
+        let instructions = try AgentRunTests.instructions(of: child)
         #expect(instructions.contains(Self.requestNote))
         #expect(!instructions.contains(Self.parentNote))
         #expect(!instructions.contains(Self.agentFolderNote))
@@ -299,8 +281,8 @@ struct RunWorkingDirectoryTests {
         let child = try await Self.startChild(Self.dotAgent, folder: Self.partFolderName, in: fixture)
 
         let part = fixture.parentFolder.root.appendingPathComponent(Self.partFolderName, isDirectory: true)
-        #expect(try await Self.recordedFolder(of: child) == Self.canonicalPath(part))
-        #expect(try Self.instructions(of: child).contains(Self.requestNote))
+        #expect(try await Self.recordedFolder(of: child) == part.canonicalPath)
+        #expect(try AgentRunTests.instructions(of: child).contains(Self.requestNote))
     }
 
     @Test("a blank folder of a start agent call names no folder")
@@ -310,7 +292,7 @@ struct RunWorkingDirectoryTests {
 
         let child = try await Self.startChild(Self.dotAgent, folder: "  ", in: fixture)
 
-        #expect(try await Self.recordedFolder(of: child) == Self.canonicalPath(fixture.parentFolder.root))
+        #expect(try await Self.recordedFolder(of: child) == fixture.parentFolder.root.canonicalPath)
     }
 
     @Test("a child that a run starts works in the folder of that run, also for an agent-folder agent")
@@ -327,7 +309,7 @@ struct RunWorkingDirectoryTests {
         _ = try await lead.result()
         let child = try await NestedRunTests.onlyRun(of: runner, caller: lead.id)
 
-        #expect(try await Self.recordedFolder(of: child) == Self.canonicalPath(fixture.requestFolder.root))
-        #expect(try Self.instructions(of: child).contains(Self.requestNote))
+        #expect(try await Self.recordedFolder(of: child) == fixture.requestFolder.root.canonicalPath)
+        #expect(try AgentRunTests.instructions(of: child).contains(Self.requestNote))
     }
 }

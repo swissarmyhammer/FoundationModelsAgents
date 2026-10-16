@@ -186,7 +186,7 @@ struct SkillsPreloadTests {
     private static func instructions(ofRunOf agent: String, in harness: AgentRunHarness) async throws -> String {
         let run = try await harness.start(agent, prompt: prompt)
         #expect(try await run.result() == finalText)
-        return try #require(try AgentRunTests.sidecar(of: run).configuration.instructions)
+        return try AgentRunTests.instructions(of: run)
     }
 
     /// Gives the start of each text of `texts` in `instructions`.

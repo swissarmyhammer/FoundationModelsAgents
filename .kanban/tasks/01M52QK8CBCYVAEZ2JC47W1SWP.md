@@ -42,6 +42,45 @@ comments:
     - note: only the known SwiftPM line "missing creator for mutated node" for the mlx-swift_Cmlx bundle is in the output. It is accepted.
     - next: review.
   timestamp: 2026-10-16T17:55:37.812135+00:00
+- actor: claude-code
+  id: 01m52xvhy8fzkn7dzc607c16zq
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (4c216bd): 2 findings, 2 confirmed, 0 refuted — Tests/FoundationModelsAgentsTests/RunWorkingDirectoryTests.swift:141, Tests/FoundationModelsAgentsTests/RunWorkingDirectoryTests.swift:161. Check against the task description: the folder order in `AgentRunRequest.workingDirectory(default:)` is request → parent → agent folder (agent-folder source only) → environment. A relative `start agent` path resolves from the folder of the calling run (`AgentsToolContext.requestedDirectory(at:)`). The code does not expand `~`. Slash-command runs did not change (card ^7aafdxr). The acceptance tests are in RunWorkingDirectoryTests. No more findings.
+    - next: move the two test helpers into a shared test support file, then run the review again.
+  timestamp: 2026-10-16T17:58:44.936463+00:00
+- actor: claude-code
+  id: 01m52xw4h72kj8jd5xj7d7710r
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 17 files (8 Sources, 4 docs, 5 Tests incl. new RunWorkingDirectoryTests.swift)
+    - test: green — swift test, 567 tests in 79 suites passed, 0 failed, 0 skipped
+    - commit: 4c216bd
+    - review: findings — Tests/FoundationModelsAgentsTests/RunWorkingDirectoryTests.swift:141, Tests/FoundationModelsAgentsTests/RunWorkingDirectoryTests.swift:161
+  timestamp: 2026-10-16T17:59:03.975877+00:00
+- actor: claude-code
+  id: 01m52y3zjt20vkchhv69tvynv8
+  text: |-
+    Review findings fixed (not committed):
+    - Finding 1 (canonicalPath): new `Tests/FoundationModelsAgentsTests/Support/URL+CanonicalPath.swift` with `URL.canonicalPath` (`standardizedFileURL.resolvingSymlinksInPath().path`). The private `canonicalPath(of:)` of AgentRegistryMarketplaceTests and the private `canonicalPath(_:)` of RunWorkingDirectoryTests are deleted. Both suites now use `url.canonicalPath`. The standardize step does no harm to the marketplace callers.
+    - Finding 2 (instructions): new `Tests/FoundationModelsAgentsTests/Support/AgentRunTests+Sidecar.swift`, an extension of `AgentRunTests` that holds `sidecar(of:)` (moved from AgentRunTests.swift, same name, thus no other caller changed) and the new `instructions(of:)`. The private `instructions(of:)` of RunWorkingDirectoryTests is deleted. Each inline `#require(... sidecar(of: run).configuration.instructions)` now calls `AgentRunTests.instructions(of:)`: AgentRunTests, MarketplaceEndToEndTests, ReloadDuringRunTests (2 places), SkillsPreloadTests (its `instructions(ofRunOf:in:)` stays, because it also starts the run and checks the result, but it now calls the shared helper).
+    - A search of Tests/ after the change: `configuration.instructions` and `resolvingSymlinksInPath` each occur only in the shared support files (and in the LoadingBoundaryTests rule name, which scans Sources only).
+    - Tool note: the `replace_all` option of the files edit op changed only one match in each call. I wrote the whole RunWorkingDirectoryTests.swift file again to change each call site.
+  timestamp: 2026-10-16T18:03:21.050298+00:00
+- actor: claude-code
+  id: 01m52y42x4w9rn8n30zsgwm0be
+  text: |-
+    ### implement — changed
+    - evidence: `swift build --build-tests` clean (only the accepted mlx-swift "missing creator for mutated node" line). Relevant suites: `swift test --filter "RunWorkingDirectoryTests|AgentRegistryMarketplaceTests|SkillsPreloadTests|MarketplaceEndToEndTests|ReloadDuringRunTests|AgentRunTests|NestedRunTests"` 81 tests in 13 suites passed. Full suite: `swift test` 567 tests in 79 suites passed, 0 failures. Both review findings checked. Files: Tests/FoundationModelsAgentsTests/Support/URL+CanonicalPath.swift (new), Tests/FoundationModelsAgentsTests/Support/AgentRunTests+Sidecar.swift (new), Tests/FoundationModelsAgentsTests/{RunWorkingDirectoryTests,AgentRegistryMarketplaceTests,AgentRunTests,MarketplaceEndToEndTests,ReloadDuringRunTests,SkillsPreloadTests}.swift
+    - next: /review
+  timestamp: 2026-10-16T18:03:24.452986+00:00
+- actor: claude-code
+  id: 01m52y5rvgaf26zwb0pbj3wrmw
+  text: |-
+    ### test - green
+    - evidence: swift test (full suite) - 567 tests in 79 suites passed, 0 failed, 0 skipped. No compiler warning. The only warning line is the accepted SwiftPM line "missing creator for mutated node" for the mlx-swift_Cmlx bundle.
+    - next: review. No commit was made.
+  timestamp: 2026-10-16T18:04:19.696217+00:00
 depends_on:
 - 01M52QK3PC1A6HFXEK7XT42RDF
 position_column: doing
@@ -75,3 +114,19 @@ Reason for the order: a parent that delegates expects the child to work on the f
 - The current API and tests keep working.
 
 Depends on ^xt42rdf.
+
+## Review Findings (2026-10-16 12:56)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 13 file(s) reviewed, 10 not reviewed.
+
+> 6 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 6 file(s)
+
+> 4 file(s) not reviewed — no validator matched:
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/DelegatingWithTheAgentsTool.md` — no validator matches this file
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/LoadingTheCatalog.md` — no validator matches this file
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/RunningAnAgent.md` — no validator matches this file
+> - `docs/skills-and-agents.md` — no validator matches this file
+
+- [x] `Tests/FoundationModelsAgentsTests/RunWorkingDirectoryTests.swift:141` `reuse/reuse` — The new `canonicalPath(_:)` helper repeats the `canonicalPath(of:)` helper that already exists as a private static in `AgentRegistryMarketplaceTests`. Both resolve symlinks and return the path. The copies can drift apart, and the existing one is not reachable from this suite because it is private to its own suite. Move one shared path helper into a test support file, such as `Tests/FoundationModelsAgentsTests/Support/`, and have both suites call it. If the `standardizedFileURL` step is needed here, put it in the shared helper, or keep it as a parameter, so both callers use the same logic.
+- [x] `Tests/FoundationModelsAgentsTests/RunWorkingDirectoryTests.swift:161` `reuse/reuse` — The new `instructions(of:)` helper repeats the same logic as `SkillsPreloadTests.instructions(ofRunOf:in:)`, which is private to another suite. Both read the recorded sidecar and require a non-nil `configuration.instructions`. The same one-line expression is also written inline in several other test files. This is a weaker finding than the `canonicalPath` one because the helper is a single line, but the duplication is the same kind. Move the sidecar-reading helpers (`instructions(of:)`, and the path helper from the `canonicalPath` finding) into a shared test support file beside `AgentRunTests.sidecar(of:)`, and have the suites call them. If the shared helper is not wanted, at least keep this one a direct call to `AgentRunTests.sidecar(of:)` at the call sites, so the rule lives in one place.

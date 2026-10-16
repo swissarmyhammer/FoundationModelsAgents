@@ -119,7 +119,7 @@ struct ReloadDuringRunTests {
         let current = try #require(harness.registry.catalog().definition(named: Self.changedAgent))
         gate.open()
         let result = try await run.result()
-        let instructions = try #require(try AgentRunTests.sidecar(of: run).configuration.instructions)
+        let instructions = try AgentRunTests.instructions(of: run)
 
         #expect(current.description == Self.secondDescription)
         #expect(run.agent.description == Self.firstDescription)
@@ -143,7 +143,7 @@ struct ReloadDuringRunTests {
         _ = try await harness.call("start agent", Self.startFields(Self.changedAgent))
         let run = try #require(await harness.runner.runs(caller: nil).first)
         let result = try await run.result()
-        let instructions = try #require(try AgentRunTests.sidecar(of: run).configuration.instructions)
+        let instructions = try AgentRunTests.instructions(of: run)
 
         #expect(run.agent.description == Self.secondDescription)
         #expect(instructions.contains(Self.secondBody))

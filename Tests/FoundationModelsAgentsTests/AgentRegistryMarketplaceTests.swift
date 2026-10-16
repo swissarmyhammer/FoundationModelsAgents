@@ -188,10 +188,10 @@ struct AgentRegistryMarketplaceTests {
 
         let definition = try #require(catalog.definition(named: Self.libraryAgent))
         #expect(catalog.definitions.map(\.id) == [Self.libraryAgent])
-        #expect(Self.canonicalPath(of: definition.layer.root) == Self.canonicalPath(of: libraryRoot))
+        #expect(definition.layer.root.canonicalPath == libraryRoot.canonicalPath)
         #expect(
-            Self.canonicalPath(of: definition.url)
-                == Self.canonicalPath(of: Self.agentURL(Self.libraryAgent, inLayerRoot: libraryRoot)))
+            definition.url.canonicalPath
+                == Self.agentURL(Self.libraryAgent, inLayerRoot: libraryRoot).canonicalPath)
         #expect(definition.marketplaceLayer?.isWatchable == true)
         #expect(try FileManager.default.contentsOfDirectory(atPath: fixture.cacheDirectory.path).isEmpty)
     }
@@ -221,14 +221,5 @@ struct AgentRegistryMarketplaceTests {
     /// - Returns: The URL text.
     private static func url(ofFolder folder: URL) -> String {
         "file://\(folder.path)"
-    }
-
-    /// The path of `url` with each symbolic link resolved, thus
-    /// `/var/folders` and `/private/var/folders` compare equal.
-    ///
-    /// - Parameter url: The URL.
-    /// - Returns: The resolved path.
-    private static func canonicalPath(of url: URL) -> String {
-        url.resolvingSymlinksInPath().path
     }
 }
