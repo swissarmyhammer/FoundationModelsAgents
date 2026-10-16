@@ -159,7 +159,9 @@ struct RelayedQuestionTests {
 
     /// Makes a temporary layer with ``agentFiles``, a harness with the asking
     /// tool, and an interactive root session with the `agents` tool. Then it
-    /// runs `body`, closes the root, and deletes the folders.
+    /// runs `body`, closes the root, and deletes the folders. It closes the
+    /// root also when `body` throws: the close cancels each run of the root,
+    /// thus no run of the test stays open.
     ///
     /// - Parameters:
     ///   - plays: The plays of the script.
@@ -184,15 +186,22 @@ struct RelayedQuestionTests {
             let agentsTool = try await AgentsTool.make(context: AgentsToolContext(runner: runner))
             let root = AgentRunHarness.makeRootSession(
                 on: harness.profile.standard, instructions: rootKey, tools: [agentsTool], userPresence: .interactive)
-            try await body(
-                Parts(root: root, runner: runner, answers: answers, askerEnds: askerEnds, leadEnds: leadEnds))
+            do {
+                try await body(
+                    Parts(root: root, runner: runner, answers: answers, askerEnds: askerEnds, leadEnds: leadEnds))
+            } catch {
+                await root.close()
+                throw error
+            }
             await root.close()
         }
     }
 
     /// Reads `events` up to the first question, and gives it. It stops with
-    /// `nil` at the first `runSettled` event: a run that ended before a
-    /// question came sent no question to the root.
+    /// `nil` at the first event that ends the work of the root before a
+    /// question came: the end of the run of a call (`runSettled`, `lost`),
+    /// the cancel of a mail, or a failed answer. It also stops at the end of
+    /// the stream, when the root closed. Then no question can come.
     ///
     /// - Parameter events: The iterator of the session events of the root.
     /// - Returns: The question, or `nil`.
@@ -203,7 +212,7 @@ struct RelayedQuestionTests {
             switch output.event {
             case .elicitationRequested(let operation):
                 return operation.elicitation
-            case .runSettled:
+            case .runSettled, .lost, .cancelled, .answerFailed:
                 return nil
             default:
                 continue
@@ -256,13 +265,13 @@ struct RelayedQuestionTests {
             let (question, child) = try await Self.question(of: parts, events: &events)
             let delivery = await parts.root.respond(
                 elicitationId: question.elicitationId.ulidString, response: Self.accept)
+            try #require(delivery == .delivered)
             let final = await child.finalState()
             await parts.root.close()
             let rootEnds = await Self.ends(in: &events)
 
             #expect(question.agentPath == [Self.asker])
             #expect(question.message == AskingTool.question)
-            #expect(delivery == .delivered)
             #expect(parts.answers.all == [Self.accept])
             #expect(final == .finished(Self.afterAnswerText))
             #expect(rootEnds.isEmpty)
@@ -283,11 +292,11 @@ struct RelayedQuestionTests {
             let asker = try await NestedRunTests.onlyRun(of: parts.runner, caller: lead.id)
             let delivery = await parts.root.respond(
                 elicitationId: question.elicitationId.ulidString, response: Self.accept)
+            try #require(delivery == .delivered)
             let askerFinal = await asker.finalState()
             let leadFinal = await lead.finalState()
 
             #expect(question.agentPath == [Self.lead, Self.asker])
-            #expect(delivery == .delivered)
             #expect(parts.answers.all == [Self.accept])
             #expect(askerFinal == .finished(Self.afterAnswerText))
             if case .finished = leadFinal {
