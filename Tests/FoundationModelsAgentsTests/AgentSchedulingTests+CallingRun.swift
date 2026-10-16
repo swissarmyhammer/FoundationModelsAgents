@@ -83,7 +83,8 @@ extension AgentSchedulingTests {
             defer { try? harness.delete() }
 
             let parent = try await harness.runner.start(Self.lead, prompt: Self.parentKey)
-            await parentGate.waitForArrival()
+            try #require(await parentGate.waitForArrival(orEndOf: parent))
+            try harness.runHarness.script.requirePendingStarts()
             await childGate.waitForArrival()
             let child = try #require(await harness.runner.runs(caller: parent.id).first)
             let refused = try await harness.call(

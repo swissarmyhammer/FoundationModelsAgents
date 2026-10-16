@@ -46,6 +46,32 @@ enum AgentsToolArguments {
     }
 }
 
+extension ScriptedAgentScript {
+    /// The mark of a pending envelope of the Router in a tool output.
+    static let pendingMark = #""pending":true"#
+
+    /// Requires that `count` tool outputs that the models got are pending
+    /// envelopes: each `start agent` call of the test started its run, and
+    /// none of them got a corrective.
+    ///
+    /// Call it when the session that called `start agent` holds at its own
+    /// gate after the call. That session cannot end while it holds, thus a
+    /// test that waits for the child must first know that the start worked.
+    ///
+    /// - Parameters:
+    ///   - count: The count of `start agent` calls that the sessions of the
+    ///     test made up to now. The default is one call.
+    ///   - sourceLocation: The place of the call in the test.
+    /// - Throws: The error of `#require` when a different count of tool
+    ///   outputs are pending envelopes.
+    func requirePendingStarts(count: Int = 1, sourceLocation: SourceLocation = #_sourceLocation) throws {
+        let outputs = toolOutputs
+        try #require(
+            outputs.count(where: { $0.contains(Self.pendingMark) }) == count, "The tool outputs were: \(outputs)",
+            sourceLocation: sourceLocation)
+    }
+}
+
 /// One event of a root session that the message suites read.
 enum RootSessionEvent {
     /// A `runMessage` event, with the detail of the event.

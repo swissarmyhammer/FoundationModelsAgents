@@ -61,6 +61,10 @@ struct NestedRunTests {
     /// child.
     private static let waitingForOneText = "It waits for 1 agents that it started."
 
+    /// The count of `start agent` calls when the root session starts the
+    /// lead, and the lead starts one child.
+    static let rootAndLeadStarts = 2
+
     /// Waits until `condition` is true for `run`, or until `run` ends.
     ///
     /// The run calls its idle hook (``AgentRunIdleHooks/beforeIdleCheck``)
@@ -274,7 +278,7 @@ struct NestedRunTests {
         let runner = harness.makeRunner()
 
         let lead = try await runner.start(Self.lead, prompt: Self.leadKey)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: lead))
         let report = try await Self.waitingReport(of: lead)
         let stateWhileWaiting = lead.state
         let child = try await Self.onlyRun(of: runner, caller: lead.id)
@@ -305,9 +309,11 @@ struct NestedRunTests {
         let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
-        await gate.waitForArrival()
         await harness.tool.context.startedRuns.waitForStarts()
         let lead = try await Self.onlyRun(of: harness.runner, caller: root.id)
+        try #require(await failGate.waitForArrival(orEndOf: lead))
+        try harness.runHarness.script.requirePendingStarts(count: Self.rootAndLeadStarts)
+        await gate.waitForArrival()
         let child = try await Self.onlyRun(of: harness.runner, caller: lead.id)
         failGate.open()
         let leadFinal = await lead.finalState()
@@ -337,9 +343,9 @@ struct NestedRunTests {
         let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
-        await gate.waitForArrival()
         await harness.tool.context.startedRuns.waitForStarts()
         let lead = try await Self.onlyRun(of: harness.runner, caller: root.id)
+        try #require(await gate.waitForArrival(orEndOf: lead))
         let child = try await Self.onlyRun(of: harness.runner, caller: lead.id)
         lead.cancel()
         let leadFinal = await lead.finalState()
@@ -367,8 +373,9 @@ struct NestedRunTests {
         let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
-        let mailAnswer = try #require(await MailAnswerFilter.firstAnswerToMailAlone(in: rootEvents))
+        await harness.tool.context.startedRuns.waitForStarts()
         let child = try await Self.onlyRun(of: harness.runner, caller: root.id)
+        let mailAnswer = try #require(await MailAnswerFilter.firstAnswerToMailAlone(in: rootEvents))
         await root.close()
 
         #expect(child.state == .finished(Self.reviewerText))
@@ -389,8 +396,9 @@ struct NestedRunTests {
         let rootEvents = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
-        let leadTerminal = try await Self.firstSettlement(in: rootEvents)
+        await harness.tool.context.startedRuns.waitForStarts()
         let lead = try await Self.onlyRun(of: harness.runner, caller: root.id)
+        let leadTerminal = try await Self.firstSettlement(in: rootEvents)
         _ = try await lead.result()
         let child = try await Self.onlyRun(of: harness.runner, caller: lead.id)
         let leadToken = try #require(lead.context?.completionToken)

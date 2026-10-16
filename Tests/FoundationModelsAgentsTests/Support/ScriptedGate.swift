@@ -1,13 +1,15 @@
 import Foundation
 import Synchronization
 
+@testable import FoundationModelsAgents
+
 /// A signal that fires one time, and the tests that wait for it.
 private struct ScriptedGateSignal {
     /// The continuation of one test that waits for the signal.
     typealias Watcher = CheckedContinuation<Void, Never>
 
     /// `true` after the signal fired.
-    private var hasFired = false
+    private(set) var hasFired = false
 
     /// The tests that wait for the signal.
     private var watchers: [Watcher] = []
@@ -32,6 +34,27 @@ private struct ScriptedGateSignal {
             watchers.append(watcher)
         }
         return hasFired
+    }
+}
+
+/// The waiters that the first wait call at a ``ScriptedGate`` releases. The
+/// gate resumes them outside its lock.
+private struct ScriptedGateArrival {
+    /// The watchers of ``ScriptedGate/waitForArrival()``.
+    let watchers: [ScriptedGateSignal.Watcher]
+
+    /// The watchers of ``ScriptedGate/waitForArrival(orEndOf:)``.
+    let runWatchers: [CheckedContinuation<Bool, Never>]
+
+    /// Resumes each watcher: a run watcher with `true`, because a call
+    /// arrived.
+    func resume() {
+        for watcher in watchers {
+            watcher.resume()
+        }
+        for watcher in runWatchers {
+            watcher.resume(returning: true)
+        }
     }
 }
 
@@ -69,9 +92,25 @@ final class ScriptedGate: Sendable {
         /// Fires when the first wait call arrives.
         var arrival = ScriptedGateSignal()
 
+        /// Each test that waits in ``ScriptedGate/waitForArrival(orEndOf:)``,
+        /// by the id of its wait.
+        var runWatchers: [UUID: CheckedContinuation<Bool, Never>] = [:]
+
+        /// The id of each ``ScriptedGate/waitForArrival(orEndOf:)`` wait
+        /// whose run ended before the wait held its continuation.
+        var endedRunWaits: Set<UUID> = []
+
         /// Fires when the task of a ``ScriptedGate/waitThroughCancel()``
         /// call is cancelled.
         var cancel = ScriptedGateSignal()
+
+        /// Fires the arrival signal, and takes each run watcher.
+        ///
+        /// - Returns: The waiters to resume, outside the lock.
+        mutating func arrive() -> ScriptedGateArrival {
+            defer { runWatchers.removeAll() }
+            return ScriptedGateArrival(watchers: arrival.fire(), runWatchers: Array(runWatchers.values))
+        }
     }
 
     /// The state of the gate.
@@ -134,6 +173,36 @@ final class ScriptedGate: Sendable {
         }
     }
 
+    /// Holds the caller until a wait call arrives at the gate, or until `run`
+    /// ends. Thus a run that fails before it arrives at the gate cannot make
+    /// the test wait for ever.
+    ///
+    /// The wait starts a task that waits for the final state of `run`. That
+    /// task does not cancel the run, and it ends when the run ends.
+    ///
+    /// - Parameter run: The run that must arrive at the gate, or start the
+    ///   run that arrives at the gate.
+    /// - Returns: `true` when a wait call arrived, `false` when `run` ended
+    ///   first.
+    func waitForArrival(orEndOf run: AgentRun) async -> Bool {
+        let id = UUID()
+        Task {
+            _ = await run.finalState()
+            self.endRunWait(id)
+        }
+        return await withCheckedContinuation { continuation in
+            let answer: Bool? = state.withLock { state in
+                if state.arrival.hasFired { return true }
+                if state.endedRunWaits.remove(id) != nil { return false }
+                state.runWatchers[id] = continuation
+                return nil
+            }
+            if let answer {
+                continuation.resume(returning: answer)
+            }
+        }
+    }
+
     /// Holds the caller until the task of a ``waitThroughCancel()`` call is
     /// cancelled.
     ///
@@ -153,18 +222,18 @@ final class ScriptedGate: Sendable {
     ///     ``waitThroughCancel()`` call.
     ///   - id: The id of that call.
     private func hold(_ continuation: CheckedContinuation<Void, any Error>, id: UUID) {
-        let (outcome, watchers) = state.withLock { state -> (Result<Void, any Error>?, [ScriptedGateSignal.Watcher]) in
-            let watchers = state.arrival.fire()
+        let (outcome, arrival) = state.withLock { state -> (Result<Void, any Error>?, ScriptedGateArrival) in
+            let arrival = state.arrive()
             if state.cancelledBeforeHold.remove(id) != nil {
-                return (.failure(CancellationError()), watchers)
+                return (.failure(CancellationError()), arrival)
             }
             if state.isOpen {
-                return (.success(()), watchers)
+                return (.success(()), arrival)
             }
             state.waiters[id] = continuation
-            return (nil, watchers)
+            return (nil, arrival)
         }
-        resume(watchers)
+        arrival.resume()
         if let outcome {
             continuation.resume(with: outcome)
         }
@@ -177,6 +246,22 @@ final class ScriptedGate: Sendable {
         for watcher in watchers {
             watcher.resume()
         }
+    }
+
+    /// Ends the ``waitForArrival(orEndOf:)`` wait `id` with `false`, because
+    /// its run ended. When the wait does not hold its continuation yet, the
+    /// gate records the id, and the wait then ends at once.
+    ///
+    /// - Parameter id: The id of the wait.
+    private func endRunWait(_ id: UUID) {
+        let watcher = state.withLock { state in
+            let watcher = state.runWatchers.removeValue(forKey: id)
+            if watcher == nil {
+                state.endedRunWaits.insert(id)
+            }
+            return watcher
+        }
+        watcher?.resume(returning: false)
     }
 
     /// Releases the held ``wait()`` call `id` with `CancellationError`.

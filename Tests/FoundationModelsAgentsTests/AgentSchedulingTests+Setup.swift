@@ -143,9 +143,10 @@ extension AgentSchedulingTests {
             let root = harness.makeRootSession(instructions: Self.rootKey, adding: [probe])
 
             async let rootAnswer = root.respond(to: Self.rootPrompt)
-            await gates.reviewer.waitForArrival()
             await gates.setup.waitForArrival()
+            await harness.tool.context.startedRuns.waitForStarts()
             let reviewerRun = try await Self.run(of: Self.reviewer, caller: root.id, in: harness)
+            await gates.reviewer.waitForArrival()
             async let cancelling: Void = harness.runner.cancelRuns(caller: root.id)
             let reviewerState = await reviewerRun.finalState()
             gates.setup.open()
@@ -170,8 +171,9 @@ extension AgentSchedulingTests {
             let hostRequest = try Self.leadRequest(in: harness, context: nil, gate: gates.setup)
 
             _ = try await root.respond(to: Self.rootPrompt)
-            await gates.reviewer.waitForArrival()
+            await harness.tool.context.startedRuns.waitForStarts()
             let reviewerRun = try await Self.run(of: Self.reviewer, caller: root.id, in: harness)
+            await gates.reviewer.waitForArrival()
             async let hostStart = harness.runner.start(hostRequest)
             await gates.setup.waitForArrival()
             await harness.runner.cancelRuns(caller: root.id)

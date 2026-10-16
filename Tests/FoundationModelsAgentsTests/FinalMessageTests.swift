@@ -125,8 +125,8 @@ struct FinalMessageTests {
         let events = await root.streamSessionEvents()
 
         let answer = try await root.respond(to: Self.rootPrompt)
-        await childGate.waitForArrival()
         let run = try await Self.childRun(in: harness, of: root)
+        await childGate.waitForArrival()
         let postsWhileRunning = try NestedRunTests.posts(of: run, in: root.recordingDirectory)
         childGate.open()
         _ = try await run.result()
@@ -213,6 +213,8 @@ struct FinalMessageTests {
         let events = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
+        let startAnswer = try #require(harness.runHarness.script.toolOutputs.first)
+        try #require(startAnswer.contains(Self.pendingMark), "The start answer was: \(startAnswer)")
         let settled = try await NestedRunTests.firstSettlement(in: events)
         let run = try await Self.childRun(in: harness, of: root)
         try await NestedRunTests.arrival(ofPromptContaining: Self.childText, in: harness.runHarness.script)
@@ -237,8 +239,8 @@ struct FinalMessageTests {
         let events = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
-        _ = try await NestedRunTests.firstSettlement(in: events)
         let run = try await Self.childRun(in: harness, of: root)
+        _ = try await NestedRunTests.firstSettlement(in: events)
         let failureText = try #require(Self.modelFailureText(await run.finalState()))
         let posts = try NestedRunTests.posts(of: run, in: root.recordingDirectory)
         await root.close()
@@ -256,8 +258,8 @@ struct FinalMessageTests {
         let events = await root.streamSessionEvents()
 
         #expect(try await root.respond(to: Self.rootPrompt) == Self.rootText)
-        await childGate.waitForArrival()
         let run = try await Self.childRun(in: harness, of: root)
+        await childGate.waitForArrival()
         await harness.runner.cancelRuns(caller: root.id)
         let state = await run.finalState()
         _ = try await NestedRunTests.settlement(of: run, in: events)
@@ -280,8 +282,10 @@ struct FinalMessageTests {
 
         let firstAnswer = Task { try await root.respond(to: Self.rootPrompt) }
         await rootGate.waitForArrival()
-        await childGate.waitForArrival()
         let run = try await Self.childRun(in: harness, of: root)
+        let startAnswer = try #require(harness.runHarness.script.toolOutputs.first)
+        try #require(startAnswer.contains(Self.pendingMark), "The start answer was: \(startAnswer)")
+        await childGate.waitForArrival()
         childGate.open()
         _ = try await NestedRunTests.settlement(of: run, in: events)
         rootGate.open()
@@ -291,7 +295,6 @@ struct FinalMessageTests {
         await root.close()
 
         #expect(first == Self.rootText)
-        #expect(harness.runHarness.script.toolOutputs.first?.contains(Self.pendingMark) == true)
         #expect(prompts.count(where: { $0.contains(Self.childText) }) == 1)
         #expect(prompts.last?.contains(Self.childText) == true)
     }

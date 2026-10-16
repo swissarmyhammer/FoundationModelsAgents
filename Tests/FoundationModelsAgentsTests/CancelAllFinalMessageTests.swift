@@ -44,7 +44,7 @@ struct CancelAllFinalMessageTests {
 
         let lead = try await runner.start(NestedRunTests.lead, prompt: NestedRunTests.leadKey)
         try await leadAnswered.wait()
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: lead))
         let child = try await NestedRunTests.onlyRun(of: runner, caller: lead.id)
         let leadSession = try #require(lead.heldSession)
         let events = await leadSession.streamSessionEvents()
@@ -107,7 +107,7 @@ struct CancelAllFinalMessageTests {
 
         let lead = try await runner.start(NestedRunTests.lead, prompt: NestedRunTests.leadKey)
         try await leadAnswered.wait()
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: lead))
         let child = try await NestedRunTests.onlyRun(of: runner, caller: lead.id)
         let leadSession = try #require(lead.heldSession)
 
@@ -156,7 +156,8 @@ struct CancelAllFinalMessageTests {
         let runner = harness.makeRunner()
 
         let lead = try await runner.start(NestedRunTests.lead, prompt: NestedRunTests.leadKey)
-        await leadGate.waitForArrival()
+        try #require(await leadGate.waitForArrival(orEndOf: lead))
+        try harness.script.requirePendingStarts()
         await childGate.waitForArrival()
         let child = try await NestedRunTests.onlyRun(of: runner, caller: lead.id)
         let leadSession = try #require(lead.heldSession)

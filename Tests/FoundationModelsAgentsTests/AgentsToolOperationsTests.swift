@@ -124,8 +124,8 @@ struct AgentsToolOperationsTests {
         in harness: AgentsToolHarness, gate: ScriptedGate, operation: String = "start agent"
     ) async throws -> (answer: String, run: AgentRun) {
         let answer = try await harness.call(operation, startFields(reviewer))
-        await gate.waitForArrival()
         let run = try #require(await harness.runner.runs.first)
+        await gate.waitForArrival()
         return (answer, run)
     }
 
@@ -376,8 +376,10 @@ extension AgentsToolOperationsTests {
         defer { try? harness.delete() }
 
         _ = try await harness.call("start agent", Self.startFields(NestedRunTests.lead))
-        await childGate.waitForArrival()
         let run = try #require(await harness.runner.runs(caller: nil).first)
+        try #require(await leadGate.waitForArrival(orEndOf: run))
+        try harness.runHarness.script.requirePendingStarts()
+        await childGate.waitForArrival()
         leadGate.open()
         await childGate.waitForCancel()
         let stateInCleanup = run.state

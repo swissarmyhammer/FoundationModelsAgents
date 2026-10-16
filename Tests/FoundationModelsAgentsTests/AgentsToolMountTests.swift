@@ -154,12 +154,12 @@ struct AgentsToolMountTests {
         let events = await root.streamSessionEvents()
 
         _ = try await root.respond(to: Self.rootPrompt)
-        await gate.waitForArrival()
         // The Router answers the start agent call before its body adds the
         // run. Wait until the body of the call added its run.
         await harness.tool.context.startedRuns.waitForStarts()
         let runs = await harness.runner.runs(caller: root.id)
         let run = try #require(runs.first)
+        await gate.waitForArrival()
         checkArguments.set(Self.idArguments(for: "check agent", of: run))
         cancelArguments.set(Self.idArguments(for: "cancel agent", of: run))
         let listText = try await harness.call("list agents")

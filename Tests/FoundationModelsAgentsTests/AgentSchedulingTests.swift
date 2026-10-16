@@ -155,12 +155,12 @@ struct AgentSchedulingTests {
 
         _ = try await harness.call("start agent", Self.startFields(Self.reviewer, prompt: Self.firstKey))
         _ = try await harness.call("start agent", Self.startFields(Self.testWriter, prompt: Self.secondKey))
-        await flashGate.waitForArrival()
-        await standardGate.waitForArrival()
-        let refused = try await harness.call("start agent", Self.startFields(Self.reviewer, prompt: Self.quickKey))
         let workingAtLimit = await harness.runner.runs
         let first = try #require(workingAtLimit.first { $0.agent.id == Self.reviewer })
         let second = try #require(workingAtLimit.first { $0.agent.id == Self.testWriter })
+        await flashGate.waitForArrival()
+        await standardGate.waitForArrival()
+        let refused = try await harness.call("start agent", Self.startFields(Self.reviewer, prompt: Self.quickKey))
         flashGate.open()
         _ = try await first.result()
         let later = try await harness.call("start agent", Self.startFields(Self.reviewer, prompt: Self.quickKey))
@@ -185,8 +185,8 @@ struct AgentSchedulingTests {
         defer { try? harness.delete() }
 
         _ = try await harness.call("start agent", Self.startFields(Self.reviewer, prompt: Self.firstKey))
-        await flashGate.waitForArrival()
         let gated = try #require(await harness.runner.runs.first)
+        await flashGate.waitForArrival()
         let refused = try await harness.call("start agent", Self.startFields(Self.testWriter, prompt: Self.quickKey))
         let host = try await harness.runner.start(Self.testWriter, prompt: Self.quickKey)
         let hostResult = try await host.result()
@@ -219,8 +219,8 @@ struct AgentSchedulingTests {
         let rootB = harness.makeRootSession(instructions: Self.rootBKey)
 
         _ = try await rootA.respond(to: Self.rootPrompt)
-        await gate.waitForArrival()
         let run = try await Self.onlyRun(in: harness, of: rootA)
+        await gate.waitForArrival()
         checkArguments.set(Self.idArguments(for: "check agent", of: run))
         cancelArguments.set(Self.idArguments(for: "cancel agent", of: run))
         _ = try await rootB.respond(to: Self.rootPrompt)
@@ -261,9 +261,10 @@ struct AgentSchedulingTests {
         // The Router answers each start agent call before its body adds the
         // run. Wait until the body of each of the three calls added its run.
         await harness.tool.context.startedRuns.waitForStarts()
-        await gate.waitForArrival()
         let runsOfA = await harness.runner.runs(caller: rootA.id).sorted { $0.id < $1.id }
+        try #require(runsOfA.count == Self.runCountOfA)
         let runOfB = try await Self.onlyRun(in: harness, of: rootB)
+        await gate.waitForArrival()
         _ = try await rootA.respond(to: Self.nextPrompt)
         _ = try await rootB.respond(to: Self.nextPrompt)
         let answers = Array(harness.runHarness.script.toolOutputs.suffix(Self.lastAnswerCount))
@@ -274,7 +275,6 @@ struct AgentSchedulingTests {
         await rootA.close()
         await rootB.close()
 
-        #expect(runsOfA.count == Self.runCountOfA)
         #expect(answers == [reportsOfA, reportOfB])
         #expect(statesAtCheck.allSatisfy { $0 == .running })
         #expect(hostAnswer == Self.noRunsText)
@@ -297,10 +297,10 @@ struct AgentSchedulingTests {
 
         _ = try await rootA.respond(to: Self.rootPrompt)
         _ = try await rootB.respond(to: Self.rootPrompt)
-        await gateA.waitForArrival()
-        await gateB.waitForArrival()
         let runOfA = try await Self.onlyRun(in: harness, of: rootA)
         let runOfB = try await Self.onlyRun(in: harness, of: rootB)
+        await gateA.waitForArrival()
+        await gateB.waitForArrival()
         await harness.runner.cancelRuns(caller: rootA.id)
         let stateOfA = runOfA.state
         let stateOfB = runOfB.state
@@ -326,8 +326,8 @@ struct AgentSchedulingTests {
         let rootA = harness.makeRootSession(instructions: Self.rootAKey)
 
         _ = try await rootA.respond(to: Self.rootPrompt)
-        await gate.waitForArrival()
         let run = try await Self.onlyRun(in: harness, of: rootA)
+        await gate.waitForArrival()
         await rootA.close()
         let final = await run.finalState()
         let record = await harness.runner.run(id: run.id)
