@@ -277,7 +277,7 @@ struct SendAgentTests {
 
         _ = try await rootA.respond(to: Self.rootPrompt)
         let run = try await Self.onlyRun(in: harness, of: rootA)
-        await gate.waitForArrival()
+        try #require(await gate.waitForArrival(orEndOf: run))
         send.set(AgentsToolArguments.sendAgent(id: run.id.description, message: Self.message))
         _ = try await rootB.respond(to: Self.rootPrompt)
         let answerOfB = harness.runHarness.script.toolOutputs.last
