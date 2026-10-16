@@ -185,12 +185,13 @@ public struct AgentEnvironment: Sendable {
     /// `SessionConfiguration.defaultMailOnlyAnswerLimit`.
     var mailOnlyAnswerLimit = SessionConfiguration.defaultMailOnlyAnswerLimit
 
-    /// The user presence of the session of each run. It is `.headless`:
-    /// nothing can answer a question of a run session, thus a question of a
-    /// run ends at once with a cancel that gives
-    /// `RunPlane.noUserPresentReason`, and the run goes on. Phase 4 of the
-    /// elicitation plan (tasks 45 and 46) sends the questions of a run to its
-    /// parent.
+    /// The user presence of the session of each run that has no question
+    /// target, for example a host-started run. It is `.headless`: nothing can
+    /// answer a question of that run session, thus a question of the run
+    /// ends at once with a cancel that gives `RunPlane.noUserPresentReason`,
+    /// and the run goes on. A run that a `start agent` call started takes the
+    /// user presence of the session of that call, and sends its questions to
+    /// that session (``AgentRunRequest/questionTarget``).
     ///
     /// Only tests change this value: an interactive run session lets a test
     /// reach the question guard of the run (``AgentRun/answerQuestion(of:on:)``).

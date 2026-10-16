@@ -36,8 +36,9 @@ extension AgentRun {
     /// final state of the run.
     ///
     /// The run subscribes to the session events first, and follows that one
-    /// subscription for its whole life (``follow(_:on:observer:)``). It then
-    /// mails the task prompt as one user message, and at once after it each
+    /// subscription for its whole life
+    /// (``follow(_:on:answersQuestions:observer:)``). It then mails the task
+    /// prompt as one user message, and at once after it each
     /// message from the caller that it held (``mailTaskPrompt(_:to:)``). It
     /// waits for the answer of the task prompt by its mail id, and for the
     /// answer of each message from the caller by its mail id
@@ -66,24 +67,47 @@ extension AgentRun {
     /// terminal to the journal before it ends. Thus the recording of the
     /// session holds the final message of each child.
     ///
+    /// A run with an interactive question target sends each question of its
+    /// session one level up (`SubagentQuestionRelay`). Under a headless
+    /// target the session of the run is headless too: each question ends at
+    /// once with a cancel, thus the run starts no relay. The relay subscribes
+    /// to the session before the task prompt, thus it gets each question. An
+    /// answer at the target goes down to the session, and each end of the
+    /// question ends it at each level. After the close of the session, the run waits
+    /// until the relay read the events of the session to their end
+    /// (`SubagentQuestionRelay.finish()`). The close of the session bounds
+    /// this wait, also for a cancelled run. Then the drive ends, and the run
+    /// lets go of the target: the target holds the calling session.
+    ///
     /// - Parameters:
     ///   - session: The session of the run.
     ///   - prompt: The task prompt.
+    ///   - questionTarget: The run of the session that started this run,
+    ///     where the run sends the questions of its session, or `nil` (the
+    ///     default). A run with no target answers each question itself
+    ///     (``answerQuestion(of:on:)``).
     ///   - observer: The observer of the session events of the host
     ///     (``AgentEnvironment/runEventObserver``), or `nil`.
     /// - Returns: The final state: ``AgentRunState/finished(_:)`` with the
     ///   reply of the last answer, ``AgentRunState/cancelled`` for a
     ///   cancelled run, or ``AgentRunState/failed(_:)``.
     func drive(
-        _ session: any RoutedSession, prompt: String, observer: AgentEnvironment.RunEventObserver? = nil
+        _ session: any RoutedSession, prompt: String, questionTarget: SubagentQuestionTarget? = nil,
+        observer: AgentEnvironment.RunEventObserver? = nil
     ) async -> AgentRunState {
         let events = await session.streamSessionEvents()
-        async let following: Void = follow(events, on: session, observer: observer)
+        var relay: SubagentQuestionRelay?
+        if let questionTarget, questionTarget.userPresence == .interactive {
+            relay = await SubagentQuestionRelay.start(child: session, agentName: agent.id, target: questionTarget)
+        }
+        async let following: Void = follow(
+            events, on: session, answersQuestions: questionTarget == nil, observer: observer)
         let final = settle(await outcome(of: prompt, on: session))
         await children.cancelOpenRuns()
         await sessionWatch.waitForSettlement(ofCalls: children.runs.compactMap(\.context))
         await session.close()
         await following
+        await relay?.finish()
         return final
     }
 
@@ -122,7 +146,8 @@ extension AgentRun {
     /// Mails the task prompt as one user message in stream mode, and then
     /// mails each message from the caller that the run held
     /// (``releaseHeldMessages(to:)``). The follower subscribed to the
-    /// session events before this call (``drive(_:prompt:observer:)``).
+    /// session events before this call
+    /// (``drive(_:prompt:questionTarget:observer:)``).
     ///
     /// The task prompt is the first mail of the session. The run held each
     /// message from the caller until this time, and mails the held messages
@@ -224,7 +249,9 @@ extension AgentRun {
             return nil
         }
         let depth = await session.mailQueueDepth()
-        guard Self.userTypeKinds.allSatisfy({ (depth.depthByKind[$0] ?? 0) == 0 }) else {
+        guard Self.userTypeKinds.allSatisfy({ (depth.depthByKind[$0] ?? 0) == 0 }),
+            await session.openElicitationIds().isEmpty
+        else {
             return nil
         }
         return settle(idle: .failed(.mailDeliveryPaused(heldResults(after: pause))), acceptedMessages: acceptedMessages)
@@ -299,10 +326,14 @@ extension AgentRun {
     ///   - events: The session-event subscription of the run, made before
     ///     the task prompt. The session finishes it when the run closes it.
     ///   - session: The session of the run.
+    ///   - answersQuestions: `true` when the run has no question target, and
+    ///     answers each question of its session itself
+    ///     (``answerQuestion(of:on:)``). `false` when the relay sends each
+    ///     question to the target.
     ///   - observer: The observer of the session events of the host, or
     ///     `nil`.
     private func follow(
-        _ events: AsyncStream<SessionOutput>, on session: any RoutedSession,
+        _ events: AsyncStream<SessionOutput>, on session: any RoutedSession, answersQuestions: Bool,
         observer: AgentEnvironment.RunEventObserver?
     ) async {
         var limitStop = AgentRunLimitStop()
@@ -311,7 +342,7 @@ extension AgentRun {
             let event = output.event
             record(event)
             sessionWatch.observe(output)
-            if case .elicitationRequested(let operation) = event {
+            if answersQuestions, case .elicitationRequested(let operation) = event {
                 await answerQuestion(of: operation, on: session)
             }
             if limitStop.action(after: event, wentAboveLimit: turns.apply(event)) == .stop {
@@ -331,15 +362,15 @@ extension AgentRun {
     /// Answers one question of the session of the run at once, with a cancel
     /// that gives `RunPlane.noUserPresentReason`.
     ///
-    /// No user can answer a question of a run session: its events go only to
-    /// the run and to the observer of the host. The session of each run is
-    /// headless (``AgentEnvironment/runUserPresence``), thus a question of the
-    /// run ends at once and sends no event. This guard answers a question
-    /// that still comes, for example from a run session that a test made
-    /// interactive. Thus no run waits for an answer that cannot come.
-    ///
-    /// Phase 4 of the elicitation plan (tasks 45 and 46) replaces this guard
-    /// with a forward of the question to the parent of the run.
+    /// A run that a `start agent` call started sends its questions to the
+    /// session of that call (``drive(_:prompt:questionTarget:observer:)``),
+    /// and does not use this guard. The session of a run with no question
+    /// target, for example a host-started run, is headless
+    /// (``AgentEnvironment/runUserPresence``): no user can answer its
+    /// question, thus the question ends at once and sends no event. This
+    /// guard answers a question that still comes, for example from a run
+    /// session that a test made interactive. Thus no run waits for an answer
+    /// that cannot come.
     ///
     /// - Parameters:
     ///   - operation: The event of the question.
@@ -385,7 +416,7 @@ extension AgentRun {
                 return .limitHit(partial: answer.reply)
             }
             return await idleSignal(reply: answer.reply, on: session)
-        case .runSettled, .runMessage, .cancelled, .lost:
+        case .runSettled, .runMessage, .cancelled, .lost, .elicitationEnded, .elicitationCompleted:
             return await signalAfterRunEvent(on: session)
         case .toolInvocation(let record, _) where record.closedAt != nil:
             return await signalAfterRunEvent(on: session)
@@ -477,6 +508,10 @@ extension AgentRun {
     ///   background run, and the body of a `start agent` call adds its run
     ///   to ``children`` later. Thus the open record keeps the session from
     ///   idle also while the run is not in ``children``.
+    /// - No question of the session is open (`openElicitationIds()`), also a
+    ///   question that a child sent up through this session. An answer or an
+    ///   end of the question gives a new idle check
+    ///   (``signal(after:on:)``).
     /// - Each mail of the run events of the call of each child, and each
     ///   user-type mail of the run (``mailedUserTypeMail``), has a terminal
     ///   event (``ParentSessionWatch/hasTerminal(forEachMailOfCalls:and:)``).
@@ -515,7 +550,8 @@ extension AgentRun {
         guard sessionWatch.isEachCallClosed,
             sessionWatch.hasTerminal(
                 forEachMailOfCalls: children.runs.compactMap { $0.context?.completionToken },
-                and: mailedUserTypeMail.map(\.id))
+                and: mailedUserTypeMail.map(\.id)),
+            await session.openElicitationIds().isEmpty
         else {
             return nil
         }

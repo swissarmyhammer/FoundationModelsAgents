@@ -11,8 +11,8 @@ extension NestedRunTests {
     /// message from its caller ends the hold, and a cancel cancels its
     /// children.
     ///
-    /// The session of the lead has `mailOnlyAnswerLimit` 1: the Router starts
-    /// the answer to the first final message, and holds the next one. Each
+    /// The session of the lead has `mailOnlyAnswerLimit` 0: the Router holds
+    /// the first final message of a child until user-type mail comes. Each
     /// child waits in a tool on its own gate, thus the test decides the order
     /// in which the children end. The children run on the `flash` slot, and
     /// the lead on the `standard` slot.
@@ -52,9 +52,11 @@ extension NestedRunTests {
         /// The task prompt of the lead. It is also the key of its play.
         private static let leadKey = "pause-lead-key: divide the task"
 
-        /// The `mailOnlyAnswerLimit` of each session: one answer that mail
-        /// alone starts.
-        private static let pausedLimit = 1
+        /// The `mailOnlyAnswerLimit` of each session: no answer that mail
+        /// alone starts. An answer to mail alone counts toward the limit only
+        /// when it starts a new background run. The answers of the lead
+        /// start no run, thus a limit of 1 holds no final message here.
+        private static let pausedLimit = 0
 
         /// The message of the host that ends the hold.
         private static let continueMessage = "Continue with the work."
@@ -138,6 +140,10 @@ extension NestedRunTests {
         /// comes in that answer is in the same answer, and it is not an
         /// answer to mail alone.
         ///
+        /// When `body` throws, for example because the pause did not come,
+        /// the function opens each gate and waits until the lead ended. Thus
+        /// a test that does not get its pause fails, and it does not hang.
+        ///
         /// - Parameters:
         ///   - parts: The children of the lead, in start order.
         ///   - body: Reads the lead.
@@ -155,15 +161,22 @@ extension NestedRunTests {
                 script: script, registry: AgentRegistry(layers: [layer.layer]), tools: tools)
             defer { try? harness.delete() }
             let lead = try await harness.makeRunner(mailOnlyAnswerLimit: pausedLimit).start(Self.lead, prompt: leadKey)
-            try await NestedRunTests.waitUntil(lead) { run in
-                !run.answers.isAnswerOpen && run.answers.lastReply == NestedRunTests.startedText
+            do {
+                try await NestedRunTests.waitUntil(lead) { run in
+                    !run.answers.isAnswerOpen && run.answers.lastReply == NestedRunTests.startedText
+                }
+                try await body(lead)
+            } catch {
+                for part in parts {
+                    part.gate.open()
+                }
+                _ = await lead.finalState()
+                throw error
             }
-            try await body(lead)
         }
 
         /// Gives the one child of `lead` that did not end. Call it at the
-        /// hold: the first two children ended, and the third waits on its
-        /// gate.
+        /// hold: the first child ended, and the second waits on its gate.
         ///
         /// - Parameter lead: The lead.
         /// - Returns: The child.
@@ -175,31 +188,24 @@ extension NestedRunTests {
             return try #require(open.first)
         }
 
-        /// Ends the child of `first`, and waits until the lead answered its
-        /// final message. That answer is the one answer that mail alone can
-        /// start.
-        ///
-        /// - Parameters:
-        ///   - first: The part of the first child.
-        ///   - lead: The lead.
-        /// - Throws: `CancellationError` when the test is cancelled.
-        private static func endAndAnswer(_ first: Part, of lead: AgentRun) async throws {
-            first.gate.open()
-            try await NestedRunTests.waitUntil(lead) { run in
-                !run.answers.isAnswerOpen && run.answers.lastReply.contains(first.text)
-            }
-        }
-
-        /// Ends the child of `second`, and waits until the lead recorded the
+        /// Ends the child of `part`, and waits until the lead recorded the
         /// hold of its final message.
         ///
+        /// The wait also ends when the lead answered that final message or
+        /// ended, because then the Router did not hold the mail. The check
+        /// after the wait then fails the test, and the test does not hang.
+        ///
         /// - Parameters:
-        ///   - second: The part of the second child.
+        ///   - part: The part of the child.
         ///   - lead: The lead.
-        /// - Throws: `CancellationError` when the test is cancelled.
-        private static func endAndPause(_ second: Part, of lead: AgentRun) async throws {
-            second.gate.open()
-            try await NestedRunTests.waitUntil(lead) { $0.pause != nil }
+        /// - Throws: `CancellationError` when the test is cancelled, or the
+        ///   error of `#require` when the lead is not paused.
+        private static func endAndPause(_ part: Part, of lead: AgentRun) async throws {
+            part.gate.open()
+            try await NestedRunTests.waitUntil(lead) { run in
+                run.pause != nil || run.answers.lastReply.contains(part.text) || run.state != .running
+            }
+            try #require(lead.pause != nil)
         }
 
         /// Gives the text of a paused failure.
@@ -215,10 +221,9 @@ extension NestedRunTests {
 
         @Test("a paused run does not stop its open child: it waits for it, then ends with the held results")
         func pausedRunDrains() async throws {
-            let parts = Self.parts(3)
+            let parts = Self.parts(2)
             try await Self.withLead(parts: parts) { lead in
-                try await Self.endAndAnswer(parts[0], of: lead)
-                try await Self.endAndPause(parts[1], of: lead)
+                try await Self.endAndPause(parts[0], of: lead)
                 let open = try Self.openChild(of: lead)
                 let pause = lead.pause
                 let report = lead.report
@@ -227,48 +232,45 @@ extension NestedRunTests {
                 #expect(pause?.openChildren == 1)
                 #expect(report.contains("It is paused"))
 
-                parts[2].gate.open()
+                parts[1].gate.open()
                 let text = Self.pausedText(of: await lead.finalState())
 
-                #expect(open.state == .finished(parts[2].text))
+                #expect(open.state == .finished(parts[1].text))
                 #expect(text?.contains(AgentRun.heldResultsHeading) == true)
+                #expect(text?.contains(parts[0].text) == true)
                 #expect(text?.contains(parts[1].text) == true)
-                #expect(text?.contains(parts[2].text) == true)
-                #expect(text?.contains(parts[0].text) == false)
                 #expect(lead.pause == nil)
             }
         }
 
-        @Test("a message from the caller ends the hold, and the run answers the held mail and finishes")
+        /// At limit 0 the final message of the second child is held again
+        /// after the answer to the message from the caller. The run then has
+        /// no open child, thus it ends paused with that result only.
+        @Test("a message from the caller ends the hold, and the run answers the held mail")
         func callerMessageEndsTheHold() async throws {
-            let parts = Self.parts(3)
+            let parts = Self.parts(2)
             try await Self.withLead(parts: parts) { lead in
-                try await Self.endAndAnswer(parts[0], of: lead)
-                try await Self.endAndPause(parts[1], of: lead)
+                try await Self.endAndPause(parts[0], of: lead)
                 let outcome = try lead.deliver(Self.continueMessage, from: .user)
                 try await NestedRunTests.waitUntil(lead) { run in
-                    !run.answers.isAnswerOpen && run.answers.lastReply.contains(parts[1].text)
+                    !run.answers.isAnswerOpen && run.answers.lastReply.contains(parts[0].text)
                 }
                 let pauseAfterMessage = lead.pause
-                parts[2].gate.open()
-                let final = await lead.finalState()
+                parts[1].gate.open()
+                let text = Self.pausedText(of: await lead.finalState())
 
                 #expect(outcome == .delivered)
                 #expect(pauseAfterMessage == nil)
-                guard case .finished(let text) = final else {
-                    Issue.record("The lead did not finish: \(final)")
-                    return
-                }
-                #expect(text.contains(parts[2].text))
+                #expect(text?.contains(parts[1].text) == true)
+                #expect(text?.contains(parts[0].text) == false)
             }
         }
 
         @Test("a cancel of a paused run cancels its open child")
         func cancelDuringTheHold() async throws {
-            let parts = Self.parts(3)
+            let parts = Self.parts(2)
             try await Self.withLead(parts: parts) { lead in
-                try await Self.endAndAnswer(parts[0], of: lead)
-                try await Self.endAndPause(parts[1], of: lead)
+                try await Self.endAndPause(parts[0], of: lead)
                 let open = try Self.openChild(of: lead)
                 lead.cancel()
                 let final = await lead.finalState()
@@ -280,14 +282,13 @@ extension NestedRunTests {
 
         @Test("a pause with no open child ends the run at once with the held result")
         func pauseWithNoOpenChildEndsAtOnce() async throws {
-            let parts = Self.parts(2)
+            let parts = Self.parts(1)
             try await Self.withLead(parts: parts) { lead in
-                try await Self.endAndAnswer(parts[0], of: lead)
-                parts[1].gate.open()
+                parts[0].gate.open()
                 let text = Self.pausedText(of: await lead.finalState())
 
-                #expect(text?.contains(parts[1].text) == true)
-                #expect(text?.contains(parts[0].text) == false)
+                #expect(text?.contains(AgentRun.heldResultsHeading) == true)
+                #expect(text?.contains(parts[0].text) == true)
             }
         }
     }

@@ -184,15 +184,18 @@ struct AgentRunHarness {
     ///   - tools: The tools of the session.
     ///   - inlineSettleGrace: The settle period of the session. The default
     ///     is ``settleGrace``.
+    ///   - userPresence: The user presence of the session. The default is
+    ///     `.headless`. A test that answers the questions of the runs gives
+    ///     `.interactive`.
     /// - Returns: The session.
     static func makeRootSession(
         on model: RoutedLLM, instructions: String, tools: [any Tool],
-        inlineSettleGrace: TimeInterval = settleGrace
+        inlineSettleGrace: TimeInterval = settleGrace, userPresence: UserPresence = .headless
     ) -> any RoutedSession {
         model.makeSession(
             configuration: SessionConfiguration(
                 instructions: instructions, tools: tools, inlineSettleGrace: inlineSettleGrace,
-                userPresence: .headless))
+                userPresence: userPresence))
     }
 
     /// Makes a harness.

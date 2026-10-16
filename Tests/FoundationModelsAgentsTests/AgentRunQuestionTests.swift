@@ -6,13 +6,15 @@ import Testing
 
 @testable import agents_demo
 
-/// Pins what happens to a question of a run (elicitation task 33).
+/// Pins what happens to a question of a run whose session is headless
+/// (elicitation task 33).
 ///
-/// No user can answer a question of a run session yet. Thus the session of
-/// each run is headless: a question ends at once with a cancel that gives
+/// A host-started run is headless, and a child of a headless session is
+/// headless too: a question ends at once with a cancel that gives
 /// `RunPlane.noUserPresentReason`, and the run goes on. A question event
 /// that still comes gets the same cancel from the guard of the run. The root
-/// session of `agents-demo` is headless too.
+/// session of `agents-demo` is headless too. ``RelayedQuestionTests`` pins
+/// the questions of a run under an interactive session.
 ///
 /// A headless question ends at once, and the guard answers in the loop of
 /// the run before the run reads the next event. Thus the tests need no gate

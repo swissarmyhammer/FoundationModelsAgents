@@ -7,7 +7,7 @@ extension NestedRunTests {
     /// Pins the messages that a running child sends to its parent run with
     /// `send caller`: the Router gives each message to the parent as mail,
     /// the parent answers each message before it ends, `check agent` on the
-    /// parent tells the last message of the child, and mail that reaches
+    /// parent tells the last message of the child, and mail above
     /// `mailOnlyAnswerLimit` pauses the parent: it waits for its child, then
     /// ends with the paused outcome and the held result.
     ///
@@ -97,8 +97,10 @@ extension NestedRunTests {
         private static let mailAnswerCount = 3
 
         /// The `mailOnlyAnswerLimit` of the session of the parent in the
-        /// paused test: one answer that mail alone starts.
-        private static let pausedLimit = 1
+        /// paused test: no answer that mail alone starts. An answer to mail
+        /// alone counts toward the limit only when it starts a new background
+        /// run, and the answers of the parent start no run.
+        private static let pausedLimit = 0
 
         /// The steps of the parent: start the child, end the task answer
         /// with ``NestedRunTests/startedText``, then answer each mail with the
@@ -390,21 +392,17 @@ extension NestedRunTests {
         @Test(
             "message mail above mailOnlyAnswerLimit pauses the parent: it waits for its child, then ends with the held result")
         func messagesAboveTheLimitPauseTheParent() async throws {
-            let childGate = ScriptedGate()
             try await Self.withParent(
-                childSteps: [
-                    Self.send(Self.firstMessage), .wait(childGate), Self.send(Self.secondMessage),
-                    .finalText(Self.childText)
-                ],
+                childSteps: [Self.send(Self.firstMessage), Self.send(Self.secondMessage), .finalText(Self.childText)],
                 mailOnlyAnswerLimit: Self.pausedLimit
             ) { parent, script in
-                try await NestedRunTests.arrival(ofPromptContaining: Self.firstMessage, in: script)
-                let child = try Self.child(of: parent)
-                childGate.open()
                 let final = await parent.finalState()
+                let child = try Self.child(of: parent)
+                let firstLine = try Self.mailLine(Self.firstMessage, of: child)
                 let secondLine = try Self.mailLine(Self.secondMessage, of: child)
 
                 #expect(Self.isPaused(final))
+                #expect(!script.prompts.contains { $0.contains(firstLine) })
                 #expect(!script.prompts.contains { $0.contains(secondLine) })
                 #expect(child.state == .finished(Self.childText))
                 #expect(Self.pausedText(of: final)?.contains(Self.childText) == true)

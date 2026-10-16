@@ -11,8 +11,11 @@ import FoundationModelsRouter
 ///    (``AgentSkillsPreload``).
 /// 3. Resolve the tools.
 /// 4. Match the model, and make the session on the slot of the match. The
-///    session is headless (``AgentEnvironment/runUserPresence``): a question
-///    of the run ends at once with a cancel and a reason.
+///    session takes the user presence of the session that started the run
+///    (``AgentRunRequest/questionTarget``), and the run sends each question
+///    of the session to that session. A run with no target, for example a
+///    host-started run, is headless (``AgentEnvironment/runUserPresence``):
+///    a question of the run ends at once with a cancel and a reason.
 ///
 /// The model match comes before the tools, because the `agents` tool of the
 /// run gives the slot of the run to each child with `model: inherit`. Each
@@ -72,7 +75,7 @@ struct AgentSessionMaker: Sendable {
                 agentSpawn: request.agentSpawn,
                 mailOnlyAnswerLimit: environment.mailOnlyAnswerLimit,
                 inlineSettleGrace: environment.inlineSettleGrace,
-                userPresence: environment.runUserPresence))
+                userPresence: request.questionTarget?.userPresence ?? environment.runUserPresence))
         return Made(session: session, slot: slot)
     }
 

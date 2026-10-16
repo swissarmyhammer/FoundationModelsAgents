@@ -41,6 +41,15 @@ struct AgentRunRequest: Sendable {
     /// start agents.
     let agentsTool: AgentsToolMaker?
 
+    /// The run of the Router session that starts this run, where the run
+    /// sends the questions of its session (`SubagentQuestionTarget.current`
+    /// of the `start agent` call), or `nil` for a host-driven run.
+    ///
+    /// The session of the run takes the user presence of the target. The
+    /// target holds a strong reference to the calling session, thus the run
+    /// keeps it only while it drives its session.
+    var questionTarget: SubagentQuestionTarget? = nil
+
     /// The lineage record of the session of the run: the session and the
     /// tool call that started the run, or `nil` for a host-driven run.
     var agentSpawn: SessionSidecar.AgentSpawn? {

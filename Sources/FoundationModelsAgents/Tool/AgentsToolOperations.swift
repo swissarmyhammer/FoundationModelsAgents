@@ -113,7 +113,7 @@ extension StartAgent {
             AgentRunRequest(
                 definition: definition, prompt: prompt, context: callContext,
                 inheritedSlot: context.inheritedSlot, depth: context.childDepth, parent: context.parent,
-                agentsTool: AgentRun.agentsTool(of: runner)))
+                agentsTool: AgentRun.agentsTool(of: runner), questionTarget: SubagentQuestionTarget.current))
         switch start {
         case .atLimit(let working):
             return .corrective(AgentsToolText.atLimit(working: working))

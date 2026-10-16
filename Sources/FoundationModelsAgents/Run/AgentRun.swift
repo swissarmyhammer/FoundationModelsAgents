@@ -361,7 +361,8 @@ public final class AgentRun: Sendable {
     internal func begin(_ request: AgentRunRequest, environment: AgentEnvironment) {
         guard let session = heldSession else { return }
         let isAdopted = request.parent?.children.add(self) ?? true
-        startDriver(on: session, prompt: request.prompt, environment: environment)
+        startDriver(
+            on: session, prompt: request.prompt, questionTarget: request.questionTarget, environment: environment)
         if !isAdopted {
             cancel()
         }
@@ -683,7 +684,7 @@ public final class AgentRun: Sendable {
 
     /// Starts the background task that holds the span and the log records of
     /// the run (``traced(in:_:)``), and in it the task that drives the session
-    /// of the run (``drive(_:prompt:observer:)``).
+    /// of the run (``drive(_:prompt:questionTarget:observer:)``).
     ///
     /// The task of the span is not detached: it takes the task-local values
     /// of the caller. Thus the span is a child of the `ServiceContext` of the
@@ -699,14 +700,22 @@ public final class AgentRun: Sendable {
     /// - Parameters:
     ///   - session: The session of the run.
     ///   - prompt: The task prompt.
+    ///   - questionTarget: The run of the session that started this run,
+    ///     where the run sends the questions of its session, or `nil`. Only
+    ///     the drive holds it, thus the run lets go of it when the drive ends.
     ///   - environment: The environment of the run. It gives the tracer of
     ///     the span and the logger of the records.
-    private func startDriver(on session: any RoutedSession, prompt: String, environment: AgentEnvironment) {
+    private func startDriver(
+        on session: any RoutedSession, prompt: String, questionTarget: SubagentQuestionTarget?,
+        environment: AgentEnvironment
+    ) {
         let driver = Task {
             await self.traced(in: environment) { spanContext in
                 let final = await Task.detached {
                     await ServiceContext.withValue(spanContext) {
-                        await self.drive(session, prompt: prompt, observer: environment.runEventObserver)
+                        await self.drive(
+                            session, prompt: prompt, questionTarget: questionTarget,
+                            observer: environment.runEventObserver)
                     }
                 }.value
                 self.end(in: final)

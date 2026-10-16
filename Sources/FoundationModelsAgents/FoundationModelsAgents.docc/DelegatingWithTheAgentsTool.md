@@ -96,9 +96,19 @@ let root = profile.standard.makeSession(
 ```
 
 A host with no UI for questions makes its root session headless: a question
-of the session then ends at once with a cancel and a reason. The session of
-each run is always headless, because no user can answer a question of a run
-session yet.
+of the session then ends at once with a cancel and a reason.
+
+The session of a run takes the user presence of the session whose
+`start agent` call started it. The run sends each question of its session to
+that session, one level up (`SubagentQuestionRelay` of the Router). Thus the
+root session of the host gets the question of a run at any depth as
+`SessionEvent.elicitationRequested(_:)`, with the same id and with the names
+of the agents in `agentPath`. The host answers it on the root session with
+`respond(elicitationId:response:)`, and the answer goes down to the run that
+asked. A cancel of the run, `cancelAll()`, or `close()` of a session on the
+way ends the question one time at each level. Under a headless root session,
+each run session is headless too, thus its question ends at once with a
+cancel. A host-started run is headless.
 
 ``AgentsTool/make(context:catalogCharacterLimit:)`` reads the catalog of the
 runner one time. The model-visible agents go into two places:
