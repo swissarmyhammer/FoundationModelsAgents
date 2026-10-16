@@ -57,32 +57,27 @@ struct AgentRunRequest: Sendable {
     /// it in the `workingDirectory` field of `start agent`.
     var requestedDirectory: URL? = nil
 
-    /// The folder of the agent when the agent-folder source gave it, or
-    /// `nil` for an agent of the dotfolder stack.
+    /// Gives the working folder of the run: the folder of the request
+    /// (``requestedDirectory``), else the folder of the creator of the run.
     ///
-    /// The folder of a dotfolder-stack agent (`agents/<id>/` of the
-    /// marketplace, defaults, user, or project layer) holds a definition in a
-    /// configuration folder, thus a run of that agent never works in it.
-    private var agentFolder: URL? {
-        definition.kind.isInAgentFolderSource ? definition.folderURL : nil
-    }
-
-    /// Gives the working folder of the run: the first of the folder of the
-    /// request (``requestedDirectory``), the folder of the parent run, the
-    /// folder of an agent of the agent-folder source, and
-    /// `environmentDirectory`.
+    /// The creator is the session that starts the run. For a child run, the
+    /// creator is the parent run, thus the child works on the files of the
+    /// parent. A host session that is not a run, and the host API, give
+    /// `environmentDirectory`: a `ToolContext` does not give the working
+    /// folder of its session. A slash command gives the folder of its session
+    /// as the folder of the request.
     ///
-    /// A parent that gives a task expects the child to work on the files of
-    /// the parent, thus the folder of the parent comes before the folder of
-    /// the agent. The folder of the agent is the default of a root run that
-    /// names no folder. The `AGENTS.md` documents of the run come from the
-    /// folder that this gives.
+    /// An agent never works in its own folder by default, also an agent of
+    /// the agent-folder source. A host that wants a run in the folder of the
+    /// agent gives ``AgentDefinition/folderURL`` as the folder of the
+    /// request. The `AGENTS.md` documents of the run come from the folder
+    /// that this gives.
     ///
-    /// - Parameter environmentDirectory: The folder of a run that has no
-    ///   other folder: ``AgentEnvironment/workingDirectory``.
+    /// - Parameter environmentDirectory: The folder of a creator that is not
+    ///   a run: ``AgentEnvironment/workingDirectory``.
     /// - Returns: The working folder of the run.
     func workingDirectory(default environmentDirectory: URL) -> URL {
-        requestedDirectory ?? parent?.workingDirectory ?? agentFolder ?? environmentDirectory
+        requestedDirectory ?? parent?.workingDirectory ?? environmentDirectory
     }
 
     /// The lineage record of the session of the run: the session and the

@@ -104,9 +104,11 @@ public struct AgentsToolContext: Sendable {
         parent?.slot ?? runner.environment.defaultSlot
     }
 
-    /// The folder that a relative path of `start agent` starts from: the
-    /// working folder of the calling run, or
-    /// ``AgentEnvironment/workingDirectory`` when the session is not a run.
+    /// The folder of the creator of a run that the tool starts. A relative
+    /// path of `start agent` starts from it. It is the working folder of the
+    /// calling run, or ``AgentEnvironment/workingDirectory`` when the session
+    /// is not a run: a `ToolContext` does not give the working folder of its
+    /// session.
     private var baseDirectory: URL {
         parent?.workingDirectory ?? runner.environment.workingDirectory
     }
@@ -115,8 +117,8 @@ public struct AgentsToolContext: Sendable {
     /// names.
     ///
     /// An absolute path names its folder. A relative path starts from the
-    /// working folder of the calling run. A path that holds no text names no
-    /// folder, thus the run gets its default folder
+    /// folder of the creator (``baseDirectory``). A path that holds no text
+    /// names no folder, thus the run works in the folder of its creator
     /// (``AgentRunRequest/workingDirectory(default:)``).
     ///
     /// - Parameter path: The text of the field, or `nil` when the call has

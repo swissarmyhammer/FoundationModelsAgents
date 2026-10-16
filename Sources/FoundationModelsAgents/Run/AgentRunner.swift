@@ -119,12 +119,12 @@ public actor AgentRunner {
         return openRuns.values.sorted { $0.id < $1.id }
     }
 
-    /// Starts a host-driven run of the agent `name` in its default working
-    /// folder.
+    /// Starts a host-driven run of the agent `name` in
+    /// ``AgentEnvironment/workingDirectory``.
     ///
-    /// The call is ``start(_:prompt:workingDirectory:)`` with no folder:
-    /// an agent of the agent-folder source works in its own folder, and each
-    /// other agent works in ``AgentEnvironment/workingDirectory``.
+    /// The call is ``start(_:prompt:workingDirectory:)`` with no folder. Each
+    /// agent works in ``AgentEnvironment/workingDirectory``, also an agent of
+    /// the agent-folder source.
     ///
     /// - Parameters:
     ///   - name: The id of the agent in the catalog of the registry.
@@ -146,21 +146,23 @@ public actor AgentRunner {
     /// in the index when the call returns.
     ///
     /// The working folder of the run is `workingDirectory`. With no folder,
-    /// an agent of the agent-folder source (`agentFolders` of the registry)
-    /// works in ``AgentDefinition/folderURL``, and an agent of the dotfolder
-    /// stack works in ``AgentEnvironment/workingDirectory``. The session of
-    /// the run gets this folder, and the `AGENTS.md` documents of its
-    /// instructions come from it. Each run that the run starts works in the
-    /// same folder, unless its `start agent` call names a folder. A slash
+    /// the run works in the folder of its creator, the host:
+    /// ``AgentEnvironment/workingDirectory``. An agent never works in its own
+    /// folder by default, also an agent of the agent-folder source
+    /// (`agentFolders` of the registry). Give ``AgentDefinition/folderURL``
+    /// as `workingDirectory` for a run in the folder of the agent. The
+    /// session of the run gets this folder, and the `AGENTS.md` documents of
+    /// its instructions come from it. Each run that the run starts works in
+    /// the same folder, unless its `start agent` call names a folder. A slash
     /// command of the runner gives the folder of the session that runs the
-    /// command, thus a command run never gets the default folder.
+    /// command, thus a command run works in the folder of that session.
     ///
     /// - Parameters:
     ///   - name: The id of the agent in the catalog of the registry.
     ///   - prompt: The prompt of the run. It is `$ARGUMENTS` of the body and
     ///     the first user prompt of the session.
-    ///   - workingDirectory: The working folder of the run, or `nil` for the
-    ///     default folder of the agent.
+    ///   - workingDirectory: The working folder of the run, or `nil` for
+    ///     ``AgentEnvironment/workingDirectory``.
     /// - Returns: The run. Its setup is done, thus it has its id.
     /// - Throws: ``AgentRunnerError/stopped`` after ``stop()``,
     ///   ``AgentRunnerError/catalogNotLoaded`` before the first

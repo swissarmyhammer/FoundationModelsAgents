@@ -122,8 +122,8 @@ struct StartAgent {
     @Guide(description: "The full task. The agent sees only this text.")
     var prompt: String
 
-    /// The working folder of the run, or `nil` for the default folder
-    /// (``AgentsToolContext/requestedDirectory(at:)``).
+    /// The working folder of the run, or `nil` for the folder of the creator
+    /// of the run (``AgentsToolContext/requestedDirectory(at:)``).
     @Guide(
         description: """
             Optional. The path of the folder for the agent to work in. \
@@ -161,10 +161,13 @@ extension StartAgent {
     /// `disallowedTools` key denies the `agents` tool.
     ///
     /// The new run works in the folder of `workingDirectory` when the call
-    /// names one (``AgentsToolContext/requestedDirectory(at:)``). Else a
-    /// child of a run works in the folder of the calling run, and a run that
-    /// a session starts, and the session is not a run, gets the default
-    /// folder of its agent (``AgentRunRequest/workingDirectory(default:)``).
+    /// names one (``AgentsToolContext/requestedDirectory(at:)``). Else it
+    /// works in the folder of its creator, the session of this call: a child
+    /// of a run works in the folder of the calling run, and a run that a
+    /// session starts, and the session is not a run, works in
+    /// ``AgentEnvironment/workingDirectory``
+    /// (``AgentRunRequest/workingDirectory(default:)``). The run never works
+    /// in the folder of its agent by default.
     ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The final message text of the run in a Router session, or

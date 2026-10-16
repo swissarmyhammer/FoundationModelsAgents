@@ -74,12 +74,14 @@ let agents = AgentRegistry(stack: stack, agentFolders: [syncedAgentsFolder], wat
   description is a warning, and the agent is not in
   ``AgentCatalog/modelVisible``. Thus a model can select only an agent with a
   description.
-- A root run of an agent of an agent folder that names no working folder
-  works in ``AgentDefinition/folderURL``. A slash-command run names the folder
-  of the session that runs the command, thus it works in that folder. An agent
-  of a dot folder never works in its own folder: that folder holds a
-  definition in a configuration folder. See "The working folder of a run" in
-  <doc:RunningAnAgent>.
+- An agent of an agent folder never works in its own folder by default. A run
+  that names no working folder works in the folder of its creator, the
+  session that starts the run: the folder of the parent run, or
+  ``AgentEnvironment/workingDirectory`` for a host. A slash-command run names
+  the folder of the session that runs the command, thus it works in that
+  folder. A host that wants a run in the folder of the agent gives
+  ``AgentDefinition/folderURL`` as the working folder. See "The working folder
+  of a run" in <doc:RunningAnAgent>.
 
 A sync service can keep a file that is not local yet. Only the exact name
 `AGENT.md` is an agent document. A conflict copy, for example `AGENT 2.md`, is

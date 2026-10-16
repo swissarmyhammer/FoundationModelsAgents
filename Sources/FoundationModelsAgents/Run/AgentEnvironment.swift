@@ -84,8 +84,11 @@ public struct AgentEnvironment: Sendable {
     let selectionModel: (any FoundationModels.LanguageModel)?
 
     /// The working directory of each run that has no other folder: no folder
-    /// of the start request, no parent run, and no agent folder of the
-    /// agent-folder source (``AgentRunner/start(_:prompt:workingDirectory:)``).
+    /// of the start request, and no parent run. A run that a host session
+    /// starts, and the session is not a run, and a host-driven run with no
+    /// folder (``AgentRunner/start(_:prompt:workingDirectory:)``), work in
+    /// it. An agent of the agent-folder source also works in it, not in its
+    /// own folder.
     public let workingDirectory: URL
 
     /// The tools that the `tools` and `disallowedTools` keys select from: the

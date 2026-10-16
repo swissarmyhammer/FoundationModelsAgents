@@ -222,13 +222,17 @@ URL is a folder of agent folders, with no `agents/` level and no dot folder:
   yet". Only the exact name `AGENT.md` is an agent document; a conflict copy
   `AGENT 2.md` and each different hidden file, for example `.env.local`, is a
   resource. A coordinated read that fails gives one `skip` with its cause.
-- A root run of an agent-folder agent that names no working folder works in
-  the folder of the agent (`AgentDefinition.folderURL`). A request folder
-  (`AgentRunner.start(_:prompt:workingDirectory:)` or the `workingDirectory`
-  field of `start agent`) wins, and a child run works in the folder of its
-  parent. A slash command gives the folder of the session that runs it as the
-  request folder, thus a command run works in the folder of the session. An
-  agent of a dot folder never works in its own folder.
+- An agent never works in its own folder by default, also an agent-folder
+  agent. A request folder (`AgentRunner.start(_:prompt:workingDirectory:)` or
+  the `workingDirectory` field of `start agent`) wins. Else the run works in
+  the folder of its creator, the session that starts it: a child run works in
+  the folder of its parent, and a run that a host session (not a run) or the
+  host API starts works in `AgentEnvironment.workingDirectory`. A relative
+  `workingDirectory` of `start agent` starts from the folder of the creator. A
+  slash command gives the folder of the session that runs it as the request
+  folder, thus a command run works in the folder of the session. A host that
+  wants a run in the folder of the agent gives `AgentDefinition.folderURL` as
+  the request folder.
 - With `watch: true`, the watcher watches each agent-folder root. A URL that
   does not exist gives no agent and no diagnostic.
 

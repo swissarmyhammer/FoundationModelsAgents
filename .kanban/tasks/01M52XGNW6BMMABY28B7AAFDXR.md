@@ -42,8 +42,24 @@ comments:
     - evidence: `swift test` (full suite) — 580 tests in 80 suites passed, 0 failed, 0 skipped. No compiler warning. The only warning line is the accepted SwiftPM line "missing creator for mutated node" for the mlx-swift_Cmlx bundle.
     - next: review.
   timestamp: 2026-10-16T18:53:21.936601+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m5312trhp9ae6enbbz5321r2
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (a29ffc3): 0 findings, 0 confirmed, 0 refuted. 4 files reviewed. The change agrees with the plan: the `.action` body gives `invocation.workingDirectory` to `start(_:prompt:workingDirectory:)`, the doc comments tell the new rule, and two tests cover the dotfolder agent and the agent-folder agent.
+    - next: none. The task is in done. ^g4f5d1m removes the agent-folder default for started agents.
+  timestamp: 2026-10-16T18:55:09.073117+00:00
+- actor: claude-code
+  id: 01m53138216khtknbmf5mc51vz
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 9 files (2 Sources, 5 docs, 2 Tests)
+    - test: green — swift test, 580 tests in 80 suites passed, 0 failed, 0 skipped
+    - commit: a29ffc3
+    - review: clean — 0 findings; the task is in done
+  timestamp: 2026-10-16T18:55:22.689396+00:00
+position_column: done
+position_ordinal: e680
 title: 'Slash commands: a command run works in the folder of the session (D61)'
 ---
 ## Why

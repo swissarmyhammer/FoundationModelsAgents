@@ -8,10 +8,13 @@ import Testing
 /// Pins the working folder of each run (D61).
 ///
 /// The folder of a run is, in this order: the folder of the start request;
-/// for a child run, the folder of the parent run; only for an agent of the
-/// agent-folder source, the folder of the agent; else
-/// ``AgentEnvironment/workingDirectory``. A slash command gives the folder of
-/// the session that runs it as the folder of the start request. The session
+/// else the folder of the creator, the session that starts the run. For a
+/// child run, the creator is the parent run. For a host session that is not
+/// a run, and for the host API, the folder is
+/// ``AgentEnvironment/workingDirectory``. An agent of the agent-folder source
+/// never works in its own folder by default. A slash command gives the folder
+/// of the session that runs it as the folder of the start request. A relative
+/// folder of `start agent` starts from the folder of the creator. The session
 /// of the run records the folder, and the `AGENTS.md` documents of the
 /// instructions come from it.
 ///
@@ -70,7 +73,8 @@ struct RunWorkingDirectoryTests {
         /// The dotfolder layer that holds ``dotAgent`` and ``leadAgent``.
         let dotLayer: TemporaryLayer
 
-        /// The agent-folder source that holds ``folderAgent``.
+        /// The agent-folder source that holds ``folderAgent``. The folder of
+        /// the agent holds ``agentFolderNote``.
         let agentFolderSource: TemporaryLayer
 
         /// The folder that a start request names. It holds ``requestNote``.
@@ -81,11 +85,6 @@ struct RunWorkingDirectoryTests {
 
         /// The run harness. Its working directory is the environment folder.
         let harness: AgentRunHarness
-
-        /// The folder of ``folderAgent``. It holds ``agentFolderNote``.
-        var agentFolder: URL {
-            agentFolderSource.root.appendingPathComponent(folderAgent, isDirectory: true)
-        }
 
         /// Removes each folder of the fixture.
         func delete() {
@@ -156,15 +155,33 @@ struct RunWorkingDirectoryTests {
     ///     field.
     ///   - fixture: The folders and the harness.
     /// - Returns: The child run.
-    /// - Throws: The error of the tool, or of `#require` when the call
-    ///   started no run.
+    /// - Throws: The error of ``startAgent(_:folder:from:in:)``.
     private static func startChild(
         _ agent: String, folder: String?, in fixture: Fixture
     ) async throws -> AgentRun {
-        let runner = fixture.harness.makeRunner()
         let parent = ParentRun(
             depth: AgentRunner.hostDepth, slot: .standard, agentID: leadAgent, family: ParentRun.Family(),
             workingDirectory: fixture.parentFolder.root)
+        return try await startAgent(agent, folder: folder, from: parent, in: fixture)
+    }
+
+    /// Calls `start agent` of a tool whose session is `parent`, outside a
+    /// Router session, and gives the new run.
+    ///
+    /// - Parameters:
+    ///   - agent: The agent of the new run.
+    ///   - folder: The `workingDirectory` field of the call, or `nil` for no
+    ///     field.
+    ///   - parent: The run whose session holds the tool, or `nil` for a host
+    ///     session that is not a run.
+    ///   - fixture: The folders and the harness.
+    /// - Returns: The new run.
+    /// - Throws: The error of the tool, or of `#require` when the call
+    ///   started no run.
+    private static func startAgent(
+        _ agent: String, folder: String?, from parent: ParentRun?, in fixture: Fixture
+    ) async throws -> AgentRun {
+        let runner = fixture.harness.makeRunner()
         let tool = try await AgentsTool.make(
             context: AgentsToolContext(runner: runner, allowedNames: nil, parent: parent, callerLink: nil, grant: .full))
         let toolHarness = AgentsToolHarness(runHarness: fixture.harness, runner: runner, tool: tool)
@@ -218,18 +235,18 @@ struct RunWorkingDirectoryTests {
         #expect(!instructions.contains(Self.environmentNote))
     }
 
-    @Test("a root run of an agent-folder agent with no folder works in the folder of the agent")
-    func rootRunOfAgentFolderAgentUsesItsFolder() async throws {
+    @Test("a root run of an agent-folder agent with no folder works in the environment folder, not in the agent folder")
+    func rootRunOfAgentFolderAgentUsesEnvironmentFolder() async throws {
         let fixture = try await Self.makeFixture()
         defer { fixture.delete() }
         let runner = fixture.harness.makeRunner()
 
         let run = try await runner.start(Self.folderAgent, prompt: Self.prompt)
 
-        #expect(try await Self.recordedFolder(of: run) == fixture.agentFolder.canonicalPath)
+        #expect(try await Self.recordedFolder(of: run) == fixture.harness.workingDirectory.canonicalPath)
         let instructions = try AgentRunTests.instructions(of: run)
-        #expect(instructions.contains(Self.agentFolderNote))
-        #expect(!instructions.contains(Self.environmentNote))
+        #expect(instructions.contains(Self.environmentNote))
+        #expect(!instructions.contains(Self.agentFolderNote))
     }
 
     @Test("a root run of a dotfolder agent with no folder works in the environment folder")
@@ -244,8 +261,8 @@ struct RunWorkingDirectoryTests {
         #expect(try AgentRunTests.instructions(of: run).contains(Self.environmentNote))
     }
 
-    @Test("a request folder wins over the folder of an agent-folder agent")
-    func requestFolderWinsOverAgentFolder() async throws {
+    @Test("a host run of an agent-folder agent with a request folder works in that folder, not in the agent folder")
+    func requestFolderOfAgentFolderAgentIsItsFolder() async throws {
         let fixture = try await Self.makeFixture()
         defer { fixture.delete() }
         let runner = fixture.harness.makeRunner()
@@ -257,6 +274,34 @@ struct RunWorkingDirectoryTests {
         let instructions = try AgentRunTests.instructions(of: run)
         #expect(instructions.contains(Self.requestNote))
         #expect(!instructions.contains(Self.agentFolderNote))
+    }
+
+    // MARK: - Runs that a host session starts
+
+    @Test("a start agent call from a host session that is not a run works in the environment folder, not in the agent folder")
+    func startFromHostSessionUsesEnvironmentFolder() async throws {
+        let fixture = try await Self.makeFixture()
+        defer { fixture.delete() }
+
+        let run = try await Self.startAgent(Self.folderAgent, folder: nil, from: nil, in: fixture)
+
+        #expect(try await Self.recordedFolder(of: run) == fixture.harness.workingDirectory.canonicalPath)
+        let instructions = try AgentRunTests.instructions(of: run)
+        #expect(instructions.contains(Self.environmentNote))
+        #expect(!instructions.contains(Self.agentFolderNote))
+    }
+
+    @Test("a relative folder of a start agent call from a host session starts from the environment folder")
+    func relativeRequestFolderOfHostSessionStartsFromEnvironmentFolder() async throws {
+        let fixture = try await Self.makeFixture()
+        defer { fixture.delete() }
+        try fixture.harness.scratch.write(Self.requestNote, at: "\(Self.partFolderName)/\(Self.agentsMdName)")
+
+        let run = try await Self.startAgent(Self.folderAgent, folder: Self.partFolderName, from: nil, in: fixture)
+
+        let part = fixture.harness.workingDirectory.appendingPathComponent(Self.partFolderName, isDirectory: true)
+        #expect(try await Self.recordedFolder(of: run) == part.canonicalPath)
+        #expect(try AgentRunTests.instructions(of: run).contains(Self.requestNote))
     }
 
     // MARK: - Slash-command runs
@@ -313,7 +358,7 @@ struct RunWorkingDirectoryTests {
         #expect(!instructions.contains(Self.agentFolderNote))
     }
 
-    @Test("the folder of a start agent call wins over the parent folder and the agent folder")
+    @Test("the folder of a start agent call wins over the parent folder, also for an agent-folder agent")
     func requestFolderOfStartAgentWinsOverAll() async throws {
         let fixture = try await Self.makeFixture()
         defer { fixture.delete() }

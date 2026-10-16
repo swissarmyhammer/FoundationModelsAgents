@@ -72,21 +72,29 @@ The folder of a run is the first of these:
 1. The folder of the start request: the `workingDirectory` argument of
    ``AgentRunner/start(_:prompt:workingDirectory:)``, or the
    `workingDirectory` field of `start agent`. A relative path of
-   `start agent` starts from the folder of the calling run. A slash command
-   of the runner is a request from the session that runs it: its folder is
-   the `workingDirectory` of the `SlashCommand.Invocation`, the folder of
-   that session. Thus a command run of an agent of an agent folder also works
-   in the folder of the session, not in its own folder.
-2. For a child run, the folder of the parent run. A parent that gives a task
-   expects the child to work on the files of the parent.
-3. Only for an agent of an agent folder (`agentFolders` of the registry), the
-   folder of the agent: ``AgentDefinition/folderURL``.
-4. ``AgentEnvironment/workingDirectory``.
+   `start agent` starts from the folder of the creator (step 2). A slash
+   command of the runner is a request from the session that runs it: its
+   folder is the `workingDirectory` of the `SlashCommand.Invocation`, the
+   folder of that session.
+2. The folder of the creator: the session that starts the run.
+   - For a child run, the creator is the parent run. A parent that gives a
+     task expects the child to work on the files of the parent.
+   - For a run that a host session starts with `start agent`, and the
+     session is not a run (for example the root session of a host), the
+     folder is ``AgentEnvironment/workingDirectory``. A `ToolContext` does
+     not give the working folder of its session.
+   - For a host-driven run with no folder, the folder is
+     ``AgentEnvironment/workingDirectory``. ``AgentRunner/start(_:prompt:)``
+     names no folder.
 
-An agent of the dot-folder stack (`agents/<id>/` of a marketplace, defaults,
-user, or project layer) never works in its own folder: that folder holds a
-definition in a configuration folder. ``AgentRunner/start(_:prompt:)`` names
-no folder.
+An agent never works in its own folder by default. This is also true for an
+agent of an agent folder (`agentFolders` of the registry). A host that wants a
+run in the folder of the agent gives ``AgentDefinition/folderURL`` as the
+folder of the start request:
+
+```swift
+let run = try await runner.start(definition.id, prompt: task, workingDirectory: definition.folderURL)
+```
 
 ### What a run does
 

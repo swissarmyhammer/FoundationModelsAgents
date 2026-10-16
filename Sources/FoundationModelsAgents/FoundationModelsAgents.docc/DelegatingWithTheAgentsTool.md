@@ -23,9 +23,12 @@ The verb aliases are `stop` for `cancel`, `run` for `start`, `status` for
 `send parent` is the same call as `send caller`.
 
 The `workingDirectory` field of `start agent` names the working folder of the
-new run. A relative path starts from the folder of the calling run. With no
-field, a child of a run works in the folder of its parent. See "The working
-folder of a run" in <doc:RunningAnAgent>.
+new run. With no field, the new run works in the folder of its creator, the
+session that makes the call: a child of a run works in the folder of its
+parent, and a run that a host session starts, when that session is not a run,
+works in ``AgentEnvironment/workingDirectory``. A relative path starts from
+that same folder. The new run never works in the folder of its agent by
+default. See "The working folder of a run" in <doc:RunningAnAgent>.
 
 ### Find an agent
 
