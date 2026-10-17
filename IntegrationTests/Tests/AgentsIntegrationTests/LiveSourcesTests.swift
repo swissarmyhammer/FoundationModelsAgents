@@ -99,6 +99,11 @@ extension LiveSuites {
             try await registry.load()
 
             let layer = try #require(fixture.store.marketplaceLayers().first)
+            // A failed sync gives a layer with no snapshot. Then the test fails
+            // here with the findings of the store, not at the folder read.
+            try #require(
+                layer.provenance.sha != nil,
+                "The store has no snapshot of \(Self.skillsMarketplaceURL): \(fixture.store.diagnostics)")
             let snapshotAgentIDs = try Self.agentFolderNames(in: layer.layer.root)
             try #require(!snapshotAgentIDs.isEmpty, "The snapshot holds no agent folder")
             let marketplaceAgentIDs = registry.catalog().definitions
