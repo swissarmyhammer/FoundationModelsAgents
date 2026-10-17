@@ -1,8 +1,8 @@
 ---
 assignees:
 - claude-code
-position_column: todo
-position_ordinal: '8380'
+position_column: done
+position_ordinal: eb80
 title: 'Known exceptions to test rule T1: waits with no failure event'
 ---
 These waits stay after ^4m8q28x. Each one has no failure event that the test can use today. No `.timeLimit`, sleep, poll or retry was added.
