@@ -19,6 +19,13 @@ struct ChildSessionLeaseTests {
     /// The agent that the root starts.
     private static let worker = "lease-worker"
 
+    /// The agent that starts ``worker``: the middle level of the grandchild
+    /// test.
+    private static let lead = "lease-lead"
+
+    /// The key of the play of the lead.
+    private static let leadKey = "lease-lead-key: give the work to the worker"
+
     /// The name of the tool that asks the user.
     private static let askToolName = "ask"
 
@@ -47,15 +54,31 @@ struct ChildSessionLeaseTests {
             ---
 
             You do the work.
-            """
+            """,
+        AgentDocumentPath.of(lead): """
+            ---
+            name: \(lead)
+            description: Gives the work to the worker.
+            tools: Agent(\(worker))
+            ---
+
+            You are a lead.
+            """,
     ]
 
-    /// The play of the root: it starts the worker, answers, then answers
-    /// each mail with the text of its last prompt.
-    private static let rootPlay = ScriptedAgentPlay(
-        key: rootKey,
-        steps: [NestedRunTests.startStep(worker, prompt: workerKey), .finalText("I started an agent.")]
-            + [ScriptedAgentStep](repeating: .finalTextOfLastPrompt, count: 3))
+    /// The play of a root that starts `name` with `prompt`, answers, then
+    /// answers each mail with the text of its last prompt.
+    ///
+    /// - Parameters:
+    ///   - name: The agent that the root starts.
+    ///   - prompt: The prompt of that run.
+    /// - Returns: The play.
+    private static func rootPlay(starting name: String, prompt: String) -> ScriptedAgentPlay {
+        ScriptedAgentPlay(
+            key: rootKey,
+            steps: [NestedRunTests.startStep(name, prompt: prompt), .finalText("I started an agent.")]
+                + [ScriptedAgentStep](repeating: .finalTextOfLastPrompt, count: 3))
+    }
 
     /// The play of a worker that waits at `gate` in its model call.
     ///
@@ -126,6 +149,7 @@ struct ChildSessionLeaseTests {
     ///
     /// - Parameters:
     ///   - plays: The plays of the script, after the play of the root.
+    ///   - rootPlay: The play of the root. The default starts ``worker``.
     ///   - userPresence: The user presence of the root. The default is
     ///     `.headless`.
     ///   - probeGate: The gate of the probe tool, or `nil`.
@@ -133,7 +157,9 @@ struct ChildSessionLeaseTests {
     ///     events of the root, made before the first prompt.
     /// - Throws: The error of the setup, or of `body`.
     private static func withParts(
-        plays: [ScriptedAgentPlay], userPresence: UserPresence = .headless, probeGate: ScriptedGate? = nil,
+        plays: [ScriptedAgentPlay],
+        rootPlay: ScriptedAgentPlay = rootPlay(starting: worker, prompt: workerKey),
+        userPresence: UserPresence = .headless, probeGate: ScriptedGate? = nil,
         _ body: (Parts, inout AsyncStream<SessionOutput>.Iterator) async throws -> Void
     ) async throws {
         let probes = TreeProbeRecord()
@@ -326,6 +352,41 @@ struct ChildSessionLeaseTests {
 
             #expect(final == .cancelled)
             #expect(lease.isEnded)
+        }
+    }
+
+    // MARK: - The session tree of the tools of a child
+
+    @Test("a tool of a child sees the parent session and the root session of its tree")
+    func aChildToolSeesItsTree() async throws {
+        try await Self.withParts(plays: [Self.callingPlay(Self.probeToolName)]) { parts, _ in
+            try #require(await parts.root.awaitIdle())
+            let run = try await parts.run()
+            let probe = try #require(parts.probes.all.first)
+
+            #expect(probe.sessionID == run.id)
+            #expect(probe.parentSessionID == parts.root.id)
+            #expect(probe.rootSessionID == parts.root.id)
+        }
+    }
+
+    @Test("a tool of a grandchild sees the child as its parent and the root of the tree as its root")
+    func aGrandchildToolSeesItsTree() async throws {
+        let plays = [
+            NestedRunTests.parentPlay(Self.leadKey, children: [(Self.worker, Self.workerKey)]),
+            Self.callingPlay(Self.probeToolName),
+        ]
+        try await Self.withParts(plays: plays, rootPlay: Self.rootPlay(starting: Self.lead, prompt: Self.leadKey)) {
+            parts, _ in
+            try #require(await parts.root.awaitIdle())
+            let lead = try await parts.run()
+            let worker = try await NestedRunTests.onlyRun(of: parts.runner, caller: lead.id)
+            let probe = try #require(parts.probes.all.first)
+
+            #expect(probe.sessionID == worker.id)
+            #expect(probe.parentSessionID == lead.id)
+            #expect(probe.rootSessionID == parts.root.id)
+            #expect(probe.lease.sessionID == worker.id)
         }
     }
 }

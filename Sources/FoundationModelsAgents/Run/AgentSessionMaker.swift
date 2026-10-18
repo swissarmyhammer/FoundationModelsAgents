@@ -18,6 +18,11 @@ import FoundationModelsRouter
 ///    of the session to that session. A run with no target, for example a
 ///    host-started run, is headless (``AgentEnvironment/runUserPresence``):
 ///    a question of the run ends at once with a cancel and a reason.
+///    The session is a child session of the `start agent` call that started
+///    the run (``AgentRunRequest/context``): its tools mount on the child
+///    site of that call, thus the `ToolContext` of each tool call of the run
+///    gives the calling session as its `parentSessionID` and the root of the
+///    tree as its `rootSessionID`. A host-started run is a root session.
 ///
 /// The model match comes before the tools, because the `agents` tool of the
 /// run gives the slot of the run to each child with `model: inherit`. Each
@@ -80,7 +85,8 @@ struct AgentSessionMaker: Sendable {
                 agentSpawn: request.agentSpawn,
                 mailOnlyAnswerLimit: environment.mailOnlyAnswerLimit,
                 inlineSettleGrace: environment.inlineSettleGrace,
-                userPresence: request.questionTarget?.userPresence ?? environment.runUserPresence))
+                userPresence: request.questionTarget?.userPresence ?? environment.runUserPresence,
+                parentCall: request.context))
         return Made(session: session, slot: slot)
     }
 
