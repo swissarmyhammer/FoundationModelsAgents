@@ -173,6 +173,12 @@ public final class AgentRun: Sendable {
     /// the run, and the `maxTurns` limit of the agent.
     let turns: AgentRunTurns
 
+    /// The one `WorkKind.childSession` lease of the call that started the
+    /// run, in the registry of the session of that call. The drive of the
+    /// run begins it, its follower changes it after each work event of the
+    /// session, and the drive ends it.
+    let childSessionWork: ChildSessionWork
+
     /// The signals that decide the end of the run.
     let signals = AgentRunSignals()
 
@@ -290,6 +296,7 @@ public final class AgentRun: Sendable {
         self.context = request.context
         self.children = family.children
         self.turns = AgentRunTurns(limit: request.definition.maxTurns)
+        self.childSessionWork = ChildSessionWork(call: request.context, childSessionID: id)
         self.storage = Mutex(Storage(state: state, session: made?.session, driver: nil))
     }
 

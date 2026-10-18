@@ -88,6 +88,15 @@ extension AgentRun {
     /// this wait, also for a cancelled run. Then the drive ends, and the run
     /// lets go of the target: the target holds the calling session.
     ///
+    /// A subagent is one more background tool call. The `start agent` call
+    /// that started the run holds the session of the run as work of the
+    /// calling session, with one `WorkKind.childSession` lease in the
+    /// registry of the calling session (``childSessionWork``). The drive
+    /// begins the lease before the task prompt, the follower changes it
+    /// after each work event of the session, and the drive ends it when it
+    /// ends: the session closed, failed or was cancelled. The work of the
+    /// session stays in the registry of the session.
+    ///
     /// - Parameters:
     ///   - session: The session of the run.
     ///   - prompt: The task prompt.
@@ -105,6 +114,8 @@ extension AgentRun {
         _ session: any RoutedSession, prompt: String, questionTarget: SubagentQuestionTarget? = nil,
         observer: AgentEnvironment.RunEventObserver? = nil
     ) async -> AgentRunState {
+        childSessionWork.start()
+        defer { childSessionWork.end() }
         let events = await session.streamSessionEvents()
         var relay: SubagentQuestionRelay?
         if let questionTarget, questionTarget.userPresence == .interactive {
@@ -325,7 +336,9 @@ extension AgentRun {
     /// The observer of the host gets each event first, synchronously, before
     /// the run uses it. Each event then feeds the progress and the answers of
     /// the run (``record(_:)``), the watch of the mail and of the tool calls
-    /// of the session (``ParentSessionWatch/observe(_:)``), and the count of
+    /// of the session (``ParentSessionWatch/observe(_:)``), the lease of the
+    /// session in the registry of the caller
+    /// (``ChildSessionWork/observe(_:hasOpenQuestion:)``), and the count of
     /// passes. Then each event that decides the end of the run gives its
     /// signal (``signal(after:on:)``).
     ///
@@ -353,6 +366,7 @@ extension AgentRun {
             let event = output.event
             record(event)
             sessionWatch.observe(output)
+            await childSessionWork.observe(event) { await !session.openElicitationIds().isEmpty }
             if case .elicitationRequested(let operation) = event {
                 if answersQuestions {
                     await answerQuestion(of: operation, on: session)

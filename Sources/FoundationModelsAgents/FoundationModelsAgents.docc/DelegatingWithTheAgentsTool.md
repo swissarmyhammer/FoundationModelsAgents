@@ -129,6 +129,20 @@ it as a new message, and that message starts the model again (see
 `cancel agent`, `send agent`, and `send caller` are synchronous: each call
 gives its real answer in the same answer of the model.
 
+### The work of a run in the calling session
+
+A run is one more background tool call of the calling session. The
+`start agent` call holds one `WorkKind.childSession` lease in the
+`WorkRegistry` of the calling session, with the id of the session of the
+run. The lease opens before the run gets its task prompt. It ends when the
+session of the run has no work (its `workEnded` event), and a new lease opens
+when that session gets new work again. While the run waits only for the user,
+the lease is suspended, thus the calling session has no work, and the answer
+resumes the lease. The lease ends when the run ends: its session closed,
+failed, or was cancelled, also by a cancel or a close of the calling session.
+The work of the run, for example a lease of one of its tools, stays in the
+registry of the session of the run.
+
 ### Make the tool
 
 ```swift

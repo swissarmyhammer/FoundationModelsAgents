@@ -49,6 +49,32 @@ struct AskingTool: Tool {
     }
 }
 
+/// An ``AskingTool`` whose calls are background runs. While its question is
+/// open, its run waits only for the user: the run plane suspends the lease of
+/// the run, thus the session of the call has no work.
+struct BackgroundAskingTool: Tool, BackgroundTool {
+    /// The tool that asks.
+    let asking: AskingTool
+
+    /// The name of the tool.
+    var name: String { asking.name }
+
+    /// The description of the tool.
+    var description: String { asking.description }
+
+    /// Each call is a background run.
+    let mount: ToolMount? = ToolMount(mode: .background)
+
+    /// Asks the question of ``asking``.
+    ///
+    /// - Parameter arguments: The arguments, which the tool ignores.
+    /// - Returns: The output of ``asking``.
+    /// - Throws: The error of ``asking``.
+    func call(arguments: AskingTool.Arguments) async throws -> String {
+        try await asking.call(arguments: arguments)
+    }
+}
+
 /// The answers that an ``AskingTool`` got, in order.
 ///
 /// A class, because the tool and the test hold the same record. A `Mutex`
