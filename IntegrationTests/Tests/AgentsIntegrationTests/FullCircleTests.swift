@@ -52,8 +52,14 @@ extension LiveSuites {
 
         @Test("The root starts the sub-agent from the tool description, with no JSON in the prompt")
         func toolDescriptionTellsHowToStart() async throws {
+            // The prompt names the task of the agent. Without it, a root model
+            // can copy the whole prompt, the wait instruction too, into the
+            // prompt of the agent, and the agent then answers WAITING.
             try await Self.goFullCircle(
-                rootPrompt: "Ask the \(Self.finder) agent for the secret word. \(LiveHarness.waitInstruction)")
+                rootPrompt: """
+                    Ask the \(Self.finder) agent for the secret word. The prompt of the agent is only \
+                    "\(Self.task)" \(LiveHarness.waitInstruction)
+                    """)
         }
 
         /// Runs one delegation from `rootPrompt` to the reply of the root, and
