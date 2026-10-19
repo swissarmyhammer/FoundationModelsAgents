@@ -5,9 +5,9 @@ import ULID
 ///
 /// A model reads the description of a tool before it plans, thus the
 /// description is where the model learns which agents it can start. The
-/// text has the fixed sentences, which tell the model to compare each task
-/// with the description of each agent, to give a task to the agent that
-/// matches it, and how to delegate. Then the list of the agents follows.
+/// text has the fixed sentences, which tell the model what work to give to
+/// an agent, how to pick the agent, and how to delegate. Then the list of
+/// the agents follows.
 ///
 /// The list has a character limit. The limit counts the list only, thus the
 /// fixed sentences take no room from it and are never cut. The builder tries
@@ -63,28 +63,42 @@ enum AgentsToolDescription {
         "name": "<name>", "prompt": "<the full task>"}. \(opSentence)
         """
 
-    /// The sentences that tell the model to find a matching agent before it
-    /// does a task itself.
+    /// The sentences that tell the model which work to give to an agent, and
+    /// which agent to give it to.
     ///
-    /// The model compares the task with the description of each listed
-    /// agent, and gives the task to the agent that matches. When the list
-    /// is cut or no listed agent matches, the model calls `list agents`.
-    /// When no agent matches after that, the model does the task itself.
+    /// The rule is about the size of the work, not only about a match of
+    /// words. An agent gets a whole unit of work: work that needs many reads,
+    /// a long output, or a loop of fixes and tests. The model does a task of
+    /// one step itself. In a SWE-bench run of 2026-10-18, the older text
+    /// ("compare each task with the description of each agent") gave 2
+    /// `agents` calls in 16 instances and no started agent.
+    ///
+    /// The model gives the work to the agent whose description matches it.
+    /// When the list is cut or no listed agent matches, the model calls
+    /// `list agents`. When no agent matches after that, the model does the
+    /// work itself.
     ///
     /// The list of the tool of a run does not hold the agent of that run
     /// (``AgentsToolContext/canStart(_:)``). Thus a model of a run cannot
     /// match its own entry and give its own task to a new run of its own
     /// agent.
     private static let matchSentences = """
-        Each agent in the list below has a name and a description of the tasks that it does. Before you \
-        do a task, compare the task with the description of each agent. When the description of an agent \
-        matches the task, give the task to that agent in place of doing the task yourself. When the list \
-        does not show all the agents or their descriptions, or when no agent in the list matches the task, \
-        \(callPrefix) \(listCall). When no agent matches the task after that, do the task yourself.
+        Each agent in the list below has a name and a description of the work that it does. Give an agent \
+        a whole unit of work: work that needs many reads, a long output, or a loop of fixes and tests. Do a \
+        task of one step yourself. Give the work to the agent whose description matches it. When the list \
+        does not show all the agents or their descriptions, or when no agent in the list matches the work, \
+        \(callPrefix) \(listCall). When no agent matches the work after that, do the work yourself.
         """
 
-    /// The fixed sentences: what an agent is, how to find the agent for a
-    /// task, and how to delegate to it.
+    /// The sentence that tells the model to ask an agent that changes files
+    /// to commit often. Each commit is a point that the work can go back to.
+    private static let commitSentence = """
+        When the agent changes files, tell it in the prompt to commit after each step that works, so that \
+        each commit is a point to undo to.
+        """
+
+    /// The fixed sentences: what an agent is, which work to give to which
+    /// agent, what to put in the prompt, and how to delegate.
     ///
     /// The sentences end with `PendingRunEnvelope.pendingWorkInstruction` of
     /// FoundationModelsExtras, the same text that the pending text of
@@ -99,7 +113,7 @@ enum AgentsToolDescription {
     private static let fixedSentences = """
         An agent is a model session that works in the background. \(matchSentences) Each agent starts with \
         an empty context and sees only the prompt that you give it, so put the full task and all that the \
-        agent needs in the prompt. \
+        agent needs in the prompt. \(commitSentence) \
         \(delegationSentence) When the agent finishes in a few seconds, the call gives its final \
         message. Else the call gives a pending answer, and the agent works in the background. \
         \(PendingRunEnvelope.pendingWorkInstruction)

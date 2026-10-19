@@ -21,13 +21,15 @@ struct AgentsToolDescriptionTests {
     /// sentences do not point to `check agent`.
     private static let agentsSentences =
         "An agent is a model session that works in the background. Each agent in the list below has a name "
-        + "and a description of the tasks that it does. Before you do a task, compare the task with the "
-        + "description of each agent. When the description of an agent matches the task, give the task to "
-        + "that agent in place of doing the task yourself. When the list does not show all the agents or their "
-        + "descriptions, or when no agent in the list matches the task, call the tool \"agents\" with the "
-        + #"arguments {"op": "list agents"}. When no agent matches the task after that, do the task yourself. "#
-        + "Each agent starts with an empty context and sees only the prompt "
-        + "that you give it, so put the full task and all that the agent needs in the prompt. "
+        + "and a description of the work that it does. Give an agent a whole unit of work: work that needs "
+        + "many reads, a long output, or a loop of fixes and tests. Do a task of one step yourself. Give "
+        + "the work to the agent whose description matches it. When the list does not show all the agents or "
+        + "their descriptions, or when no agent in the list matches the work, call the tool \"agents\" with "
+        + #"the arguments {"op": "list agents"}. When no agent matches the work after that, do the work "#
+        + "yourself. Each agent starts with an empty context and sees only the prompt "
+        + "that you give it, so put the full task and all that the agent needs in the prompt. When the agent "
+        + "changes files, tell it in the prompt to commit after each step that works, so that each commit "
+        + "is a point to undo to. "
         + #"To give a task to an agent, call the tool "agents" with the arguments {"op": "start agent", "#
         + #""name": "<name>", "prompt": "<the full task>"}. The value of "op" is an operation of the tool "#
         + #""agents", not the name of a tool. When the agent finishes in a few seconds, the call gives its "#

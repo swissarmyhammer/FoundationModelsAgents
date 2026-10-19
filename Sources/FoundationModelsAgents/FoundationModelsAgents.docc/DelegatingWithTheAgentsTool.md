@@ -171,13 +171,16 @@ cancel. A host-started run is headless.
 runner one time. The model-visible agents go into two places:
 
 - The description holds fixed sentences on delegation, then the agents. The
-  fixed sentences tell the model to compare each task with the description
-  of each agent, and to give the task to the agent whose description
-  matches it, in place of doing the task itself. When the list does not show
-  all the agents or their descriptions, or no listed agent matches, the model
-  calls `{"op": "list agents"}`. When no agent matches after that, the model
-  does the task itself. The model puts the full task in the
-  `prompt`, because the agent sees only that prompt. Each call in the text
+  fixed sentences tell the model to give an agent a whole unit of work: work
+  that needs many reads, a long output, or a loop of fixes and tests. The
+  model does a task of one step itself. It gives the work to the agent whose
+  description matches it. When the list does not show all the agents or their
+  descriptions, or no listed agent matches, the model calls
+  `{"op": "list agents"}`. When no agent matches after that, the model does
+  the work itself. The model puts the full task in the `prompt`, because the
+  agent sees only that prompt, and tells an agent that changes files to
+  commit after each step that works, so that each commit is a point to undo
+  to. Each call in the text
   names the tool `agents`, and the text tells that the value of `op` is not
   the name of a tool. The agent list uses the first form that fits
   `catalogCharacterLimit`: full `- name: description` lines, descriptions

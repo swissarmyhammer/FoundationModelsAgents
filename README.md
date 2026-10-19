@@ -24,11 +24,13 @@ run that a `start agent` call started gets only `send agent` and
 `send caller`.
 
 The description of the `agents` tool lists the agents with their
-descriptions. It tells the model to compare each task with these
-descriptions, to give the task to the agent whose description matches it,
-and to put the full task in the prompt. When the list is cut or no listed
-agent matches, the model calls `{"op": "list agents"}`. When no agent matches
-after that, the model does the task itself. The tool of a run does not list,
+descriptions. It tells the model to give an agent a whole unit of work (work
+that needs many reads, a long output, or a loop of fixes and tests), to do a
+task of one step itself, and to give the work to the agent whose description
+matches it. The model puts the full task in the prompt, and tells an agent
+that changes files to commit after each step that works. When the list is cut
+or no listed agent matches, the model calls `{"op": "list agents"}`. When no
+agent matches after that, the model does the work itself. The tool of a run does not list,
 start, or send a message to its own agent or run, thus a run cannot give its
 own task to a new run of its own agent. The tool of a host session lists each
 agent.

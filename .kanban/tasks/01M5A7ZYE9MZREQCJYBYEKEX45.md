@@ -1,8 +1,8 @@
 ---
 assignees:
 - claude-code
-position_column: todo
-position_ordinal: '8180'
+position_column: done
+position_ordinal: ee80
 title: 'The fixed sentences of the agents description state the delegation rule: a whole unit of work to an agent, a one-step task yourself, commit often'
 ---
 ## What
