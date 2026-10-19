@@ -248,18 +248,44 @@ public struct AgentsToolContext: Sendable {
     ///     matter.
     ///   - body: Gives the answer for the run. It can wait, and it can throw,
     ///     for example the error of ``AgentRun/deliver(_:from:)``.
-    /// - Returns: The answer of `body`, or a corrective with the ids of the
-    ///   runs of the caller when no run of the caller has the id `id`.
+    /// - Returns: The answer of `body`. When no run of the caller has the id
+    ///   `id`: a corrective that names the tool of the pending call when `id`
+    ///   is the completion token of a pending call of another tool, else a
+    ///   corrective with the ids of the runs of the caller.
     /// - Throws: The error of `body`.
     func answer(
         forRun id: String, _ body: (AgentRun) async throws -> AgentsToolAnswer
     ) async rethrows -> AgentsToolAnswer {
         let caller = ToolContext.current?.sessionID
         guard let run = await run(named: id), run.caller == caller else {
+            if let tool = await toolOfPendingCall(id) {
+                return .corrective(AgentsToolText.pendingCallOfAnotherTool(id, tool: tool))
+            }
             let callerRuns = await runner.runs(caller: caller)
             return .corrective(AgentsToolText.unknownRun(id, ids: callerRuns.map(\.id.description)))
         }
         return try await body(run)
+    }
+
+    /// Gives the tool of the pending background call whose completion token
+    /// is `id`, when that tool is not the `agents` tool.
+    ///
+    /// A model can give `check agent` the token of a call of another tool,
+    /// for example a code snippet. That token names no run, and its result
+    /// comes to the session as a message.
+    ///
+    /// - Parameter id: The id that the model gave. White space at the start
+    ///   or the end, and the case of the letters, do not matter.
+    /// - Returns: The name of the tool, or `nil` outside a Router session, or
+    ///   when no pending call of another tool has the token `id`.
+    private func toolOfPendingCall(_ id: String) async -> String? {
+        guard let context = ToolContext.current else {
+            return nil
+        }
+        let key = Self.key(of: id)
+        return await context.backgroundRuns().first { pending in
+            pending.tool != ToolVocabulary.agentsToolName && Self.key(of: pending.completionToken) == key
+        }?.tool
     }
 
     /// Tells whether `id` is the id of the session of the caller.

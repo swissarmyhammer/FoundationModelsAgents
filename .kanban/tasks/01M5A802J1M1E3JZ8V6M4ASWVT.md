@@ -1,8 +1,8 @@
 ---
 assignees:
 - claude-code
-position_column: todo
-position_ordinal: '8280'
+position_column: done
+position_ordinal: ef80
 title: check agent with the completionToken of a pending call of another tool says that the token is not a run, and that its result arrives as a message
 ---
 ## What

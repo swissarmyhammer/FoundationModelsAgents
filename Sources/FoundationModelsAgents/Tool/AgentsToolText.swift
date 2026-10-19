@@ -227,6 +227,26 @@ enum AgentsToolText {
         return "\(noRun(id)) \(known)"
     }
 
+    /// Gives the corrective of `check agent`, `cancel agent`, or
+    /// `send agent` with the completion token of a pending call of another
+    /// tool of the session, for example a code snippet.
+    ///
+    /// The token is not a run, and the result of the call comes to the
+    /// session as a message when the call ends. Thus the text tells the
+    /// model not to call a tool to wait for it or to check it.
+    ///
+    /// - Parameters:
+    ///   - id: The id that the model gave: the completion token of the call.
+    ///   - tool: The name of the tool that owns the call.
+    /// - Returns: The corrective.
+    static func pendingCallOfAnotherTool(_ id: String, tool: String) -> String {
+        """
+        The id \(id) is the completionToken of a pending call of the tool "\(tool)", not of an agent run. \
+        The result of that call comes to you as a message when the call ends. Do not call a tool to wait \
+        for it or to check it.
+        """
+    }
+
     /// Gives the sentence that no run has `id`.
     ///
     /// - Parameter id: The id that no run has.
