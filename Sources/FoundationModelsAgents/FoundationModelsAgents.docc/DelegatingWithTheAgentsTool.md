@@ -206,6 +206,15 @@ only a body, or only an agent that the tool cannot start, posts nothing. Each
 tool compares its own agents, thus a tool with `Agent(a, b)` announces only
 `a` and `b`. A reload before a session mounts the tool reaches no session.
 
+The tool is also `AgentLaunching` (FoundationModelsExtras). A host that casts
+a tool of a session to it reads ``AgentsTool/launchableAgents()``: the agents
+that the tool can start now, in catalog order, as `CatalogEntry` values with
+the description on one line. The list reads the current catalog, thus it
+follows reloads, and it applies the same limits as `start agent`: the allowed
+names, and not the agent of the run. A tool with only the message operations
+gives an empty list, and so does an empty catalog. The Router uses the list to
+name an agent in its hint to delegate.
+
 ``AgentsToolContext/init(runner:allowedNames:)`` with `allowedNames` limits
 the tool to those agents. The `Agent(a, b)` entry of a `tools` key gives the
 same limit to the tool of a run.

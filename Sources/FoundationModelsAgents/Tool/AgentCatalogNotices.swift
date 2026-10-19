@@ -63,11 +63,13 @@ final class AgentCatalogNotices: Sendable {
     }
 
     /// Gives the catalog entry of each agent: its id, and its description on
-    /// one line, as the full form of the description list shows it.
+    /// one line, as the full form of the description list shows it. An agent
+    /// with no description gives `""`. The notices and
+    /// ``AgentsTool/launchableAgents()`` use the same entries.
     ///
     /// - Parameter agents: The agents, in catalog order.
     /// - Returns: One entry for each agent, in catalog order.
-    private static func entries(of agents: [AgentDefinition]) -> [CatalogEntry] {
+    static func entries(of agents: [AgentDefinition]) -> [CatalogEntry] {
         agents.map { agent in
             CatalogEntry(name: agent.id, description: agent.description.map(AgentsToolDescription.oneLine) ?? "")
         }

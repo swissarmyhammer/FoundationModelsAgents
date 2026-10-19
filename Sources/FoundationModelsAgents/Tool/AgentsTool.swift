@@ -26,6 +26,10 @@ import Operations
 /// start posts one `CatalogChangeNotice` to each of those sessions
 /// (``AgentCatalogNotices``).
 ///
+/// The tool is also `AgentLaunching`: a host that casts it reads the agents
+/// that it can start now (``launchableAgents()``), for example to name one in
+/// a hint.
+///
 /// Each call goes to `operationTool`, the `OperationTool` of the `Operations`
 /// runtime. It resolves the payload, dispatches the operation, and keeps the
 /// retry cap.
@@ -302,5 +306,24 @@ extension AgentsTool: CatalogNoticing {
     /// changes the agents that the tool can start posts one notice on it.
     public var catalogNoticeBoard: CatalogNoticeBoard {
         notices.board
+    }
+}
+
+extension AgentsTool: AgentLaunching {
+    /// The agents that the tool can start now, read from the current catalog
+    /// of the registry, thus a reload shows. The grant of the tool selects
+    /// them (``AgentsToolContext/canStart(_:)``): the allowed names, if any,
+    /// and not the agent of the run. A tool with only the message operations
+    /// starts none, and gives an empty list.
+    ///
+    /// - Returns: One entry for each agent, in catalog order, with its
+    ///   description on one line.
+    public func launchableAgents() async -> [CatalogEntry] {
+        switch context.grant {
+        case .full:
+            AgentCatalogNotices.entries(of: context.startableAgents())
+        case .messagingOnly:
+            []
+        }
     }
 }
