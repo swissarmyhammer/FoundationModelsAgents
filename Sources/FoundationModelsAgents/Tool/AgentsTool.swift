@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModels
+import FoundationModelsExtras
 import FoundationModelsRouter
 import FoundationModelsSkills
 import Operations
@@ -19,6 +20,11 @@ import Operations
 /// in `list agents`, and `start agent` starts it. A name that the catalog
 /// does not have gets the unknown-agent corrective. A host makes a new tool
 /// for each session and each run.
+///
+/// The tool is `CatalogNoticing`: each session that mounts it joins its
+/// ``catalogNoticeBoard``. A reload that changes the agents that the tool can
+/// start posts one `CatalogChangeNotice` to each of those sessions
+/// (``AgentCatalogNotices``).
 ///
 /// Each call goes to `operationTool`, the `OperationTool` of the `Operations`
 /// runtime. It resolves the payload, dispatches the operation, and keeps the
@@ -52,16 +58,24 @@ public struct AgentsTool: Tool {
     /// The shared context of the operations.
     let context: AgentsToolContext
 
+    /// The notices of the catalog changes after the tool was made.
+    let notices: AgentCatalogNotices
+
     /// Wraps `operationTool` and builds the schema of its operations.
     ///
     /// - Parameters:
     ///   - operationTool: The tool that resolves and dispatches each call.
     ///     Its description is the description of this tool.
     ///   - context: The shared context of the operations.
+    ///   - notices: The notices of the catalog changes after the tool was
+    ///     made.
     /// - Throws: The error of `AgentsToolSchema.make(name:operations:)`.
-    init(operationTool: OperationTool<AgentsToolContext>, context: AgentsToolContext) throws {
+    init(
+        operationTool: OperationTool<AgentsToolContext>, context: AgentsToolContext, notices: AgentCatalogNotices
+    ) throws {
         self.operationTool = operationTool
         self.context = context
+        self.notices = notices
         parameters = try AgentsToolSchema.make(name: operationTool.name, operations: operationTool.operations)
     }
 
@@ -90,9 +104,11 @@ public struct AgentsTool: Tool {
     /// - `full`: each operation. The tool reads the catalog of
     ///   `context.runner` one time, here. It keeps the model-visible agents
     ///   that `context.allowedNames` permits, in catalog order. These agents
-    ///   go into the description.
+    ///   go into the description. The tool subscribes to the reloads of the
+    ///   registry before that read, and posts a notice for each later change.
     /// - `messagingOnly`: only the message operations. The tool does not
-    ///   read the catalog, and its short description names no agent.
+    ///   read the catalog, its short description names no agent, and it
+    ///   posts no notice.
     ///
     /// - Parameters:
     ///   - context: The shared context of the operations.
@@ -115,12 +131,15 @@ public struct AgentsTool: Tool {
             guard context.runner.registry.isLoaded else {
                 throw AgentRunnerError.catalogNotLoaded
             }
+            let reloads = context.runner.registry.onReload
             let agents = context.startableAgents()
             let description = AgentsToolDescription.make(
                 agents: agents.map(AgentsToolDescription.Entry.init), characterLimit: catalogCharacterLimit)
-            return try make(context: context, description: description)
+            let notices = AgentCatalogNotices(context: context, known: agents, reloads: reloads)
+            return try make(context: context, description: description, notices: notices)
         case .messagingOnly:
-            return try make(context: context, description: AgentsToolDescription.messaging)
+            let notices = AgentCatalogNotices(context: context, known: [], reloads: AsyncStream { $0.finish() })
+            return try make(context: context, description: AgentsToolDescription.messaging, notices: notices)
         }
     }
 
@@ -133,9 +152,13 @@ public struct AgentsTool: Tool {
     /// - Parameters:
     ///   - context: The shared context of the operations.
     ///   - description: The description of the grant.
+    ///   - notices: The notices of the catalog changes after the tool was
+    ///     made.
     /// - Returns: The tool.
     /// - Throws: The error of `OperationTool.init` or of the schema builder.
-    private static func make(context: AgentsToolContext, description: String) throws -> AgentsTool {
+    private static func make(
+        context: AgentsToolContext, description: String, notices: AgentCatalogNotices
+    ) throws -> AgentsTool {
         let callerID = context.callerLink?.sessionID
         let operationTool = try OperationTool(
             name: ToolVocabulary.agentsToolName,
@@ -144,7 +167,7 @@ public struct AgentsTool: Tool {
             operations: operations(of: context.grant),
             resolver: OperationResolver(verbAliases: verbAliases, nounAliases: nounAliases)
         )
-        return try AgentsTool(operationTool: operationTool, context: context)
+        return try AgentsTool(operationTool: operationTool, context: context, notices: notices)
     }
 
     /// Gives the operations of a tool with `grant`, in tool order.
@@ -271,5 +294,13 @@ extension AgentsTool: BackgroundTool {
             }
             return .cancelled
         }
+    }
+}
+
+extension AgentsTool: CatalogNoticing {
+    /// The board that each session that mounts the tool joins. A reload that
+    /// changes the agents that the tool can start posts one notice on it.
+    public var catalogNoticeBoard: CatalogNoticeBoard {
+        notices.board
     }
 }

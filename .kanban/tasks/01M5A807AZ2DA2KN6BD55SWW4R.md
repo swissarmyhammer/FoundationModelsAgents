@@ -18,8 +18,8 @@ comments:
     ```
     One notice per reload with a visible change of this tool's startable set (model-visible, allowedNames, not the run's own agent). Changed = description changed; a body-only change posts nothing. Order Added, Changed, Removed; leave out an empty section; catalog order; full one-line description, never the cut one.
   timestamp: 2026-10-19T14:13:58.310356+00:00
-position_column: todo
-position_ordinal: '8380'
+position_column: done
+position_ordinal: f080
 title: A reload that changes the startable catalog posts one catalog-change notice to each live session that has the agents tool
 ---
 ## What

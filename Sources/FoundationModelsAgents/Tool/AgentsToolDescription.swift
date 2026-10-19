@@ -243,7 +243,7 @@ enum AgentsToolDescription {
     /// - Parameter text: A description.
     /// - Returns: The description on one line, with no white space at the
     ///   start or the end.
-    private static func oneLine(_ text: String) -> String {
+    static func oneLine(_ text: String) -> String {
         text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 

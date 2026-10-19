@@ -196,6 +196,16 @@ changed agent runs with the new definition, an added agent is in
 `list agents` and `start agent` starts it, and a removed agent gives a
 corrective answer with the current names.
 
+The tool is `CatalogNoticing` (FoundationModelsExtras). Each session that
+mounts it through `ToolMounting.makeWrapped`, a child session too, joins its
+`catalogNoticeBoard`. A reload that adds or removes an agent that the tool can
+start, or changes its description, posts one `CatalogChangeNotice` of the
+`agents` kind to each of those sessions, for example
+``Agents changed. New: `coder`: Writes and tests code.`` A reload that changes
+only a body, or only an agent that the tool cannot start, posts nothing. Each
+tool compares its own agents, thus a tool with `Agent(a, b)` announces only
+`a` and `b`. A reload before a session mounts the tool reaches no session.
+
 ``AgentsToolContext/init(runner:allowedNames:)`` with `allowedNames` limits
 the tool to those agents. The `Agent(a, b)` entry of a `tools` key gives the
 same limit to the tool of a run.
