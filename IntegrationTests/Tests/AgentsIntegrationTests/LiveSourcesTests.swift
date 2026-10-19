@@ -25,9 +25,10 @@ extension LiveSuites {
     ///   model got the body of that agent.
     /// - The `swissarmyhammer/skills` marketplace comes over HTTPS: the git
     ///   transport of FoundationModelsExtras has no SSH. It gives each agent
-    ///   folder of its snapshot, and its `_partials/sah-*.md` files are at the
-    ///   root of its layer. The test reads the expected agents and partials
-    ///   from the snapshot, because the repository can add or remove them.
+    ///   folder of its snapshot, and its `_partials/sah-*.md` files, when it
+    ///   has any, are at the root of its layer. The test reads the expected
+    ///   agents and partials from the snapshot, because the repository can add
+    ///   or remove them.
     ///
     /// Each live test uses the one resolved profile of ``LiveProfile/shared``.
     /// The parent suite is serialized, thus one live run at a time uses the
@@ -91,7 +92,7 @@ extension LiveSuites {
             withExtendedLifetime(fixture) {}
         }
 
-        @Test("the swissarmyhammer/skills marketplace loads its agents, with its partials at the layer root")
+        @Test("the swissarmyhammer/skills marketplace loads its agents, with any partials at the layer root")
         func skillsMarketplaceLoadsItsAgents() async throws {
             let fixture = try MarketplaceStoreFixture(sources: [MarketplaceSource(Self.skillsMarketplaceURL)])
             await fixture.store.start()
@@ -111,10 +112,15 @@ extension LiveSuites {
                 .map(\.id)
             #expect(marketplaceAgentIDs == snapshotAgentIDs)
 
+            // The repository can have no partial at all: it deleted its last
+            // one in a554ad3. Its partials, when it has any, are at the root of
+            // the layer.
             let partialsFolder = layer.layer.root.appendingPathComponent(Self.partialsFolderName, isDirectory: true)
-            let partials = try FileManager.default.contentsOfDirectory(atPath: partialsFolder.path)
-                .filter { $0.hasPrefix(Self.skillsPartialPrefix) && $0.hasSuffix(Self.partialSuffix) }
-            #expect(!partials.isEmpty, "The partials folder at the layer root holds no sah-*.md file")
+            if FileManager.default.fileExists(atPath: partialsFolder.path) {
+                let partials = try FileManager.default.contentsOfDirectory(atPath: partialsFolder.path)
+                    .filter { $0.hasPrefix(Self.skillsPartialPrefix) && $0.hasSuffix(Self.partialSuffix) }
+                #expect(!partials.isEmpty, "The partials folder at the layer root holds no sah-*.md file")
+            }
             withExtendedLifetime(fixture) {}
         }
 
