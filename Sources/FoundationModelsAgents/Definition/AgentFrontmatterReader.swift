@@ -5,7 +5,9 @@ import FoundationModelsExtras
 /// `AgentFrontmatter`.
 ///
 /// The reader puts each tier 1 and tier 2 key into its field, each tier 3
-/// key into `unsupportedFields`, and each other key into `unknownFields`. A
+/// key into `unsupportedFields`, and each other key into `unknownFields`. It
+/// skips `enabled`: `FrontmatterDocumentStack` reads that key into the
+/// enablement of the document, and the catalog builder applies it. A
 /// value of the wrong type is left out, and the reader records its key in
 /// `wrongTypeKeys`. The reader reads the keys in sorted order, thus the
 /// recorded keys are in sorted order.
@@ -72,6 +74,9 @@ struct AgentFrontmatterReader {
             read(value, into: field, key: key)
         } else if AgentFrontmatter.unsupportedKeys.contains(key) {
             frontmatter.unsupportedFields[key] = value
+        } else if key == FrontmatterEnablement.key {
+            // FrontmatterDocumentStack reads `enabled` into the enablement
+            // of the document, and the catalog builder applies it.
         } else {
             frontmatter.unknownFields[key] = value
         }

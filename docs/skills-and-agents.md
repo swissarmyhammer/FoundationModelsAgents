@@ -71,8 +71,9 @@ surface transfer. Decisions about text in the current context do not.
 | One marketplace layer; the later plugin wins a name | Same: one flat `agents/` folder with one folder for each agent |
 | Name rules, length limits, severities, diagnostics with provenance | Same |
 | `disable-model-invocation`, `user-invocable` | Same |
+| `enabled: false` turns the item off; the nearest copy wins; a wrong value fails closed | Same: `FrontmatterEnablement` of Extras reads the key, and the agent scan applies it after its shadowing |
 | Description built from the catalog, with a limit and four forms | Same |
-| The schema pins the ids at `make`; an unknown id is a corrective answer | Same |
+| The id is a plain string, checked against the live catalog at call time; an unknown id is a corrective answer | Same: the `name` field of `start agent` |
 | Plain-text answers; `CorrectiveOutcome` | Same |
 | CLI from `OperationCLIDriver` | Not copied. The package has no command line. |
 | Demo; example library with broken files | Same |

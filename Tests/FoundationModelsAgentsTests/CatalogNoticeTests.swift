@@ -143,6 +143,47 @@ struct CatalogNoticeTests {
         #expect(notice == Self.addedNotice([Self.addedAgent]), "the first notice is the one of the second reload")
     }
 
+    @Test("enabled: false in a running session posts a notice that removes the agent, and enabled: true adds it back")
+    func turningAnAgentOffAndOnPostsNotices() async throws {
+        let layer = try TemporaryLayer.makeEmpty()
+        defer { try? layer.delete() }
+        try Self.write(Self.firstAgent, in: layer)
+        try Self.write(Self.addedAgent, in: layer)
+        let harness = try await AgentsToolHarness.make(registry: AgentRegistry(layers: [layer.layer]))
+        defer { try? harness.delete() }
+        let (sink, registry) = try Self.mount(harness.tool)
+        defer { registry.close() }
+        let disabledText = Self.agentFile(Self.addedAgent).replacingOccurrences(
+            of: "model: flash\n", with: "model: flash\nenabled: false\n")
+
+        try layer.write(disabledText, at: AgentDocumentPath.of(Self.addedAgent))
+        try await harness.runHarness.registry.reload()
+        try Self.write(Self.addedAgent, in: layer)
+        try await harness.runHarness.registry.reload()
+        // The last reload adds a marker agent. Its notice always comes, thus
+        // the read ends also when a notice before it is missing.
+        try Self.write(Self.markerAgent, in: layer)
+        try await harness.runHarness.registry.reload()
+        var notices: [CatalogChangeNotice] = []
+        for await notice in sink.notices {
+            notices.append(notice)
+            if notice.added.contains(where: { $0.name == Self.markerAgent }) { break }
+        }
+
+        #expect(
+            notices == [
+                CatalogChangeNotice(
+                    kind: .agents, added: [], removed: [CatalogEntry(name: Self.addedAgent, description: Self.description)],
+                    changed: []),
+                Self.addedNotice([Self.addedAgent]),
+                Self.addedNotice([Self.markerAgent])
+            ])
+    }
+
+    /// The agent that the last reload of a row adds, so that the row reads
+    /// its notices up to a notice that always comes.
+    private static let markerAgent = "marker-agent"
+
     @Test("a tool with allowed names announces only the agents that it can start")
     func aToolWithAllowedNamesAnnouncesOnlyItsAgents() async throws {
         let allowedAgent = "allowed-agent"

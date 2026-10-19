@@ -175,6 +175,18 @@ for await catalog in agents.onReload {
 - ``AgentCatalog/userInvocable``: the agents that are slash commands. An agent
   is user-invocable when `user-invocable` is not `false`.
 
+An agent whose winning copy has `enabled: false` is off: it is not in
+``AgentCatalog/definitions``, thus it is not in the `agents` tool, in
+`find agents`, or in the slash commands. One `skip` diagnostic tells that it is
+turned off. `FrontmatterEnablement` of FoundationModelsExtras reads the key: a
+value that is not `true` or `false` also turns the agent off, and its `skip`
+gives the reason. The scan applies the key after its own shadowing: the
+nearest copy wins, and when it is off, the agent is off. A farther copy does
+not come back. Thus a nearer `AGENT.md` with only `enabled: false` in its
+frontmatter turns off an agent of a marketplace. A change of `enabled` reloads
+the catalog like each other change of a file, and the `agents` tool posts its
+catalog-change notice.
+
 A bad agent does not stop a good agent next to it. An `AGENT.md` with no
 frontmatter, or an agent folder with a name that is not a valid id, is a skip.
 A `name` that is not equal to the folder name, or an absent description, is a

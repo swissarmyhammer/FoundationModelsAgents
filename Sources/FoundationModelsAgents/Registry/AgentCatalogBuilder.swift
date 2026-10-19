@@ -19,6 +19,10 @@ enum AgentCatalogBuilder {
     static let notLocalMessage =
         "the agent document is not local yet; the next build loads it when the file is local"
 
+    /// The text of the skip for an agent whose winning copy has
+    /// `enabled: false`.
+    static let disabledMessage = "the agent is turned off ('\(FrontmatterEnablement.key): false')"
+
     /// Builds the catalog of the marketplace layers, the local layers, and
     /// the agent-folder sources.
     ///
@@ -225,6 +229,9 @@ enum AgentCatalogBuilder {
         guard document != nil || layer.layout == .dotfolder else {
             return skip(agent: agent, provenance: provenance, message: notLocalMessage)
         }
+        if let enablement = document?.value.enablement, !enablement.isEnabled {
+            return skip(agent: agent, provenance: provenance, message: offMessage(enablement))
+        }
         var diagnostics = decodeFailures.removeAll().map { failure in
             AgentDiagnostic(severity: .advisory, agent: agent, provenance: provenance, message: failure.message)
         }
@@ -232,6 +239,19 @@ enum AgentCatalogBuilder {
             id: winner.id, document: document, provenance: provenance, marketplaceLayer: marketplaceLayer,
             kind: winner.kind, diagnostics: &diagnostics)
         return AgentFolderLoad(definition: definition, diagnostics: diagnostics)
+    }
+
+    /// Gives the text of the skip for an agent that is off.
+    ///
+    /// - Parameter enablement: The enablement of the winning copy. It is not
+    ///   `.enabled`.
+    /// - Returns: ``disabledMessage`` for `enabled: false`, or the message of
+    ///   FoundationModelsExtras for a value that is not `true` or `false`.
+    private static func offMessage(_ enablement: FrontmatterEnablement) -> String {
+        if case .invalid(let message) = enablement {
+            return message
+        }
+        return disabledMessage
     }
 
     /// A coordinated read that the file coordinator could not do.

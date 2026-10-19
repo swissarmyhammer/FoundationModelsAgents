@@ -77,6 +77,10 @@ You are a code reviewer. Read the code and give specific feedback.
   the fold prompt of the agent.
 - `disable-model-invocation: true` removes the agent from the `agents` tool.
   `user-invocable: false` removes its slash command.
+- `enabled: false` turns the agent off: it is not in the catalog, the
+  `agents` tool, or the slash commands. A value that is not `true` or `false`
+  turns it off too. The nearest layer wins, thus a nearer `AGENT.md` with only
+  `enabled: false` in its frontmatter turns off the agent of a farther layer.
 - `$ARGUMENTS` in the body is the prompt of the run. The body can include
   partials with `{% include "house-rules.md" %}`. The search starts in
   `agents/<name>/_partials/`, then `agents/_partials/`, then `_partials/` of

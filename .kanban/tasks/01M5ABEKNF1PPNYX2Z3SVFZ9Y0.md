@@ -11,8 +11,8 @@ comments:
     3. A disabled agent is not a slash command either. Disabled = gone from every model and user surface, except a settings or diagnostic listing (runner.catalog() diagnostics / listings may still show it as disabled).
     Still blocked on the Extras piece.
   timestamp: 2026-10-19T15:11:31.314259+00:00
-position_column: todo
-position_ordinal: '80'
+position_column: done
+position_ordinal: f180
 title: 'The frontmatter key `enabled: false` turns an agent off: it is not startable, listed, found, or announced'
 ---
 ## What
