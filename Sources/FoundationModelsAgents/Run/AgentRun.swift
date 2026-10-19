@@ -521,7 +521,7 @@ public final class AgentRun: Sendable {
             return .agentMessage(from: id, content: message)
         case .user:
             return .userMessage(prompt: AgentsToolText.callerMessage(message), options: UserMessageOptions())
-        case .run, .elicitation:
+        case .run, .elicitation, .catalog:
             throw AgentRunMessageError.unsupportedSender(sender)
         }
     }

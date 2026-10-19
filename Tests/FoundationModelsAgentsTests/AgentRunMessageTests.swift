@@ -399,12 +399,13 @@ struct AgentRunMessageTests {
         #expect(result == "[message from session \(Self.senderSession.ulidString)]\n\(Self.message)")
     }
 
-    @Test("a message from a sender that is not a session and not a user throws, and the run mails nothing")
-    func unsupportedSenderThrowsAndMailsNothing() async throws {
+    @Test(
+        "a message from a sender that is not a session and not a user throws, and the run mails nothing",
+        arguments: [MailSender.run(correlationID: "run-sender-token"), .catalog(.agents)])
+    func unsupportedSenderThrowsAndMailsNothing(sender: MailSender) async throws {
         let harness = try await AgentRunHarness.make(script: AgentRunTests.script([.finalText(Self.taskReply)]))
         defer { try? harness.delete() }
         let request = try harness.request(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
-        let sender = MailSender.run(correlationID: "run-sender-token")
 
         let run = await harness.makeRun(request)
         #expect(throws: AgentRunMessageError.unsupportedSender(sender)) {
