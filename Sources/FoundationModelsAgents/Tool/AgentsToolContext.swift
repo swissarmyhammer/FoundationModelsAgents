@@ -136,9 +136,9 @@ public struct AgentsToolContext: Sendable {
     /// Tells whether the tool can start `definition`.
     ///
     /// The tool of a run cannot start the agent of that run
-    /// (``isOwnAgent(_:)``). Thus the description, `list agents`, and the
-    /// `name` enum of the tool do not hold that agent, and the model of the
-    /// run cannot give its own task to a new run of its own agent.
+    /// (``isOwnAgent(_:)``). Thus the description and `list agents` of the
+    /// tool do not hold that agent, and the model of the run cannot give its
+    /// own task to a new run of its own agent.
     ///
     /// - Parameter definition: An agent of the catalog.
     /// - Returns: `true` when the model can see the agent, the allowed names,

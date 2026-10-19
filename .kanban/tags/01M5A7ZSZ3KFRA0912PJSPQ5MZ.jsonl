@@ -1,0 +1,1 @@
+{"id":"01M5A7ZSZ3MHQDV5N6Z7JSAKB4","timestamp":"2026-10-19T14:10:31.011542Z","op":"create","item_id":"01M5A7ZSZ3KFRA0912PJSPQ5MZ","forward_patch":"--- original\n+++ modified\n@@ -0,0 +1,2 @@\n+color: 0075ca\n+tag_name: agent-selection\n","reverse_patch":"--- original\n+++ modified\n@@ -1,2 +0,0 @@\n-color: 0075ca\n-tag_name: agent-selection\n","transaction_id":null}

@@ -184,20 +184,21 @@ runner one time. The model-visible agents go into two places:
   cut to 200 characters, names only, or as many names as fit and the count
   of the other agents with the `list agents` call. The fixed sentences are
   never cut.
-- The schema makes the `name` field an enum of the same agents. Thus the model
-  cannot invent a name.
+- The `name` field of the schema is a plain string. `start agent` checks the
+  name against the live catalog when the call runs.
 
-Make a new tool for each session. After a reload, a changed agent runs with
-the new definition, and a removed agent gives a corrective answer with the
-current names. An added agent is in `list agents` and in the next tool, not in
-the schema of this tool.
+Make a new tool for each session. The description stays as it was made, thus
+the tool definition is the same for the whole session. After a reload, a
+changed agent runs with the new definition, an added agent is in
+`list agents` and `start agent` starts it, and a removed agent gives a
+corrective answer with the current names.
 
 ``AgentsToolContext/init(runner:allowedNames:)`` with `allowedNames` limits
 the tool to those agents. The `Agent(a, b)` entry of a `tools` key gives the
 same limit to the tool of a run.
 
 The tool of a run does not offer the agent of that run. Its description,
-`list agents`, and the `name` enum do not hold that agent. A `start agent`
+and `list agents` do not hold that agent. A `start agent`
 call with its name gives the corrective "You cannot start the agent `name`,
 because it is your own agent. Do this task yourself." with the names that the
 tool can start. A `send agent` call with the id of the run gives the corrective

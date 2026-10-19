@@ -1,0 +1,1 @@
+{"id":"01M5A807B0TXRVZBX6X744D86Y","timestamp":"2026-10-19T14:10:44.704901Z","op":"create","item_id":"01M5A807B0CNJ8TG7CNXTKRYZX","forward_patch":"--- original\n+++ modified\n@@ -0,0 +1,2 @@\n+color: 0e8a16\n+tag_name: blocked\n","reverse_patch":"--- original\n+++ modified\n@@ -1,2 +0,0 @@\n-color: 0e8a16\n-tag_name: blocked\n","transaction_id":null}

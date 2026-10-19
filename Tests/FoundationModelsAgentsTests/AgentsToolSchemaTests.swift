@@ -7,10 +7,10 @@ import Testing
 
 /// Pins the schema of the `agents` tool.
 ///
-/// The schema is the fused schema of the operations. The `name` field is
-/// an enum of the model-visible agent names at `make`, limited by the allowed
-/// names of the context. Thus the model cannot start an agent that it cannot
-/// see.
+/// The schema is the fused schema of the operations. The `name` field is a
+/// plain string: `start agent` checks the name against the live catalog when
+/// the call runs. Thus an agent that a reload adds can start in a session that
+/// is already running.
 @Suite("Agents tool schema")
 struct AgentsToolSchemaTests {
     // MARK: - Constants
@@ -85,28 +85,17 @@ struct AgentsToolSchemaTests {
                 ])
     }
 
-    // MARK: - The name enum
+    // MARK: - The name field
 
-    @Test func theNameFieldIsAnEnumOfTheModelVisibleNames() async throws {
+    @Test("with agents in the catalog, the name field is a plain string, so an agent that a reload adds can start")
+    func theNameFieldIsAPlainString() async throws {
         let harness = try await AgentsToolHarness.make()
         defer { try? harness.delete() }
 
         let nameProperty = try Self.property(named: Self.nameFieldName, in: harness.tool.parameters)
 
-        #expect(nameProperty["enum"] as? [String] == Self.visibleNames)
-        #expect(harness.tool.agentNames == Self.visibleNames)
-        #expect(!harness.tool.agentNames.contains(Self.modelHiddenName))
-    }
-
-    @Test func theNameFieldHoldsOnlyTheAllowedNames() async throws {
-        let allowed = ["code-reviewer", "test-writer"]
-        let harness = try await AgentsToolHarness.make(allowedNames: allowed + [Self.modelHiddenName])
-        defer { try? harness.delete() }
-
-        let nameProperty = try Self.property(named: Self.nameFieldName, in: harness.tool.parameters)
-
-        #expect(nameProperty["enum"] as? [String] == allowed)
-        #expect(harness.tool.agentNames == allowed)
+        #expect(nameProperty["enum"] == nil)
+        #expect(nameProperty["type"] as? String == "string")
     }
 
     @Test func withNoAgentTheNameFieldIsAPlainString() async throws {
@@ -133,7 +122,6 @@ struct AgentsToolSchemaTests {
 
         #expect(opProperty["enum"] as? [String] == Self.messageOpStrings)
         #expect(Set(properties.keys) == [OperationKeys.opFieldName, "id", "message"])
-        #expect(harness.tool.agentNames.isEmpty)
     }
 
     @Test func theMessagingDescriptionNamesNoAgentAndNoStart() async throws {

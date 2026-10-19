@@ -6,7 +6,7 @@ import Testing
 ///
 /// A run keeps the definition that it started with. An `agents` tool that
 /// was made before a reload reads the current catalog in each call, but its
-/// schema stays as it was made. Each row works on a `TemporaryLayer` and
+/// description stays as it was made. Each row works on a `TemporaryLayer` and
 /// plays the scripted profile. The agents run on the `flash` slot.
 @Suite("Reload during a run")
 struct ReloadDuringRunTests {
@@ -162,29 +162,31 @@ struct ReloadDuringRunTests {
         try await harness.runHarness.registry.reload()
         let answer = try await harness.call("start agent", Self.startFields(Self.removedAgent))
 
-        #expect(harness.tool.agentNames == [Self.changedAgent, Self.removedAgent])
         #expect(answer == AgentsToolText.unknownAgent(Self.removedAgent, available: [Self.changedAgent]))
         #expect(await harness.runner.runs.isEmpty)
     }
 
-    @Test("a tool made before a reload lists an added agent, and its schema does not hold the agent")
-    func toolMadeBeforeReloadListsAnAddedAgent() async throws {
+    @Test("a tool made before a reload lists and starts an added agent, and its description does not change")
+    func toolMadeBeforeReloadStartsAnAddedAgent() async throws {
         let layer = try TemporaryLayer.makeEmpty()
         defer { try? layer.delete() }
         try Self.writeFirstVersions(of: [Self.changedAgent], in: layer)
-        let harness = try await AgentsToolHarness.make(registry: AgentRegistry(layers: [layer.layer]))
+        let harness = try await AgentsToolHarness.make(
+            script: Self.script([.finalText(Self.finalText)]), registry: AgentRegistry(layers: [layer.layer]))
         defer { try? harness.delete() }
+        let descriptionBefore = harness.tool.description
 
         try Self.writeFirstVersions(of: [Self.addedAgent], in: layer)
         try await harness.runHarness.registry.reload()
         let listed = try await harness.call("list agents")
-        let nameProperty = try AgentsToolSchemaTests.property(
-            named: AgentsToolSchemaTests.nameFieldName, in: harness.tool.parameters)
-        let nextTool = try await AgentsTool.make(context: AgentsToolContext(runner: harness.runner))
+        _ = try await harness.call("start agent", Self.startFields(Self.addedAgent))
+        let run = try #require(await harness.runner.runs(caller: nil).first)
+        let result = try await run.result()
 
         #expect(listed.contains("- \(Self.addedAgent): \(Self.firstDescription)"))
-        #expect(harness.tool.agentNames == [Self.changedAgent])
-        #expect(nameProperty["enum"] as? [String] == [Self.changedAgent])
-        #expect(nextTool.agentNames == [Self.addedAgent, Self.changedAgent])
+        #expect(run.agent.id == Self.addedAgent)
+        #expect(result == Self.finalText)
+        #expect(harness.tool.description == descriptionBefore)
+        #expect(!harness.tool.description.contains(Self.addedAgent))
     }
 }
