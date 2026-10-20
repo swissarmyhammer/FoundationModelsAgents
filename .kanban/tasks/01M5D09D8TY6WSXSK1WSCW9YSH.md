@@ -38,6 +38,39 @@ comments:
     - note: the warning `missing creator for mutated node ... mlx-swift_Cmlx.bundle` comes from the Swift Build toolchain for the mlx dependency. It is not fixed. The mlx-swift C++17 extension warnings in Cmlx come from the dependency too.
     - next: review
   timestamp: 2026-10-20T16:16:11.508848+00:00
+- actor: claude-code
+  id: 01m5d1v3z5xh7wqn82da26h7xq
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (61ef086) — 1 finding (confirmed 1, refuted 4, attempted 14) — Tests/FoundationModelsAgentsTests/Support/TemporaryLayer.swift:26
+    - next: implement the open item in the Review Findings (2026-10-20 11:16) section, then review again
+  timestamp: 2026-10-20T16:20:49.253664+00:00
+- actor: claude-code
+  id: 01m5d1ve57mcqbf7ah5ykdf01m
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 21 files
+    - test: green — swift test, 623 passed; IntegrationTests build complete
+    - commit: 61ef086
+    - review: findings — Tests/FoundationModelsAgentsTests/Support/TemporaryLayer.swift:26
+  timestamp: 2026-10-20T16:20:59.687295+00:00
+- actor: claude-code
+  id: 01m5d1yeg2025q7q9xspawxtv0
+  text: |-
+    Review finding fixed in Tests/FoundationModelsAgentsTests/Support/TemporaryLayer.swift.
+    - `func layer(source: DotfolderStack.Source) -> DotfolderStack.Layer` is the one place that makes a layer. `layer` and `userLayer` are thin calls to it.
+    - The same cause was also in `makeEmpty()` and `copy(of:)`: each made the container, named the root, filled it and returned the helper, with only the name and the fill step different. A new private `make(rootNamed:filling:)` is now the one place that makes a `TemporaryLayer`. Both factories are thin calls to it. The root name "layer" is the named constant `emptyRootName`.
+    - No caller changed. The behavior of the helper did not change. There is no new test because the change is a refactor of test support, and the full suite covers each caller.
+    - The rules dump (754 KB) was too large to read in one call. I searched it for the relevant rules and did not read all of it.
+
+    ### implement — changed
+    - evidence: 1 file — Tests/FoundationModelsAgentsTests/Support/TemporaryLayer.swift; `swift test` 623 tests in 87 suites passed, 0 failures; the only warning is the known toolchain warning `missing creator for mutated node ... mlx-swift_Cmlx.bundle`
+    - next: /review
+  timestamp: 2026-10-20T16:22:38.338218+00:00
+- actor: claude-code
+  id: 01m5d1yjcz5z075gchqp7rn2gj
+  text: 'Correction to the comment before this one: the search of the rules dump also gave too much output, so I did not read the rules text in this pass. I applied the rules from the reuse finding and the documentation rules that the earlier comments name. The next /review checks all validators.'
+  timestamp: 2026-10-20T16:22:42.335367+00:00
 position_column: doing
 position_ordinal: '80'
 title: 'AG-10: the registry reads all its layers from the DotfolderStack of the host'
@@ -83,3 +116,17 @@ Rules:
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass. #ag-10
+
+## Review Findings (2026-10-20 11:16)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 20 file(s) reviewed, 7 not reviewed.
+
+> 4 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 4 file(s)
+
+> 3 file(s) not reviewed — no validator matched:
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/LoadingTheCatalog.md` — no validator matches this file
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/RunningAnAgent.md` — no validator matches this file
+> - `docs/skills-and-agents.md` — no validator matches this file
+
+- [x] `Tests/FoundationModelsAgentsTests/Support/TemporaryLayer.swift:26` `reuse/reuse` — userLayer is a parallel copy of the layer property. It differs from layer only in the source constant, so the difference is not parameterized. Add one parameterized accessor, for example func layer(source: DotfolderStack.Source) -> DotfolderStack.Layer, and make layer and userLayer thin calls to it. If the two named properties are kept for readability, the parameterized accessor is the single place that builds the layer.

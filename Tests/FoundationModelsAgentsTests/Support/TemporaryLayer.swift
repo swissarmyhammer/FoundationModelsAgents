@@ -17,14 +17,25 @@ struct TemporaryLayer {
 
     /// The layer over `root`, with the untrusted source of a project layer.
     var layer: DotfolderStack.Layer {
-        DotfolderStack.Layer(source: .project, root: root)
+        layer(source: .project)
     }
 
     /// The layer over `root`, with the source `user`. A test uses it as the
     /// root settings folder of a host, for example the synced `Agents/`
     /// folder of an app.
     var userLayer: DotfolderStack.Layer {
-        DotfolderStack.Layer(source: .user, root: root)
+        layer(source: .user)
+    }
+
+    /// Makes the layer over `root` with the source that the test gives.
+    ///
+    /// This is the one place that makes a layer of this helper.
+    ///
+    /// - Parameter source: The source of the layer, for example `.project`
+    ///   or `.user`.
+    /// - Returns: The layer over `root` with `source`.
+    func layer(source: DotfolderStack.Source) -> DotfolderStack.Layer {
+        DotfolderStack.Layer(source: source, root: root)
     }
 
     /// Makes an empty layer root.
@@ -32,10 +43,9 @@ struct TemporaryLayer {
     /// - Returns: The new layer.
     /// - Throws: The error of the file system when it cannot make the folder.
     static func makeEmpty() throws -> TemporaryLayer {
-        let container = try makeContainer()
-        let root = container.appendingPathComponent("layer", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return TemporaryLayer(container: container, root: root)
+        try make(rootNamed: emptyRootName) { root in
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        }
     }
 
     /// Makes a layer root that holds `files`.
@@ -60,10 +70,9 @@ struct TemporaryLayer {
     /// - Returns: The new layer, which holds the same files as `source`.
     /// - Throws: The error of the file system when it cannot copy a file.
     static func copy(of source: URL) throws -> TemporaryLayer {
-        let container = try makeContainer()
-        let root = container.appendingPathComponent(source.lastPathComponent, isDirectory: true)
-        try FileManager.default.copyItem(at: source, to: root)
-        return TemporaryLayer(container: container, root: root)
+        try make(rootNamed: source.lastPathComponent) { root in
+            try FileManager.default.copyItem(at: source, to: root)
+        }
     }
 
     /// Writes `text` to the file at `relativePath`, and makes each folder
@@ -94,6 +103,29 @@ struct TemporaryLayer {
     ///   folder.
     func delete() throws {
         try FileManager.default.removeItem(at: container)
+    }
+
+    /// The folder name of the root that `makeEmpty()` makes.
+    private static let emptyRootName = "layer"
+
+    /// Makes a new container, and a root in it that `fill` makes.
+    ///
+    /// This is the one place that makes a `TemporaryLayer`.
+    ///
+    /// - Parameters:
+    ///   - name: The folder name of the root in the container.
+    ///   - fill: Makes the root folder at the URL that it gets, for example
+    ///     as an empty folder or as a copy of a fixture.
+    /// - Returns: The new layer.
+    /// - Throws: The error of the file system when it cannot make the
+    ///   container, or the error of `fill`.
+    private static func make(
+        rootNamed name: String, filling fill: (URL) throws -> Void
+    ) throws -> TemporaryLayer {
+        let container = try makeContainer()
+        let root = container.appendingPathComponent(name, isDirectory: true)
+        try fill(root)
+        return TemporaryLayer(container: container, root: root)
     }
 
     /// Makes a new, empty folder under the temporary directory.
