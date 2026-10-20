@@ -3,13 +3,13 @@ import Foundation
 import FoundationModelsExtras
 import Testing
 
-/// Pins the agent-folder source of `AgentRegistry`: the optional
-/// `agentFolders` input, the layout `<url>/<id>/AGENT.md`, the default agent
-/// of `<url>/AGENT.md`, and the precedence
-/// `marketplace < defaults < user < agent folders < project`.
+/// Pins the agent folder form of a local layer: the layout
+/// `<root>/<id>/AGENT.md`, the default agent of `<root>/AGENT.md`, and the
+/// precedence of the layers in the order of the stack, for example
+/// `user < root settings folder < project`.
 ///
-/// Each row writes a `TemporaryLayer` and gives its root as one agent-folder
-/// URL.
+/// Each row writes a `TemporaryLayer` and gives its root as one local layer
+/// with the source `user`.
 @Suite("Agent folder source")
 struct AgentFolderSourceTests {
     /// The id of the agent that each layer of the precedence rows holds.
@@ -39,20 +39,17 @@ struct AgentFolderSourceTests {
     /// The text that the warning for a hidden `default/` subfolder holds.
     private static let rootDocumentWins = "the root \(AgentDocumentPath.documentName)"
 
-    @Test("a registry with no agent folder gives the same catalog and layers as before")
-    func noAgentFolderGivesTheCurrentCatalog() async throws {
+    @Test("the layers of a registry are the layers of its stack, in the order of the stack")
+    func registryLayersAreTheStackLayers() async throws {
         let stack = FixtureLibrary.stack()
-        let plain = try await AgentRegistry(stack: stack).loadedCatalog()
-        let registry = AgentRegistry(stack: stack, agentFolders: [])
-        let empty = try await registry.loadedCatalog()
 
-        #expect(empty.definitions.map(\.id) == plain.definitions.map(\.id))
-        #expect(empty.diagnostics == plain.diagnostics)
+        let registry = AgentRegistry(stack: stack)
+        _ = try await registry.loadedCatalog()
+
         #expect(registry.layers.map(\.root) == stack.layers.map(\.root))
-        #expect(registry.agentFolders.isEmpty)
     }
 
-    @Test("<url>/<id>/AGENT.md loads, and its id is the folder name")
+    @Test("<root>/<id>/AGENT.md loads, and its id is the folder name")
     func agentFolderLoads() async throws {
         let id = AgentFolderFixture.helperID
         let folder = try TemporaryLayer.make(holding: [
@@ -60,7 +57,7 @@ struct AgentFolderSourceTests {
         ])
         defer { try? folder.delete() }
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [folder.userLayer]).loadedCatalog()
         let definition = try #require(catalog.definition(named: id))
 
         #expect(catalog.definitions.map(\.id) == [id])
@@ -77,7 +74,7 @@ struct AgentFolderSourceTests {
         ])
         defer { try? folder.delete() }
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [folder.userLayer]).loadedCatalog()
         let defaultAgent = try #require(catalog.defaultAgent)
 
         #expect(defaultAgent.id == AgentFolderFixture.defaultAgentID)
@@ -87,7 +84,7 @@ struct AgentFolderSourceTests {
         #expect(catalog.diagnostics.isEmpty)
     }
 
-    @Test("a source with no root AGENT.md gives no default agent")
+    @Test("a layer with no root AGENT.md gives no default agent")
     func noRootDocumentGivesNoDefaultAgent() async throws {
         let id = AgentFolderFixture.helperID
         let folder = try TemporaryLayer.make(holding: [
@@ -95,12 +92,12 @@ struct AgentFolderSourceTests {
         ])
         defer { try? folder.delete() }
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [folder.userLayer]).loadedCatalog()
 
         #expect(catalog.defaultAgent == nil)
     }
 
-    @Test("the root AGENT.md wins over <url>/default/AGENT.md, and the subfolder gives one warning")
+    @Test("the root AGENT.md wins over <root>/default/AGENT.md, and the subfolder gives one warning")
     func rootDocumentWinsOverTheDefaultSubfolder() async throws {
         let subfolderPath = AgentFolderFixture.documentPath(of: AgentFolderFixture.defaultAgentID)
         let folder = try TemporaryLayer.make(holding: [
@@ -109,7 +106,7 @@ struct AgentFolderSourceTests {
         ])
         defer { try? folder.delete() }
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [folder.userLayer]).loadedCatalog()
         let defaultAgent = try #require(catalog.defaultAgent)
         let warning = try #require(catalog.diagnostics.first)
 
@@ -134,7 +131,7 @@ struct AgentFolderSourceTests {
         defer { try? folder.delete() }
         let hiddenURL = folder.root.appendingPathComponent(AgentDocumentPath.documentName)
 
-        let registry = AgentRegistry(layers: [project.layer], agentFolders: [folder.root])
+        let registry = AgentRegistry(layers: [folder.userLayer, project.layer])
         let catalog = try await registry.loadedCatalog()
         let defaultAgent = try #require(catalog.defaultAgent)
         let expected = AgentDiagnostic(
@@ -145,8 +142,8 @@ struct AgentFolderSourceTests {
         #expect(catalog.diagnostics == [expected])
     }
 
-    @Test("the agent folders are above the user layer and below the project layer")
-    func agentFoldersAreBetweenUserAndProject() async throws {
+    @Test("an agent folder layer between the user layer and the project layer keeps that place")
+    func agentFolderLayerKeepsItsPlaceInTheStack() async throws {
         let user = try TemporaryLayer.make(holding: [
             AgentDocumentPath.of(Self.sharedID): AgentFolderFixture.agentText(name: Self.sharedID),
             AgentDocumentPath.of(Self.userAndFolderID): AgentFolderFixture.agentText(name: Self.userAndFolderID)
@@ -162,9 +159,8 @@ struct AgentFolderSourceTests {
             AgentDocumentPath.of(Self.sharedID): AgentFolderFixture.agentText(name: Self.sharedID)
         ])
         defer { try? project.delete() }
-        let userLayer = DotfolderStack.Layer(source: .user, root: user.root)
 
-        let registry = AgentRegistry(layers: [userLayer, project.layer], agentFolders: [folder.root])
+        let registry = AgentRegistry(layers: [user.userLayer, folder.userLayer, project.layer])
         let catalog = try await registry.loadedCatalog()
         let shared = try #require(catalog.definition(named: Self.sharedID))
         let userAndFolder = try #require(catalog.definition(named: Self.userAndFolderID))
@@ -185,10 +181,9 @@ struct AgentFolderSourceTests {
             AgentFolderFixture.documentPath(of: id): AgentFolderFixture.agentText(name: id)
         ])
         defer { try? folder.delete() }
-        let userLayer = DotfolderStack.Layer(source: .user, root: user.root)
         let hiddenURL = user.root.appendingPathComponent(AgentDocumentPath.of(id))
 
-        let catalog = try await AgentRegistry(layers: [userLayer], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [user.userLayer, folder.userLayer]).loadedCatalog()
         let definition = try #require(catalog.definition(named: id))
         let expected = AgentDiagnostic(
             severity: .advisory, agent: id, provenance: definition.provenance,
@@ -197,8 +192,8 @@ struct AgentFolderSourceTests {
         #expect(catalog.diagnostics == [expected])
     }
 
-    @Test("of two agent folders with a root AGENT.md, the later URL wins, with one advisory")
-    func laterAgentFolderWinsTheDefaultAgent() async throws {
+    @Test("of two layers with a root AGENT.md, the higher layer wins, with one advisory")
+    func higherLayerWinsTheDefaultAgent() async throws {
         let first = try TemporaryLayer.make(holding: [
             AgentDocumentPath.documentName: AgentFolderFixture.agentText(name: AgentFolderFixture.displayName)
         ])
@@ -209,7 +204,7 @@ struct AgentFolderSourceTests {
         defer { try? second.delete() }
         let hiddenURL = first.root.appendingPathComponent(AgentDocumentPath.documentName)
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [first.root, second.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [first.userLayer, second.userLayer]).loadedCatalog()
         let defaultAgent = try #require(catalog.defaultAgent)
         let expected = AgentDiagnostic(
             severity: .advisory, agent: AgentFolderFixture.defaultAgentID, provenance: defaultAgent.provenance,
@@ -220,13 +215,14 @@ struct AgentFolderSourceTests {
         #expect(catalog.diagnostics == [expected])
     }
 
-    @Test("an agent-folder URL that does not exist gives no agent and no diagnostic")
-    func missingAgentFolderGivesAnEmptySource() async throws {
+    @Test("a layer root that does not exist gives no agent and no diagnostic")
+    func missingLayerRootGivesAnEmptyLayer() async throws {
         let container = try TemporaryLayer.makeEmpty()
         defer { try? container.delete() }
         let missing = container.container.appendingPathComponent(Self.missingFolderName, isDirectory: true)
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [missing]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [DotfolderStack.Layer(source: .user, root: missing)])
+            .loadedCatalog()
 
         #expect(catalog.definitions.isEmpty)
         #expect(catalog.diagnostics.isEmpty)

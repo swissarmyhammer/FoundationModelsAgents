@@ -95,8 +95,8 @@ struct RunWorkingDirectoryTests {
         }
     }
 
-    /// Makes the folders and a harness over a registry with the dotfolder
-    /// layer and the agent-folder source.
+    /// Makes the folders and a harness over a registry with the agent-folder
+    /// source as the `user` layer and the dotfolder layer above it.
     ///
     /// - Parameter plays: The plays of the script. The default is
     ///   ``taskPlay``.
@@ -115,7 +115,7 @@ struct RunWorkingDirectoryTests {
         let parentFolder = try TemporaryLayer.make(holding: [
             agentsMdName: parentNote, "\(partFolderName)/\(agentsMdName)": requestNote
         ])
-        let registry = AgentRegistry(layers: [dotLayer.layer], agentFolders: [agentFolderSource.root])
+        let registry = AgentRegistry(layers: [agentFolderSource.userLayer, dotLayer.layer])
         let harness = try await AgentRunHarness.make(script: ScriptedAgentScript(plays), registry: registry)
         return Fixture(
             dotLayer: dotLayer, agentFolderSource: agentFolderSource, requestFolder: requestFolder,

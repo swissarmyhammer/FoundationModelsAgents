@@ -3,8 +3,9 @@ import Foundation
 import FoundationModelsExtras
 import Testing
 
-/// Pins the files of an agent-folder source that a sync engine did not make
-/// local yet, and the files that are not an agent document.
+/// Pins the files of the agent folder form of a local layer that a sync
+/// engine did not make local yet, and the files that are not an agent
+/// document.
 ///
 /// A placeholder name or a document that the build cannot read gives one
 /// diagnostic, "the agent document is not local yet", and never fails the
@@ -20,7 +21,7 @@ struct AgentFolderPlaceholderTests {
     /// The id that the usual hidden file `.env.local` holds before its dot.
     private static let envID = "env"
 
-    /// A usual hidden file at the source root. It is not a placeholder.
+    /// A usual hidden file at the layer root. It is not a placeholder.
     private static let envFileName = ".\(envID).local"
 
     /// The placeholder of a root resource `helper`, not of an agent folder.
@@ -60,7 +61,7 @@ struct AgentFolderPlaceholderTests {
         ])
         defer { try? folder.delete() }
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [folder.userLayer]).loadedCatalog()
         let diagnostic = try #require(catalog.diagnostics.first)
 
         #expect(catalog.definitions.map(\.id) == [Self.goodID])
@@ -76,7 +77,7 @@ struct AgentFolderPlaceholderTests {
         let folder = try TemporaryLayer.make(holding: [Self.documentPlaceholderName: ""])
         defer { try? folder.delete() }
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [folder.userLayer]).loadedCatalog()
         let diagnostic = try #require(catalog.diagnostics.first)
 
         #expect(catalog.defaultAgent == nil)
@@ -92,7 +93,7 @@ struct AgentFolderPlaceholderTests {
         let folder = try TemporaryLayer.make(holding: [name: ""])
         defer { try? folder.delete() }
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [folder.userLayer]).loadedCatalog()
 
         #expect(catalog.definitions.isEmpty)
         #expect(catalog.diagnostics.isEmpty)
@@ -108,7 +109,7 @@ struct AgentFolderPlaceholderTests {
         defer { try? folder.delete() }
         let userLayer = DotfolderStack.Layer(source: .user, root: user.root)
 
-        let catalog = try await AgentRegistry(layers: [userLayer], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [userLayer, folder.userLayer]).loadedCatalog()
         let definition = try #require(catalog.definition(named: Self.envID))
 
         #expect(catalog.definitions.map(\.id) == [Self.envID])
@@ -123,7 +124,7 @@ struct AgentFolderPlaceholderTests {
         let folder = try TemporaryLayer.make(holding: ["\(AgentFolderFixture.helperID)/\(name)": ""])
         defer { try? folder.delete() }
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [folder.userLayer]).loadedCatalog()
 
         #expect(catalog.definitions.isEmpty)
         #expect(catalog.diagnostics.isEmpty)
@@ -140,7 +141,7 @@ struct AgentFolderPlaceholderTests {
         NSFileCoordinator.addFilePresenter(presenter)
         defer { NSFileCoordinator.removeFilePresenter(presenter) }
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [folder.userLayer]).loadedCatalog()
         let diagnostic = try #require(catalog.diagnostics.first)
 
         #expect(catalog.definitions.isEmpty)
@@ -162,7 +163,7 @@ struct AgentFolderPlaceholderTests {
             at: documentURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Self.unreadableBytes.write(to: documentURL)
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [folder.userLayer]).loadedCatalog()
         let diagnostic = try #require(catalog.diagnostics.first)
 
         #expect(catalog.definitions.isEmpty)
@@ -183,7 +184,7 @@ struct AgentFolderPlaceholderTests {
         ])
         defer { try? folder.delete() }
 
-        let catalog = try await AgentRegistry(layers: [], agentFolders: [folder.root]).loadedCatalog()
+        let catalog = try await AgentRegistry(layers: [folder.userLayer]).loadedCatalog()
         let definition = try #require(catalog.definition(named: id))
 
         #expect(catalog.definitions.map(\.id) == [id])

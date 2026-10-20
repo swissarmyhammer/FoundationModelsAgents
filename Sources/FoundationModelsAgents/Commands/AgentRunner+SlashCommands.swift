@@ -9,7 +9,7 @@ import FoundationModelsExtras
 /// The run works in the folder of the session that runs the command: the
 /// `workingDirectory` of the `SlashCommand.Invocation` is the folder of the
 /// start request (``AgentRunner/start(_:prompt:workingDirectory:)``). Thus an
-/// agent of the agent-folder source also works in the folder of the session,
+/// agent of the agent folder form also works in the folder of the session,
 /// not in its own folder. The body waits for the run and gives its final
 /// text. The body is never a prompt for the host session:
 /// `/code-reviewer check the diff` gives the task to the agent. The prompt is

@@ -13,10 +13,10 @@ import Marketplace
 ///    text as the document `agents/<id>/AGENT.md` of the winning layer, with
 ///    the `variables` of the registry. An include walks from
 ///    `agents/<id>/_partials/` of the agent folder, to `agents/_partials/`,
-///    up to `_partials/` of the layer root. The document of an agent-folder
-///    source is `<id>/AGENT.md`, and its include walks from `<id>/_partials/`
-///    to `_partials/` of the source root. The default agent `AGENT.md` of the
-///    source uses `_partials/` of the source root. The trust comes from the
+///    up to `_partials/` of the layer root. The document of the agent folder
+///    form is `<id>/AGENT.md`, and its include walks from `<id>/_partials/`
+///    to `_partials/` of the layer root. The default agent `AGENT.md` of the
+///    layer uses `_partials/` of the layer root. The trust comes from the
 ///    layer: `defaults` renders trusted, and each other layer renders
 ///    untrusted.
 ///
@@ -65,20 +65,20 @@ struct AgentBodyRenderer: Sendable {
     /// The layers that the render of `definition` reads partials from.
     ///
     /// A marketplace document sees its own marketplace layer and the local
-    /// layers. A local document sees the local layers only. A document of an
-    /// agent-folder source sees its own source only, thus a partial of a
-    /// dotfolder layer and a partial of a different source stay out of it.
+    /// layers. A local document of the dotfolder form sees the local layers
+    /// only. A document of the agent folder form sees its own layer only,
+    /// thus a partial of a different layer stays out of it.
     ///
     /// - Parameter definition: The agent whose body to render.
     /// - Returns: The layers, lowest precedence first.
     private func scopedLayers(of definition: AgentDefinition) -> [DotfolderStack.Layer] {
-        guard !definition.kind.isInAgentFolderSource else { return [definition.layer] }
+        guard !definition.kind.isInAgentFolderForm else { return [definition.layer] }
         return (definition.marketplaceLayer.map { [$0.layer] } ?? []) + localLayers
     }
 
     /// The path of the agent document, relative to the root of its layer:
-    /// `agents/<id>/AGENT.md`, or `<id>/AGENT.md` or `AGENT.md` for an
-    /// agent-folder source.
+    /// `agents/<id>/AGENT.md`, or `<id>/AGENT.md` or `AGENT.md` for the agent
+    /// folder form.
     ///
     /// - Parameter definition: The agent.
     /// - Returns: The document path of the render.

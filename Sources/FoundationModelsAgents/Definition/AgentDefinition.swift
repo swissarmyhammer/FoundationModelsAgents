@@ -17,8 +17,8 @@ public struct AgentDefinition: Sendable {
     static let descriptionCharacterLimit = 1024
 
     /// The id of the agent: the name of its folder, or
-    /// ``AgentCatalog/defaultAgentID`` for the root `AGENT.md` of an
-    /// agent-folder source.
+    /// ``AgentCatalog/defaultAgentID`` for the root `AGENT.md` of a local
+    /// layer.
     public let id: String
 
     /// The `description` key. It tells the model when to use the agent.
@@ -88,20 +88,20 @@ public struct AgentDefinition: Sendable {
     let kind: AgentDocumentKind
 
     /// The URL of the agent document: `<layer root>/agents/<id>/AGENT.md`,
-    /// or, for an agent-folder source, `<url>/<id>/AGENT.md` or
-    /// `<url>/AGENT.md`.
+    /// or, for the agent folder form of a local layer,
+    /// `<layer root>/<id>/AGENT.md` or `<layer root>/AGENT.md`.
     public var url: URL {
         provenance.url
     }
 
     /// The URL of the agent folder of the winning layer:
-    /// `<layer root>/agents/<id>/`, or, for an agent-folder source,
-    /// `<url>/<id>/`. The folder of the default agent of an agent-folder
-    /// source is `<url>` itself.
+    /// `<layer root>/agents/<id>/`, or, for the agent folder form,
+    /// `<layer root>/<id>/`. The folder of the default agent of the root
+    /// `AGENT.md` is the layer root itself.
     ///
     /// The folder holds `AGENT.md` and the resources of the agent: each other
     /// file of the folder. The resources of the default agent are the files
-    /// of `<url>` other than `AGENT.md`, `_partials/`, and the agent
+    /// of the layer root other than `AGENT.md`, `_partials/`, and the agent
     /// folders. A copy of the folder in a lower layer is hidden, thus this
     /// URL names the folder of the layer that gave the document.
     public var folderURL: URL {
@@ -150,13 +150,13 @@ public struct AgentDefinition: Sendable {
     /// applies the rule table.
     ///
     /// The rules are those of `init(id:document:provenance:marketplaceLayer:diagnostics:)`.
-    /// The one difference is the `name` rule: the root document of an
-    /// agent-folder source has a display name, thus the rule table does not
+    /// The one difference is the `name` rule: the root document of a local
+    /// layer has a display name, thus the rule table does not
     /// check its `name`.
     ///
     /// - Parameters:
     ///   - id: The name of the agent folder, or `default` for the root
-    ///     document of an agent-folder source.
+    ///     document of a local layer.
     ///   - document: The winning copy of the file, or `nil`.
     ///   - provenance: The file of the agent.
     ///   - marketplaceLayer: The marketplace layer that gave the file, or

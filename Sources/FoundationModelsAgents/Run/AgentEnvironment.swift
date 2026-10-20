@@ -87,7 +87,7 @@ public struct AgentEnvironment: Sendable {
     /// of the start request, and no parent run. A run that a host session
     /// starts, and the session is not a run, and a host-driven run with no
     /// folder (``AgentRunner/start(_:prompt:workingDirectory:)``), work in
-    /// it. An agent of the agent-folder source also works in it, not in its
+    /// it. An agent of the agent folder form also works in it, not in its
     /// own folder.
     public let workingDirectory: URL
 

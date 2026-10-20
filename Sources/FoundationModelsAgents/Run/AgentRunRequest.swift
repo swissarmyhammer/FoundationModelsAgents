@@ -68,7 +68,7 @@ struct AgentRunRequest: Sendable {
     /// as the folder of the request.
     ///
     /// An agent never works in its own folder by default, also an agent of
-    /// the agent-folder source. A host that wants a run in the folder of the
+    /// the agent folder form. A host that wants a run in the folder of the
     /// agent gives ``AgentDefinition/folderURL`` as the folder of the
     /// request. The `AGENTS.md` documents of the run come from the folder
     /// that this gives.

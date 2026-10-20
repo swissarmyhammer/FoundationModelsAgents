@@ -6,14 +6,15 @@ import Marketplace
 /// rule for the `name` key, and the layers that the render of the body reads
 /// partials from.
 enum AgentDocumentKind: Sendable, Equatable {
-    /// `agents/<id>/AGENT.md` of a dotfolder layer or of a marketplace layer.
+    /// `agents/<id>/AGENT.md`: the dotfolder form of a local layer, and the
+    /// form of a marketplace layer.
     case agentsFolder
 
-    /// `<id>/AGENT.md` of an agent-folder source: a folder of agent folders
-    /// with no `agents/` level.
+    /// `<id>/AGENT.md`: the agent folder form of a local layer, with no
+    /// `agents/` level.
     case agentFolder
 
-    /// `AGENT.md` at the root of an agent-folder source: the default agent.
+    /// `AGENT.md` at the root of a local layer: the default agent.
     case rootDocument
 
     /// Whether the rule table compares the `name` key with the id.
@@ -24,11 +25,13 @@ enum AgentDocumentKind: Sendable, Equatable {
         self != .rootDocument
     }
 
-    /// Whether the document is in an agent-folder source.
+    /// Whether the document is in the agent folder form of a local layer:
+    /// `<id>/AGENT.md`, or the root `AGENT.md`.
     ///
-    /// The render of such a document reads the partials of its own source
-    /// only.
-    var isInAgentFolderSource: Bool {
+    /// The build reads such a document in a coordinated read, and a
+    /// placeholder of it gives the not-local skip. The render of such a
+    /// document reads the partials of its own layer only.
+    var isInAgentFolderForm: Bool {
         self != .agentsFolder
     }
 

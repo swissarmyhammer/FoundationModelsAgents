@@ -88,7 +88,8 @@ The folder of a run is the first of these:
      names no folder.
 
 An agent never works in its own folder by default. This is also true for an
-agent of an agent folder (`agentFolders` of the registry). A host that wants a
+agent of the agent folder form of a local layer (`<root>/<id>/AGENT.md`, see
+<doc:LoadingTheCatalog>). A host that wants a
 run in the folder of the agent gives ``AgentDefinition/folderURL`` as the
 folder of the start request:
 

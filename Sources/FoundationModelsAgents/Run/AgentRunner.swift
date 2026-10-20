@@ -124,7 +124,7 @@ public actor AgentRunner {
     ///
     /// The call is ``start(_:prompt:workingDirectory:)`` with no folder. Each
     /// agent works in ``AgentEnvironment/workingDirectory``, also an agent of
-    /// the agent-folder source.
+    /// the agent folder form.
     ///
     /// - Parameters:
     ///   - name: The id of the agent in the catalog of the registry.
@@ -148,8 +148,8 @@ public actor AgentRunner {
     /// The working folder of the run is `workingDirectory`. With no folder,
     /// the run works in the folder of its creator, the host:
     /// ``AgentEnvironment/workingDirectory``. An agent never works in its own
-    /// folder by default, also an agent of the agent-folder source
-    /// (`agentFolders` of the registry). Give ``AgentDefinition/folderURL``
+    /// folder by default, also an agent of the agent folder form of a local
+    /// layer (`<root>/<id>/AGENT.md`). Give ``AgentDefinition/folderURL``
     /// as `workingDirectory` for a run in the folder of the agent. The
     /// session of the run gets this folder, and the `AGENTS.md` documents of
     /// its instructions come from it. Each run that the run starts works in

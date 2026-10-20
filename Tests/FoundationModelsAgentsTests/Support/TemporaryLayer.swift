@@ -20,6 +20,13 @@ struct TemporaryLayer {
         DotfolderStack.Layer(source: .project, root: root)
     }
 
+    /// The layer over `root`, with the source `user`. A test uses it as the
+    /// root settings folder of a host, for example the synced `Agents/`
+    /// folder of an app.
+    var userLayer: DotfolderStack.Layer {
+        DotfolderStack.Layer(source: .user, root: root)
+    }
+
     /// Makes an empty layer root.
     ///
     /// - Returns: The new layer.

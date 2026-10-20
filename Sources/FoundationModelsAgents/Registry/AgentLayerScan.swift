@@ -34,16 +34,21 @@ struct AgentCopy: Sendable, Equatable {
 
 /// The agent copies of one layer.
 ///
-/// The scan lists the files of the layer and reads no text. A dotfolder
-/// layer gives each `agents/<id>/AGENT.md`. An agent-folder source gives each
-/// `<id>/AGENT.md`, its root `AGENT.md` as the agent `default`, and each
-/// placeholder of one of these documents.
+/// The scan lists the files of the layer and reads no text. Each layer gives
+/// each `agents/<id>/AGENT.md`. A local layer also gives each `<id>/AGENT.md`
+/// of the agent folder form, its root `AGENT.md` as the agent `default`, and
+/// each placeholder of one of these documents.
+///
+/// In one layer, a copy of the agent folder form wins over a copy of the
+/// same id in `agents/`. Thus the copies of the agent folder form come after
+/// the copies of `agents/`: the builder takes the last copy of an id as the
+/// winner, and each earlier copy gives the hidden-copy advisory.
 struct AgentLayerScan: Sendable {
-    /// One copy for each id that the layer holds.
+    /// The copies of the layer, the copies of `agents/` first.
     let copies: [AgentCopy]
 
-    /// Each `<url>/default/AGENT.md` of an agent-folder source that the root
-    /// `AGENT.md` of the same source hides.
+    /// Each `<root>/default/AGENT.md` of a local layer that the root
+    /// `AGENT.md` of the same layer hides.
     let hiddenDefaultFolders: [AgentCopy]
 
     /// Scans one layer.
@@ -52,20 +57,21 @@ struct AgentLayerScan: Sendable {
     ///   - layer: The layer and its layout.
     ///   - layerIndex: The position of the layer in the combined layer list.
     init(_ layer: AgentCatalogLayer, at layerIndex: Int) {
+        let dotfolderCopies = Self.dotfolderCopies(in: layer.layer, at: layerIndex)
         switch layer.layout {
         case .dotfolder:
-            copies = Self.dotfolderCopies(in: layer.layer, at: layerIndex)
+            copies = dotfolderCopies
             hiddenDefaultFolders = []
-        case .agentFolder:
-            let scan = AgentFolderSourceScan(layer.layer, at: layerIndex)
+        case .local:
+            let scan = AgentFolderFormScan(layer.layer, at: layerIndex)
             let root = scan.rootCopy
             let isHiddenByRoot = { (copy: AgentCopy) in root != nil && copy.id == AgentCatalog.defaultAgentID }
-            copies = (root.map { [$0] } ?? []) + scan.folderCopies.filter { !isHiddenByRoot($0) }
+            copies = dotfolderCopies + (root.map { [$0] } ?? []) + scan.folderCopies.filter { !isHiddenByRoot($0) }
             hiddenDefaultFolders = scan.folderCopies.filter(isHiddenByRoot)
         }
     }
 
-    /// Finds each `agents/<id>/AGENT.md` of a dotfolder layer.
+    /// Finds each `agents/<id>/AGENT.md` of a layer.
     ///
     /// A child folder of `agents/` that holds no `AGENT.md` is not an agent,
     /// for example `agents/_partials/`.
@@ -84,33 +90,38 @@ struct AgentLayerScan: Sendable {
     }
 }
 
-/// The files of one agent-folder source, as copies of agents.
+/// The files of the agent folder form of one local layer, as copies of
+/// agents.
 ///
-/// The scan makes one walk of the files of the source with
+/// The scan makes one walk of the files of the layer with
 /// `DotfolderStack.urls(_:)`, which lists the hidden files too. It reads no
-/// text. A source root that does not exist gives no copy.
+/// text. A layer root that does not exist gives no copy.
+///
+/// A child folder of the layer root whose name is not a valid agent id is a
+/// settings folder, for example `_skills/`, `_rules/`, `_partials/`, or
+/// `.git/`. It gives no copy, thus also no diagnostic.
 ///
 /// A sync engine keeps each folder, and writes a placeholder only in place of
-/// a file. Thus a hidden file directly in the source root is never an agent
+/// a file. Thus a hidden file directly in the layer root is never an agent
 /// folder. For example, `.env.local` gives no agent `env`.
-private struct AgentFolderSourceScan {
+private struct AgentFolderFormScan {
     /// The copy of the default agent: the root `AGENT.md`, or its
     /// placeholder.
     let rootCopy: AgentCopy?
 
-    /// One copy for each agent folder `<id>/` that holds `AGENT.md` or its
-    /// placeholder.
+    /// One copy for each agent folder `<id>/` with a valid id that holds
+    /// `AGENT.md` or its placeholder.
     let folderCopies: [AgentCopy]
 
-    /// Scans one agent-folder source.
+    /// Scans the agent folder form of one local layer.
     ///
     /// - Parameters:
-    ///   - layer: The layer of the source.
+    ///   - layer: The local layer.
     ///   - layerIndex: The position of the layer in the combined layer list.
     init(_ layer: DotfolderStack.Layer, at layerIndex: Int) {
         let paths = DotfolderStack(layers: [layer]).urls().keys
         let rootNames = paths.filter { !$0.contains(Self.separator) }
-        let folderEntries = paths.compactMap(Self.folderEntry)
+        let folderEntries = paths.compactMap(Self.folderEntry).filter { AgentDefinitionRules.isValidID($0.folder) }
         let namesByFolder = Dictionary(grouping: folderEntries, by: \.folder).mapValues { $0.map(\.name) }
         rootCopy = Self.copy(
             of: AgentCatalog.defaultAgentID, kind: .rootDocument, names: rootNames, folder: nil,
@@ -129,7 +140,7 @@ private struct AgentFolderSourceScan {
 
     /// Splits the path of a file directly in a child folder of the root.
     ///
-    /// - Parameter path: A file path relative to the source root.
+    /// - Parameter path: A file path relative to the layer root.
     /// - Returns: The folder and the file name, or `nil` for a file at the
     ///   root or deeper in a folder.
     private static func folderEntry(_ path: String) -> (folder: String, name: String)? {
@@ -147,9 +158,9 @@ private struct AgentFolderSourceScan {
     ///
     /// - Parameters:
     ///   - id: The id of the agent.
-    ///   - kind: Where the document sits in the source.
+    ///   - kind: Where the document sits in the layer.
     ///   - names: The names of the files directly in the folder.
-    ///   - folder: The folder relative to the source root, or `nil` for the
+    ///   - folder: The folder relative to the layer root, or `nil` for the
     ///     root.
     ///   - layerIndex: The position of the layer in the combined layer list.
     /// - Returns: The copy, or `nil` when the folder holds neither the

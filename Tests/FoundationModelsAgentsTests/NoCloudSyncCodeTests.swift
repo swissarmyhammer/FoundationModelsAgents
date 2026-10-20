@@ -1,9 +1,9 @@
 import Testing
 
-/// Guards the rule of decision D61: the agent-folder source is an optional
-/// input that the host gives, and the package holds no code of a cloud sync
-/// service. The package names no container id, no path of a sync service,
-/// and no ubiquity API. The host gives the URL of its synced folder.
+/// Guards the rule of decision D61: the root settings folder is a layer that
+/// the host gives, and the package holds no code of a cloud sync service.
+/// The package names no container id, no path of a sync service, and no
+/// ubiquity API. The host gives the URL of its synced folder.
 ///
 /// The suite gives `SwiftSourceScan` the test of a line below, and that reader
 /// walks each Swift file under `Sources/`. A line breaks the rule when it
@@ -31,7 +31,7 @@ struct NoCloudSyncCodeTests {
     }
 
     @Test(arguments: [
-        "let folders: [URL] = agentFolders",
+        "let root = DotfolderStack.Layer(source: .user, root: rootSettingsFolder)",
         "/// A hidden name that holds the name of the document is a placeholder.",
         "NSFileCoordinator(filePresenter: nil)"
     ])
@@ -47,7 +47,7 @@ struct NoCloudSyncCodeTests {
             offenders.isEmpty,
             """
             No file under Sources/ may name a cloud sync service, a container id, or a ubiquity API. \
-            The host gives the URL of its synced folder in agentFolders; found: \
+            The host gives the URL of its synced folder as a layer of its DotfolderStack; found: \
             \(offenders.joined(separator: ", "))
             """)
     }

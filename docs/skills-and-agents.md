@@ -183,7 +183,8 @@ over the root of a higher layer.
 - A marketplace agent sees the partials of its own marketplace and of the
   local layers.
 - A local agent sees the partials of the local layers only.
-- An agent of an agent folder sees the partials of its own agent folder only.
+- An agent of the agent folder form (`<id>/AGENT.md` of a local layer) sees
+  the partials of its own layer only.
 - The `defaults` layer renders trusted. All other layers render untrusted.
 - An include that does not resolve fails the run with `bodyRenderFailed`.
 
@@ -195,36 +196,51 @@ of its plugin.
 
 ## Agent folders and the default agent
 
-An agent folder is an optional input of `AgentRegistry`: `agentFolders: [URL]`.
-The default is `[]`, and then the catalog and the layers do not change. Each
-URL is a folder of agent folders, with no `agents/` level and no dot folder:
+`AgentRegistry` reads all its layers from the `DotfolderStack` of the host.
+There is no separate input for a folder of agent folders. A host gives its
+root settings folder, for example the synced `Agents/` folder of an app, as
+one layer of the stack, for example the `user` layer. The folder of the
+session is the `project` layer, and it wins. Each local layer holds its agents
+in two forms: the dotfolder form `agents/<id>/AGENT.md`, and the agent folder
+form, with no `agents/` level:
 
 ```
-<url>/
+<root>/
   AGENT.md                    the default agent: the id `default`
-  _partials/house-rules.md    the partials of the agents of this folder
+  _partials/house-rules.md    the partials of the agents of this layer
+  _skills/                    a settings folder: not an agent
   helper/AGENT.md             the agent `helper`
 ```
 
-- The layers are `marketplace[0] < … < marketplace[n] < defaults < user <
-  agent folders < project`. Of two agent folders, the later URL wins.
-- `<url>/AGENT.md` is the default agent. Its id is the fixed id `default`, and
+- The layers are `marketplace[0] < … < marketplace[n]`, then the local layers
+  in the order of the stack, for example `defaults < user < project`. No layer
+  goes between two local layers. A marketplace layer reads the dotfolder form
+  only.
+- A child folder of the layer root whose name is not a valid id, for example
+  `_skills/`, `_rules/`, `_partials/`, or `.git/`, is not an agent. It gives no
+  diagnostic.
+- In one layer, `<id>/AGENT.md` wins over `agents/<id>/AGENT.md`, and the
+  hidden copy gives the hidden-copy advisory.
+- `<root>/AGENT.md` is the default agent. Its id is the fixed id `default`, and
   `AgentCatalog.defaultAgent` gives it. A host starts its root session from it
   when it is present, and uses its own instructions when it is `nil`. Its
   `name` is a display name, and the rule table does not compare it with the id.
-- The root `AGENT.md` wins over `<url>/default/AGENT.md`, which gives one
+- The root `AGENT.md` wins over `<root>/default/AGENT.md`, which gives one
   warning. A `default` agent of a higher layer, for example
   `agents/default/AGENT.md` of the project, wins over the root file.
-- An include of an agent-folder agent walks `<name>/_partials/`, then
-  `_partials/` of the agent folder. The default agent uses `_partials/` of the
-  agent folder. An agent folder never shares a partial with a different layer.
+- An include of an agent of the agent folder form walks `<name>/_partials/`,
+  then `_partials/` of the layer root. The default agent uses `_partials/` of
+  the layer root. An agent of the agent folder form reads the partials of its
+  own layer only. An agent of the dotfolder form reads the partials of each
+  local layer, thus also `_partials/` of a lower layer root.
 - A placeholder `.AGENT.md.<suffix>` of a sync service, or an `AGENT.md` that
   the build cannot read, gives one `skip`: "the agent document is not local
   yet". Only the exact name `AGENT.md` is an agent document; a conflict copy
   `AGENT 2.md` and each different hidden file, for example `.env.local`, is a
   resource. A coordinated read that fails gives one `skip` with its cause.
-- An agent never works in its own folder by default, also an agent-folder
-  agent. A request folder (`AgentRunner.start(_:prompt:workingDirectory:)` or
+  These rules apply to each document of the agent folder form.
+- An agent never works in its own folder by default, also an agent of the
+  agent folder form. A request folder (`AgentRunner.start(_:prompt:workingDirectory:)` or
   the `workingDirectory` field of `start agent`) wins. Else the run works in
   the folder of its creator, the session that starts it: a child run works in
   the folder of its parent, and a run that a host session (not a run) or the
@@ -234,10 +250,10 @@ URL is a folder of agent folders, with no `agents/` level and no dot folder:
   folder, thus a command run works in the folder of the session. A host that
   wants a run in the folder of the agent gives `AgentDefinition.folderURL` as
   the request folder.
-- With `watch: true`, the watcher watches each agent-folder root. A URL that
-  does not exist gives no agent and no diagnostic.
+- With `watch: true`, the watcher watches each local layer root. A layer root
+  that does not exist gives no agent and no diagnostic.
 
 The package holds no code of a sync service: no container id, no path of the
 service, and no ubiquity API. The SwissArmyHammer app gives its iCloud
-`Agents/` folder as one agent folder. The guard suite `No cloud sync code` holds
+`Agents/` folder as the `user` layer of its stack. The guard suite `No cloud sync code` holds
 the package source to this rule.

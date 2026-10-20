@@ -3,8 +3,8 @@ import FoundationModelsExtras
 import Marketplace
 import Synchronization
 
-/// Builds one `AgentCatalog` from the marketplace layers, the local layers,
-/// and the agent-folder sources.
+/// Builds one `AgentCatalog` from the marketplace layers and the local
+/// layers.
 ///
 /// The stack of Extras does each read, and `FrontmatterDocumentStack` does
 /// each split. `AgentFrontmatter.decode` decodes the frontmatter, and
@@ -23,40 +23,36 @@ enum AgentCatalogBuilder {
     /// `enabled: false`.
     static let disabledMessage = "the agent is turned off ('\(FrontmatterEnablement.key): false')"
 
-    /// Builds the catalog of the marketplace layers, the local layers, and
-    /// the agent-folder sources.
+    /// Builds the catalog of the marketplace layers and the local layers.
     ///
-    /// The layers are `marketplace[0] < … < marketplace[n] < defaults < user
-    /// < agent folders < project` (`AgentCatalogLayer.ordered`). A dotfolder
-    /// layer or a marketplace layer holds an agent as `agents/<id>/AGENT.md`.
-    /// An agent-folder source holds an agent as `<id>/AGENT.md`, and its root
-    /// `AGENT.md` is the agent `default`. The folder name is the id, and the
-    /// other files of the folder are the resources of the agent. The highest
-    /// layer that holds a copy of an id wins it, and each lower copy gives
-    /// one advisory on the diagnostics of the winner. A bad agent does not
-    /// stop a good agent next to it. A definition from a marketplace layer
-    /// keeps that layer and its provenance.
+    /// The layers are `marketplace[0] < … < marketplace[n]`, then the local
+    /// layers in the order of the stack of the host, for example `defaults <
+    /// user < project` (`AgentCatalogLayer.ordered`). Each layer holds an
+    /// agent as `agents/<id>/AGENT.md`. A local layer also holds an agent as
+    /// `<id>/AGENT.md`, and its root `AGENT.md` is the agent `default`. The
+    /// folder name is the id, and the other files of the folder are the
+    /// resources of the agent. The highest layer that holds a copy of an id
+    /// wins it, and each lower copy gives one advisory on the diagnostics of
+    /// the winner. In one layer, `<id>/AGENT.md` wins over
+    /// `agents/<id>/AGENT.md`. A bad agent does not stop a good agent next to
+    /// it. A definition from a marketplace layer keeps that layer and its
+    /// provenance.
     ///
-    /// A `.md` file directly in `agents/` of a dotfolder layer or a
-    /// marketplace layer has the old format. It gives no agent. Each such
-    /// file of each layer gives one warning, after the diagnostics of the
-    /// agent folders.
+    /// A `.md` file directly in `agents/` of a layer has the old format. It
+    /// gives no agent. Each such file of each layer gives one warning, after
+    /// the diagnostics of the agent folders.
     ///
     /// - Parameters:
     ///   - marketplaceLayers: The marketplace layers, lowest precedence
     ///     first.
     ///   - localLayers: The local layers, lowest precedence first.
-    ///   - agentFolderLayers: The layers of the agent-folder sources, in the
-    ///     order of their URLs.
     /// - Returns: The catalog.
     static func build(
-        marketplaceLayers: [MarketplaceLayer], localLayers: [DotfolderStack.Layer],
-        agentFolderLayers: [DotfolderStack.Layer]
+        marketplaceLayers: [MarketplaceLayer], localLayers: [DotfolderStack.Layer]
     ) -> AgentCatalog {
-        let layers = AgentCatalogLayer.ordered(
-            marketplaceLayers: marketplaceLayers, localLayers: localLayers, agentFolderLayers: agentFolderLayers)
+        let layers = AgentCatalogLayer.ordered(marketplaceLayers: marketplaceLayers, localLayers: localLayers)
         let scans = layers.indices.map { index in AgentLayerScan(layers[index], at: index) }
-        let loads = agentFolders(in: scans).map { folder in
+        let loads = foldersByID(in: scans).map { folder in
             load(
                 folder, layers: layers,
                 marketplaceLayer: marketplaceLayer(at: folder.winner.layerIndex, in: marketplaceLayers))
@@ -78,11 +74,11 @@ enum AgentCatalogBuilder {
         "the copy at \(url.path) in layer \(layerIndex) is hidden by this higher copy"
     }
 
-    /// The text of the warning for `<url>/default/AGENT.md` of an
-    /// agent-folder source that also holds a root `AGENT.md`.
+    /// The text of the warning for `<root>/default/AGENT.md` of a local layer
+    /// that also holds a root `AGENT.md`.
     static let hiddenDefaultFolderMessage =
         "the folder '\(AgentCatalog.defaultAgentID)/' is hidden by the root \(MarketplaceLayer.agentDocumentName) "
-            + "of the same agent folder; the root \(MarketplaceLayer.agentDocumentName) is the default agent"
+            + "of the same layer; the root \(MarketplaceLayer.agentDocumentName) is the default agent"
 
     /// One agent of the combined view: the winning copy, and the copies that
     /// it hides.
@@ -93,7 +89,7 @@ enum AgentCatalogBuilder {
         /// Each lower copy of the id, lowest first.
         let hiddenCopies: [AgentCopy]
 
-        /// Each `<url>/default/AGENT.md` that a root `AGENT.md` hides, in
+        /// Each `<root>/default/AGENT.md` that a root `AGENT.md` hides, in
         /// layer order. Empty for each id other than `default`.
         let hiddenDefaultFolders: [AgentCopy]
     }
@@ -123,7 +119,7 @@ enum AgentCatalogBuilder {
     ///
     /// - Parameter scans: The scan of each layer, lowest precedence first.
     /// - Returns: One agent folder for each id that a layer holds.
-    private static func agentFolders(in scans: [AgentLayerScan]) -> [AgentFolder] {
+    private static func foldersByID(in scans: [AgentLayerScan]) -> [AgentFolder] {
         let copiesByID = Dictionary(grouping: scans.flatMap(\.copies), by: \.id)
         let hiddenDefaultFoldersByID = Dictionary(grouping: scans.flatMap(\.hiddenDefaultFolders), by: \.id)
         return copiesByID.keys.sorted().compactMap { id in
@@ -199,7 +195,7 @@ enum AgentCatalogBuilder {
 
     /// Reads the winning copy of one agent, and applies the rule table.
     ///
-    /// A placeholder, and a document of an agent-folder source that the build
+    /// A placeholder, and a document of the agent folder form that the build
     /// cannot read, give one `skip` with `notLocalMessage`. A sync engine then
     /// downloads the file, and the next build loads it. A coordinated read
     /// that fails gives one `skip` with `coordinationFailedMessage(_:)`, which
@@ -226,7 +222,7 @@ enum AgentCatalogBuilder {
         case .success(let read):
             document = read
         }
-        guard document != nil || layer.layout == .dotfolder else {
+        guard document != nil || !winner.kind.isInAgentFolderForm else {
             return skip(agent: agent, provenance: provenance, message: notLocalMessage)
         }
         if let enablement = document?.value.enablement, !enablement.isEnabled {
@@ -271,9 +267,10 @@ enum AgentCatalogBuilder {
 
     /// Reads the document of a copy from a stack of its layer only.
     ///
-    /// A placeholder gives no document. The read of a document of an
-    /// agent-folder source is coordinated (`NSFileCoordinator`), thus a sync
-    /// engine can give the current file.
+    /// A placeholder gives no document. The read of a document of the agent
+    /// folder form is coordinated (`NSFileCoordinator`), thus a sync engine
+    /// can give the current file. The kind of the copy decides this, not the
+    /// layer: a local layer holds documents of both forms.
     ///
     /// - Parameters:
     ///   - copy: The copy.
@@ -288,10 +285,10 @@ enum AgentCatalogBuilder {
         let documents = FrontmatterDocumentStack(
             base: DotfolderStack(layers: [layer.layer]), decode: AgentFrontmatter.decode,
             onDiagnostic: decodeFailures.record)
-        return switch (copy.state, layer.layout) {
+        return switch (copy.state, copy.kind.isInAgentFolderForm) {
         case (.notLocal, _): .success(nil)
-        case (.document, .dotfolder): .success(documents.item(at: copy.path))
-        case (.document, .agentFolder): coordinatedRead(of: url) { documents.item(at: copy.path) }
+        case (.document, false): .success(documents.item(at: copy.path))
+        case (.document, true): coordinatedRead(of: url) { documents.item(at: copy.path) }
         }
     }
 
@@ -336,12 +333,13 @@ enum AgentCatalogBuilder {
     }
 
     /// Gives one warning for each agent file of the old format: a `.md` file
-    /// directly in `agents/` of a dotfolder layer or a marketplace layer.
+    /// directly in `agents/` of a layer.
     ///
     /// The search looks at each layer by itself, thus a copy in a lower
     /// layer also gives its warning. The search lists the files and reads no
-    /// text. An agent-folder source has no `agents/` level, thus its files
-    /// give no warning.
+    /// text. Each layer reads the dotfolder form `agents/`, thus each layer
+    /// can give a warning. A `.md` file of the agent folder form is a
+    /// resource, and gives no warning.
     ///
     /// - Parameters:
     ///   - layers: The layers of the build, lowest precedence first.
@@ -351,7 +349,7 @@ enum AgentCatalogBuilder {
     private static func oldFormatWarnings(
         in layers: [AgentCatalogLayer], marketplaceLayers: [MarketplaceLayer]
     ) -> [AgentDiagnostic] {
-        let files = layers.indices.filter { layers[$0].layout == .dotfolder }.flatMap { index in
+        let files = layers.indices.flatMap { index in
             oldFormatFiles(in: layers[index].layer, at: index)
         }
         return files.sorted { ($0.name, $0.layerIndex) < ($1.name, $1.layerIndex) }.map { file in
