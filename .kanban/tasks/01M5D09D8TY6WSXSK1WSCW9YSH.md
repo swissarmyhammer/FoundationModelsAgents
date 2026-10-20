@@ -71,8 +71,24 @@ comments:
   id: 01m5d1yjcz5z075gchqp7rn2gj
   text: 'Correction to the comment before this one: the search of the rules dump also gave too much output, so I did not read the rules text in this pass. I applied the rules from the reuse finding and the documentation rules that the earlier comments name. The next /review checks all validators.'
   timestamp: 2026-10-20T16:22:42.335367+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m5d20b6v81wm064wyv7hx92z
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (91ae57e): 0 findings, 0 confirmed, 0 refuted, 7 attempted, 0 failed. 1 file reviewed. The prior finding at TemporaryLayer.swift:26 is checked.
+    - next: none. The task is in done.
+  timestamp: 2026-10-20T16:23:40.507614+00:00
+- actor: claude-code
+  id: 01m5d20khcjht0mdmw6hwprh44
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — Tests/FoundationModelsAgentsTests/Support/TemporaryLayer.swift
+    - test: green — swift test, 623 passed
+    - commit: 91ae57e
+    - review: clean
+  timestamp: 2026-10-20T16:23:49.036968+00:00
+position_column: done
+position_ordinal: f380
 title: 'AG-10: the registry reads all its layers from the DotfolderStack of the host'
 ---
 ## What
