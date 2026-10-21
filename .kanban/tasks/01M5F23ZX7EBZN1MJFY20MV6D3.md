@@ -153,10 +153,33 @@ comments:
     - note: the only build line containing "warning" is SwiftPM's "missing creator for mutated node: .../mlx-swift_Cmlx.bundle/Contents/MacOS", emitted by the mlx-swift dependency's bundle in the build graph, not by this package's sources.
     - next: review/commit (nothing committed by this step)
   timestamp: 2026-10-21T13:15:37.395258+00:00
+- actor: claude-code
+  id: 01m5f9zcatjx6vpaqptb0trm6k
+  text: |-
+    ### review — stuck
+    - evidence: review sha HEAD~1..HEAD (a7600ad): 9 findings (9 confirmed, 1 refuted). The prior 08:06 item at AgentCatalogChanges.swift:143 is applied as written (`private static func ==`). The new items are AgentCatalogChanges.swift:72, :86, :124, :143; AgentChangeFeed.swift:22, :26; AgentRegistry+Reload.swift:54, :57, :67. The seven swift/access-control items require `private` on members that are used outside their struct, and swiftc rejects that ("inaccessible due to 'private' protection level"). This is a true conflict: the rule requires code that cannot compile.
+    - next: a person corrects the swift/access-control rule (a member of a file-scope private type, or of a private nested type, may be fileprivate when it is used outside the struct). The dead-code-swift items at :86 and :143 stay open: the private `==` operators are not the Equatable witness, so the compiler's synthesized `==` runs and the hand-written ones are unused.
+  timestamp: 2026-10-21T13:21:26.362169+00:00
+- actor: claude-code
+  id: 01m5fa02478bn5twn2ha0d0xeh
+  text: |-
+    ### finish iteration 3 — stuck
+    - implement: changed — access levels narrowed in 4 files
+    - test: green — swift test, 664 tests in 92 suites, 0 package warnings
+    - commit: a7600ad (local, not pushed)
+    - review: stuck — 7 swift/access-control findings (AgentCatalogChanges.swift:72,124; AgentChangeFeed.swift:22,26; AgentRegistry+Reload.swift:54,57,67) require `private` on members used outside their struct, which does not compile. 2 dead-code findings (:86, :143): a `private ==` on a private Equatable struct is not the witness, so the synthesized == is used and the hand-written one is dead.
+    - Needs a human decision on the access-control rule (or a structural change such as making these helper types internal/nested) before the loop can continue. Commits b44eeb5 and a7600ad are local only.
+  timestamp: 2026-10-21T13:21:48.679672+00:00
+- actor: claude-code
+  id: 01m5fcd6t29g5shsyp1tc4tt8c
+  text: |-
+    ### review overridden by the user
+    The user overrode the stuck review. The 7 swift/access-control findings (they ask for `private`, which does not compile) and the 2 dead-code findings on the private `==` stay open as known issues. The task moves to done and is pushed. Tests: 664 passing.
+  timestamp: 2026-10-21T14:03:56.610274+00:00
 depends_on:
 - 01M5F23E7S4NJTPNFFVB8W613Y
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: f680
 title: 'AG-8c AgentsGraph: changes(after:) subscription and opaque cursor from the ChangeLog'
 ---
 ## What
@@ -216,3 +239,32 @@ EXTRAS-9 rule 9 (rev 2, D67) for the `agents` endpoint:
 > - `.kanban/ (from .reviewignore)` — 2 file(s)
 
 - [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:143` `swift/access-control` — The `==` operator for a `private struct` must be marked `private` to match the type's access level. An implicit `internal` access level on a member of a `private` type exceeds the type's visibility. Mark the function `private`: `private static func == (lhs: AgentFile, rhs: AgentFile) -> Bool {`.
+
+## Review Findings (2026-10-21 08:15)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 4 file(s) reviewed, 2 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+- [ ] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:72` `swift/access-control` — Initializer of a private struct is exposed with fileprivate access level, making it wider than the containing type. The initializer should be private to match the struct's access level and conform to the stated goal of 'members are no wider than their type'. Change `fileprivate init` to `private init` on line 72.
+- [ ] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:86` `code-hygiene/dead-code-swift` — function.operator.infix `==(_:_:)` is unused.
+- [ ] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:124` `swift/access-control` — Initializer of a private struct is exposed with fileprivate access level, making it wider than the containing type. Change `fileprivate init` to `private init` on line 124.
+- [ ] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:143` `code-hygiene/dead-code-swift` — function.operator.infix `==(_:_:)` is unused.
+- [ ] `Sources/FoundationModelsAgents/Graph/AgentChangeFeed.swift:22` `swift/access-control` — Property of a private struct is exposed with fileprivate access level, making it wider than the containing type. The property should be private to match the struct's access level and conform to the stated goal of 'members are no wider than their type'. Change `fileprivate let change` to `private let change` on line 22.
+- [ ] `Sources/FoundationModelsAgents/Graph/AgentChangeFeed.swift:26` `swift/access-control` — Property of a private struct is exposed with fileprivate access level, making it wider than the containing type. The property should be private to match the struct's access level. Change `fileprivate let appended` to `private let appended` on line 26.
+- [ ] `Sources/FoundationModelsAgents/Registry/AgentRegistry+Reload.swift:54` `swift/access-control` — Property of a private struct is exposed with fileprivate access level, making it wider than the containing type. The property should be private to match the struct's access level and conform to the stated goal. Change `fileprivate let roots` to `private let roots` on line 54.
+- [ ] `Sources/FoundationModelsAgents/Registry/AgentRegistry+Reload.swift:57` `swift/access-control` — Property of a private struct is exposed with fileprivate access level, making it wider than the containing type. Change `fileprivate let watcher` to `private let watcher` on line 57.
+- [ ] `Sources/FoundationModelsAgents/Registry/AgentRegistry+Reload.swift:67` `swift/access-control` — Property of a private struct is exposed with fileprivate access level, making it wider than the containing type. Change `fileprivate let updatesTask` to `private let updatesTask` on line 67.
+
+## Blocker: swift/access-control conflicts with code that compiles (2026-10-21 08:15)
+
+The seven `swift/access-control` items in the 08:15 section (AgentCatalogChanges.swift:72, :124; AgentChangeFeed.swift:22, :26; AgentRegistry+Reload.swift:54, :57, :67) require code that cannot compile. A `private` member of a struct is visible only inside that struct and its same-file extensions — not in the enclosing type or the rest of the file. Each flagged member is used from outside its struct:
+- `AgentContent.init(id:in:)` is called from `enum AgentCatalogChanges` (AgentCatalogChanges.swift, `AgentContent(id: id, in: catalog)`).
+- `AgentFile.init(_:)` is called from `AgentContent.init` (`definition.map(AgentFile.init)`).
+- `Pending.change` / `Pending.appended` are read by `AgentChangeFeed` (`pending.change`, `pending.appended.finish()`).
+- `Watch.roots` / `Watch.watcher` and `Following.updatesTask` are read by `AgentReloadLoop` (`current?.roots`, `current?.watcher.stop()`, `following.updatesTask?.cancel()`).
+
+Checked with `swiftc -typecheck` on a minimal probe: `private init` / `private let` in this shape fails with "initializer is inaccessible due to 'private' protection level" and "'change' is inaccessible due to 'private' protection level". `fileprivate` is the narrowest level that compiles, and for a private type at file scope it equals the type's effective access. A person must correct the `swift/access-control` rule; the task is stuck on these seven items.
+
+Note on the two `code-hygiene/dead-code-swift` items (:86, :143): these are not part of the conflict. A probe shows that a `private static func ==` on a file-scope `private` Equatable struct is not the conformance witness — the compiler synthesizes `==` and the hand-written operator never runs. The 08:06 item (`private ==` at :143) is applied as written, and that change is what makes both operators dead.
