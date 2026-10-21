@@ -97,7 +97,7 @@ struct AgentsGraphTests {
         defer { try? layer.delete() }
         let registry = AgentRegistry(layers: [layer.layer])
         let fixture = try await AgentsGraphFixture.make(registry: registry)
-        let changesProbe = try await Self.changesProbe(of: fixture, registry: registry, layer: layer)
+        let changesProbe = try await Self.makeChangesProbe(of: fixture, registry: registry, layer: layer)
 
         let problems = await GraphQLEndpointConformance.problems(
             of: fixture.graph, scope: .sessionFolder, probes: [Self.agentNameProbe, changesProbe],
@@ -323,7 +323,7 @@ struct AgentsGraphTests {
     ///   to ``changesField``.
     /// - Throws: The error of the file system, of the reload, or a failed
     ///   requirement when the endpoint gives no cursor.
-    private static func changesProbe(
+    private static func makeChangesProbe(
         of fixture: AgentsGraphFixture, registry: AgentRegistry, layer: TemporaryLayer
     ) async throws -> GraphQLAliasProbe {
         let cursor = try #require(try await fixture.run("{ cursor }").data?["cursor"] as? String)

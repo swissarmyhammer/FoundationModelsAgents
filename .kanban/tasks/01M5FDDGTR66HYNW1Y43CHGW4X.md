@@ -21,6 +21,36 @@ comments:
     - evidence: `swift test` — 664 tests in 92 suites passed, 0 failed, 0 skipped. Only warning: SwiftPM "missing creator for mutated node" for the mlx-swift_Cmlx bundle (mlx dependency, out of scope).
     - next: review
   timestamp: 2026-10-21T20:29:33.133577+00:00
+- actor: claude-code
+  id: 01m5g2p70dj0mkh0w6kcah2f3b
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (57e1886) — 1 finding (1 confirmed, 0 refuted): Tests/FoundationModelsAgentsTests/AgentsGraphTests.swift:326 `swift/fluent-usage`
+    - next: implement — rename the factory to `makeChangesProbe(of:registry:layer:)`, update its call site, and apply the `make` prefix rule to every factory in the file; then test, commit, re-review
+  timestamp: 2026-10-21T20:33:20.397866+00:00
+- actor: claude-code
+  id: 01m5g2petxessnbrk0kn7tk9fr
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — AgentsGraphTests.swift, AgentsGraphChangesTests.swift; Extras at 589f27e
+    - test: green — swift test, 664 passed
+    - commit: 57e1886
+    - review: findings — Tests/FoundationModelsAgentsTests/AgentsGraphTests.swift:326
+  timestamp: 2026-10-21T20:33:28.413204+00:00
+- actor: claude-code
+  id: 01m5g2s0c9mg788wjy9qqvacg8
+  text: |-
+    ### implement — changed
+    - evidence: 1 file — Tests/FoundationModelsAgentsTests/AgentsGraphTests.swift: `changesProbe(of:registry:layer:)` renamed to `makeChangesProbe(of:registry:layer:)`, call site in `theEndpointConforms` updated. The commit added or touched no other factory function in the file (the only other helper, `makeLayer(ids:)`, already has the `make` prefix; `agentNameProbe` is a static let, not a function). No other reference to `changesProbe(` in Sources or Tests. `swift test --filter AgentsGraph`: 36 tests in 4 suites passed, 0 failures; the only warning is the SwiftPM "missing creator for mutated node" line for the mlx-swift_Cmlx bundle (dependency, not source). Finding checked off. Not committed.
+    - next: test, commit, re-review
+  timestamp: 2026-10-21T20:34:51.913039+00:00
+- actor: claude-code
+  id: 01m5g2t76krs65vp2v3v68y0wk
+  text: |-
+    ### test — green
+    - evidence: swift test — 664 tests in 92 suites passed, 0 failed, 0 skipped; XCTest executed 0 tests, 0 failures. Only warning: "missing creator for mutated node" for the mlx-swift_Cmlx bundle (dependency, out of scope, reported not fixed).
+    - next: review
+  timestamp: 2026-10-21T20:35:31.667063+00:00
 position_column: doing
 position_ordinal: '80'
 title: AgentsGraph conformance test probes the agentChanges subscription alias with the Extras kit
@@ -40,3 +70,12 @@ Optional cleanup after AG-8c (^20mv6d3). The conformance kit can now probe subsc
 - [x] The conformance test checks the `agentChanges` alias through the kit, with no problems and no exceptions.
 - [x] No duplicate hand-written test for the same alias.
 - [x] `swift test` is green. #AG-8
+
+## Review Findings (2026-10-21 15:29)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 2 file(s) reviewed, 2 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+- [x] `Tests/FoundationModelsAgentsTests/AgentsGraphTests.swift:326` `swift/fluent-usage` — Factory methods should begin with `make`. This static function creates and returns a new `GraphQLAliasProbe` instance, making it a factory method that should follow the codebase convention. Rename the function to `makeChangesProbe(of:registry:layer:)` and update the call site on line 100 accordingly.
