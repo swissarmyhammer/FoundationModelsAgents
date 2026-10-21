@@ -151,6 +151,30 @@ struct AgentsGraphChangesTests {
         #expect(try await fixture.cursor() == start)
     }
 
+    /// A reload whose task is cancelled after its check for cancellation
+    /// still swaps its catalog in, and it still returns after its change is
+    /// in the change log: the cursor that the reloading task reads next is
+    /// the cursor of that change.
+    @Test func aCancelledReloadReturnsAfterItsChangeIsInTheLog() async throws {
+        let provider = CancellingMarketplaceProvider()
+        let fixture = try await ChangesFixture.make(ids: [Self.firstID], marketplaces: provider)
+        defer { fixture.delete() }
+        let changeLog = fixture.registry.currentBuild.changeLog
+        let start = await changeLog.cursor
+
+        try fixture.writeAgent(Self.addedID)
+        provider.cancelNextBuild()
+        let reload = Task { [registry = fixture.registry] in
+            try await registry.reload()
+            return (wasCancelled: Task.isCancelled, cursor: await changeLog.cursor)
+        }
+        let reloaded = try await reload.value
+
+        #expect(reloaded.wasCancelled)
+        #expect(reloaded.cursor != start)
+        #expect(fixture.registry.catalog().definition(named: Self.addedID) != nil)
+    }
+
     // MARK: - Resume after a cursor
 
     /// `changes(after:)` gives only the events after the cursor.
@@ -344,13 +368,20 @@ private struct ChangesFixture {
     /// Makes a layer with one valid agent for each id, loads a registry over
     /// it, and gets the endpoint of the registry.
     ///
-    /// - Parameter ids: The ids of the agents, each at `<id>/AGENT.md`.
+    /// - Parameters:
+    ///   - ids: The ids of the agents, each at `<id>/AGENT.md`.
+    ///   - marketplaces: The provider of the marketplace layers of the
+    ///     registry, or `nil` for a registry with the local layer only.
     /// - Returns: The fixture. The test deletes it.
     /// - Throws: The error of the file system, of the load, or of the schema
     ///   build.
-    static func make(ids: [String]) async throws -> ChangesFixture {
+    static func make(
+        ids: [String], marketplaces: (any MarketplaceLayerProviding)? = nil
+    ) async throws -> ChangesFixture {
         let layer = try AgentsGraphTests.makeLayer(ids: ids)
-        let registry = AgentRegistry(layers: [layer.layer])
+        let registry =
+            marketplaces.map { AgentRegistry(marketplaces: $0, stack: DotfolderStack(layers: [layer.layer])) }
+            ?? AgentRegistry(layers: [layer.layer])
         do {
             try await registry.load()
             return ChangesFixture(layer: layer, registry: registry, graph: try registry.agentsGraph())

@@ -57,6 +57,59 @@ comments:
     - note: the only build output warning is the SwiftPM "missing creator for mutated node ... mlx-swift_Cmlx.bundle" line, from the mlx-swift dependency bundle, not package source.
     - next: review
   timestamp: 2026-10-21T12:51:21.834035+00:00
+- actor: claude-code
+  id: 01m5f8m8y1sm7esqbsnzgwmpf7
+  text: |-
+    ### review — findings
+    - evidence: `review sha HEAD~1..HEAD` (commit d785a61): 13 findings confirmed, 1 refuted. AgentCatalogChanges.swift:58,62,65,84,87,90,93,96,99,102,105,108 (code-hygiene/dead-code-swift, assignOnlyProperty, all 12 on the `AgentContent` and `AgentFile` stored properties), AgentsGraph.swift:157 (swift/concurrency).
+    - tests: `swift test --filter AgentsGraph` passed 35 tests in 4 suites. Nothing failed. The one warning comes from the mlx-swift bundle in `.build`.
+    - acceptance criteria and tests: every box was already ticked, and I checked each against AgentsGraphChangesTests and AgentsGraphTests. Each is met. The accepted deviation stands: the `agentChanges`/`agentsChanges`/`since` aliases are probed through `subscribe` (aliasNamesTheChangesSubscription), not through GraphQLEndpointConformance.
+    - AgentsGraph.swift:157: the code compiles as it is, because the outer `try await api.subscribe(...)` already covers the `async` init. The finding asks for `await` at the call itself. Line 138 (`respond`) has the same cause, so fix both call sites.
+    - dead-code findings: the properties are read only through the synthesized `Equatable` `==`, and the analyzer does not count that as a read. The fix has to make the analyzer see a read, for example a hand-written comparison or a compared tuple or array of values. Don't drop the findings.
+    - concurrency of AgentRegistry, the reviewer's own reading (these are not engine findings):
+      - No deadlock. Nothing is awaited while the `generation` Mutex is held. `enqueue` yields into an unbounded AsyncStream and does not block. The feed task holds only the stream and the ChangeLog, not the Mutex or the feed. The feed outlives every `swapIn`, because CurrentBuild owns it and `swapIn` runs on a CurrentBuild that is still referenced.
+      - No ordering race between concurrent builds. The diff is taken against `current` under the lock, and `enqueue` also runs under the lock. A build with a lower number is rejected before either runs. The single consumer appends in yield order.
+      - The cursor-then-catalog read in `AgentsGraphContext(reading:)` is sound. Each change up to the cursor was appended after its swap, so a client can see a change again but cannot miss one.
+      - `onReload` comes before the log append: `publish` runs under the lock, and the append happens later on the feed task. A host that reacts to an `onReload` value by reading `cursor` can still see the earlier cursor. It then gets that change again, but loses nothing. The docs of `onReload`/`swapIn` do not say this.
+      - Cancellation: `for await _ in appended {}` returns early when the reloading task is cancelled. `reload()` then returns normally before its entry is in the log. The append still happens. The `reload()` doc says "returns after its change is in the change log", and that does not hold when the task is cancelled.
+      - `AgentCatalogChanges.change` runs under the Mutex. It builds an `AgentsGraphAgent`, the diagnostics and an `AgentFile` for every id of both catalogs, so `catalog()`, `isLoaded` and `loadedCatalog()` wait for the whole diff on every swap.
+    - next: an implementer clears the 13 open findings, then `/review ^20mv6d3` again.
+  timestamp: 2026-10-21T12:57:53.857141+00:00
+- actor: claude-code
+  id: 01m5f8mx1gn9e2qp1cn9gkf9k7
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 12 files (ChangeLog in CurrentBuild, cursor, changes(after:), AgentChange)
+    - test: green — swift test x2, 663 tests in 92 suites, 0 warnings
+    - commit: d785a61
+    - review: findings — AgentCatalogChanges.swift:58,62,65,84,87,90,93,96,99,102,105,108 (dead-code-swift); AgentsGraph.swift:157 (swift/concurrency)
+  timestamp: 2026-10-21T12:58:14.448166+00:00
+- actor: claude-code
+  id: 01m5f8y05hn2g45sn44891yyws
+  text: |-
+    Fix pass for the 13 review findings plus the two doc promises from the reviewer's concurrency notes:
+    - dead-code-swift (12): `AgentContent` and `AgentFile` in AgentCatalogChanges.swift now have an explicit `static func ==` that reads each stored property. No `// periphery:ignore` marker was used.
+    - swift/concurrency: `execute` and `subscribe` in AgentsGraph.swift now do `let context = await AgentsGraphContext(reading: build)` before they call `api.respond`/`api.subscribe`.
+    - Cancellation (the reviewer's note): `CurrentBuild.swapIn` now waits through `Self.wait(for:)`, which is `await Task { for await _ in appended {} }.value`. An awaited unstructured task does not get the caller's cancellation, so `reload()` returns after its change is in the log even on a cancelled task. This matches the doc. The `reload()` and `swapIn` docs now state this. New test `aCancelledReloadReturnsAfterItsChangeIsInTheLog` uses a new test-support `CancellingMarketplaceProvider`: its `marketplaceLayers()` cancels the reloading task after the build's `checkCancellation`. ChangesFixture.make now takes an optional `marketplaces:`.
+      - What did not work: the first version of the test read the cursor through the endpoint (`fixture.cursor()`) from the test task after awaiting the reload task. That passed with the bug present, because the GraphQL call had enough awaits for the feed task to append first. The working test reads `changeLog.cursor` inside the reloading task right after `reload()`. It went RED as expected (the cursor was unchanged, `...:1` == `...:1`), then GREEN after the fix. The RED depends on scheduling and is not fully deterministic. The GREEN is deterministic.
+    - onReload ordering: the docs of `onReload` (AgentRegistry+Reload.swift), of the `Query.cursor` resolver (AgentsGraphSchema.swift), of the AgentsGraph type and of `swapIn` now say that onReload publishes before the log has the change. A cursor read at once can come before the change, and the client then gets that change again. Duplicates can happen, losses cannot. The schema description text is unchanged, so the golden is unchanged.
+  timestamp: 2026-10-21T13:03:12.561269+00:00
+- actor: claude-code
+  id: 01m5f8y42jjb72n90kfraktjxk
+  text: |-
+    ### implement — changed
+    - evidence: `swift test` (sources touched to force a recompile): 664 tests in 92 suites passed, 0 failures. The only warning line is the existing SwiftPM "missing creator ... mlx-swift_Cmlx.bundle" line from the dependency. New test aCancelledReloadReturnsAfterItsChangeIsInTheLog went RED, then GREEN. 13/13 findings checked. Files: Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift, Sources/FoundationModelsAgents/Graph/AgentsGraph.swift, Sources/FoundationModelsAgents/Graph/AgentsGraphSchema.swift, Sources/FoundationModelsAgents/Registry/AgentRegistry.swift, Sources/FoundationModelsAgents/Registry/AgentRegistry+Reload.swift, Tests/FoundationModelsAgentsTests/AgentsGraphChangesTests.swift, Tests/FoundationModelsAgentsTests/Support/CancellingMarketplaceProvider.swift (new)
+    - next: /review ^20mv6d3
+  timestamp: 2026-10-21T13:03:16.562449+00:00
+- actor: claude-code
+  id: 01m5f931af8k9ycm50qt0z6jrb
+  text: |-
+    ### test — green
+    - evidence: `swift build --build-tests` complete, no package warnings. `swift test` x2: 664 tests in 92 suites passed, 0 failed, 0 skipped, both runs. `swift test --filter AgentsGraphChangesTests` x5: 15 tests passed each run, no flakiness.
+    - only warning seen: SwiftPM `missing creator for mutated node: .../mlx-swift_Cmlx.bundle/Contents/MacOS`, which comes from the mlx-swift dependency's bundle in the build system, not from a source file of this package.
+    - no files changed by this step.
+    - next: review/commit
+  timestamp: 2026-10-21T13:05:57.583765+00:00
 depends_on:
 - 01M5F23E7S4NJTPNFFVB8W613Y
 position_column: doing
@@ -85,3 +138,29 @@ EXTRAS-9 rule 9 (rev 2, D67) for the `agents` endpoint:
 - [x] `GraphQLEndpointConformance.problems` is empty with no exception, with an alias probe for `agentChanges`. (The conformance probe runs through `execute`, which cannot start a subscription, so the conformance call keeps the `agent(name:)` probe and `agentChanges`/`agentsChanges`/`since` are probed through `subscribe` in AgentsGraphChangesTests.)
 - [x] The schema golden is updated.
 - [x] Subscription tests over `TemporaryLayer` with explicit `reload()` (no wall-clock waits; each wait also ends on failure, test rule T1). #AG-8
+
+## Review Findings (2026-10-21 07:51)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 9 file(s) reviewed, 7 not reviewed.
+
+> 4 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 4 file(s)
+
+> 3 file(s) not reviewed — no validator matched:
+> - `README.md` — no validator matches this file
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/DelegatingWithTheAgentsTool.md` — no validator matches this file
+> - `Tests/Fixtures/agents.graphql` — no validator matches this file
+
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:58` `code-hygiene/dead-code-swift` — var.instance `agent` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:62` `code-hygiene/dead-code-swift` — var.instance `file` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:65` `code-hygiene/dead-code-swift` — var.instance `diagnostics` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:84` `code-hygiene/dead-code-swift` — var.instance `path` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:87` `code-hygiene/dead-code-swift` — var.instance `kind` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:90` `code-hygiene/dead-code-swift` — var.instance `body` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:93` `code-hygiene/dead-code-swift` — var.instance `compactionPrompt` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:96` `code-hygiene/dead-code-swift` — var.instance `maxTurns` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:99` `code-hygiene/dead-code-swift` — var.instance `tools` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:102` `code-hygiene/dead-code-swift` — var.instance `disallowedTools` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:105` `code-hygiene/dead-code-swift` — var.instance `skills` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:108` `code-hygiene/dead-code-swift` — var.instance `unknownFields` is assignOnlyProperty.
+- [x] `Sources/FoundationModelsAgents/Graph/AgentsGraph.swift:157` `swift/concurrency` — Async initializer `AgentsGraphContext(reading:)` is called without `await`. Same issue as line 138: the initializer is declared `async` and must be awaited when called in the `subscribe` function. Change `context: AgentsGraphContext(reading: build)` to `context: await AgentsGraphContext(reading: build)`.

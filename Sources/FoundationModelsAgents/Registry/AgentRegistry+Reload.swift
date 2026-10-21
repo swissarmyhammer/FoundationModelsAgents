@@ -11,6 +11,15 @@ extension AgentRegistry {
     /// and of a `layerUpdates` value. A burst of changes gives one final
     /// catalog, which holds the last state of the files.
     ///
+    /// A build publishes its catalog here before the change log of the
+    /// `agents` endpoint has the change of the catalog. Thus a reader that
+    /// reads the root `cursor` of the endpoint at once for a catalog of this
+    /// stream can get the cursor before that change. A subscription to
+    /// `changes(after:)` with that cursor then gives the change of the
+    /// catalog again: the reader sees a change two times, and never misses
+    /// one. The `reload()` call of the build returns after the change is in
+    /// the log.
+    ///
     /// The stream finishes when the registry is released.
     public var onReload: AsyncStream<AgentCatalog> {
         reloads.subscribe()

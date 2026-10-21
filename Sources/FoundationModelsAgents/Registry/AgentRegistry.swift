@@ -235,7 +235,9 @@ public final class AgentRegistry: Sendable {
     ///
     /// A reload that changes an agent returns after its change is in the
     /// change log of the `agents` endpoint: the root `cursor` of the
-    /// endpoint then is the cursor of that change.
+    /// endpoint then is the cursor of that change. This also holds when the
+    /// task is cancelled after the build started: the build swaps its
+    /// catalog in, and the call waits for its change.
     ///
     /// - Throws: `CancellationError` when the task is cancelled before the
     ///   build. The catalog then does not change.
@@ -389,8 +391,14 @@ extension AgentRegistry {
         /// later build, and the catalogs and the changes go out in the order
         /// of their builds.
         ///
-        /// The call returns after the change is in the change log. A swap
-        /// that changes no agent appends nothing.
+        /// The call returns after the change is in the change log, also when
+        /// the task of the caller is cancelled: the swap is done, and its
+        /// change is appended. A swap that changes no agent appends nothing.
+        ///
+        /// The catalog goes out on `publish` before its change is in the log.
+        /// Thus a reader of `onReload` that reads the cursor at once can read
+        /// the cursor before the change, and then gets that change again
+        /// after that cursor: a duplicate, never a loss.
         ///
         /// - Parameters:
         ///   - rebuilt: The new build.
@@ -404,7 +412,21 @@ extension AgentRegistry {
                 return change.map(changeFeed.enqueue)
             }
             guard let appended else { return }
-            for await _ in appended {}
+            await Self.wait(for: appended)
+        }
+
+        /// Waits until a stream of ``AgentChangeFeed/enqueue(_:)`` ends,
+        /// whether or not the task of the caller is cancelled.
+        ///
+        /// The iteration of a stream ends at once on a cancelled task. Thus
+        /// the iteration runs on a task of its own, which the cancellation of
+        /// the caller does not reach, and the caller waits for its value. The
+        /// stream ends when the feed appends the change, thus the task ends.
+        ///
+        /// - Parameter appended: The stream that ends when the change is in
+        ///   the change log.
+        private static func wait(for appended: AsyncStream<Void>) async {
+            await Task { for await _ in appended {} }.value
         }
     }
 }

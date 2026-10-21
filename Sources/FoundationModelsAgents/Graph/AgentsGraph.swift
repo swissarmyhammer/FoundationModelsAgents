@@ -23,7 +23,11 @@ import GraphQL
 ///   and `removed`. A client queries `agent(id:)` again for each added or
 ///   changed id. A cursor that the change log cannot resume after gives
 ///   `RESYNC_REQUIRED`. `agentChanges` and `agentsChanges` are aliases of
-///   `changes`, and `since` is an alias of `after`.
+///   `changes`, and `since` is an alias of `after`. `AgentRegistry.onReload`
+///   publishes a catalog before the change log has its change, thus a
+///   `cursor` that a reader of `onReload` reads at once can come before that
+///   change: the change then comes again after the cursor, and no change is
+///   lost.
 ///
 /// The endpoint changes nothing: it has no `Mutation` type (D84). Before the
 /// first `load()` of the registry, each query field of the catalog gives
@@ -131,9 +135,10 @@ public final class AgentsGraph: GraphQLEndpoint {
     public func execute(
         query: String, variables: [String: Map], operationName: String?, viewer _: GraphQLViewer?
     ) async throws -> String {
-        try await api.respond(
+        let context = await AgentsGraphContext(reading: build)
+        return try await api.respond(
             to: query, variables: variables, operationName: operationName, rules: Self.rules,
-            formattedWith: .sortedKeys, context: AgentsGraphContext(reading: build))
+            formattedWith: .sortedKeys, context: context)
     }
 
     /// Starts one GraphQL subscription.
@@ -152,8 +157,9 @@ public final class AgentsGraph: GraphQLEndpoint {
     public func subscribe(
         query: String, variables: [String: Map], operationName: String?, viewer _: GraphQLViewer?
     ) async throws -> AsyncThrowingStream<String, Error> {
-        try await api.subscribe(
+        let context = await AgentsGraphContext(reading: build)
+        return try await api.subscribe(
             to: query, variables: variables, operationName: operationName, rules: Self.rules,
-            formattedWith: .sortedKeys, context: AgentsGraphContext(reading: build))
+            formattedWith: .sortedKeys, context: context)
     }
 }

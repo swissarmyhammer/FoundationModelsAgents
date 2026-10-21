@@ -65,6 +65,12 @@ struct AgentsGraphResolver: Sendable {
 
     /// Resolves `Query.cursor`.
     ///
+    /// `AgentRegistry.onReload` publishes a catalog before the change log has
+    /// its change. Thus a call that a reader of `onReload` makes at once for
+    /// a catalog can give the cursor before the change of that catalog, and
+    /// `changes(after:)` with that cursor gives the change again: a change
+    /// comes two times, never zero times.
+    ///
     /// - Parameter context: The context of the call.
     /// - Returns: The cursor of the newest change of the catalog that the
     ///   call reads.

@@ -75,6 +75,17 @@ private struct AgentContent: Equatable {
         file = definition.map(AgentFile.init)
         diagnostics = AgentsGraphDiagnostic.naming(id, in: catalog)
     }
+
+    /// Whether two contents of one id are the same: the same `Agent` object,
+    /// the same file, and the same diagnostics.
+    ///
+    /// - Parameters:
+    ///   - lhs: The content in one catalog.
+    ///   - rhs: The content in the other catalog.
+    /// - Returns: `true` when no part differs.
+    static func == (lhs: AgentContent, rhs: AgentContent) -> Bool {
+        lhs.agent == rhs.agent && lhs.file == rhs.file && lhs.diagnostics == rhs.diagnostics
+    }
 }
 
 /// The parts of an agent file that the `Agent` type does not give: the path,
@@ -120,5 +131,19 @@ private struct AgentFile: Equatable {
         disallowedTools = definition.disallowedTools
         skills = definition.skills
         unknownFields = definition.unknownFields
+    }
+
+    /// Whether two files of one id are the same: each part that the file
+    /// keeps is equal.
+    ///
+    /// - Parameters:
+    ///   - lhs: The file in one catalog.
+    ///   - rhs: The file in the other catalog.
+    /// - Returns: `true` when no part differs.
+    static func == (lhs: AgentFile, rhs: AgentFile) -> Bool {
+        lhs.path == rhs.path && lhs.kind == rhs.kind && lhs.body == rhs.body
+            && lhs.compactionPrompt == rhs.compactionPrompt && lhs.maxTurns == rhs.maxTurns
+            && lhs.tools == rhs.tools && lhs.disallowedTools == rhs.disallowedTools && lhs.skills == rhs.skills
+            && lhs.unknownFields == rhs.unknownFields
     }
 }
