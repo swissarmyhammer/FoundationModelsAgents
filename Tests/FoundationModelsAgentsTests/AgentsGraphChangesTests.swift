@@ -37,6 +37,10 @@ struct AgentsGraphChangesTests {
     /// The code of a cursor that the endpoint cannot resume after.
     private static let resyncCode = "RESYNC_REQUIRED"
 
+    /// The alias of `changes` that ``aliasNamesTheChangesSubscription()``
+    /// checks.
+    private static let changesAlias = "agentsChanges"
+
     /// The text between the epoch and the sequence number of a cursor of the
     /// toolkit change log, whose wire form is `<epoch>:<sequence>`.
     private static let cursorSeparator: Character = ":"
@@ -211,10 +215,13 @@ struct AgentsGraphChangesTests {
 
     // MARK: - Aliases
 
-    /// `agentChanges` and `agentsChanges` name `changes`, and `since` names
-    /// its `after` argument. The response tells each rewrite.
-    @Test(arguments: ["agentChanges", "agentsChanges"])
-    func aliasNamesTheChangesSubscription(alias: String) async throws {
+    /// `agentsChanges` names `changes`, and `since` names its `after`
+    /// argument. The response tells each rewrite.
+    ///
+    /// The conformance check of the toolkit probes the alias `agentChanges`,
+    /// in `AgentsGraphTests`. Its probe checks one rewrite, thus this test
+    /// keeps the second alias and the alias of the argument.
+    @Test func aliasNamesTheChangesSubscription() async throws {
         let fixture = try await ChangesFixture.make(ids: [Self.firstID])
         defer { fixture.delete() }
         let start = try await fixture.cursor()
@@ -222,12 +229,12 @@ struct AgentsGraphChangesTests {
         try await fixture.registry.reload()
 
         var responses = try await fixture.subscribe(
-            to: "subscription { \(alias)(since: \"\(start)\") { \(ChangesFixture.eventFields) } }")
+            to: "subscription { \(Self.changesAlias)(since: \"\(start)\") { \(ChangesFixture.eventFields) } }")
         let text = try #require(try await responses.next())
         let reply = try GraphQLReply(text)
 
-        #expect(try ChangeEvent(response: text, at: alias).ids == ChangedIDs(added: [Self.addedID]))
-        #expect(reply.rewrites.contains { $0.from == alias && $0.to == "changes" })
+        #expect(try ChangeEvent(response: text, at: Self.changesAlias).ids == ChangedIDs(added: [Self.addedID]))
+        #expect(reply.rewrites.contains { $0.from == Self.changesAlias && $0.to == "changes" })
         #expect(reply.rewrites.contains { $0.from == "since" && $0.to == "after" })
     }
 

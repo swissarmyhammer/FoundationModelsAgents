@@ -50,6 +50,18 @@ struct AgentsGraphTests {
     /// The code of the error before the first load of the registry.
     private static let catalogNotLoadedCode = "CATALOG_NOT_LOADED"
 
+    /// The alias of the subscription `changes` that the conformance check
+    /// probes.
+    private static let changesAlias = "agentChanges"
+
+    /// The name of the subscription of the changes of the catalog.
+    private static let changesField = "changes"
+
+    /// The query probe of the conformance check: `agent(name:)` names
+    /// `agent(id:)`.
+    private static let agentNameProbe = GraphQLAliasProbe(
+        query: "{ agent(name: \"\(AgentFolderFixture.helperID)\") { id } }", from: "name", to: "id")
+
     /// The text of an agent file with each key that the `Agent` type gives:
     /// the model cannot see it, and it is not a slash command.
     private static let agentWithEachKey = """
@@ -71,23 +83,27 @@ struct AgentsGraphTests {
     /// The endpoint has the name `agents`, the version `1`, the scope of the
     /// session folder, an SDL schema that builds, the response conventions
     /// of the toolkit and each rule of EXTRAS-9 with no exception, and it
-    /// rewrites the alias `agent(name:)` to `agent(id:)`.
+    /// rewrites the alias `agent(name:)` to `agent(id:)` and the alias
+    /// `agentChanges` of the subscription to `changes`.
     ///
-    /// The probe of the conformance check runs through `execute`, which
-    /// cannot start a subscription. Thus the alias `agentChanges` of the
-    /// subscription has its own test through `subscribe`, in
-    /// `AgentsGraphChangesTests`.
+    /// The check reads the first response of the subscription probe. The
+    /// probe resumes after the cursor before one catalog change, thus that
+    /// response comes at once from the buffer of the change log. The check
+    /// waits on the real time, so a subscription that sends nothing fails
+    /// after ``GraphQLEndpointConformance/firstResponseLimit`` and does not
+    /// hang the test.
     @Test func theEndpointConforms() async throws {
-        let layer = try Self.makeLayer(ids: [AgentFolderFixture.helperID])
+        let layer = try TemporaryLayer.make(holdingAgent: AgentFolderFixture.helperID)
         defer { try? layer.delete() }
-        let fixture = try await AgentsGraphFixture.make(layers: [layer.layer])
-        let probe = GraphQLAliasProbe(
-            query: "{ agent(name: \"\(AgentFolderFixture.helperID)\") { id } }", from: "name", to: "id")
+        let registry = AgentRegistry(layers: [layer.layer])
+        let fixture = try await AgentsGraphFixture.make(registry: registry)
+        let changesProbe = try await Self.changesProbe(of: fixture, registry: registry, layer: layer)
 
         let problems = await GraphQLEndpointConformance.problems(
-            of: fixture.graph, scope: .sessionFolder, probe: probe, codes: AgentsGraphError.codes)
+            of: fixture.graph, scope: .sessionFolder, probes: [Self.agentNameProbe, changesProbe],
+            codes: AgentsGraphError.codes, clock: ContinuousRunClock())
 
-        #expect(problems.isEmpty)
+        #expect(problems == [])
         #expect(fixture.graph.name == "agents")
         #expect(fixture.graph.version == "1")
     }
@@ -290,6 +306,33 @@ struct AgentsGraphTests {
     }
 
     // MARK: - Helpers
+
+    /// Makes the subscription probe of the conformance check: the alias
+    /// ``changesAlias`` of `changes`, after the cursor that the endpoint
+    /// gives before one catalog change.
+    ///
+    /// The change adds ``reviewerID`` to `layer`, and reloads `registry`. A
+    /// reload returns after its change is in the change log, thus the first
+    /// response of the subscription comes at once from the buffer of the log.
+    ///
+    /// - Parameters:
+    ///   - fixture: The endpoint of `registry`.
+    ///   - registry: The loaded registry over `layer`.
+    ///   - layer: The layer that gets the new agent.
+    /// - Returns: The probe, which expects the rewrite from ``changesAlias``
+    ///   to ``changesField``.
+    /// - Throws: The error of the file system, of the reload, or a failed
+    ///   requirement when the endpoint gives no cursor.
+    private static func changesProbe(
+        of fixture: AgentsGraphFixture, registry: AgentRegistry, layer: TemporaryLayer
+    ) async throws -> GraphQLAliasProbe {
+        let cursor = try #require(try await fixture.run("{ cursor }").data?["cursor"] as? String)
+        try layer.write(AgentFolderFixture.agentText(name: reviewerID), at: AgentDocumentPath.of(reviewerID))
+        try await registry.reload()
+        return GraphQLAliasProbe(
+            query: "subscription($after: String) { \(changesAlias)(after: $after) { cursor } }",
+            variables: ["after": .string(cursor)], from: changesAlias, to: changesField, kind: .subscription)
+    }
 
     /// Makes a layer with one valid agent for each id.
     ///
