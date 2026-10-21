@@ -46,7 +46,7 @@ struct AgentsGraphResolver: Sendable {
     ///   of the registry.
     func agent(context _: AgentsGraphContext, arguments: AgentsGraphAgentArguments) throws -> AgentsGraphAgent? {
         let catalog = try loadedCatalog()
-        return catalog.definition(named: arguments.id).map { definition in
+        return catalog.definition(named: arguments.id.text).map { definition in
             AgentsGraphAgent(definition, in: catalog)
         }
     }
@@ -103,6 +103,7 @@ struct AgentsGraphAPI: API {
         resolver = AgentsGraphResolver(registry: registry)
         schema = try SchemaBuilder(AgentsGraphResolver.self, AgentsGraphContext.self)
             .addToolkitScalars()
+            .addToolkitIDScalar()
             .add {
                 Self.layerNameEnum()
                 Self.severityEnum()

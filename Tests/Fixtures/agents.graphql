@@ -49,7 +49,7 @@ The marketplace that gave an agent. The URL of its source is never given.
 """
 type AgentMarketplace {
   """The display id of the marketplace."""
-  id: String!
+  id: ID!
 
   """The commit of the snapshot, or null before the first install."""
   sha: String
@@ -58,7 +58,7 @@ type AgentMarketplace {
 """One agent of the catalog of the session folder."""
 type Agent {
   """The id of the agent: the name of its folder."""
-  id: String!
+  id: ID!
 
   """
   The description key: when to use the agent. Null when the key is absent.
@@ -112,7 +112,7 @@ type AgentDiagnostic {
   severity: AgentDiagnosticSeverity!
 
   """The id of the agent, or null when the folder name is not a valid id."""
-  agent: String
+  agent: ID
 
   """The absolute path of the file that the finding is about."""
   path: String!
@@ -131,7 +131,7 @@ type Query {
   """One agent of the catalog, or null when no agent has the id."""
   agent(
     """The id of the agent, as start agent takes it."""
-    id: String!
+    id: ID!
   ): Agent
 
   """

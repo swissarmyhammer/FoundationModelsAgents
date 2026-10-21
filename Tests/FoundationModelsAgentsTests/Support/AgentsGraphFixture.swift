@@ -23,9 +23,8 @@ struct AgentsGraphFixture {
     /// The query of each agent of the catalog.
     static let agentsQuery = "{ agents \(agentFields) }"
 
-    /// The query of one agent by its id. The id is a `String!` until the
-    /// toolkit gives an `ID` scalar (^70231sy).
-    static let agentQuery = "query($id: String!) { agent(id: $id) \(agentFields) }"
+    /// The query of one agent by its id.
+    static let agentQuery = "query($id: ID!) { agent(id: $id) \(agentFields) }"
 
     /// The query of each diagnostic of the catalog.
     static let diagnosticsQuery = "{ diagnostics \(diagnosticFields) }"

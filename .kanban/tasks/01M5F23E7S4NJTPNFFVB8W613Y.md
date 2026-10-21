@@ -39,6 +39,55 @@ comments:
     - evidence: swift test — 641 tests in 89 suites passed, 0 failed, 0 skipped; forced full recompile of Sources and Tests (swift build --build-tests) gave zero compiler warnings. Only output is the SwiftPM build-system line "missing creator for mutated node ... mlx-swift_Cmlx.bundle", from the mlx-swift dependency bundle, not from package code.
     - next: review
   timestamp: 2026-10-21T11:57:11.724640+00:00
+- actor: claude-code
+  id: 01m5f5gqdsn8qbgps042cxkabd
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (0579ae2): 0 findings, 0 confirmed, 0 refuted (14 validator runs, 0 failed); 24 files reviewed; .kanban/ ignored, Tests/Fixtures/agents.graphql had no matching validator. Acceptance criteria 5/5 and tests 4/4 ticked against the code: AgentsGraph name/version/scope (Graph/AgentsGraph.swift); list agents (AgentsToolContext.startableAgents) and the resolvers (AgentsGraphSchema) both read registry.catalog(); no Mutation in Tests/Fixtures/agents.graphql (theSchemaHasNoMutation); Package.swift GraphQL 4.3.0 / Graphiti 3.1.0 match the FoundationModelsExtras pins; golden, undescribed, conformance with agent(name:) probe and the .changes exception naming ^20mv6d3, and TemporaryLayer resolver and diagnostic tests in AgentsGraphTests and AgentsGraphDiagnosticTests. The output id is `String!`, not the `ID!` of the What section, per the coordinator and the comment naming ^70231sy.
+    - next: done
+  timestamp: 2026-10-21T12:03:31.897438+00:00
+- actor: claude-code
+  id: 01m5f5hsfy211tpqesttnc88dx
+  text: |-
+    ### finish iteration 1 — clean, reopened
+    - implement: changed — Graph/*, AgentDiagnosticCode, Package.swift, 19 new tests
+    - test: green — swift test, 641 tests in 89 suites, 0 warnings
+    - commit: 0579ae2
+    - review: clean — 0 findings (24 files)
+    - reopened by the orchestrator: the spec's `id: ID!` was deferred to ^70231sy, which has now landed in Extras 9c47e10. One finding added; back to review.
+  timestamp: 2026-10-21T12:04:06.782338+00:00
+- actor: claude-code
+  id: 01m5f5j5h5p8yt7hgxmkrx144j
+  text: |-
+    ### review — findings
+    - evidence: This record replaces the "review — clean" record above. The coordinator gave a new fact after the engine run: the toolkit ID scalar is on FoundationModelsExtras origin/main 9c47e10 (verified: `ToolkitID` in Sources/FoundationModelsExtras/GraphQL/Scalars.swift, `addToolkitIDScalar()` on SchemaBuilder). The engine result is unchanged (0 findings, 0 confirmed, 0 refuted). 1 finding: Sources/FoundationModelsAgents/Graph/AgentsGraphTypes.swift:11, `Agent.id` and `agent(id:)` are `String!` and must be `ID!`/`ToolkitID` per EXTRAS-9 rule 6. The fix also covers Tests/Fixtures/agents.graphql:52/:61/:134, AgentsGraphTypes.swift:13/:123/:151/:211 and Support/AgentsGraphFixture.swift:27. The acceptance criteria and test boxes stay ticked, because each holds as written.
+    - next: implement — adopt Extras 9c47e10, call addToolkitIDScalar(), retype id to ID, update the golden, remove the ^70231sy comments; then test and review
+  timestamp: 2026-10-21T12:04:19.109862+00:00
+- actor: claude-code
+  id: 01m5f5txe210spqxx01z6zxste
+  text: |-
+    ID finding (spec/EXTRAS-9-rule-6) done:
+    - `swift package update FoundationModelsExtras` resolved Extras to 9c47e10. Package.resolved is in .gitignore (`.gitignore` Package.resolved), so the pin is local only and nothing in git changes for it. The Package.swift dependency is `branch: main`, so a fresh resolve gets 9c47e10 or later.
+    - AgentsGraphAPI calls `.addToolkitIDScalar()` after `.addToolkitScalars()`. ToolkitID is now the Swift type of every id field: `Agent.id`, `AgentMarketplace.id` (golden line 52, in the finding), `AgentDiagnostic.agent` (the agent id in a diagnostic), and the `agent(id:)` argument. The resolver reads `arguments.id.text`.
+    - Golden: the scalar keeps the built-in name `ID`, so printSchema prints no `scalar ID` line, and only the four type lines change. I hand-edited the golden first (RED), then ran `GRAPHQL_GOLDEN_RECORD=1` (GraphQLSchemaGolden.recordVariable). The recorded file is byte-identical to the hand edit.
+    - Every ^70231sy comment is gone: 5 in AgentsGraphTypes.swift, 1 in AgentsGraphFixture.swift. No exception for ^70231sy existed (the one conformance exception is `.changes` for ^20mv6d3, and it stays). `rg 70231sy` outside .kanban finds nothing.
+    - New input form: `agent(id: 42)` (an Int literal) finds the agent whose folder is `42` (valid: [a-z0-9-]), and the output id is the String "42". Test: AgentsGraphTests.anIntIDFindsTheAgentOfItsDecimalText. The alias probe `agent(name:)`, `getAgent`/`findAgent(agentName:)` and `listAgents` still pass. The fixture query variable is now `$id: ID!`.
+    - The card has one `## Review Findings` section (2026-10-21 07:05) with one item. The coordinator said two sections; the description holds only that one, and it is ticked.
+  timestamp: 2026-10-21T12:09:05.730084+00:00
+- actor: claude-code
+  id: 01m5f5v0y1my516yb1dp1mcv06
+  text: |-
+    ### implement — changed
+    - evidence: 5 files. Sources/FoundationModelsAgents/Graph/{AgentsGraphTypes,AgentsGraphSchema}.swift; Tests/Fixtures/agents.graphql (regenerated with GRAPHQL_GOLDEN_RECORD=1); Tests/FoundationModelsAgentsTests/AgentsGraphTests.swift (+1 test); Tests/FoundationModelsAgentsTests/Support/AgentsGraphFixture.swift. RED: 11 issues in the graph suites (Unknown type "ID", golden mismatch, Int literal refused). GREEN: 19 graph tests pass. Full `swift test`: 642 tests in 89 suites passed, 0 failed. `swift build --build-tests` gave 0 compiler warnings; the only output line is the SwiftPM mlx-swift bundle line. Findings 1/1 checked. Extras resolved to 9c47e10 (Package.resolved is gitignored).
+    - next: /review
+  timestamp: 2026-10-21T12:09:09.313300+00:00
+- actor: claude-code
+  id: 01m5f5x9m3fkzyv8pyqnff9v4g
+  text: |-
+    ### test — green
+    - evidence: `swift build --build-tests` complete; `swift test` — 642 tests in 89 suites passed, 0 failed, 0 skipped. No compiler warnings from this package. The only build output warning is a SwiftPM message about the dependency bundle mlx-swift_Cmlx.bundle ("missing creator for mutated node"), which comes from the build system and a dependency, not from package sources.
+    - next: review
+  timestamp: 2026-10-21T12:10:23.747089+00:00
 position_column: doing
 position_ordinal: '80'
 title: 'AG-8a AgentsGraph: the agents and agent(id:) queries over the catalog of the session folder'
@@ -56,14 +105,20 @@ Add the `agents` GraphQL endpoint (AG-8, features/packages/foundationmodels-agen
 - Alias tables (D86): `agent(name:)` → `agent(id:)`; `name`/`agentName` → `id` in each input; `listAgents`/`allAgents` → `agents`; `getAgent`/`findAgent` → `agent`.
 
 ## Acceptance criteria
-- [ ] `AgentsGraph` conforms to `GraphQLEndpoint` with name `agents`, version `1`, scope `sessionFolder`.
-- [ ] `agents` and `agent(id:)` give the catalog of the registry; an unknown id gives `null`, not an error.
-- [ ] `list agents` and the resolvers read one port.
-- [ ] No mutation in the schema.
-- [ ] Package.swift declares GraphQL/Graphiti from the Extras URLs only.
+- [x] `AgentsGraph` conforms to `GraphQLEndpoint` with name `agents`, version `1`, scope `sessionFolder`.
+- [x] `agents` and `agent(id:)` give the catalog of the registry; an unknown id gives `null`, not an error.
+- [x] `list agents` and the resolvers read one port.
+- [x] No mutation in the schema.
+- [x] Package.swift declares GraphQL/Graphiti from the Extras URLs only.
 
 ## Tests (EXTRAS-9 rule 11)
-- [ ] `GraphQLSchemaGolden` test of the SDL.
-- [ ] `GraphQLSchemaDescriptions.undescribed` is empty.
-- [ ] `GraphQLEndpointConformance.problems` is empty with an alias probe (`agent(name:)` → `agent(id:)`), with the rule-9 `changes`/`cursor` checks listed as an exception that names AG-8c.
-- [ ] Resolver tests over a temporary layer stack (`TemporaryLayer`): list, one agent, unknown id → null, the default agent, a diagnostic. #AG-8
+- [x] `GraphQLSchemaGolden` test of the SDL.
+- [x] `GraphQLSchemaDescriptions.undescribed` is empty.
+- [x] `GraphQLEndpointConformance.problems` is empty with an alias probe (`agent(name:)` → `agent(id:)`), with the rule-9 `changes`/`cursor` checks listed as an exception that names AG-8c.
+- [x] Resolver tests over a temporary layer stack (`TemporaryLayer`): list, one agent, unknown id → null, the default agent, a diagnostic. #AG-8
+
+## Review Findings (2026-10-21 07:05)
+
+> Scope: `review sha HEAD~1..HEAD` (0579ae2). The engine gave 0 findings. The finding below comes from the coordinator: the toolkit ID scalar is now on FoundationModelsExtras origin/main (code 44c2f54, tip 9c47e10).
+
+- [x] `Sources/FoundationModelsAgents/Graph/AgentsGraphTypes.swift:11` `spec/EXTRAS-9-rule-6` — The task spec requires `Agent.id: ID!` and `agent(id: ID!)`. Commit 0579ae2 uses `String!` (Tests/Fixtures/agents.graphql:52, :61, :134) and carries ^70231sy "until" comments (AgentsGraphTypes.swift:11, :13, :123, :151, :211; Tests/FoundationModelsAgentsTests/Support/AgentsGraphFixture.swift:27). Extras 9c47e10 provides `SchemaBuilder.addToolkitIDScalar()`, which registers the scalar `ID` with the Swift type `ToolkitID` (Codable as a string, expressible by a string literal, input String or Int, output String). Adopt Extras 9c47e10 (Package.resolved), call `addToolkitIDScalar()`, make `Agent.id` and the `agent(id:)` argument `ID`/`ToolkitID`, update the golden `Tests/Fixtures/agents.graphql`, and remove each ^70231sy comment and any exception for it.

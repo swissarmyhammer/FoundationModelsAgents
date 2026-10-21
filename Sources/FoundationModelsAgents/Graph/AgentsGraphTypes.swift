@@ -6,11 +6,9 @@ import Marketplace
 // objects that the resolvers give. Each object is a value made from one
 // catalog of the registry, thus a response reads one catalog.
 //
-// The id of an agent is a `String!` for now, not an `ID!`: Graphiti maps no
-// Swift type to the built-in `ID` scalar, and the toolkit of Extras gets an
-// `ID` scalar in `addToolkitScalars()` with task ^70231sy. A package keeps
-// no copy of a toolkit part (EXTRAS-9 rule 2), thus each id field here moves
-// to that scalar when ^70231sy lands.
+// Each id is a `ToolkitID`, the `ID` scalar of the toolkit
+// (`addToolkitIDScalar()`): a String in the output, and a String or an Int in
+// the input.
 
 // MARK: - Enums
 
@@ -97,7 +95,7 @@ struct AgentsGraphLayer: Codable, Sendable {
 /// endpoint never gives one.
 struct AgentsGraphMarketplace: Codable, Sendable {
     /// The display id of the marketplace.
-    let id: String
+    let id: ToolkitID
 
     /// The commit of the snapshot, or `nil` before the first install.
     let sha: String?
@@ -106,7 +104,7 @@ struct AgentsGraphMarketplace: Codable, Sendable {
     ///
     /// - Parameter provenance: The provenance.
     init(_ provenance: MarketplaceProvenance) {
-        id = provenance.id
+        id = ToolkitID(provenance.id)
         sha = provenance.sha
     }
 }
@@ -120,8 +118,7 @@ struct AgentsGraphDiagnostic: Codable, Sendable {
     let severity: AgentsGraphSeverity
 
     /// The id of the agent, or `nil` when the folder name is not a valid id.
-    /// A `String`, not an `ID`, until ^70231sy.
-    let agent: String?
+    let agent: ToolkitID?
 
     /// The absolute path of the file that the finding is about.
     let path: String
@@ -138,7 +135,7 @@ struct AgentsGraphDiagnostic: Codable, Sendable {
     init(_ diagnostic: AgentDiagnostic) {
         code = diagnostic.code.rawValue
         severity = AgentsGraphSeverity(diagnostic.severity)
-        agent = diagnostic.agent
+        agent = diagnostic.agent.map(ToolkitID.init(_:))
         path = diagnostic.provenance.url.path
         layerRoot = diagnostic.provenance.layerRoot.path
         message = diagnostic.message
@@ -147,9 +144,8 @@ struct AgentsGraphDiagnostic: Codable, Sendable {
 
 /// The `Agent` object: one agent of the catalog.
 struct AgentsGraphAgent: Codable, Sendable {
-    /// The canonical id of the agent, ``AgentDefinition/id``. A `String`, not
-    /// an `ID`, until ^70231sy.
-    let id: String
+    /// The canonical id of the agent, ``AgentDefinition/id``.
+    let id: ToolkitID
 
     /// The `description` key, or `nil` when the key is absent.
     let description: String?
@@ -189,7 +185,7 @@ struct AgentsGraphAgent: Codable, Sendable {
     ///   - catalog: The catalog that holds the agent. It gives the
     ///     diagnostics of the agent.
     init(_ definition: AgentDefinition, in catalog: AgentCatalog) {
-        id = definition.id
+        id = ToolkitID(definition.id)
         description = definition.description
         model = definition.model
         color = definition.color
@@ -208,6 +204,6 @@ struct AgentsGraphAgent: Codable, Sendable {
 /// The arguments of `Query.agent`.
 struct AgentsGraphAgentArguments: Codable, Sendable {
     /// The id of the agent, as `start agent` takes it: the exact canonical
-    /// id. A `String`, not an `ID`, until ^70231sy.
-    let id: String
+    /// id. An Int input names the id of its decimal text.
+    let id: ToolkitID
 }

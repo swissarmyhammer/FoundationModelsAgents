@@ -31,6 +31,9 @@ struct AgentsGraphTests {
     /// An id that no agent has.
     private static let unknownID = "nobody"
 
+    /// A valid agent id of digits only, which an Int literal also names.
+    private static let decimalID = "42"
+
     /// The `model` value of the agent with each key.
     private static let model = "flash"
 
@@ -170,6 +173,20 @@ struct AgentsGraphTests {
 
         #expect(reply.codes.isEmpty)
         #expect(reply.isNull("agent"))
+    }
+
+    /// The `id` argument is an `ID`, thus it also takes an Int: an Int
+    /// literal finds the agent whose id is its decimal text, and the output
+    /// id is that text as a String.
+    @Test func anIntIDFindsTheAgentOfItsDecimalText() async throws {
+        let layer = try Self.makeLayer(ids: [Self.decimalID])
+        defer { try? layer.delete() }
+        let fixture = try await AgentsGraphFixture.make(layers: [layer.layer])
+
+        let reply = try await fixture.run("{ agent(id: \(Self.decimalID)) { id } }")
+
+        #expect(reply.codes.isEmpty)
+        #expect(try reply.object("agent")["id"] as? String == Self.decimalID)
     }
 
     /// The root `AGENT.md` of a local layer is the default agent: its id is
