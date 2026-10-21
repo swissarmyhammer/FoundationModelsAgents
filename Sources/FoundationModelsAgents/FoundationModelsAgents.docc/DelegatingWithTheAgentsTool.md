@@ -242,6 +242,13 @@ in the tools of a session, which it holds as `any Tool` values:
 let endpoints = sessionTools.compactMap { $0 as? any GraphQLEndpointTool }.flatMap(\.graphQLEndpoints)
 ```
 
+A host with no `agents` tool, for example before a session starts, gets the
+same endpoint from its registry:
+
+```swift
+let endpoint = try registry.agentsGraph()
+```
+
 The registry makes the endpoint one time (EXTRAS-9 rule 1). Each `agents`
 tool over one registry, of each session and each run, gives the same
 instance. The endpoint reads the catalog of the registry, and it does not

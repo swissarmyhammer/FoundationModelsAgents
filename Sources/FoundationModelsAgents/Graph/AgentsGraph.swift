@@ -26,7 +26,8 @@ import GraphQL
 /// The endpoint is a reference type: the registry makes one endpoint, and
 /// each ``AgentsTool`` over the registry gives that same instance in its
 /// `graphQLEndpoints` (EXTRAS-9 rule 1). A host finds it with
-/// `tool as? any GraphQLEndpointTool`. The endpoint reads the catalog of the
+/// `tool as? any GraphQLEndpointTool`, or with no tool through
+/// ``AgentRegistry/agentsGraph()``. The endpoint reads the catalog of the
 /// registry, and it does not keep the registry.
 public final class AgentsGraph: GraphQLEndpoint {
     /// The name of the endpoint.
@@ -67,8 +68,8 @@ public final class AgentsGraph: GraphQLEndpoint {
     /// Makes an endpoint over a registry.
     ///
     /// The endpoint reads the same catalog as the endpoint that the `agents`
-    /// tool gives, but it is a new instance. A host that has an `agents` tool
-    /// reads the endpoint of the tool instead.
+    /// tool gives, but it is a new instance. A host reads the one endpoint
+    /// of the registry, ``AgentRegistry/agentsGraph()``, instead.
     ///
     /// - Parameter registry: The registry of the catalog of the session
     ///   folder. The host loads it; the endpoint never reads a file.

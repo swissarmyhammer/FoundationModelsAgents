@@ -30,7 +30,7 @@ struct AgentsToolEndpointTests {
     /// - Returns: The layer. The test deletes it.
     /// - Throws: The error of the file system.
     private static func makeLayer() throws -> TemporaryLayer {
-        try TemporaryLayer.make(holding: [AgentDocumentPath.of(coder): AgentFolderFixture.agentText(name: coder)])
+        try TemporaryLayer.make(holdingAgent: coder)
     }
 
     /// Casts `tool` to `GraphQLEndpointTool` as a host does, and reads its one

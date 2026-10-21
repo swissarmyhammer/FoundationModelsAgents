@@ -196,6 +196,11 @@ public final class AgentRegistry: Sendable {
 
     /// Gives the one `agents` endpoint of the registry (EXTRAS-9 rule 1).
     ///
+    /// A host calls it to get the endpoint of the catalog with no `agents`
+    /// tool, for example to list the endpoint of a session folder before a
+    /// session starts. It is the same endpoint that each ``AgentsTool`` over
+    /// the registry gives in `graphQLEndpoints`.
+    ///
     /// The first call makes the endpoint, and each later call gives the same
     /// instance. Thus each `agents` tool over the registry, of each session
     /// and each run, gives the same endpoint. The endpoint reads the catalog
@@ -204,7 +209,7 @@ public final class AgentRegistry: Sendable {
     ///
     /// - Returns: The endpoint.
     /// - Throws: An error of the schema builder.
-    func agentsGraph() throws -> AgentsGraph {
+    public func agentsGraph() throws -> AgentsGraph {
         try graphPort.endpoint()
     }
 

@@ -232,12 +232,13 @@ session that runs the command.
 version `1`, with the scope of the session folder. It reads the same registry
 as `list agents`, thus a reload shows in both. A host finds the endpoint in
 the tools of a session, which it holds as `any Tool` values, with
-`tool as? any GraphQLEndpointTool` and its `graphQLEndpoints`. The registry
-makes the endpoint one time, thus each `agents` tool over one registry, of
-each session and each run, gives the same instance. A tool with only the
-message operations gives it too: the endpoint reads the catalog of the
-session folder, not the grant of one run. The model sends no GraphQL text to
-the tool.
+`tool as? any GraphQLEndpointTool` and its `graphQLEndpoints`. A host with no
+tool gets the same endpoint from its registry with `registry.agentsGraph()`.
+The registry makes the endpoint one time, thus each `agents` tool over one
+registry, of each session and each run, gives the same instance. A tool with
+only the message operations gives it too: the endpoint reads the catalog of
+the session folder, not the grant of one run. The model sends no GraphQL text
+to the tool.
 
 ### Messages to a run
 

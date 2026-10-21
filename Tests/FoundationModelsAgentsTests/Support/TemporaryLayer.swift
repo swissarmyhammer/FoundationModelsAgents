@@ -63,6 +63,17 @@ struct TemporaryLayer {
         return layer
     }
 
+    /// Makes a layer root that holds one valid agent at
+    /// `agents/<id>/AGENT.md`.
+    ///
+    /// - Parameter id: The id of the agent: the name of its folder.
+    /// - Returns: The new layer.
+    /// - Throws: The error of the file system when it cannot make the folder
+    ///   or write the file.
+    static func make(holdingAgent id: String) throws -> TemporaryLayer {
+        try make(holding: [AgentDocumentPath.of(id): AgentFolderFixture.agentText(name: id)])
+    }
+
     /// Makes a copy of the layer root at `source`.
     ///
     /// - Parameter source: The layer root to copy, for example
