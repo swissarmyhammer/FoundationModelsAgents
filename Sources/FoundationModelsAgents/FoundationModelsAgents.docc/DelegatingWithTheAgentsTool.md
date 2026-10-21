@@ -228,6 +228,31 @@ tool can start. A `send agent` call with the id of the run gives the corrective
 run." Thus a model of a run cannot give its own task to a new run of its own
 agent. The tool of a host session is not a run, and it offers each agent.
 
+### The GraphQL endpoint
+
+The tool is also `GraphQLEndpointTool` (FoundationModelsExtras). Its
+`graphQLEndpoints` is one endpoint, ``AgentsGraph``: the `agents` endpoint,
+version `1`, with the scope `sessionFolder`. The endpoint gives the
+`agents`, `agent(id:)`, and `diagnostics` queries over the catalog of the
+registry of the runner, the same catalog that `list agents` reads. Thus a
+reload shows in the endpoint and in `list agents`. A host finds the endpoint
+in the tools of a session, which it holds as `any Tool` values:
+
+```swift
+let endpoints = sessionTools.compactMap { $0 as? any GraphQLEndpointTool }.flatMap(\.graphQLEndpoints)
+```
+
+The registry makes the endpoint one time (EXTRAS-9 rule 1). Each `agents`
+tool over one registry, of each session and each run, gives the same
+instance. The endpoint reads the catalog of the registry, and it does not
+keep the registry. A tool with only the message operations gives the
+endpoint too: the endpoint reads the catalog of the session folder, not the
+grant of the model, and a host lists the endpoint of the session folder, not
+of one run.
+
+The model sends no GraphQL text to the tool. The name, the description, and
+the schema of the tool do not change.
+
 ### Answers are plain text
 
 Each answer is plain text. A mistake of the model gives a corrective answer in

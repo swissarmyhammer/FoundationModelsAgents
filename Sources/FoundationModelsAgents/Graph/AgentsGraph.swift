@@ -22,7 +22,13 @@ import GraphQL
 /// first `load()` of the registry, each query field gives
 /// ``AgentsGraphError/catalogNotLoaded``. The `changes(after:)` subscription
 /// and the root `cursor` of EXTRAS-9 rule 9 are not here yet (^20mv6d3).
-public struct AgentsGraph: GraphQLEndpoint {
+///
+/// The endpoint is a reference type: the registry makes one endpoint, and
+/// each ``AgentsTool`` over the registry gives that same instance in its
+/// `graphQLEndpoints` (EXTRAS-9 rule 1). A host finds it with
+/// `tool as? any GraphQLEndpointTool`. The endpoint reads the catalog of the
+/// registry, and it does not keep the registry.
+public final class AgentsGraph: GraphQLEndpoint {
     /// The name of the endpoint.
     public static let endpointName = "agents"
 
@@ -58,13 +64,28 @@ public struct AgentsGraph: GraphQLEndpoint {
     /// The Graphiti engine of the endpoint.
     private let api: AgentsGraphAPI
 
-    /// Makes the endpoint over a registry.
+    /// Makes an endpoint over a registry.
+    ///
+    /// The endpoint reads the same catalog as the endpoint that the `agents`
+    /// tool gives, but it is a new instance. A host that has an `agents` tool
+    /// reads the endpoint of the tool instead.
     ///
     /// - Parameter registry: The registry of the catalog of the session
     ///   folder. The host loads it; the endpoint never reads a file.
     /// - Throws: An error of the schema builder.
-    public init(registry: AgentRegistry) throws {
-        api = try AgentsGraphAPI(registry: registry)
+    public convenience init(registry: AgentRegistry) throws {
+        try self.init(build: registry.currentBuild)
+    }
+
+    /// Makes an endpoint over the current build of a registry.
+    ///
+    /// ``AgentsGraphPort`` uses this init, thus the endpoint of the registry
+    /// keeps no reference to the registry.
+    ///
+    /// - Parameter build: The current build of the registry of the catalog.
+    /// - Throws: An error of the schema builder.
+    init(build: AgentRegistry.CurrentBuild) throws {
+        api = try AgentsGraphAPI(build: build)
     }
 
     /// The schema of the endpoint in SDL.

@@ -88,8 +88,24 @@ comments:
     - evidence: `swift build --build-tests` complete; `swift test` — 642 tests in 89 suites passed, 0 failed, 0 skipped. No compiler warnings from this package. The only build output warning is a SwiftPM message about the dependency bundle mlx-swift_Cmlx.bundle ("missing creator for mutated node"), which comes from the build system and a dependency, not from package sources.
     - next: review
   timestamp: 2026-10-21T12:10:23.747089+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m5f61hg95twf2zsfng1kcrka
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (d700d4c): 0 findings, 0 confirmed, 0 refuted (4 files reviewed; Tests/Fixtures/agents.graphql has no matching validator, .kanban/ ignored). Prior finding (2026-10-21 07:05) verified fixed: Package.resolved pins Extras 9c47e100; AgentsGraphSchema.swift calls addToolkitIDScalar(); Agent.id, AgentMarketplace.id, AgentDiagnostic.agent and the agent(id:) argument are ToolkitID; golden agents.graphql:52, :61, :134 read ID!; no ^70231sy reference is left outside .kanban/.
+    - next: done; AG-8b and AG-8c are unblocked.
+  timestamp: 2026-10-21T12:12:42.889211+00:00
+- actor: claude-code
+  id: 01m5f61x9tnzcwrj4p0xhb7e43
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — ids are the toolkit ID scalar (5 files)
+    - test: green — swift test, 642 tests in 89 suites, 0 warnings
+    - commit: d700d4c
+    - review: clean — 0 findings; prior finding verified fixed
+  timestamp: 2026-10-21T12:12:54.970653+00:00
+position_column: done
+position_ordinal: f480
 title: 'AG-8a AgentsGraph: the agents and agent(id:) queries over the catalog of the session folder'
 ---
 ## What

@@ -58,8 +58,12 @@ public final class AgentRegistry: Sendable {
     private let marketplaces: (any MarketplaceLayerProviding)?
 
     /// The current build: the marketplace layers that it read, and its
-    /// catalog. It is the empty build until the first `load()`.
-    private let current: Mutex<Generation>
+    /// catalog. It is the empty build until the first `load()`. The `agents`
+    /// endpoint of the registry reads its catalog here.
+    let currentBuild = CurrentBuild()
+
+    /// The one `agents` endpoint of the registry (EXTRAS-9 rule 1).
+    private let graphPort: AgentsGraphPort
 
     /// The number of the last build that started. A build swaps in only when
     /// its number is larger than the number of the current build. Thus an
@@ -72,7 +76,7 @@ public final class AgentRegistry: Sendable {
     /// The marketplace layers of the last build, lowest precedence first.
     /// It is empty before the first `load()`.
     public var marketplaceLayers: [MarketplaceLayer] {
-        current.withLock { $0.marketplaceLayers }
+        currentBuild.marketplaceLayers
     }
 
     /// The layers of the last build, lowest precedence first: each
@@ -170,7 +174,7 @@ public final class AgentRegistry: Sendable {
         self.localLayers = localLayers
         self.variables = variables
         self.watch = watch
-        self.current = Mutex(.empty)
+        graphPort = AgentsGraphPort(build: currentBuild)
     }
 
     /// Whether a build swapped a catalog in: `true` after the first
@@ -179,7 +183,7 @@ public final class AgentRegistry: Sendable {
     /// Before the first build, the catalog is empty because the registry
     /// read no file, not because the layers hold no agent.
     public var isLoaded: Bool {
-        current.withLock { $0.number > Generation.empty.number }
+        currentBuild.isLoaded
     }
 
     /// Gives the cached catalog. This call does no I/O.
@@ -187,7 +191,21 @@ public final class AgentRegistry: Sendable {
     /// - Returns: The catalog of the last build, or an empty catalog before
     ///   the first `load()`.
     public func catalog() -> AgentCatalog {
-        current.withLock { $0.catalog }
+        currentBuild.catalog()
+    }
+
+    /// Gives the one `agents` endpoint of the registry (EXTRAS-9 rule 1).
+    ///
+    /// The first call makes the endpoint, and each later call gives the same
+    /// instance. Thus each `agents` tool over the registry, of each session
+    /// and each run, gives the same endpoint. The endpoint reads the catalog
+    /// of the registry, and it does not keep the registry: the host still
+    /// releases the registry. This call does no I/O.
+    ///
+    /// - Returns: The endpoint.
+    /// - Throws: An error of the schema builder.
+    func agentsGraph() throws -> AgentsGraph {
+        try graphPort.endpoint()
     }
 
     /// Asks the provider for its layers, reads the agent files, and swaps the
@@ -236,11 +254,7 @@ public final class AgentRegistry: Sendable {
         let marketplaceLayers = marketplaces?.marketplaceLayers() ?? []
         reloads.watch(roots: watchedRoots(marketplaceLayers: marketplaceLayers))
         let rebuilt = Generation.read(number: number, marketplaceLayers: marketplaceLayers, localLayers: localLayers)
-        current.withLock { current in
-            guard rebuilt.number > current.number else { return }
-            current = rebuilt
-            reloads.publish(rebuilt.catalog)
-        }
+        currentBuild.swapIn(rebuilt, publishing: reloads.publish)
     }
 
     /// The roots that the watcher watches: the root of each marketplace
@@ -259,7 +273,7 @@ public final class AgentRegistry: Sendable {
 
     /// One build of the registry: its number, the marketplace layers that
     /// the build read, and the catalog of those layers and the local layers.
-    private struct Generation: Sendable {
+    fileprivate struct Generation: Sendable {
         /// The build before the first `load()`: number zero, no marketplace
         /// layer, and an empty catalog.
         static let empty = Generation(
@@ -289,6 +303,56 @@ public final class AgentRegistry: Sendable {
                 number: number,
                 marketplaceLayers: marketplaceLayers,
                 catalog: AgentCatalogBuilder.build(marketplaceLayers: marketplaceLayers, localLayers: localLayers))
+        }
+    }
+}
+
+extension AgentRegistry {
+    /// The current build of one registry: the build that the last `load()`
+    /// or `reload()` swapped in.
+    ///
+    /// The registry and its `agents` endpoint (``AgentsGraph``) share this
+    /// object. The endpoint reads the catalog here and keeps no reference to
+    /// the registry. Thus the registry owns its endpoint (``AgentsGraphPort``)
+    /// with no reference cycle, and the host still releases the registry and
+    /// stops its watcher.
+    final class CurrentBuild: Sendable {
+        /// The build. It is the empty build until the first `load()`.
+        private let generation = Mutex(Generation.empty)
+
+        /// Whether a build swapped a catalog in. This call does no I/O.
+        var isLoaded: Bool {
+            generation.withLock { $0.number > Generation.empty.number }
+        }
+
+        /// The marketplace layers of the build, lowest precedence first. It is
+        /// empty before the first `load()`.
+        var marketplaceLayers: [MarketplaceLayer] {
+            generation.withLock { $0.marketplaceLayers }
+        }
+
+        /// Gives the catalog of the build. This call does no I/O.
+        ///
+        /// - Returns: The catalog of the build, or an empty catalog before the
+        ///   first `load()`.
+        func catalog() -> AgentCatalog {
+            generation.withLock { $0.catalog }
+        }
+
+        /// Swaps `rebuilt` in when it is later than the build, and publishes
+        /// its catalog under the same lock. Thus an earlier build that ends
+        /// last does not replace a later build, and the catalogs are published
+        /// in the order of their builds.
+        ///
+        /// - Parameters:
+        ///   - rebuilt: The new build.
+        ///   - publish: Publishes the catalog of a build that swapped in.
+        fileprivate func swapIn(_ rebuilt: Generation, publishing publish: (AgentCatalog) -> Void) {
+            generation.withLock { current in
+                guard rebuilt.number > current.number else { return }
+                current = rebuilt
+                publish(rebuilt.catalog)
+            }
         }
     }
 }

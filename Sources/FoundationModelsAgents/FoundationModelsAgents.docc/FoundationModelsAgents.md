@@ -86,3 +86,8 @@ skill.
 
 - ``AgentsTool``
 - ``AgentsToolContext``
+
+### The GraphQL endpoint
+
+- ``AgentsGraph``
+- ``AgentsGraphError``

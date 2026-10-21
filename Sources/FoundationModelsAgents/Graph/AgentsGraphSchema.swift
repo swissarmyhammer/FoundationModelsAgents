@@ -19,11 +19,13 @@ struct AgentsGraphContext: GraphQLRunContext {
 ///
 /// The registry is the port of the catalog (EXTRAS-9 rule 1): the
 /// `list agents` operation of the `agents` tool reads the same `catalog()`.
-/// Each resolver reads the catalog one time, thus one field gives the agents
-/// of one build.
+/// The resolver reads it through the current build of the registry, thus the
+/// endpoint keeps no reference to the registry. Each resolver reads the
+/// catalog one time, thus one field gives the agents of one build.
 struct AgentsGraphResolver: Sendable {
-    /// The registry of the catalog of the session folder.
-    let registry: AgentRegistry
+    /// The current build of the registry of the catalog of the session
+    /// folder.
+    let build: AgentRegistry.CurrentBuild
 
     /// Resolves `Query.agents`.
     ///
@@ -68,10 +70,10 @@ struct AgentsGraphResolver: Sendable {
     ///   of the registry: its empty catalog does not tell that the folder has
     ///   no agent.
     private func loadedCatalog() throws -> AgentCatalog {
-        guard registry.isLoaded else {
+        guard build.isLoaded else {
             throw AgentsGraphError.catalogNotLoaded
         }
-        return registry.catalog()
+        return build.catalog()
     }
 }
 
@@ -95,12 +97,12 @@ struct AgentsGraphAPI: API {
     /// The schema.
     let schema: Schema<AgentsGraphResolver, AgentsGraphContext>
 
-    /// Builds the schema over a registry.
+    /// Builds the schema over the current build of a registry.
     ///
-    /// - Parameter registry: The registry of the catalog.
+    /// - Parameter build: The current build of the registry of the catalog.
     /// - Throws: An error of the schema builder.
-    init(registry: AgentRegistry) throws {
-        resolver = AgentsGraphResolver(registry: registry)
+    init(build: AgentRegistry.CurrentBuild) throws {
+        resolver = AgentsGraphResolver(build: build)
         schema = try SchemaBuilder(AgentsGraphResolver.self, AgentsGraphContext.self)
             .addToolkitScalars()
             .addToolkitIDScalar()

@@ -30,6 +30,14 @@ import Operations
 /// that it can start now (``launchableAgents()``), for example to name one in
 /// a hint.
 ///
+/// The tool is also `GraphQLEndpointTool`: its `graphQLEndpoints` is one
+/// endpoint, the `agents` endpoint (``AgentsGraph``) over the registry of
+/// `context.runner`, thus the model and a client read one catalog. A host
+/// finds it with `tool as? any GraphQLEndpointTool`. The registry makes the
+/// endpoint one time (EXTRAS-9 rule 1), thus each tool over one registry, of
+/// each session and each run, gives the same instance. The model sends no
+/// GraphQL text to the tool: its name, description and schema stay the same.
+///
 /// Each call goes to `operationTool`, the `OperationTool` of the `Operations`
 /// runtime. It resolves the payload, dispatches the operation, and keeps the
 /// retry cap.
@@ -65,6 +73,9 @@ public struct AgentsTool: Tool {
     /// The notices of the catalog changes after the tool was made.
     let notices: AgentCatalogNotices
 
+    /// The one `agents` endpoint of the registry of `context.runner`.
+    let endpoint: AgentsGraph
+
     /// Wraps `operationTool` and builds the schema of its operations.
     ///
     /// - Parameters:
@@ -73,13 +84,17 @@ public struct AgentsTool: Tool {
     ///   - context: The shared context of the operations.
     ///   - notices: The notices of the catalog changes after the tool was
     ///     made.
+    ///   - endpoint: The one `agents` endpoint of the registry of
+    ///     `context.runner`.
     /// - Throws: The error of `AgentsToolSchema.make(name:operations:)`.
     init(
-        operationTool: OperationTool<AgentsToolContext>, context: AgentsToolContext, notices: AgentCatalogNotices
+        operationTool: OperationTool<AgentsToolContext>, context: AgentsToolContext, notices: AgentCatalogNotices,
+        endpoint: AgentsGraph
     ) throws {
         self.operationTool = operationTool
         self.context = context
         self.notices = notices
+        self.endpoint = endpoint
         parameters = try AgentsToolSchema.make(name: operationTool.name, operations: operationTool.operations)
     }
 
@@ -114,6 +129,11 @@ public struct AgentsTool: Tool {
     ///   read the catalog, its short description names no agent, and it
     ///   posts no notice.
     ///
+    /// Each grant gives the `agents` endpoint of the registry in
+    /// `graphQLEndpoints`. The endpoint reads the catalog of the session
+    /// folder, not the grant of the model: a host lists the endpoint of the
+    /// session folder, not the endpoint of one run.
+    ///
     /// - Parameters:
     ///   - context: The shared context of the operations.
     ///   - catalogCharacterLimit: The most characters that the agent list of
@@ -124,8 +144,8 @@ public struct AgentsTool: Tool {
     /// - Returns: The tool, ready to register on a session.
     /// - Throws: ``AgentRunnerError/catalogNotLoaded`` for each operation
     ///   before the first `AgentRegistry.load()` of the registry of
-    ///   `context.runner`, or the error of `OperationTool.init` or of the
-    ///   schema builder.
+    ///   `context.runner`, or the error of `OperationTool.init`, of the
+    ///   schema builder, or of the schema builder of the endpoint.
     public static func make(
         context: AgentsToolContext,
         catalogCharacterLimit: Int = SkillsTool.defaultCatalogCharacterLimit
@@ -153,13 +173,18 @@ public struct AgentsTool: Tool {
     /// When the run of the tool has a caller, the description ends with the
     /// caller sentence (``AgentsToolDescription/addingCaller(to:callerID:)``).
     ///
+    /// The tool gives the one `agents` endpoint of the registry of
+    /// `context.runner` (``AgentRegistry/agentsGraph()``). It makes no
+    /// endpoint of its own.
+    ///
     /// - Parameters:
     ///   - context: The shared context of the operations.
     ///   - description: The description of the grant.
     ///   - notices: The notices of the catalog changes after the tool was
     ///     made.
     /// - Returns: The tool.
-    /// - Throws: The error of `OperationTool.init` or of the schema builder.
+    /// - Throws: The error of `OperationTool.init`, of the schema builder, or
+    ///   of the schema builder of the endpoint.
     private static func make(
         context: AgentsToolContext, description: String, notices: AgentCatalogNotices
     ) throws -> AgentsTool {
@@ -171,7 +196,9 @@ public struct AgentsTool: Tool {
             operations: operations(of: context.grant),
             resolver: OperationResolver(verbAliases: verbAliases, nounAliases: nounAliases)
         )
-        return try AgentsTool(operationTool: operationTool, context: context, notices: notices)
+        return try AgentsTool(
+            operationTool: operationTool, context: context, notices: notices,
+            endpoint: context.runner.registry.agentsGraph())
     }
 
     /// Gives the operations of a tool with `grant`, in tool order.
@@ -325,5 +352,18 @@ extension AgentsTool: AgentLaunching {
         case .messagingOnly:
             []
         }
+    }
+}
+
+extension AgentsTool: GraphQLEndpointTool {
+    /// One endpoint: the `agents` endpoint (``AgentsGraph``) over the
+    /// registry of `context.runner`, for each grant.
+    ///
+    /// Each read gives the same instance, and so does each other tool over
+    /// the same registry: the registry made it one time. The endpoint reads
+    /// the current catalog of the registry, thus a reload shows in it and in
+    /// `list agents`.
+    public var graphQLEndpoints: [any GraphQLEndpoint] {
+        [endpoint]
     }
 }

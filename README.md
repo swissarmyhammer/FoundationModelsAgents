@@ -227,6 +227,18 @@ period of the session of each run, thus of the runs that a run starts.
 start is one slash command. The run of a command works in the folder of the
 session that runs the command.
 
+`AgentsTool` is also a `GraphQLEndpointTool` (FoundationModelsExtras). Its
+`graphQLEndpoints` is one endpoint, `AgentsGraph`: the `agents` endpoint,
+version `1`, with the scope of the session folder. It reads the same registry
+as `list agents`, thus a reload shows in both. A host finds the endpoint in
+the tools of a session, which it holds as `any Tool` values, with
+`tool as? any GraphQLEndpointTool` and its `graphQLEndpoints`. The registry
+makes the endpoint one time, thus each `agents` tool over one registry, of
+each session and each run, gives the same instance. A tool with only the
+message operations gives it too: the endpoint reads the catalog of the
+session folder, not the grant of one run. The model sends no GraphQL text to
+the tool.
+
 ### Messages to a run
 
 A caller can send a message to a run that is still running. A model calls
