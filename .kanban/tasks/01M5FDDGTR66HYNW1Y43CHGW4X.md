@@ -51,8 +51,24 @@ comments:
     - evidence: swift test — 664 tests in 92 suites passed, 0 failed, 0 skipped; XCTest executed 0 tests, 0 failures. Only warning: "missing creator for mutated node" for the mlx-swift_Cmlx bundle (dependency, out of scope, reported not fixed).
     - next: review
   timestamp: 2026-10-21T20:35:31.667063+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m5g2xfft1c6srvpf1tt2xzmb
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (4be29c2) — 0 findings (confirmed 0, refuted 0, 7 validator passes attempted, 0 failed); 1 file reviewed (Tests/FoundationModelsAgentsTests/AgentsGraphTests.swift), 2 .kanban files excluded by .reviewignore. Prior finding (swift/fluent-usage, makeChangesProbe) is checked.
+    - next: none — task moved to done.
+  timestamp: 2026-10-21T20:37:18.458971+00:00
+- actor: claude-code
+  id: 01m5g2xpwkq3k381h1ebn56y9w
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — AgentsGraphTests.swift (makeChangesProbe)
+    - test: green — swift test, 664 passed
+    - commit: 4be29c2
+    - review: clean — 0 findings; task in done
+  timestamp: 2026-10-21T20:37:26.035720+00:00
+position_column: done
+position_ordinal: f780
 title: AgentsGraph conformance test probes the agentChanges subscription alias with the Extras kit
 ---
 Optional cleanup after AG-8c (^20mv6d3). The conformance kit can now probe subscription aliases; this is on FoundationModelsExtras origin/main (code 6d5b7ba, b8a88c0; tip 6716646).
