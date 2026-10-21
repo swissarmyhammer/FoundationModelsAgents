@@ -110,6 +110,49 @@ comments:
     - no files changed by this step.
     - next: review/commit
   timestamp: 2026-10-21T13:05:57.583765+00:00
+- actor: claude-code
+  id: 01m5f9cpefspbjtwga9v2mfbwh
+  text: |-
+    ### review — findings
+    - evidence: `review sha HEAD~1..HEAD` (b44eeb5): 1 finding (1 confirmed, 0 refuted) — Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:143 `swift/access-control`. All 13 prior findings are fixed: the explicit `==` on AgentContent reads agent/file/diagnostics (3 of 3 stored properties), and on AgentFile it reads path/kind/body/compactionPrompt/maxTurns/tools/disallowedTools/skills/unknownFields (9 of 9). AgentsGraph execute/subscribe now `await AgentsGraphContext(reading:)`. The detached wait in swapIn cannot leak or deadlock: the CurrentBuild that runs swapIn keeps changeFeed alive, so the feed deinit (the one path that cancels the appender) cannot run while a waiter waits. `ChangeLog.append` does not throw, so each queued Pending gets `appended.finish()`. A `.terminated` yield finishes the signal at once. The unstructured Task holds only the stream and ends when the stream ends.
+    - conflict check: `private static func ==` on a file-scope private Equatable struct compiles and runs under swiftc -swift-version 6 (scratchpad probe), so the finding is not a conflict.
+    - scope note: the same cause is the `==` of AgentContent (AgentCatalogChanges.swift:86). Fix both so the whole file is clear.
+    - next: implement the finding, then re-run `/review 01M5F23ZX7EBZN1MJFY20MV6D3 <new sha>`.
+  timestamp: 2026-10-21T13:11:14.127059+00:00
+- actor: claude-code
+  id: 01m5f9d77vcypzw0wdz3s6r09n
+  text: |-
+    ### finish iteration 2 — findings
+    - implement: changed — 7 files (explicit ==, awaited context, cancellation-safe reload, docs)
+    - test: green — swift test x2, 664 tests; AgentsGraphChangesTests x5, no flakiness
+    - commit: b44eeb5
+    - review: findings — Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:143 (same cause :86; == of a private struct must be private)
+  timestamp: 2026-10-21T13:11:31.323046+00:00
+- actor: claude-code
+  id: 01m5f9j3xzyy1s30t160y6wyc5
+  text: |-
+    Fix pass for the `swift/access-control` finding (AgentCatalogChanges.swift `==` of a private struct must be `private`), applied to the cause in every private/fileprivate type of the AG-8c files:
+    - AgentCatalogChanges.swift: `AgentContent.==` and `AgentFile.==` are `private static func ==`. Each stored property of both structs is read only by the type's own `==`, so it is `private let` now (3 + 9). The two inits are called from a sibling type in the file (`AgentCatalogChanges.contents` calls `AgentContent.init`; `AgentContent.init` calls `AgentFile.init`), so `private` would not compile there; they are `fileprivate init`, the narrowest level that compiles.
+    - AgentChangeFeed.swift `Pending` (private, nested): `change`/`appended` are read by the enclosing `AgentChangeFeed` (the feed task and `enqueue` via the memberwise init), so they are `fileprivate let`.
+    - AgentRegistry+Reload.swift `Watch`/`Following` (private, nested in AgentReloadLoop): members are read by AgentReloadLoop (`deinit`, `watch(roots:)`, `follow`), so `fileprivate let`. `Phase` is an enum with cases only (no access modifier applies).
+    - AgentRegistry.swift `Generation` (fileprivate, nested): `empty`, `number`, `marketplaceLayers`, `catalog`, `read(...)` are used by AgentRegistry and CurrentBuild in the file, so `fileprivate`.
+    - No behavior change, so no new test (access modifiers only); the compiler is the check.
+  timestamp: 2026-10-21T13:14:11.775272+00:00
+- actor: claude-code
+  id: 01m5f9j6vyk6scv4pzdjpr1ck1
+  text: |-
+    ### implement — changed
+    - evidence: `swift build --build-tests` clean (no compiler warning; only the existing SwiftPM mlx-swift_Cmlx "missing creator" line from the dependency); `swift test`: 664 tests in 92 suites passed, 0 failures. 1/1 open finding checked (AgentCatalogChanges.swift:143, same cause :86). Files: Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift, Sources/FoundationModelsAgents/Graph/AgentChangeFeed.swift, Sources/FoundationModelsAgents/Registry/AgentRegistry.swift, Sources/FoundationModelsAgents/Registry/AgentRegistry+Reload.swift
+    - next: /review ^20mv6d3
+  timestamp: 2026-10-21T13:14:14.782937+00:00
+- actor: claude-code
+  id: 01m5f9mqhkbbfqna1sqdw87cev
+  text: |-
+    ### test — green
+    - evidence: swift build --build-tests (Build complete, forced recompile of Sources/FoundationModelsAgents/Graph and Registry: 0 warnings from this package); swift test — 664 tests in 92 suites passed, 0 failed, 0 skipped.
+    - note: the only build line containing "warning" is SwiftPM's "missing creator for mutated node: .../mlx-swift_Cmlx.bundle/Contents/MacOS", emitted by the mlx-swift dependency's bundle in the build graph, not by this package's sources.
+    - next: review/commit (nothing committed by this step)
+  timestamp: 2026-10-21T13:15:37.395258+00:00
 depends_on:
 - 01M5F23E7S4NJTPNFFVB8W613Y
 position_column: doing
@@ -164,3 +207,12 @@ EXTRAS-9 rule 9 (rev 2, D67) for the `agents` endpoint:
 - [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:105` `code-hygiene/dead-code-swift` — var.instance `skills` is assignOnlyProperty.
 - [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:108` `code-hygiene/dead-code-swift` — var.instance `unknownFields` is assignOnlyProperty.
 - [x] `Sources/FoundationModelsAgents/Graph/AgentsGraph.swift:157` `swift/concurrency` — Async initializer `AgentsGraphContext(reading:)` is called without `await`. Same issue as line 138: the initializer is declared `async` and must be awaited when called in the `subscribe` function. Change `context: AgentsGraphContext(reading: build)` to `context: await AgentsGraphContext(reading: build)`.
+
+## Review Findings (2026-10-21 08:06)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 7 file(s) reviewed, 2 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+- [x] `Sources/FoundationModelsAgents/Graph/AgentCatalogChanges.swift:143` `swift/access-control` — The `==` operator for a `private struct` must be marked `private` to match the type's access level. An implicit `internal` access level on a member of a `private` type exceeds the type's visibility. Mark the function `private`: `private static func == (lhs: AgentFile, rhs: AgentFile) -> Bool {`.

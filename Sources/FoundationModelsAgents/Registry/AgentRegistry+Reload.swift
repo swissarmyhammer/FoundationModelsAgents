@@ -51,20 +51,20 @@ final class AgentReloadLoop: Sendable {
     /// The watcher of the watched roots.
     private struct Watch {
         /// The roots that the watcher watches, in layer order.
-        let roots: [URL]
+        fileprivate let roots: [URL]
 
         /// The watcher, which is started.
-        let watcher: DotfolderWatcher
+        fileprivate let watcher: DotfolderWatcher
     }
 
     /// The tasks of a loop that follows the changes.
     private struct Following {
         /// The task that calls `reload()` for each request.
-        let requestTask: Task<Void, Never>
+        fileprivate let requestTask: Task<Void, Never>
 
         /// The task that makes a request for each `layerUpdates` value, or
         /// `nil` for a registry with no marketplace provider.
-        let updatesTask: Task<Void, Never>?
+        fileprivate let updatesTask: Task<Void, Never>?
     }
 
     /// What the loop does now.

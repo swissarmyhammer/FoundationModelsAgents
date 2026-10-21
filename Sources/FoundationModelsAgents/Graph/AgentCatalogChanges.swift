@@ -55,21 +55,21 @@ enum AgentCatalogChanges {
 private struct AgentContent: Equatable {
     /// The `Agent` object that the endpoint gives, or `nil` when the catalog
     /// has no agent of the id.
-    let agent: AgentsGraphAgent?
+    private let agent: AgentsGraphAgent?
 
     /// The file of the agent, or `nil` when the catalog has no agent of the
     /// id.
-    let file: AgentFile?
+    private let file: AgentFile?
 
     /// Each diagnostic of the catalog that names the id.
-    let diagnostics: [AgentsGraphDiagnostic]
+    private let diagnostics: [AgentsGraphDiagnostic]
 
     /// Reads the content of one id.
     ///
     /// - Parameters:
     ///   - id: The id.
     ///   - catalog: The catalog.
-    init(id: String, in catalog: AgentCatalog) {
+    fileprivate init(id: String, in catalog: AgentCatalog) {
         let definition = catalog.definition(named: id)
         agent = definition.map { definition in AgentsGraphAgent(definition, in: catalog) }
         file = definition.map(AgentFile.init)
@@ -83,7 +83,7 @@ private struct AgentContent: Equatable {
     ///   - lhs: The content in one catalog.
     ///   - rhs: The content in the other catalog.
     /// - Returns: `true` when no part differs.
-    static func == (lhs: AgentContent, rhs: AgentContent) -> Bool {
+    private static func == (lhs: AgentContent, rhs: AgentContent) -> Bool {
         lhs.agent == rhs.agent && lhs.file == rhs.file && lhs.diagnostics == rhs.diagnostics
     }
 }
@@ -92,36 +92,36 @@ private struct AgentContent: Equatable {
 /// the body, and the keys that only a run reads.
 private struct AgentFile: Equatable {
     /// The path of the file.
-    let path: String
+    private let path: String
 
     /// Where the document sits in its layer.
-    let kind: AgentDocumentKind
+    private let kind: AgentDocumentKind
 
     /// The raw body of the file.
-    let body: String
+    private let body: String
 
     /// The fold prompt of the agent.
-    let compactionPrompt: CompactionPrompt?
+    private let compactionPrompt: CompactionPrompt?
 
     /// The turn limit of the agent.
-    let maxTurns: Int?
+    private let maxTurns: Int?
 
     /// The `tools` entries.
-    let tools: [String]?
+    private let tools: [String]?
 
     /// The `disallowedTools` entries.
-    let disallowedTools: [String]
+    private let disallowedTools: [String]
 
     /// The skills that a run preloads.
-    let skills: [String]
+    private let skills: [String]
 
     /// The keys that the package does not know, with their values.
-    let unknownFields: [String: YAMLValue]
+    private let unknownFields: [String: YAMLValue]
 
     /// Reads the file of one agent.
     ///
     /// - Parameter definition: The agent.
-    init(_ definition: AgentDefinition) {
+    fileprivate init(_ definition: AgentDefinition) {
         path = definition.url.path
         kind = definition.kind
         body = definition.body
@@ -140,7 +140,7 @@ private struct AgentFile: Equatable {
     ///   - lhs: The file in one catalog.
     ///   - rhs: The file in the other catalog.
     /// - Returns: `true` when no part differs.
-    static func == (lhs: AgentFile, rhs: AgentFile) -> Bool {
+    private static func == (lhs: AgentFile, rhs: AgentFile) -> Bool {
         lhs.path == rhs.path && lhs.kind == rhs.kind && lhs.body == rhs.body
             && lhs.compactionPrompt == rhs.compactionPrompt && lhs.maxTurns == rhs.maxTurns
             && lhs.tools == rhs.tools && lhs.disallowedTools == rhs.disallowedTools && lhs.skills == rhs.skills

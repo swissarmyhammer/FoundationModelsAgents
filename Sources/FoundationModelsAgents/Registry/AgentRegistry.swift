@@ -288,17 +288,17 @@ public final class AgentRegistry: Sendable {
     fileprivate struct Generation: Sendable {
         /// The build before the first `load()`: number zero, no marketplace
         /// layer, and an empty catalog.
-        static let empty = Generation(
+        fileprivate static let empty = Generation(
             number: .zero, marketplaceLayers: [], catalog: AgentCatalog(definitions: [], diagnostics: []))
 
         /// The number of the build. A later build has a larger number.
-        let number: Int
+        fileprivate let number: Int
 
         /// The marketplace layers of the build, lowest precedence first.
-        let marketplaceLayers: [MarketplaceLayer]
+        fileprivate let marketplaceLayers: [MarketplaceLayer]
 
         /// The catalog of the build.
-        let catalog: AgentCatalog
+        fileprivate let catalog: AgentCatalog
 
         /// Builds the catalog of the marketplace layers and the local layers.
         ///
@@ -308,7 +308,7 @@ public final class AgentRegistry: Sendable {
         ///     first.
         ///   - localLayers: The local layers, lowest precedence first.
         /// - Returns: The build of those layers.
-        static func read(
+        fileprivate static func read(
             number: Int, marketplaceLayers: [MarketplaceLayer], localLayers: [DotfolderStack.Layer]
         ) -> Generation {
             Generation(

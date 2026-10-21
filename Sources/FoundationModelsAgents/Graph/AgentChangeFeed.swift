@@ -19,11 +19,11 @@ final class AgentChangeFeed: Sendable {
     /// in the log.
     private struct Pending: Sendable {
         /// The change.
-        let change: ChangedIDs
+        fileprivate let change: ChangedIDs
 
         /// The continuation of the stream that ``enqueue(_:)`` gave for the
         /// change.
-        let appended: AsyncStream<Void>.Continuation
+        fileprivate let appended: AsyncStream<Void>.Continuation
     }
 
     /// The continuation of the queue.
