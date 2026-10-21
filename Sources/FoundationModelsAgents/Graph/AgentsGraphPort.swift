@@ -6,9 +6,9 @@ import Synchronization
 /// The registry owns its port. The first ``endpoint()`` call makes the
 /// ``AgentsGraph``, and each later call gives the same instance. Thus each
 /// ``AgentsTool`` over the registry, of each session and each run, gives the
-/// same endpoint. The port also is the place for each other part that must
-/// be one per registry, for example the change log of the `changes(after:)`
-/// subscription (^20mv6d3), thus each tool gives the same cursor.
+/// same endpoint. The change log of the `changes(after:)` subscription is one
+/// per registry too: it is in the current build, thus each endpoint over the
+/// registry gives the same cursor.
 ///
 /// The endpoint reads the current build of the registry
 /// (``AgentRegistry/CurrentBuild``), never the registry itself. Thus the port

@@ -8,32 +8,90 @@ import GraphQL
 
 // MARK: - Resolver and context
 
-/// The context of one call of the `agents` endpoint.
+/// The context of one call of the `agents` endpoint: the cursor and the
+/// catalog that each field of the call reads.
+///
+/// The call reads the cursor of the change log first, then the catalog. The
+/// change log takes the change of a build only after the build swapped its
+/// catalog in, thus each change up to the cursor is in the catalog: a client
+/// that reads `agents` and `cursor`, then subscribes to `changes(after:)`
+/// with that cursor, misses no change (EXTRAS-9 rule 9). A change can come
+/// one time more, never one time less.
 struct AgentsGraphContext: GraphQLRunContext {
     /// The warnings of the call.
     let warnings = ResponseWarnings()
+
+    /// The cursor of the newest change when the call started.
+    let cursor: String
+
+    /// The catalog of the call, or `nil` before the first load of the
+    /// registry.
+    private let catalog: AgentCatalog?
+
+    /// Reads the cursor, then the catalog, of the current build of a
+    /// registry.
+    ///
+    /// - Parameter build: The current build of the registry.
+    init(reading build: AgentRegistry.CurrentBuild) async {
+        cursor = await build.changeLog.cursor
+        catalog = build.loadedCatalog()
+    }
+
+    /// Gives the catalog of the call.
+    ///
+    /// - Returns: The catalog. The call does no I/O.
+    /// - Throws: ``AgentsGraphError/catalogNotLoaded`` before the first load
+    ///   of the registry: its empty catalog does not tell that the folder has
+    ///   no agent.
+    func loadedCatalog() throws -> AgentCatalog {
+        guard let catalog else {
+            throw AgentsGraphError.catalogNotLoaded
+        }
+        return catalog
+    }
 }
 
-/// The root resolver of the `agents` endpoint over the catalog of one
-/// registry.
+/// The root resolver of the `agents` endpoint over the catalog and the
+/// change log of one registry.
 ///
 /// The registry is the port of the catalog (EXTRAS-9 rule 1): the
 /// `list agents` operation of the `agents` tool reads the same `catalog()`.
-/// The resolver reads it through the current build of the registry, thus the
-/// endpoint keeps no reference to the registry. Each resolver reads the
-/// catalog one time, thus one field gives the agents of one build.
+/// Each query field reads the catalog of its call, ``AgentsGraphContext``,
+/// thus each field of one call reads one build. The resolver holds the
+/// change log of the registry, and keeps no reference to the registry.
 struct AgentsGraphResolver: Sendable {
-    /// The current build of the registry of the catalog of the session
-    /// folder.
-    let build: AgentRegistry.CurrentBuild
+    /// The change log of the registry of the catalog of the session folder.
+    let changeLog: ChangeLog<ChangedIDs>
+
+    /// Resolves `Query.cursor`.
+    ///
+    /// - Parameter context: The context of the call.
+    /// - Returns: The cursor of the newest change of the catalog that the
+    ///   call reads.
+    func cursor(context: AgentsGraphContext, arguments _: NoArguments) -> String {
+        context.cursor
+    }
+
+    /// Resolves the source stream of `Subscription.changes`.
+    ///
+    /// - Parameter arguments: The cursor to resume after.
+    /// - Returns: The changes after the cursor, or only the changes after the
+    ///   start of the subscription when there is no cursor. The stream ends
+    ///   with `RESYNC_REQUIRED` when the log cannot resume after the cursor.
+    func changes(
+        context _: AgentsGraphContext, arguments: AgentsGraphChangesArguments
+    ) async -> ChangeLog<ChangedIDs>.Changes {
+        await changeLog.changes(after: arguments.after)
+    }
 
     /// Resolves `Query.agents`.
     ///
+    /// - Parameter context: The context of the call.
     /// - Returns: Each agent of the catalog, sorted by id.
     /// - Throws: ``AgentsGraphError/catalogNotLoaded`` before the first load
     ///   of the registry.
-    func agents(context _: AgentsGraphContext, arguments _: NoArguments) throws -> [AgentsGraphAgent] {
-        let catalog = try loadedCatalog()
+    func agents(context: AgentsGraphContext, arguments _: NoArguments) throws -> [AgentsGraphAgent] {
+        let catalog = try context.loadedCatalog()
         return catalog.definitions.map { definition in AgentsGraphAgent(definition, in: catalog) }
     }
 
@@ -42,12 +100,14 @@ struct AgentsGraphResolver: Sendable {
     /// The id is the id that `start agent` accepts: the canonical id of the
     /// agent, ``AgentDefinition/id``.
     ///
-    /// - Parameter arguments: The id of the agent.
+    /// - Parameters:
+    ///   - context: The context of the call.
+    ///   - arguments: The id of the agent.
     /// - Returns: The agent, or `nil` when no agent of the catalog has the id.
     /// - Throws: ``AgentsGraphError/catalogNotLoaded`` before the first load
     ///   of the registry.
-    func agent(context _: AgentsGraphContext, arguments: AgentsGraphAgentArguments) throws -> AgentsGraphAgent? {
-        let catalog = try loadedCatalog()
+    func agent(context: AgentsGraphContext, arguments: AgentsGraphAgentArguments) throws -> AgentsGraphAgent? {
+        let catalog = try context.loadedCatalog()
         return catalog.definition(named: arguments.id.text).map { definition in
             AgentsGraphAgent(definition, in: catalog)
         }
@@ -55,25 +115,13 @@ struct AgentsGraphResolver: Sendable {
 
     /// Resolves `Query.diagnostics`.
     ///
+    /// - Parameter context: The context of the call.
     /// - Returns: Each diagnostic of the catalog, in the order of the catalog:
     ///   also each diagnostic of a file that gave no agent.
     /// - Throws: ``AgentsGraphError/catalogNotLoaded`` before the first load
     ///   of the registry.
-    func diagnostics(context _: AgentsGraphContext, arguments _: NoArguments) throws -> [AgentsGraphDiagnostic] {
-        try loadedCatalog().diagnostics.map(AgentsGraphDiagnostic.init)
-    }
-
-    /// Gives the catalog of the last build of the registry.
-    ///
-    /// - Returns: The catalog. The call does no I/O.
-    /// - Throws: ``AgentsGraphError/catalogNotLoaded`` before the first load
-    ///   of the registry: its empty catalog does not tell that the folder has
-    ///   no agent.
-    private func loadedCatalog() throws -> AgentCatalog {
-        guard build.isLoaded else {
-            throw AgentsGraphError.catalogNotLoaded
-        }
-        return build.catalog()
+    func diagnostics(context: AgentsGraphContext, arguments _: NoArguments) throws -> [AgentsGraphDiagnostic] {
+        try context.loadedCatalog().diagnostics.map(AgentsGraphDiagnostic.init)
     }
 }
 
@@ -84,7 +132,7 @@ struct AgentsGraphAPI: API {
     /// The type of a component of the schema.
     typealias SchemaType = TypeComponent<AgentsGraphResolver, AgentsGraphContext>
 
-    /// The type of a root query field of the schema.
+    /// The type of a root field of the schema: a query or a subscription.
     typealias QueryField = FieldComponent<AgentsGraphResolver, AgentsGraphContext>
 
     /// The text of the description of a `diagnostics` field of an agent.
@@ -97,12 +145,12 @@ struct AgentsGraphAPI: API {
     /// The schema.
     let schema: Schema<AgentsGraphResolver, AgentsGraphContext>
 
-    /// Builds the schema over the current build of a registry.
+    /// Builds the schema over the change log of a registry.
     ///
-    /// - Parameter build: The current build of the registry of the catalog.
+    /// - Parameter changeLog: The change log of the registry of the catalog.
     /// - Throws: An error of the schema builder.
-    init(build: AgentRegistry.CurrentBuild) throws {
-        resolver = AgentsGraphResolver(build: build)
+    init(changeLog: ChangeLog<ChangedIDs>) throws {
+        resolver = AgentsGraphResolver(changeLog: changeLog)
         schema = try SchemaBuilder(AgentsGraphResolver.self, AgentsGraphContext.self)
             .addToolkitScalars()
             .addToolkitIDScalar()
@@ -113,11 +161,16 @@ struct AgentsGraphAPI: API {
                 Self.marketplaceType()
                 Self.agentType()
                 Self.diagnosticType()
+                Self.changeType()
             }
             .addQuery {
+                Self.cursorField()
                 Self.agentsField()
                 Self.agentField()
                 Self.diagnosticsField()
+            }
+            .addSubscription {
+                Self.changesField()
             }
             .build()
     }
@@ -220,7 +273,36 @@ struct AgentsGraphAPI: API {
         .description("One finding of the load of the catalog. A finding never stops the load of another file.")
     }
 
+    /// The `AgentChange` type: the shared change shape of the toolkit,
+    /// ``IDChange``, under the name that EXTRAS-9 rule 9 gives it for the
+    /// noun `Agent`.
+    ///
+    /// - Returns: The type.
+    private static func changeType() -> SchemaType {
+        Type(IDChange.self, as: "AgentChange") {
+            Field("cursor", at: \.cursor).description("The cursor that resumes after this change.")
+            Field("at", at: \.at).description("The time of the reload that made the change.")
+            Field("added", at: \.added)
+                .description("The ids of the agents that the reload added. Query agent(id:) for each.")
+            Field("changed", at: \.changed)
+                .description(
+                    "The ids of the agents whose file or diagnostics the reload changed. Query agent(id:) for each.")
+            Field("removed", at: \.removed)
+                .description("The ids of the agents that the reload removed. A removed agent needs no query.")
+        }
+        .description("One reload of the catalog of the session folder that added, changed or removed an agent.")
+    }
+
     // MARK: Query fields
+
+    /// The `Query.cursor` field.
+    ///
+    /// - Returns: The field.
+    private static func cursorField() -> QueryField {
+        Field("cursor", at: AgentsGraphResolver.cursor)
+            .description(
+                "The cursor of the newest change of the catalog that this call reads, for changes(after:).")
+    }
 
     /// The `Query.agents` field.
     ///
@@ -246,5 +328,29 @@ struct AgentsGraphAPI: API {
     private static func diagnosticsField() -> QueryField {
         Field("diagnostics", at: AgentsGraphResolver.diagnostics)
             .description("Each finding of the load of the catalog, also of a file that gave no agent.")
+    }
+
+    // MARK: Subscription fields
+
+    /// The `Subscription.changes(after:)` field: one ``IDChange`` for each
+    /// entry of the change log.
+    ///
+    /// - Returns: The field.
+    private static func changesField() -> QueryField {
+        SubscriptionField(
+            "changes",
+            at: { (entry: ChangeLogEntry<ChangedIDs>) in
+                { (_: AgentsGraphContext, _: AgentsGraphChangesArguments) async throws -> IDChange in
+                    IDChange(entry)
+                }
+            },
+            atSub: AgentsGraphResolver.changes
+        ) {
+            Argument("after", at: \.after)
+                .description("The cursor to resume after, from cursor or a change. Omit it for the new changes only.")
+        }
+        .description(
+            "One change for each reload that adds, changes or removes an agent. "
+                + "A cursor that cannot resume gives RESYNC_REQUIRED.")
     }
 }

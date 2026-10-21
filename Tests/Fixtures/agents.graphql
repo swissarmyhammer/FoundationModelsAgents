@@ -124,7 +124,38 @@ type AgentDiagnostic {
   message: String!
 }
 
+"""
+One reload of the catalog of the session folder that added, changed or removed an agent.
+"""
+type AgentChange {
+  """The cursor that resumes after this change."""
+  cursor: String!
+
+  """The time of the reload that made the change."""
+  at: DateTime!
+
+  """
+  The ids of the agents that the reload added. Query agent(id:) for each.
+  """
+  added: [ID!]!
+
+  """
+  The ids of the agents whose file or diagnostics the reload changed. Query agent(id:) for each.
+  """
+  changed: [ID!]!
+
+  """
+  The ids of the agents that the reload removed. A removed agent needs no query.
+  """
+  removed: [ID!]!
+}
+
 type Query {
+  """
+  The cursor of the newest change of the catalog that this call reads, for changes(after:).
+  """
+  cursor: String!
+
   """Each agent of the catalog of the session folder, sorted by id."""
   agents: [Agent!]!
 
@@ -138,4 +169,16 @@ type Query {
   Each finding of the load of the catalog, also of a file that gave no agent.
   """
   diagnostics: [AgentDiagnostic!]!
+}
+
+type Subscription {
+  """
+  One change for each reload that adds, changes or removes an agent. A cursor that cannot resume gives RESYNC_REQUIRED.
+  """
+  changes(
+    """
+    The cursor to resume after, from cursor or a change. Omit it for the new changes only.
+    """
+    after: String
+  ): AgentChange!
 }

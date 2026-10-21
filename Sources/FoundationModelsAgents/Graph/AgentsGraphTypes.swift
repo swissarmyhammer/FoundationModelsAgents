@@ -73,7 +73,7 @@ enum AgentsGraphSeverity: String, Codable, CaseIterable, Sendable {
 // MARK: - Objects
 
 /// The `AgentLayer` object: the layer that gave an agent.
-struct AgentsGraphLayer: Codable, Sendable {
+struct AgentsGraphLayer: Codable, Equatable, Sendable {
     /// The kind of the layer.
     let name: AgentsGraphLayerName
 
@@ -93,7 +93,7 @@ struct AgentsGraphLayer: Codable, Sendable {
 ///
 /// The object has no URL of the source: a URL can hold a credential, and the
 /// endpoint never gives one.
-struct AgentsGraphMarketplace: Codable, Sendable {
+struct AgentsGraphMarketplace: Codable, Equatable, Sendable {
     /// The display id of the marketplace.
     let id: ToolkitID
 
@@ -110,7 +110,7 @@ struct AgentsGraphMarketplace: Codable, Sendable {
 }
 
 /// The `AgentDiagnostic` object: one finding of the load of the catalog.
-struct AgentsGraphDiagnostic: Codable, Sendable {
+struct AgentsGraphDiagnostic: Codable, Equatable, Sendable {
     /// The code of the finding in `UPPER_SNAKE`, ``AgentDiagnostic/Code``.
     let code: String
 
@@ -140,10 +140,21 @@ struct AgentsGraphDiagnostic: Codable, Sendable {
         layerRoot = diagnostic.provenance.layerRoot.path
         message = diagnostic.message
     }
+
+    /// Gives the objects of the diagnostics of a catalog that name one agent
+    /// id.
+    ///
+    /// - Parameters:
+    ///   - id: The agent id.
+    ///   - catalog: The catalog.
+    /// - Returns: The objects, in the order of the catalog.
+    static func naming(_ id: String, in catalog: AgentCatalog) -> [AgentsGraphDiagnostic] {
+        catalog.diagnostics.filter { $0.agent == id }.map(AgentsGraphDiagnostic.init)
+    }
 }
 
 /// The `Agent` object: one agent of the catalog.
-struct AgentsGraphAgent: Codable, Sendable {
+struct AgentsGraphAgent: Codable, Equatable, Sendable {
     /// The canonical id of the agent, ``AgentDefinition/id``.
     let id: ToolkitID
 
@@ -195,7 +206,7 @@ struct AgentsGraphAgent: Codable, Sendable {
         isDefault = definition.id == AgentCatalog.defaultAgentID
         layer = AgentsGraphLayer(definition.layer)
         marketplace = definition.marketplace.map(AgentsGraphMarketplace.init)
-        diagnostics = catalog.diagnostics.filter { $0.agent == definition.id }.map(AgentsGraphDiagnostic.init)
+        diagnostics = AgentsGraphDiagnostic.naming(definition.id, in: catalog)
     }
 }
 
@@ -206,4 +217,11 @@ struct AgentsGraphAgentArguments: Codable, Sendable {
     /// The id of the agent, as `start agent` takes it: the exact canonical
     /// id. An Int input names the id of its decimal text.
     let id: ToolkitID
+}
+
+/// The arguments of `Subscription.changes`.
+struct AgentsGraphChangesArguments: Codable, Sendable {
+    /// The cursor to resume after, or `nil` for the changes after the start
+    /// of the subscription only.
+    let after: String?
 }

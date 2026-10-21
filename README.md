@@ -240,6 +240,14 @@ only the message operations gives it too: the endpoint reads the catalog of
 the session folder, not the grant of one run. The model sends no GraphQL text
 to the tool.
 
+A client follows the catalog with the root `cursor` and the subscription
+`changes(after:)`: one `AgentChange` for each reload that adds, changes or
+removes an agent, with the ids in `added`, `changed` and `removed`. The
+registry has one change log, thus each endpoint over it gives the same
+cursor. A `reload()` returns after its change is in the log. A cursor of
+another run of the host, a cursor that is too old, or a cursor after the
+newest change gives `RESYNC_REQUIRED`, and the client reads the catalog again.
+
 ### Messages to a run
 
 A caller can send a message to a run that is still running. A model calls

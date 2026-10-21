@@ -20,11 +20,6 @@ struct AgentsGraphTests {
     /// The folder of the golden files, relative to the package root.
     private static let goldenFolder = "Tests/Fixtures"
 
-    /// The rule of EXTRAS-9 that the endpoint does not obey yet: rule 9, the
-    /// `changes(after:)` subscription and the root `cursor` query. AG-8c
-    /// (^20mv6d3) adds both, and removes this exception.
-    private static let ruleNineException = GraphQLConventionException(rule: .changes, removedBy: "^20mv6d3")
-
     /// The id of a second agent next to ``AgentFolderFixture/helperID``.
     private static let reviewerID = "reviewer"
 
@@ -75,8 +70,13 @@ struct AgentsGraphTests {
 
     /// The endpoint has the name `agents`, the version `1`, the scope of the
     /// session folder, an SDL schema that builds, the response conventions
-    /// of the toolkit, and it rewrites the alias `agent(name:)` to
-    /// `agent(id:)`. The rule-9 problems are the one exception, until AG-8c.
+    /// of the toolkit and each rule of EXTRAS-9 with no exception, and it
+    /// rewrites the alias `agent(name:)` to `agent(id:)`.
+    ///
+    /// The probe of the conformance check runs through `execute`, which
+    /// cannot start a subscription. Thus the alias `agentChanges` of the
+    /// subscription has its own test through `subscribe`, in
+    /// `AgentsGraphChangesTests`.
     @Test func theEndpointConforms() async throws {
         let layer = try Self.makeLayer(ids: [AgentFolderFixture.helperID])
         defer { try? layer.delete() }
@@ -85,8 +85,7 @@ struct AgentsGraphTests {
             query: "{ agent(name: \"\(AgentFolderFixture.helperID)\") { id } }", from: "name", to: "id")
 
         let problems = await GraphQLEndpointConformance.problems(
-            of: fixture.graph, scope: .sessionFolder, probe: probe, codes: AgentsGraphError.codes,
-            exceptions: [Self.ruleNineException])
+            of: fixture.graph, scope: .sessionFolder, probe: probe, codes: AgentsGraphError.codes)
 
         #expect(problems.isEmpty)
         #expect(fixture.graph.name == "agents")

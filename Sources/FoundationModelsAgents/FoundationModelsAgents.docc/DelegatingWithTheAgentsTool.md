@@ -257,6 +257,18 @@ endpoint too: the endpoint reads the catalog of the session folder, not the
 grant of the model, and a host lists the endpoint of the session folder, not
 of one run.
 
+The root `cursor` query and the `changes(after:)` subscription give the
+changes of the catalog (EXTRAS-9 rule 9). Each reload that adds, changes, or
+removes an agent gives one `AgentChange` with the ids in `added`, `changed`,
+and `removed`; a reload that changes nothing gives none. A client reads
+`agents` and `cursor`, then subscribes after that cursor, and queries
+`agent(id:)` again for each added or changed id. The registry has one change
+log, thus each endpoint over the registry gives the same cursor, and a
+`reload()` returns after its change is in the log. A cursor of another run of
+the host, a cursor that is too old for the log, or a cursor after the newest
+change gives `RESYNC_REQUIRED`. `agentChanges` and `agentsChanges` name
+`changes`, and `since` names `after`.
+
 The model sends no GraphQL text to the tool. The name, the description, and
 the schema of the tool do not change.
 

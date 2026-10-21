@@ -222,7 +222,7 @@ public final class AgentRegistry: Sendable {
     /// - Throws: `CancellationError` when the task is cancelled before the
     ///   build. The catalog then does not change.
     public func load() async throws {
-        try build()
+        try await build()
     }
 
     /// Asks the provider for its layers again, reads the agent files again,
@@ -233,14 +233,19 @@ public final class AgentRegistry: Sendable {
     /// runs outside the lock. Thus a `catalog()` call during a reload gives
     /// the previous catalog, and never waits for the read of the files.
     ///
+    /// A reload that changes an agent returns after its change is in the
+    /// change log of the `agents` endpoint: the root `cursor` of the
+    /// endpoint then is the cursor of that change.
+    ///
     /// - Throws: `CancellationError` when the task is cancelled before the
     ///   build. The catalog then does not change.
     public func reload() async throws {
-        try build()
+        try await build()
     }
 
     /// Reads the layers of the provider and the local layers, swaps the new
-    /// build in, and publishes its catalog on `onReload`. `load()` and
+    /// build in, publishes its catalog on `onReload`, and waits until its
+    /// change is in the change log of the `agents` endpoint. `load()` and
     /// `reload()` share this build.
     ///
     /// The build starts to follow the changes before it reads the provider,
@@ -249,7 +254,7 @@ public final class AgentRegistry: Sendable {
     ///
     /// - Throws: `CancellationError` when the task is cancelled before the
     ///   build.
-    private func build() throws {
+    private func build() async throws {
         try Task.checkCancellation()
         let number = lastBuildNumber.withLock { last in
             last += 1
@@ -259,7 +264,7 @@ public final class AgentRegistry: Sendable {
         let marketplaceLayers = marketplaces?.marketplaceLayers() ?? []
         reloads.watch(roots: watchedRoots(marketplaceLayers: marketplaceLayers))
         let rebuilt = Generation.read(number: number, marketplaceLayers: marketplaceLayers, localLayers: localLayers)
-        currentBuild.swapIn(rebuilt, publishing: reloads.publish)
+        await currentBuild.swapIn(rebuilt, publishing: reloads.publish)
     }
 
     /// The roots that the watcher watches: the root of each marketplace
@@ -321,13 +326,47 @@ extension AgentRegistry {
     /// the registry. Thus the registry owns its endpoint (``AgentsGraphPort``)
     /// with no reference cycle, and the host still releases the registry and
     /// stops its watcher.
+    ///
+    /// The build also holds the one change log of the registry, the source
+    /// of the `changes(after:)` subscription and of the root `cursor` of the
+    /// endpoint (EXTRAS-9 rule 9). Each endpoint over the registry reads that
+    /// log, thus each gives the same cursor. The swap of a build computes its
+    /// change under the lock of the swap, and the log takes the changes in
+    /// the order of the swaps.
     final class CurrentBuild: Sendable {
+        /// The number of the newest changes that the change log keeps. A
+        /// cursor that is older than these changes gives `RESYNC_REQUIRED`.
+        static let changeLogCapacity = 1024
+
         /// The build. It is the empty build until the first `load()`.
         private let generation = Mutex(Generation.empty)
 
+        /// The change log of the catalog: one event for each swap that adds,
+        /// changes or removes an agent.
+        let changeLog: ChangeLog<ChangedIDs>
+
+        /// The feed that appends the change of each swap to ``changeLog``.
+        private let changeFeed: AgentChangeFeed
+
+        /// Makes the empty build, and its change log with no event.
+        init() {
+            let changeLog = ChangeLog<ChangedIDs>(capacity: Self.changeLogCapacity)
+            self.changeLog = changeLog
+            changeFeed = AgentChangeFeed(changeLog: changeLog)
+        }
+
         /// Whether a build swapped a catalog in. This call does no I/O.
         var isLoaded: Bool {
-            generation.withLock { $0.number > Generation.empty.number }
+            loadedCatalog() != nil
+        }
+
+        /// Gives the catalog of the build after the first `load()`.
+        ///
+        /// - Returns: The catalog of the build, or `nil` before the first
+        ///   `load()`: the empty catalog then does not tell that the layers
+        ///   hold no agent.
+        func loadedCatalog() -> AgentCatalog? {
+            generation.withLock { $0.number > Generation.empty.number ? $0.catalog : nil }
         }
 
         /// The marketplace layers of the build, lowest precedence first. It is
@@ -344,20 +383,28 @@ extension AgentRegistry {
             generation.withLock { $0.catalog }
         }
 
-        /// Swaps `rebuilt` in when it is later than the build, and publishes
-        /// its catalog under the same lock. Thus an earlier build that ends
-        /// last does not replace a later build, and the catalogs are published
-        /// in the order of their builds.
+        /// Swaps `rebuilt` in when it is later than the build, publishes its
+        /// catalog, and queues its change for the change log, each under the
+        /// same lock. Thus an earlier build that ends last does not replace a
+        /// later build, and the catalogs and the changes go out in the order
+        /// of their builds.
+        ///
+        /// The call returns after the change is in the change log. A swap
+        /// that changes no agent appends nothing.
         ///
         /// - Parameters:
         ///   - rebuilt: The new build.
         ///   - publish: Publishes the catalog of a build that swapped in.
-        fileprivate func swapIn(_ rebuilt: Generation, publishing publish: (AgentCatalog) -> Void) {
-            generation.withLock { current in
-                guard rebuilt.number > current.number else { return }
+        fileprivate func swapIn(_ rebuilt: Generation, publishing publish: (AgentCatalog) -> Void) async {
+            let appended = generation.withLock { current -> AsyncStream<Void>? in
+                guard rebuilt.number > current.number else { return nil }
+                let change = AgentCatalogChanges.change(from: current.catalog, to: rebuilt.catalog)
                 current = rebuilt
                 publish(rebuilt.catalog)
+                return change.map(changeFeed.enqueue)
             }
+            guard let appended else { return }
+            for await _ in appended {}
         }
     }
 }

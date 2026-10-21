@@ -17,18 +17,24 @@ import GraphQL
 /// - `Query.diagnostics` gives each finding of the load, each with an
 ///   `UPPER_SNAKE` code (``AgentDiagnostic/Code``). `Agent.diagnostics` gives
 ///   the findings of one agent.
+/// - `Query.cursor` and `Subscription.changes(after:)` give the changes of
+///   the catalog (EXTRAS-9 rule 9): one `AgentChange` for each reload that
+///   adds, changes or removes an agent, with the ids in `added`, `changed`
+///   and `removed`. A client queries `agent(id:)` again for each added or
+///   changed id. A cursor that the change log cannot resume after gives
+///   `RESYNC_REQUIRED`. `agentChanges` and `agentsChanges` are aliases of
+///   `changes`, and `since` is an alias of `after`.
 ///
 /// The endpoint changes nothing: it has no `Mutation` type (D84). Before the
-/// first `load()` of the registry, each query field gives
-/// ``AgentsGraphError/catalogNotLoaded``. The `changes(after:)` subscription
-/// and the root `cursor` of EXTRAS-9 rule 9 are not here yet (^20mv6d3).
+/// first `load()` of the registry, each query field of the catalog gives
+/// ``AgentsGraphError/catalogNotLoaded``.
 ///
 /// The endpoint is a reference type: the registry makes one endpoint, and
 /// each ``AgentsTool`` over the registry gives that same instance in its
 /// `graphQLEndpoints` (EXTRAS-9 rule 1). A host finds it with
 /// `tool as? any GraphQLEndpointTool`, or with no tool through
-/// ``AgentRegistry/agentsGraph()``. The endpoint reads the catalog of the
-/// registry, and it does not keep the registry.
+/// ``AgentRegistry/agentsGraph()``. The endpoint reads the catalog and the
+/// one change log of the registry, and it does not keep the registry.
 public final class AgentsGraph: GraphQLEndpoint {
     /// The name of the endpoint.
     public static let endpointName = "agents"
@@ -39,7 +45,8 @@ public final class AgentsGraph: GraphQLEndpoint {
     /// The standard query verb `find` gives the plural field, thus
     /// `findAgent` would give `agents`. The rules leave `find` out of the
     /// query verbs, and the alias tables give `findAgent` to `agent` and
-    /// `findAgents` to `agents`.
+    /// `findAgents` to `agents`. The subscription takes the noun forms
+    /// `agentChanges` and `agentsChanges`, and its cursor takes `since`.
     static let rules = GraphQLNameRules(
         aliases: GraphQLAliasTable(
             inEachInput: ["id": ["name", "agentName"]],
@@ -47,9 +54,15 @@ public final class AgentsGraph: GraphQLEndpoint {
                 "Query": [
                     "agents": ["listAgents", "allAgents", "findAgents"],
                     "agent": ["getAgent", "findAgent"],
-                ]
+                ],
+                "Subscription": [
+                    "changes": ["agentChanges", "agentsChanges"]
+                ],
             ],
-            byField: ["Query.agent": ["id": ["name", "agentName"]]]),
+            byField: [
+                "Query.agent": ["id": ["name", "agentName"]],
+                "Subscription.changes": ["after": ["since"]],
+            ]),
         queryVerbs: GraphQLNameRules.standardQueryVerbs.filter { verb, _ in verb != "find" }
     )
 
@@ -62,14 +75,20 @@ public final class AgentsGraph: GraphQLEndpoint {
     /// The scope of the endpoint: the session folder.
     public let scope = GraphQLEndpointScope.sessionFolder
 
+    /// The current build of the registry: the catalog and the change log
+    /// that each call reads.
+    private let build: AgentRegistry.CurrentBuild
+
     /// The Graphiti engine of the endpoint.
     private let api: AgentsGraphAPI
 
     /// Makes an endpoint over a registry.
     ///
-    /// The endpoint reads the same catalog as the endpoint that the `agents`
-    /// tool gives, but it is a new instance. A host reads the one endpoint
-    /// of the registry, ``AgentRegistry/agentsGraph()``, instead.
+    /// The endpoint reads the same catalog and the same change log as the
+    /// endpoint that the `agents` tool gives, thus it gives the same cursor
+    /// and the same changes. It is a new instance with a schema of its own: a
+    /// host reads the one endpoint of the registry,
+    /// ``AgentRegistry/agentsGraph()``, instead.
     ///
     /// - Parameter registry: The registry of the catalog of the session
     ///   folder. The host loads it; the endpoint never reads a file.
@@ -86,7 +105,8 @@ public final class AgentsGraph: GraphQLEndpoint {
     /// - Parameter build: The current build of the registry of the catalog.
     /// - Throws: An error of the schema builder.
     init(build: AgentRegistry.CurrentBuild) throws {
-        api = try AgentsGraphAPI(build: build)
+        self.build = build
+        api = try AgentsGraphAPI(changeLog: build.changeLog)
     }
 
     /// The schema of the endpoint in SDL.
@@ -95,6 +115,9 @@ public final class AgentsGraph: GraphQLEndpoint {
     }
 
     /// Runs one GraphQL document.
+    ///
+    /// Each field of the document reads one catalog and the cursor of its
+    /// newest change (``AgentsGraphContext``).
     ///
     /// - Parameters:
     ///   - query: The GraphQL document.
@@ -110,12 +133,14 @@ public final class AgentsGraph: GraphQLEndpoint {
     ) async throws -> String {
         try await api.respond(
             to: query, variables: variables, operationName: operationName, rules: Self.rules,
-            formattedWith: .sortedKeys, context: AgentsGraphContext())
+            formattedWith: .sortedKeys, context: AgentsGraphContext(reading: build))
     }
 
-    /// Starts one GraphQL subscription. The schema has no subscription yet
-    /// (^20mv6d3), thus a subscription document gives one response with the
-    /// errors of the toolkit.
+    /// Starts one GraphQL subscription.
+    ///
+    /// `changes(after:)` gives one response for each change after the
+    /// cursor. A cursor that the change log cannot resume after gives one
+    /// final response with `RESYNC_REQUIRED`, and the stream then ends.
     ///
     /// - Parameters:
     ///   - query: The subscription document.
@@ -129,6 +154,6 @@ public final class AgentsGraph: GraphQLEndpoint {
     ) async throws -> AsyncThrowingStream<String, Error> {
         try await api.subscribe(
             to: query, variables: variables, operationName: operationName, rules: Self.rules,
-            formattedWith: .sortedKeys, context: AgentsGraphContext())
+            formattedWith: .sortedKeys, context: AgentsGraphContext(reading: build))
     }
 }
