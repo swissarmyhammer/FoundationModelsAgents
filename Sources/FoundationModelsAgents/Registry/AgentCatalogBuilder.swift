@@ -177,12 +177,12 @@ enum AgentCatalogBuilder {
             winner, of: layers[winner.layerIndex], provenance: provenance, marketplaceLayer: marketplaceLayer)
         let hiddenCopyAdvisories = folder.hiddenCopies.map { copy in
             AgentDiagnostic(
-                severity: .advisory, agent: agent, provenance: provenance,
+                code: .hiddenCopy, severity: .advisory, agent: agent, provenance: provenance,
                 message: hiddenCopyMessage(url: url(of: copy, in: layers), layerIndex: copy.layerIndex))
         }
         let hiddenDefaultFolderWarnings = folder.hiddenDefaultFolders.map { copy in
             AgentDiagnostic(
-                severity: .warning, agent: agent,
+                code: .duplicateDefault, severity: .warning, agent: agent,
                 provenance: AgentDiagnostic.Provenance(
                     layerIndex: copy.layerIndex, layerRoot: layers[copy.layerIndex].layer.root,
                     url: url(of: copy, in: layers)),
@@ -218,18 +218,24 @@ enum AgentCatalogBuilder {
         let document: Located<FrontmatterDocument<AgentFrontmatter>>?
         switch readDocument(of: winner, in: layer, at: provenance.url, decodeFailures: decodeFailures) {
         case .failure(let failure):
-            return skip(agent: agent, provenance: provenance, message: coordinationFailedMessage(failure))
+            return skip(
+                AgentFinding(code: .failedRead, severity: .skip, message: coordinationFailedMessage(failure)),
+                agent: agent, provenance: provenance)
         case .success(let read):
             document = read
         }
         guard document != nil || !winner.kind.isInAgentFolderForm else {
-            return skip(agent: agent, provenance: provenance, message: notLocalMessage)
+            return skip(
+                AgentFinding(code: .notLocal, severity: .skip, message: notLocalMessage),
+                agent: agent, provenance: provenance)
         }
         if let enablement = document?.value.enablement, !enablement.isEnabled {
-            return skip(agent: agent, provenance: provenance, message: offMessage(enablement))
+            return skip(offFinding(enablement), agent: agent, provenance: provenance)
         }
         var diagnostics = decodeFailures.removeAll().map { failure in
-            AgentDiagnostic(severity: .advisory, agent: agent, provenance: provenance, message: failure.message)
+            AgentDiagnostic(
+                code: .decodeFailure, severity: .advisory, agent: agent, provenance: provenance,
+                message: failure.message)
         }
         let definition = AgentDefinition(
             id: winner.id, document: document, provenance: provenance, marketplaceLayer: marketplaceLayer,
@@ -237,17 +243,18 @@ enum AgentCatalogBuilder {
         return AgentFolderLoad(definition: definition, diagnostics: diagnostics)
     }
 
-    /// Gives the text of the skip for an agent that is off.
+    /// Gives the skip for an agent that is off.
     ///
     /// - Parameter enablement: The enablement of the winning copy. It is not
     ///   `.enabled`.
-    /// - Returns: ``disabledMessage`` for `enabled: false`, or the message of
+    /// - Returns: `DISABLED_AGENT` with ``disabledMessage`` for
+    ///   `enabled: false`, or `INVALID_ENABLED` with the message of
     ///   FoundationModelsExtras for a value that is not `true` or `false`.
-    private static func offMessage(_ enablement: FrontmatterEnablement) -> String {
+    private static func offFinding(_ enablement: FrontmatterEnablement) -> AgentFinding {
         if case .invalid(let message) = enablement {
-            return message
+            return AgentFinding(code: .invalidEnabled, severity: .skip, message: message)
         }
-        return disabledMessage
+        return AgentFinding(code: .disabledAgent, severity: .skip, message: disabledMessage)
     }
 
     /// A coordinated read that the file coordinator could not do.
@@ -295,16 +302,14 @@ enum AgentCatalogBuilder {
     /// Gives the load of an agent that the build skips.
     ///
     /// - Parameters:
+    ///   - finding: The reason for the skip.
     ///   - agent: The id of the agent, or `nil` when the id is not valid.
     ///   - provenance: The file of the agent.
-    ///   - message: The reason for the skip.
-    /// - Returns: No agent, and one `skip` diagnostic.
+    /// - Returns: No agent, and the one diagnostic of `finding`.
     private static func skip(
-        agent: String?, provenance: AgentDiagnostic.Provenance, message: String
+        _ finding: AgentFinding, agent: String?, provenance: AgentDiagnostic.Provenance
     ) -> AgentFolderLoad {
-        AgentFolderLoad(
-            definition: nil,
-            diagnostics: [AgentDiagnostic(severity: .skip, agent: agent, provenance: provenance, message: message)])
+        AgentFolderLoad(definition: nil, diagnostics: [finding.diagnostic(agent: agent, provenance: provenance)])
     }
 
     /// Runs `read` in a coordinated read of the file at `url`.

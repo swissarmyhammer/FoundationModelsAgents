@@ -2,9 +2,12 @@ import Foundation
 import FoundationModelsExtras
 import Marketplace
 
-/// One finding of the rule table before it gets a file: a severity and a
-/// message.
+/// One finding of the rule table before it gets a file: a code, a severity
+/// and a message.
 struct AgentFinding: Sendable, Equatable {
+    /// What the finding is about.
+    let code: AgentDiagnostic.Code
+
     /// How serious the finding is.
     let severity: AgentDiagnostic.Severity
 
@@ -18,7 +21,7 @@ struct AgentFinding: Sendable, Equatable {
     ///   - provenance: The file that the finding is about.
     /// - Returns: The diagnostic.
     func diagnostic(agent: String?, provenance: AgentDiagnostic.Provenance) -> AgentDiagnostic {
-        AgentDiagnostic(severity: severity, agent: agent, provenance: provenance, message: message)
+        AgentDiagnostic(code: code, severity: severity, agent: agent, provenance: provenance, message: message)
     }
 }
 
@@ -63,7 +66,7 @@ enum AgentDefinitionRules {
     /// The skip for a file with no frontmatter block, or with a frontmatter
     /// that did not decode after the retry.
     static let noFrontmatterFinding = AgentFinding(
-        severity: .skip,
+        code: .noFrontmatter, severity: .skip,
         message: "the file has no frontmatter block, or the frontmatter did not decode; the file is skipped")
 
     /// Tells if `id` is a valid agent id: 1 to 64 of `[a-z0-9-]`, with no
@@ -85,7 +88,7 @@ enum AgentDefinitionRules {
     /// - Returns: The finding.
     static func invalidIDFinding(_ id: String) -> AgentFinding {
         AgentFinding(
-            severity: .skip,
+            code: .invalidID, severity: .skip,
             message: "the folder name '\(id)' is not 1 to \(AgentDefinition.idCharacterLimit) of [a-z0-9-] "
                 + "with no leading, trailing, or doubled hyphen; the file is skipped")
     }
@@ -98,7 +101,7 @@ enum AgentDefinitionRules {
     static func oldFormatFinding(_ name: String) -> AgentFinding {
         let folder = MarketplaceLayer.agentsDirectoryName
         return AgentFinding(
-            severity: .warning,
+            code: .oldFormat, severity: .warning,
             message: "the file '\(folder)/\(name).md' has the old agent format and does not load; "
                 + "move it to '\(folder)/\(name)/\(MarketplaceLayer.agentDocumentName)'")
     }
@@ -137,13 +140,14 @@ enum AgentDefinitionRules {
     private static func nameFindings(id: String, frontmatter: AgentFrontmatter) -> [AgentFinding] {
         guard let name = frontmatter.name else {
             return [AgentFinding(
-                severity: .warning, message: "the frontmatter has no 'name'; the folder name '\(id)' is the id")]
+                code: .missingName, severity: .warning,
+                message: "the frontmatter has no 'name'; the folder name '\(id)' is the id")]
         }
         guard name != id else {
             return []
         }
         return [AgentFinding(
-            severity: .warning,
+            code: .mismatchedName, severity: .warning,
             message: "the 'name' value '\(name)' is not equal to the folder name '\(id)'; the folder name is the id")]
     }
 
@@ -152,14 +156,14 @@ enum AgentDefinitionRules {
     private static func descriptionFindings(id: String, frontmatter: AgentFrontmatter) -> [AgentFinding] {
         guard holdsText(frontmatter.description) else {
             return [AgentFinding(
-                severity: .warning,
+                code: .missingDescription, severity: .warning,
                 message: "the frontmatter has no 'description'; the agent is not model-visible")]
         }
         guard (frontmatter.description?.count ?? 0) > AgentDefinition.descriptionCharacterLimit else {
             return []
         }
         return [AgentFinding(
-            severity: .warning,
+            code: .longDescription, severity: .warning,
             message: "the 'description' is longer than \(AgentDefinition.descriptionCharacterLimit) characters")]
     }
 
@@ -169,17 +173,17 @@ enum AgentDefinitionRules {
             return []
         }
         return [AgentFinding(
-            severity: .warning, message: "the 'model' value is empty; the run uses the default slot")]
+            code: .emptyModel, severity: .warning, message: "the 'model' value is empty; the run uses the default slot")]
     }
 
     /// The tier 3 rule: each tier 3 key is an advisory.
     private static func unsupportedKeyFindings(id: String, frontmatter: AgentFrontmatter) -> [AgentFinding] {
-        keyFindings(frontmatter.unsupportedFields, reason: "is not supported; the key is ignored")
+        keyFindings(frontmatter.unsupportedFields, code: .unsupportedKey, reason: "is not supported; the key is ignored")
     }
 
     /// The unknown key rule: each unknown key is an advisory.
     private static func unknownKeyFindings(id: String, frontmatter: AgentFrontmatter) -> [AgentFinding] {
-        keyFindings(frontmatter.unknownFields, reason: "is not known; the key is kept as data on the listing")
+        keyFindings(frontmatter.unknownFields, code: .unknownKey, reason: "is not known; the key is kept as data on the listing")
     }
 
     /// The `background` rule: `background: false` is an advisory, because
@@ -189,7 +193,7 @@ enum AgentDefinitionRules {
             return []
         }
         return [AgentFinding(
-            severity: .advisory, message: "'background: false' is ignored; each run is a background run")]
+            code: .ignoredBackground, severity: .advisory, message: "'background: false' is ignored; each run is a background run")]
     }
 
     /// The access key rule: an incorrect `disallowedTools`, `tools`, or
@@ -214,24 +218,29 @@ enum AgentDefinitionRules {
     ///   tier 2 field.
     private static func wrongTypeAdvisory(key: String) -> AgentFinding? {
         AgentFrontmatterField.byKey[key].map { field in
-            AgentFinding(severity: .advisory, message: AgentFrontmatter.wrongTypeNote(key: key, expected: field.kind))
+            AgentFinding(
+                code: .wrongType, severity: .advisory,
+                message: AgentFrontmatter.wrongTypeNote(key: key, expected: field.kind))
         }
     }
 
     /// The decode note rule: each decode note is an advisory.
     private static func noteFindings(id: String, frontmatter: AgentFrontmatter) -> [AgentFinding] {
-        frontmatter.notes.map { note in AgentFinding(severity: .advisory, message: note) }
+        frontmatter.notes.map { note in AgentFinding(code: .decodeNote, severity: .advisory, message: note) }
     }
 
     /// One advisory for each key of `fields`, in sorted key order.
     ///
     /// - Parameters:
     ///   - fields: The keys with their values.
+    ///   - code: The code of each finding.
     ///   - reason: The end of the message, after the key.
     /// - Returns: The findings.
-    private static func keyFindings(_ fields: [String: YAMLValue], reason: String) -> [AgentFinding] {
+    private static func keyFindings(
+        _ fields: [String: YAMLValue], code: AgentDiagnostic.Code, reason: String
+    ) -> [AgentFinding] {
         fields.keys.sorted().map { key in
-            AgentFinding(severity: .advisory, message: "the key '\(key)' \(reason)")
+            AgentFinding(code: code, severity: .advisory, message: "the key '\(key)' \(reason)")
         }
     }
 }

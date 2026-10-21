@@ -135,7 +135,8 @@ struct AgentFolderSourceTests {
         let catalog = try await registry.loadedCatalog()
         let defaultAgent = try #require(catalog.defaultAgent)
         let expected = AgentDiagnostic(
-            severity: .advisory, agent: AgentFolderFixture.defaultAgentID, provenance: defaultAgent.provenance,
+            code: .hiddenCopy, severity: .advisory, agent: AgentFolderFixture.defaultAgentID,
+            provenance: defaultAgent.provenance,
             message: AgentCatalogBuilder.hiddenCopyMessage(url: hiddenURL, layerIndex: Self.firstFolderIndex))
 
         #expect(defaultAgent.layer.root == project.root)
@@ -186,7 +187,7 @@ struct AgentFolderSourceTests {
         let catalog = try await AgentRegistry(layers: [user.userLayer, folder.userLayer]).loadedCatalog()
         let definition = try #require(catalog.definition(named: id))
         let expected = AgentDiagnostic(
-            severity: .advisory, agent: id, provenance: definition.provenance,
+            code: .hiddenCopy, severity: .advisory, agent: id, provenance: definition.provenance,
             message: AgentCatalogBuilder.hiddenCopyMessage(url: hiddenURL, layerIndex: Self.userLayerIndex))
 
         #expect(catalog.diagnostics == [expected])
@@ -207,7 +208,8 @@ struct AgentFolderSourceTests {
         let catalog = try await AgentRegistry(layers: [first.userLayer, second.userLayer]).loadedCatalog()
         let defaultAgent = try #require(catalog.defaultAgent)
         let expected = AgentDiagnostic(
-            severity: .advisory, agent: AgentFolderFixture.defaultAgentID, provenance: defaultAgent.provenance,
+            code: .hiddenCopy, severity: .advisory, agent: AgentFolderFixture.defaultAgentID,
+            provenance: defaultAgent.provenance,
             message: AgentCatalogBuilder.hiddenCopyMessage(url: hiddenURL, layerIndex: Self.firstFolderIndex))
 
         #expect(defaultAgent.provenance.layerIndex == Self.secondFolderIndex)

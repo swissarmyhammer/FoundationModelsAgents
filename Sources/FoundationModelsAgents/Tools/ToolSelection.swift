@@ -145,7 +145,7 @@ enum ToolListKey: String, Sendable {
     /// - Returns: The finding.
     func unknownEntryFinding(_ spec: ToolSpec) -> AgentFinding {
         AgentFinding(
-            severity: .warning,
+            code: .unknownTool, severity: .warning,
             message: "the '\(rawValue)' entry '\(spec.entry)' matches no tool of the catalog; \(unknownEntryOutcome)")
     }
 }

@@ -225,7 +225,7 @@ extension StartAgent {
         guard !context.isOwnAgent(name) else {
             return AgentsToolText.ownAgent(name, available: startable)
         }
-        let isVisible = context.runner.catalog().definition(named: name)?.isModelVisible == true
+        let isVisible = context.runner.registry.catalog().definition(named: name)?.isModelVisible == true
         return isVisible
             ? AgentsToolText.notPermitted(name, available: startable)
             : AgentsToolText.unknownAgent(name, available: startable)

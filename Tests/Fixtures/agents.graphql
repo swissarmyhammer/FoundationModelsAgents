@@ -1,0 +1,141 @@
+"""
+A point in time: RFC 3339 text in UTC with milliseconds, like 2026-10-06T14:49:10.690Z.
+"""
+scalar DateTime
+
+"""Any JSON value. The keys of each object are in sorted order."""
+scalar JSON
+
+"""The kind of the layer that gave an agent."""
+enum AgentLayerName {
+  """The defaults folder of the host."""
+  DEFAULTS
+
+  """The user layer, for example the root settings folder of the host."""
+  USER
+
+  """The folder of the session. It wins over each other layer."""
+  PROJECT
+
+  """A cached marketplace. Each local layer wins over it."""
+  MARKETPLACE
+}
+
+"""How serious a diagnostic is."""
+enum AgentDiagnosticSeverity {
+  """The agent loads with no change."""
+  ADVISORY
+
+  """The agent loads, possibly with a changed visibility."""
+  WARNING
+
+  """The agent does not load."""
+  SKIP
+}
+
+"""
+The layer that gave an agent. The highest layer that holds an agent wins it.
+"""
+type AgentLayer {
+  """The kind of the layer."""
+  name: AgentLayerName!
+
+  """The absolute path of the root folder of the layer."""
+  root: String!
+}
+
+"""
+The marketplace that gave an agent. The URL of its source is never given.
+"""
+type AgentMarketplace {
+  """The display id of the marketplace."""
+  id: String!
+
+  """The commit of the snapshot, or null before the first install."""
+  sha: String
+}
+
+"""One agent of the catalog of the session folder."""
+type Agent {
+  """The id of the agent: the name of its folder."""
+  id: String!
+
+  """
+  The description key: when to use the agent. Null when the key is absent.
+  """
+  description: String
+
+  """The model key, or null when the key is absent or empty."""
+  model: String
+
+  """The color key, or null when the key is absent."""
+  color: String
+
+  """The background key, or null when the key is absent."""
+  background: Boolean
+
+  """
+  True when the model can see and start the agent: it has a description, and disable-model-invocation is not true.
+  """
+  isModelVisible: Boolean!
+
+  """True when the agent is a slash command: user-invocable is not false."""
+  isUserInvocable: Boolean!
+
+  """
+  True for the default agent, the root AGENT.md of a layer, with the id default.
+  """
+  isDefault: Boolean!
+
+  """The layer that gave the agent."""
+  layer: AgentLayer!
+
+  """The marketplace that gave the agent, or null for a local layer."""
+  marketplace: AgentMarketplace
+
+  """
+  Each finding of the load of the catalog that names this agent, for example a missing description.
+  """
+  diagnostics: [AgentDiagnostic!]!
+}
+
+"""
+One finding of the load of the catalog. A finding never stops the load of another file.
+"""
+type AgentDiagnostic {
+  """
+  The code of the finding in UPPER_SNAKE, for example MISSING_DESCRIPTION, NOT_LOCAL, HIDDEN_COPY or DUPLICATE_DEFAULT. A client keys on the code, not on the message.
+  """
+  code: String!
+
+  """How serious the finding is."""
+  severity: AgentDiagnosticSeverity!
+
+  """The id of the agent, or null when the folder name is not a valid id."""
+  agent: String
+
+  """The absolute path of the file that the finding is about."""
+  path: String!
+
+  """The absolute path of the root folder of the layer of the file."""
+  layerRoot: String!
+
+  """The text of the finding, for a person."""
+  message: String!
+}
+
+type Query {
+  """Each agent of the catalog of the session folder, sorted by id."""
+  agents: [Agent!]!
+
+  """One agent of the catalog, or null when no agent has the id."""
+  agent(
+    """The id of the agent, as start agent takes it."""
+    id: String!
+  ): Agent
+
+  """
+  Each finding of the load of the catalog, also of a file that gave no agent.
+  """
+  diagnostics: [AgentDiagnostic!]!
+}

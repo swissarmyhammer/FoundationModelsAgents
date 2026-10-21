@@ -120,7 +120,7 @@ struct ToolResolver: Sendable {
             return []
         }
         return [
-            AgentFinding(severity: .warning, message: Self.maxDepthAgentEntryMessage)
+            AgentFinding(code: .agentEntryAtMaxDepth, severity: .warning, message: Self.maxDepthAgentEntryMessage)
                 .diagnostic(agent: agent, provenance: provenance)
         ]
     }

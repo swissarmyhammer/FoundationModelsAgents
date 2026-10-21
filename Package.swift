@@ -54,7 +54,14 @@ let commonDependencies: [Target.Dependency] = [
     // bootstraps the backend.
     .product(name: "Tracing", package: "swift-distributed-tracing"),
     .product(name: "Logging", package: "swift-log"),
-    .product(name: "Metrics", package: "swift-metrics")
+    .product(name: "Metrics", package: "swift-metrics"),
+    // The engine and the schema builder of the `agents` GraphQL endpoint
+    // (`AgentsGraph`, AG-8). It runs on the GraphQL toolkit of
+    // `FoundationModelsExtras`. Extras does not re-export them, and a target
+    // can link only a product of a package that its own manifest declares,
+    // thus this manifest declares them.
+    .product(name: "GraphQL", package: "GraphQL"),
+    .product(name: "Graphiti", package: "Graphiti")
 ]
 
 /// The test-only products. Only the test target links them.
@@ -104,7 +111,12 @@ let package = Package(
         // `FoundationModelsRouter` pins swift-distributed-tracing the same.
         .package(url: "https://github.com/apple/swift-distributed-tracing.git", from: "1.4.1"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.15.1"),
-        .package(url: "https://github.com/apple/swift-metrics.git", from: "2.11.0")
+        .package(url: "https://github.com/apple/swift-metrics.git", from: "2.11.0"),
+        // The same URLs and version floors as the GraphQL pins of
+        // `FoundationModelsExtras`, thus the package identity stays one and
+        // `Package.resolved` holds one copy of each.
+        .package(url: "https://github.com/GraphQLSwift/GraphQL.git", from: "4.3.0"),
+        .package(url: "https://github.com/GraphQLSwift/Graphiti.git", from: "3.1.0")
     ],
     targets: [
         .target(

@@ -5,7 +5,8 @@ import Marketplace
 ///
 /// The shape is the shape of `SkillDiagnostic` of FoundationModelsSkills: a
 /// severity, the agent name when it is known, the provenance of the file,
-/// and a message. A diagnostic never stops the load of a different file.
+/// and a message, with a fixed ``Code`` for a client. A diagnostic never
+/// stops the load of a different file.
 public struct AgentDiagnostic: Sendable, Equatable {
     /// How serious a diagnostic is, from the least to the most serious.
     ///
@@ -54,6 +55,9 @@ public struct AgentDiagnostic: Sendable, Equatable {
         }
     }
 
+    /// What this diagnostic is about, as a fixed code that a client keys on.
+    public var code: Code
+
     /// How serious this diagnostic is.
     public var severity: Severity
 
@@ -69,11 +73,13 @@ public struct AgentDiagnostic: Sendable, Equatable {
     /// Creates a diagnostic from its field values.
     ///
     /// - Parameters:
+    ///   - code: What the diagnostic is about.
     ///   - severity: How serious the diagnostic is.
     ///   - agent: The id of the agent, or `nil` when it is not known.
     ///   - provenance: The file that the diagnostic is about.
     ///   - message: The text of the diagnostic.
-    public init(severity: Severity, agent: String?, provenance: Provenance, message: String) {
+    public init(code: Code, severity: Severity, agent: String?, provenance: Provenance, message: String) {
+        self.code = code
         self.severity = severity
         self.agent = agent
         self.provenance = provenance

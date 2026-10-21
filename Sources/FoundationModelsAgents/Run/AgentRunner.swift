@@ -382,7 +382,7 @@ public actor AgentRunner {
         let model = ModelMatch.match(
             definition.model, profile: environment.profile, inherited: environment.defaultSlot)
         let modelWarnings = model.warning.map { message in
-            [AgentFinding(severity: .warning, message: message)
+            [AgentFinding(code: .unmatchedModel, severity: .warning, message: message)
                 .diagnostic(agent: definition.id, provenance: definition.provenance)]
         } ?? []
         return modelWarnings

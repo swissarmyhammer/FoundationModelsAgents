@@ -176,14 +176,17 @@ public struct AgentsToolContext: Sendable {
 
     /// Gives the agents that the tool can start now.
     ///
-    /// The call reads the catalog of `runner` again, thus a reload shows: a
-    /// changed agent has its new definition, and a removed agent is not
-    /// there.
+    /// The call reads the catalog of the registry of `runner` again, thus a
+    /// reload shows: a changed agent has its new definition, and a removed
+    /// agent is not there. The registry is the one port of the catalog
+    /// (EXTRAS-9 rule 1): the resolvers of the `agents` GraphQL endpoint
+    /// (``AgentsGraph``) read the same `catalog()`, thus `list agents` and
+    /// the endpoint give the same agents.
     ///
     /// - Returns: Each agent of the catalog that ``canStart(_:)`` permits, in
     ///   catalog order.
     func startableAgents() -> [AgentDefinition] {
-        runner.catalog().definitions.filter(canStart)
+        runner.registry.catalog().definitions.filter(canStart)
     }
 
     /// Gives the agents that the tool can start now and that match `filter`.

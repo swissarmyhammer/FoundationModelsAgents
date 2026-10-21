@@ -170,7 +170,7 @@ struct AgentRegistryTests {
         let hiddenURL = layers[Self.defaultsLayerIndex].root.appendingPathComponent(
             AgentDocumentPath.of(Self.sharedAgent))
         let expected = AgentDiagnostic(
-            severity: .advisory, agent: Self.sharedAgent, provenance: definition.provenance,
+            code: .hiddenCopy, severity: .advisory, agent: Self.sharedAgent, provenance: definition.provenance,
             message: AgentCatalogBuilder.hiddenCopyMessage(url: hiddenURL, layerIndex: Self.defaultsLayerIndex))
 
         #expect(definition.provenance.layerIndex == Self.userLayerIndex)

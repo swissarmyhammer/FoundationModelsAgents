@@ -98,7 +98,7 @@ struct RootSettingsFolderTests {
         let catalog = try await AgentRegistry(layers: [root.userLayer, project.layer]).loadedCatalog()
         let definition = try #require(catalog.definition(named: Self.sharedID))
         let expected = AgentDiagnostic(
-            severity: .advisory, agent: Self.sharedID, provenance: definition.provenance,
+            code: .hiddenCopy, severity: .advisory, agent: Self.sharedID, provenance: definition.provenance,
             message: AgentCatalogBuilder.hiddenCopyMessage(
                 url: root.root.appendingPathComponent(rootPath), layerIndex: Self.rootLayerIndex))
 
@@ -190,7 +190,7 @@ struct RootSettingsFolderTests {
         let catalog = try await AgentRegistry(layers: [root.userLayer]).loadedCatalog()
         let definition = try #require(catalog.definition(named: Self.rootID))
         let expected = AgentDiagnostic(
-            severity: .advisory, agent: Self.rootID, provenance: definition.provenance,
+            code: .hiddenCopy, severity: .advisory, agent: Self.rootID, provenance: definition.provenance,
             message: AgentCatalogBuilder.hiddenCopyMessage(
                 url: root.root.appendingPathComponent(hiddenPath), layerIndex: Self.rootLayerIndex))
 

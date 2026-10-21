@@ -41,7 +41,7 @@ struct AgentSkillsPreload: Sendable {
     /// - Returns: The finding.
     static func unknownSkillFinding(_ name: String) -> AgentFinding {
         AgentFinding(
-            severity: .warning,
+            code: .unknownSkill, severity: .warning,
             message: "the 'skills' entry '\(name)' matches no skill of the skills registry; the entry is skipped")
     }
 
@@ -51,7 +51,7 @@ struct AgentSkillsPreload: Sendable {
     /// - Returns: The finding.
     static func hiddenSkillFinding(_ name: String) -> AgentFinding {
         AgentFinding(
-            severity: .warning,
+            code: .hiddenSkill, severity: .warning,
             message: "the 'skills' entry '\(name)' names a skill that is not model-visible; the entry is skipped")
     }
 

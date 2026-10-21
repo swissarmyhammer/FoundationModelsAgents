@@ -111,7 +111,7 @@ struct AgentRegistryMarketplaceTests {
 
         let definition = try #require(catalog.definition(named: Self.sharedAgent))
         let expected = AgentDiagnostic(
-            severity: .advisory, agent: Self.sharedAgent, provenance: definition.provenance,
+            code: .hiddenCopy, severity: .advisory, agent: Self.sharedAgent, provenance: definition.provenance,
             message: AgentCatalogBuilder.hiddenCopyMessage(
                 url: Self.agentURL(Self.sharedAgent, inLayerRoot: marketplace.layer.root),
                 layerIndex: Self.marketplaceLayerIndex))

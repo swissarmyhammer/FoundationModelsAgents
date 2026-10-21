@@ -25,7 +25,9 @@ enum AgentAccessKey: String, CaseIterable, Sendable {
 
     /// The warning for an incorrect value of this key.
     var finding: AgentFinding {
-        AgentFinding(severity: .warning, message: "the value of '\(rawValue)' is not \(expectation); \(outcome)")
+        AgentFinding(
+            code: .invalidAccessKey, severity: .warning,
+            message: "the value of '\(rawValue)' is not \(expectation); \(outcome)")
     }
 
     /// The value that the key must have, as the warning names it.
