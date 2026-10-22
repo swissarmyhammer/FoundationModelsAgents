@@ -399,16 +399,16 @@ struct NestedRunTests {
         let child = try await Self.onlyRun(of: harness.runner, caller: lead.id)
         let leadToken = try #require(lead.context?.completionToken)
         let childToken = try #require(child.context?.completionToken)
-        let rootSpawn = try RecordedSidecar.read(in: root.recordingDirectory).agentSpawn
-        let leadSpawn = try AgentRunTests.sidecar(of: lead).agentSpawn
-        let childSpawn = try AgentRunTests.sidecar(of: child).agentSpawn
+        let rootSpawn = try RecordedSession.read(in: root.recordingDirectory).agentSpawn
+        let leadSpawn = try AgentRunTests.recordedSession(of: lead).agentSpawn
+        let childSpawn = try AgentRunTests.recordedSession(of: child).agentSpawn
         let leadPosts = try Self.posts(of: lead, in: root.recordingDirectory)
         await root.close()
 
         #expect(leadTerminal.correlationID == leadToken)
         #expect(rootSpawn == nil)
-        #expect(leadSpawn == SessionSidecar.AgentSpawn(parentSessionId: root.id, parentToolCallId: leadToken))
-        #expect(childSpawn == SessionSidecar.AgentSpawn(parentSessionId: lead.id, parentToolCallId: childToken))
+        #expect(leadSpawn == SessionRecord.AgentSpawn(parentSessionId: root.id, parentToolCallId: leadToken))
+        #expect(childSpawn == SessionRecord.AgentSpawn(parentSessionId: lead.id, parentToolCallId: childToken))
         #expect(leadPosts.map(\.correlationID) == [leadToken])
     }
 }

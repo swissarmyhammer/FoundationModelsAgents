@@ -54,14 +54,14 @@ extension AgentRunTests {
             let started = try #require(probe.started)
             let context = try #require(started.context)
             #expect(try await started.run.result() == AgentRunTests.finalText)
-            let spawn = try #require(try AgentRunTests.sidecar(of: started.run).agentSpawn)
+            let spawn = try #require(try AgentRunTests.recordedSession(of: started.run).agentSpawn)
             await parent.close()
             let journaled = try RecordedTranscript.operationEvents(in: parent.recordingDirectory)
                 .filter { $0.correlationID == spawn.parentToolCallId }
 
             #expect(
                 spawn
-                    == SessionSidecar.AgentSpawn(
+                    == SessionRecord.AgentSpawn(
                         parentSessionId: parent.id, parentToolCallId: context.completionToken))
             #expect(started.run.caller == parent.id)
             #expect(journaled.isEmpty)
@@ -76,7 +76,7 @@ extension AgentRunTests {
             let run = try await harness.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
             _ = try await run.result()
 
-            #expect(try AgentRunTests.sidecar(of: run).agentSpawn == nil)
+            #expect(try AgentRunTests.recordedSession(of: run).agentSpawn == nil)
             #expect(run.caller == nil)
         }
     }

@@ -119,8 +119,8 @@ extension LiveSuites {
                 #expect(oldStateAfterNewRun == .running)
                 #expect(oldSession.slot == .standard)
                 #expect(newSession.slot == .flash)
-                #expect(oldSession.configuration.instructions?.contains(oldBody) == true)
-                #expect(newSession.configuration.instructions?.contains(newBody) == true)
+                #expect(oldSession.instructions?.contains(oldBody) == true)
+                #expect(newSession.instructions?.contains(newBody) == true)
                 #expect(
                     oldAnswer.localizedCaseInsensitiveContains(LiveHoldTool.word), "The old answer was: \(oldAnswer)")
                 #expect(newAnswer.localizedCaseInsensitiveContains(Self.newWord), "The new answer was: \(newAnswer)")

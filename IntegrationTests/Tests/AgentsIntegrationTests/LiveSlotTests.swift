@@ -6,7 +6,7 @@ extension LiveSuites {
     /// The slots of the live profile.
     ///
     /// - An agent whose `model` is the model reference of the `flash` slot
-    ///   runs on the `flash` slot. The `session.json` of its session records
+    ///   runs on the `flash` slot. The `index.md` of its session records
     ///   the slot.
     /// - A run on the `flash` slot and a run on the `standard` slot are in
     ///   operation at the same time. The `standard` run waits in

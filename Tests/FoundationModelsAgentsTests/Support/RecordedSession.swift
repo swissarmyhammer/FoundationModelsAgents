@@ -1,12 +1,17 @@
 import Foundation
+import FoundationModelsExtras
 import FoundationModelsRouter
+import Testing
 
-/// The parts of the `session.json` of a Router session that the `AgentRun`
-/// tests read.
+/// The record of a Router session that the `AgentRun` tests read: the
+/// ``SessionRecord`` in the frontmatter of the `index.md` of the session
+/// directory.
 ///
-/// The fields of `SessionSidecar` are internal to the Router, thus the test
-/// decodes the file into this subset.
-struct RecordedSidecar: Decodable {
+/// The Router reads the record with
+/// `RouterSessionDirectory.recordedSessions(in:)`. The configuration of the
+/// record is internal to the Router, thus the test decodes the parts of it
+/// that it reads from the frontmatter.
+struct RecordedSession {
     /// The parts of the configuration of the session.
     struct Configuration: Decodable {
         /// The instructions of the session.
@@ -19,29 +24,46 @@ struct RecordedSidecar: Decodable {
         let compactionPrompt: CompactionPrompt
     }
 
+    /// The frontmatter key of the configuration.
+    private struct Frontmatter: Decodable {
+        /// The configuration of the session.
+        let configuration: Configuration
+    }
+
     /// The name of the file in the session directory.
-    static let fileName = "session.json"
+    static let fileName = "index.md"
 
-    /// The slot of the session.
-    let slot: ModelSlot
-
-    /// The lineage record of the session, or `nil`.
-    let agentSpawn: SessionSidecar.AgentSpawn?
-
-    /// The working directory of the session.
-    let workingDirectory: URL
+    /// The record of the session.
+    let record: SessionRecord
 
     /// The configuration of the session.
     let configuration: Configuration
 
-    /// Reads the `session.json` of the session directory `directory`.
+    /// The slot of the session.
+    var slot: ModelSlot { record.slot }
+
+    /// The lineage record of the session, or `nil`.
+    var agentSpawn: SessionRecord.AgentSpawn? { record.agentSpawn }
+
+    /// The working directory of the session.
+    var workingDirectory: URL { record.workingDirectory }
+
+    /// Reads the record of the session directory `directory`.
     ///
     /// - Parameter directory: The recording directory of the session.
-    /// - Returns: The decoded parts.
-    /// - Throws: The error of the read or of the decode.
-    static func read(in directory: URL) throws -> RecordedSidecar {
-        try JSONDecoder().decode(
-            RecordedSidecar.self, from: Data(contentsOf: directory.appendingPathComponent(fileName)))
+    /// - Returns: The record and its configuration.
+    /// - Throws: The error of `#require` when the recording root lists no
+    ///   session of the directory or the `index.md` has no frontmatter, or
+    ///   the error of the read or of the decode.
+    static func read(in directory: URL) throws -> RecordedSession {
+        let sessionId = directory.lastPathComponent
+        let record = try #require(
+            try RouterSessionDirectory.recordedSessions(in: directory.deletingLastPathComponent())
+                .first { $0.sessionId.description == sessionId })
+        let text = try String(contentsOf: directory.appendingPathComponent(fileName), encoding: .utf8)
+        let frontmatter = try #require(FrontmatterDocument<Never>.split(text: text).frontmatter)
+        let configuration = try YAMLValue.parse(frontmatter).decoded(as: Frontmatter.self).configuration
+        return RecordedSession(record: record, configuration: configuration)
     }
 }
 
@@ -73,16 +95,13 @@ enum RecordedTranscript {
         try events(in: directory).filter { $0.kind == .toolOutput }.flatMap(\.operationEvents)
     }
 
-    /// The events of the transcript of the session.
+    /// The events of the transcript of the session, read as the Router reads
+    /// them: with `JSONLFile`, which decodes the millisecond ISO 8601 dates.
     ///
     /// - Parameter directory: The recording directory of the session.
     /// - Returns: The events, in file order.
-    /// - Throws: The error of the read or of the decode of a line.
+    /// - Throws: The error of the read.
     private static func events(in directory: URL) throws -> [TranscriptEvent] {
-        let text = try String(contentsOf: directory.appendingPathComponent(fileName), encoding: .utf8)
-        let decoder = JSONDecoder()
-        return try text.split(separator: "\n").map { line in
-            try decoder.decode(TranscriptEvent.self, from: Data(line.utf8))
-        }
+        try JSONLFile(url: directory.appendingPathComponent(fileName)).records(as: TranscriptEvent.self)
     }
 }

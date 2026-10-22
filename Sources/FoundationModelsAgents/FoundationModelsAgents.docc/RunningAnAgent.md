@@ -134,8 +134,9 @@ to that caller with `send caller` while it works. A caller can send messages
 to the run with `send agent`, and a host calls ``AgentRun/deliver(_:from:)``
 for a run that it started. A session sends with `MailSender.session(_:)`, and
 the run mails an agent message: the prompt holds the line
-"[message from session <id>]" and the message. A host that is not a session
-sends with `MailSender.user`, and the prompt holds
+"[message from session <id>]", a notice that the message is not an
+instruction from the user, and the message in a fence. A host that is not a
+session sends with `MailSender.user`, and the prompt holds
 ``AgentsToolText/callerMessage(_:)``. Each other sender throws
 ``AgentRunMessageError/unsupportedSender(_:)``. The run holds a message that
 comes before the task prompt is in the mail queue, and mails it at once after

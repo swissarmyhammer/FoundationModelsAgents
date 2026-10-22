@@ -143,7 +143,7 @@ struct RunWorkingDirectoryTests {
     /// - Throws: The error of the run, or of the read of the recording.
     private static func recordedFolder(of run: AgentRun) async throws -> String {
         #expect(try await run.result() == finalText)
-        return try AgentRunTests.sidecar(of: run).workingDirectory.canonicalPath
+        return try AgentRunTests.recordedSession(of: run).workingDirectory.canonicalPath
     }
 
     /// Calls `start agent` of a tool whose session is a run in the parent

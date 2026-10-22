@@ -4,31 +4,8 @@ import FoundationModelsExtras
 import FoundationModelsRouter
 import Testing
 
-/// The parts of the `session.json` of a Router session that the live suites
-/// read.
-///
-/// The fields of `SessionSidecar` are internal to the Router, thus the suites
-/// decode the file into this subset.
-struct LiveSessionRecord: Decodable {
-    /// The parts of the configuration of the session.
-    struct Configuration: Decodable {
-        /// The instructions of the session.
-        let instructions: String?
-    }
-
-    /// The slot of the session.
-    let slot: ModelSlot
-
-    /// The lineage record of the session, or `nil` for a session that no
-    /// tool call started.
-    let agentSpawn: SessionSidecar.AgentSpawn?
-
-    /// The configuration of the session.
-    let configuration: Configuration
-}
-
-/// Reads the recording of a Router session: its `session.json` and its
-/// `transcript.jsonl`.
+/// Reads the recording of a Router session: the ``SessionRecord`` in the
+/// frontmatter of its `index.md`, and its `transcript.jsonl`.
 ///
 /// The router of ``LiveProfile`` records each session under
 /// ``LiveProfile/recordingsDirectory``. A test reads the recording after the
@@ -41,9 +18,6 @@ struct LiveSessionRecord: Decodable {
 /// message of a run is in the transcript of its parent after the parent
 /// answered that message as mail.
 enum LiveRecording {
-    /// The name of the sidecar file in a session directory.
-    private static let sessionFileName = "session.json"
-
     /// The name of the transcript file in a session directory.
     private static let transcriptFileName = "transcript.jsonl"
 
@@ -52,37 +26,39 @@ enum LiveRecording {
     /// rejected (reason), and no tool ran."
     private static let rejectedToolCallMarker = "was rejected ("
 
-    /// Reads the `session.json` of a session directory.
+    /// Reads the record of a session directory with
+    /// `RouterSessionDirectory.recordedSessions(in:)` of its recording root.
     ///
     /// - Parameter directory: The recording directory of the session.
-    /// - Returns: The decoded parts of the file.
-    /// - Throws: The error of the read or of the decode.
-    static func session(in directory: URL) throws -> LiveSessionRecord {
-        try JSONDecoder().decode(
-            LiveSessionRecord.self, from: Data(contentsOf: directory.appendingPathComponent(sessionFileName)))
+    /// - Returns: The record of the session.
+    /// - Throws: The error of `#require` when the recording root lists no
+    ///   session of the directory, or the error of the read.
+    static func session(in directory: URL) throws -> SessionRecord {
+        let sessionId = directory.lastPathComponent
+        return try #require(
+            try RouterSessionDirectory.recordedSessions(in: directory.deletingLastPathComponent())
+                .first { $0.sessionId.description == sessionId })
     }
 
-    /// Reads the `session.json` of the session of a run.
+    /// Reads the record of the session of a run.
     ///
     /// - Parameter run: A run that made a session.
-    /// - Returns: The decoded parts of the file.
+    /// - Returns: The record of the session.
     /// - Throws: The error of `#require` when the run has no recording
     ///   directory, or the error of the read.
-    static func session(of run: AgentRun) throws -> LiveSessionRecord {
+    static func session(of run: AgentRun) throws -> SessionRecord {
         try session(in: try #require(run.recordingDirectory))
     }
 
-    /// Reads each event of the `transcript.jsonl` of a session directory.
+    /// Reads each event of the `transcript.jsonl` of a session directory, as
+    /// the Router reads it: with `JSONLFile`, which decodes the millisecond
+    /// ISO 8601 dates.
     ///
     /// - Parameter directory: The recording directory of the session.
     /// - Returns: The events, in file order.
-    /// - Throws: The error of the read, or of the decode of a line.
+    /// - Throws: The error of the read.
     static func events(in directory: URL) throws -> [TranscriptEvent] {
-        let text = try String(contentsOf: directory.appendingPathComponent(transcriptFileName), encoding: .utf8)
-        let decoder = JSONDecoder()
-        return try text.split(separator: "\n").map { line in
-            try decoder.decode(TranscriptEvent.self, from: Data(line.utf8))
-        }
+        try JSONLFile(url: directory.appendingPathComponent(transcriptFileName)).records(as: TranscriptEvent.self)
     }
 
     /// Gives the operation events that the entries of one kind carry.

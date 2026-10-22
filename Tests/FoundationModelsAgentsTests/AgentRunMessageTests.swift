@@ -14,7 +14,7 @@ import ULID
 /// Most tests send as `MailSender.user`, a host that is not a session: the
 /// prompt of the message then holds the caller prefix
 /// (``AgentsToolText/callerMessage(_:)``). The tests of a session sender pin
-/// the line of the Router, "[message from session <id>]".
+/// the fenced prompt of the Router (``RouterAgentMessage``).
 @Suite("Messages to a run")
 struct AgentRunMessageTests {
     /// The session events of one run that the run event observer got: the
@@ -396,7 +396,7 @@ struct AgentRunMessageTests {
         #expect(mailed.map(\.id) == [taskID, messageID])
         #expect(taskPosition < messagePosition)
         #expect(ledger.answered.contains { $0.contains(messageID) })
-        #expect(result == "[message from session \(Self.senderSession.ulidString)]\n\(Self.message)")
+        #expect(result == RouterAgentMessage.prompt(Self.message, from: Self.senderSession))
     }
 
     @Test(

@@ -178,7 +178,7 @@ struct AgentsDemoProfileModeTests {
     private static let userAnswer = "The work goes on."
 
     /// The file that each Router session writes in its recording directory.
-    private static let sidecarName = "session.json"
+    private static let indexName = RecordedSession.fileName
 
     @Test("the chat mode writes the answer that the mail of lead starts, with no user input")
     func chatModeWritesTheAnswerToTheMail() async throws {
@@ -344,13 +344,13 @@ struct AgentsDemoProfileModeTests {
     /// Reads the slot of each Router session that recorded under `directory`.
     ///
     /// - Parameter directory: The recordings root of the router.
-    /// - Returns: The slot of each `session.json` under the folder.
+    /// - Returns: The slot of each `index.md` under the folder.
     /// - Throws: The error of `#require`, of the read, or of the decode.
     private static func recordedSlots(in directory: URL) throws -> [ModelSlot] {
         let files = try #require(FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil))
         return try files.compactMap { $0 as? URL }
-            .filter { $0.lastPathComponent == sidecarName }
-            .map { try RecordedSidecar.read(in: $0.deletingLastPathComponent()).slot }
+            .filter { $0.lastPathComponent == indexName }
+            .map { try RecordedSession.read(in: $0.deletingLastPathComponent()).slot }
     }
 }
 

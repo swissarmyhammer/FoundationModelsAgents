@@ -125,7 +125,7 @@ struct AgentRunTests {
         #expect(result == Self.finalText)
         #expect(run.state == .finished(Self.finalText))
         #expect(run.slot == .flash)
-        #expect(try Self.sidecar(of: run).slot == .flash)
+        #expect(try Self.recordedSession(of: run).slot == .flash)
         #expect(run.agent.id == Self.reviewer)
         #expect(run.caller == nil)
         #expect(run.depth == 1)
@@ -258,7 +258,7 @@ struct AgentRunTests {
 
         let run = try await harness.start(Self.writtenAgent, prompt: Self.prompt)
         _ = try await run.result()
-        let recorded = try Self.sidecar(of: run).configuration
+        let recorded = try Self.recordedSession(of: run).configuration
 
         #expect(expected.text == Self.compactionText)
         #expect(recorded.compactionPrompt == expected)
@@ -271,7 +271,7 @@ struct AgentRunTests {
 
         let run = try await harness.start(Self.reviewer, prompt: Self.prompt)
         _ = try await run.result()
-        let recorded = try Self.sidecar(of: run).configuration
+        let recorded = try Self.recordedSession(of: run).configuration
 
         #expect(run.agent.compactionPrompt == nil)
         #expect(recorded.compactionPrompt == .default)
@@ -290,7 +290,7 @@ struct AgentRunTests {
 
         let run = try await harness.start(Self.reviewer, prompt: Self.prompt)
         _ = try await run.result()
-        let recorded = try Self.sidecar(of: run).configuration
+        let recorded = try Self.recordedSession(of: run).configuration
         let contextTokens = harness.profile.flash.contextTokens
 
         #expect(seen.withLock { $0 } == [contextTokens])

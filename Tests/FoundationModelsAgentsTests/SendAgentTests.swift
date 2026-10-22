@@ -96,7 +96,7 @@ struct SendAgentTests {
     /// - Parameter session: The id of the session that sent the message.
     /// - Returns: The text of the prompt.
     private static func sessionMessage(from session: ULID) -> String {
-        "[message from session \(session.ulidString)]\n\(message)"
+        RouterAgentMessage.prompt(message, from: session)
     }
 
     /// The answer of `send agent` for a message that the run accepted.

@@ -457,8 +457,9 @@ public final class AgentRun: Sendable {
     /// The sender gives the kind of the mail:
     ///
     /// - `MailSender.session(_:)`: an agent message from that session. The
-    ///   Router puts the line "[message from session <id>]" before the
-    ///   content in the prompt, thus the run adds no prefix of its own.
+    ///   Router puts the line "[message from session <id>]" and a notice
+    ///   before the content, and fences the content as untrusted input in the
+    ///   prompt, thus the run adds no prefix of its own.
     /// - `MailSender.user`: a host that is not a session. The mail is a user
     ///   message with the prompt ``AgentsToolText/callerMessage(_:)``,
     ///   because no Router line names a user.

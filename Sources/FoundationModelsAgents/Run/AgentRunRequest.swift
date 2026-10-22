@@ -82,9 +82,9 @@ struct AgentRunRequest: Sendable {
 
     /// The lineage record of the session of the run: the session and the
     /// tool call that started the run, or `nil` for a host-driven run.
-    var agentSpawn: SessionSidecar.AgentSpawn? {
+    var agentSpawn: SessionRecord.AgentSpawn? {
         context.map { context in
-            SessionSidecar.AgentSpawn(
+            SessionRecord.AgentSpawn(
                 parentSessionId: context.sessionID, parentToolCallId: context.completionToken)
         }
     }
