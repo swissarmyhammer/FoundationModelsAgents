@@ -281,7 +281,7 @@ struct NestedRunTests {
         gate.open()
         let result = try await lead.result()
 
-        #expect(report.hasPrefix("\(lead.subject) is running. \(Self.waitingForOneText)\n"))
+        #expect(report.hasPrefix("\(lead.subject) is still working. \(Self.waitingForOneText)\n"))
         #expect(stateWhileWaiting == .running)
         #expect(child.state == .finished(Self.reviewerText))
         #expect(result.contains(Self.reviewerText))

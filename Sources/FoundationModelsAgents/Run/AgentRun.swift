@@ -92,6 +92,10 @@ public final class AgentRun: Sendable {
         /// The test hooks of the idle rule. They do nothing in a run that no
         /// test changes.
         var idleHooks = AgentRunIdleHooks()
+
+        /// The last `check agent` text of the run in operation that each
+        /// caller got, by the session id of the caller (``AgentRun/recordCheck(_:by:)``).
+        var checkedTexts: [ULID?: String] = [:]
     }
 
     /// The gate of the messages from the caller of the run.
@@ -244,6 +248,23 @@ public final class AgentRun: Sendable {
         var progress = storage.withLock { $0.progress }
         progress.passes = turns.count
         return progress
+    }
+
+    /// Keeps `text` as the last `check agent` text that `caller` got for the
+    /// run in operation.
+    ///
+    /// - Parameters:
+    ///   - text: The text of the run in operation for this check.
+    ///   - caller: The session id of the caller, or `nil` for a call
+    ///     outside a Router session.
+    /// - Returns: `true` when the last check of `caller` gave the same text,
+    ///   thus nothing changed after that check.
+    func recordCheck(_ text: String, by caller: ULID?) -> Bool {
+        storage.withLock { storage in
+            let isUnchanged = storage.checkedTexts[caller] == text
+            storage.checkedTexts[caller] = text
+            return isUnchanged
+        }
     }
 
     /// The part of the life of the run after its setup.

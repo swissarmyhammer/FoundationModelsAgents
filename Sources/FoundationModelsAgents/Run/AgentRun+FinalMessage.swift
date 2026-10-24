@@ -1,4 +1,6 @@
+import FoundationModelsExtras
 import FoundationModelsRouter
+import ULID
 
 /// The final message of a run and the texts that tell its state.
 ///
@@ -15,18 +17,47 @@ extension AgentRun {
 
     /// The text that tells the state of the run, as `check agent` gives it.
     ///
-    /// - A run in operation: "Agent `name` (`id`) is running." After the
-    ///   answer of its task prompt, while runs that it started are open,
+    /// - A run in operation: "Agent `name` (`id`) is still working." After
+    ///   the answer of its task prompt, while runs that it started are open,
     ///   then "It waits for `N` agents that it started." While the Router
-    ///   holds the mail of the run, then ``pausedSentence``. Then the lines of
-    ///   its progress (``AgentRunProgress/text``): the phase, the passes, the
-    ///   last tool names, and the text so far. The text reads only the lock
-    ///   of the run, thus it never waits for an answer.
+    ///   holds the mail of the run, then ``pausedSentence``. Then, on the next
+    ///   line, `PendingRunEnvelope.pendingWorkInstruction` of
+    ///   FoundationModelsExtras: the result comes as a new message, thus the
+    ///   caller does not check again. That package owns the one copy of the
+    ///   text. Then the lines of its progress (``AgentRunProgress/text``):
+    ///   the one progress line, and the last message of each running child.
+    ///   The text reads only the locks of the run, thus it never waits for
+    ///   an answer.
     /// - A finished run: "Agent `name` (`id`) finished.", then the full reply
     ///   of its last answer. This is the final message text.
     /// - A failed or a cancelled run: the text of its final message.
     var report: String {
         report(of: state)
+    }
+
+    /// The sentence that leads a repeated `check agent` text of a run in
+    /// operation when nothing changed after the last check of the same
+    /// caller.
+    static let unchangedCheckSentence = "You checked this agent before, and nothing changed."
+
+    /// Gives the text of ``report`` for a `check agent` call by `caller`.
+    ///
+    /// The run keeps the last text of the run in operation that each caller
+    /// got (``recordCheck(_:by:)``). When `caller` gets the same text again,
+    /// thus nothing changed after its last check, the text starts with
+    /// ``unchangedCheckSentence``. The text of a run that ended does not
+    /// change.
+    ///
+    /// - Parameter caller: The session id of the caller, or `nil` for a call
+    ///   outside a Router session.
+    /// - Returns: The text of the state of the run for this check.
+    func checkReport(by caller: ULID?) -> String {
+        let state = self.state
+        guard state == .running else {
+            return report(of: state)
+        }
+        let text = runningText
+        return recordCheck(text, by: caller) ? "\(Self.unchangedCheckSentence) \(text)" : text
     }
 
     /// Gives the text that tells `state`.
@@ -46,12 +77,12 @@ extension AgentRun {
         }
     }
 
-    /// The text of a run in operation: the heading line, then the lines of
-    /// its progress.
+    /// The text of a run in operation: the heading line, the shared
+    /// pending-work instruction, then the lines of its progress.
     private var runningText: String {
-        let heading = ["\(subject) is running.", waitingSentence, pausedSentence].compactMap(\.self)
+        let heading = ["\(subject) is still working.", waitingSentence, pausedSentence].compactMap(\.self)
             .joined(separator: " ")
-        return "\(heading)\n\(progress.text)"
+        return [heading, PendingRunEnvelope.pendingWorkInstruction, progress.text].joined(separator: "\n")
     }
 
     /// The sentence that `check agent` adds while the Router holds the mail

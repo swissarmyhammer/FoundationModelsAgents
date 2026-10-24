@@ -65,27 +65,16 @@ struct AgentRunProgress: Sendable, Equatable {
     /// order of the first message of each child.
     private(set) var childMessages: [ChildMessage] = []
 
-    /// The lines that tell the record: the phase, the pass count, the last
-    /// tool names, the last message of each running child, and the text so
-    /// far.
+    /// The lines that tell the record. The first line is the one progress
+    /// line: "Progress: `passes` passes; last tools: `tools`; text so far:
+    /// `tail`." Then one line for the last message of each running child.
+    /// The text does not tell the phase: the heading of the run tells the
+    /// wait for its children.
     var text: String {
         let tools = toolNames.isEmpty ? Self.none : toolNames.joined(separator: ", ")
-        let tail = textTail.isEmpty ? "\(Self.none)." : (isCut ? Self.cutMark : "") + textTail
-        let lines = ["Phase: \(phaseName).", "Passes: \(passes).", "Last tools: \(tools)."]
-            + childMessages.map(\.line) + ["Text so far: \(tail)"]
-        return lines.joined(separator: "\n")
-    }
-
-    /// The name of ``phase`` in the text.
-    private var phaseName: String {
-        switch phase {
-        case .taskTurn:
-            "the task turn"
-        case .waitingForChildren:
-            "the wait for the agents that it started"
-        case .answeringMail:
-            "an answer to a final message"
-        }
+        let tail = textTail.isEmpty ? Self.none : (isCut ? Self.cutMark : "") + textTail
+        let progressLine = "Progress: \(passes) passes; last tools: \(tools); text so far: \(tail)."
+        return ([progressLine] + childMessages.map(\.line)).joined(separator: "\n")
     }
 
     /// Applies one event of the session.

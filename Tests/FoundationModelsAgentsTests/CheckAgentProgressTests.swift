@@ -160,7 +160,7 @@ struct CheckAgentProgressTests {
         #expect(progress.phase == .taskTurn)
         #expect(progress.passes == Self.taskPassesAtGate)
         #expect(progress.toolNames == [ToolVocabulary.agentsToolName])
-        #expect(report == "\(run.subject) is running.\n\(progress.text)")
+        #expect(report == "\(run.subject) is still working.\n\(PendingRunEnvelope.pendingWorkInstruction)\n\(progress.text)")
         #expect(result == Self.answerText)
     }
 
@@ -199,7 +199,8 @@ struct CheckAgentProgressTests {
             progress.toolNames
                 == Array(repeating: ToolVocabulary.agentsToolName, count: Self.mailToolCallsAtGate))
         #expect(progress.textTail == NestedRunTests.startedText)
-        #expect(report == "\(lead.subject) is running.\n\(progress.text)")
+        #expect(
+            report == "\(lead.subject) is still working.\n\(PendingRunEnvelope.pendingWorkInstruction)\n\(progress.text)")
         #expect(result.contains(Self.reviewerText))
         #expect(lead.progress.passes == Self.leadPassesAtEnd)
         #expect(lead.progress.textTail == String(result.suffix(AgentRunProgress.textTailLimit)))

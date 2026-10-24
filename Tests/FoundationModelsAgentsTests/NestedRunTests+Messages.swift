@@ -332,8 +332,8 @@ extension NestedRunTests {
                 let message = try Self.position(ofPromptHolding: line, in: script)
                 let final = try Self.position(ofPromptHolding: child.report, in: script)
 
-                #expect(report.hasPrefix("\(parent.subject) is running."))
-                #expect(report.contains("\nLast event of \(token): message: \(Self.firstMessage)\n"))
+                #expect(report.hasPrefix("\(parent.subject) is still working."))
+                #expect(report.hasSuffix("\nLast event of \(token): message: \(Self.firstMessage)"))
                 #expect(!script.prompts[message].contains(child.report))
                 #expect(message < final)
                 #expect(result == script.prompts.last)

@@ -248,16 +248,21 @@ extension CheckAgent {
     /// not add its run yet, thus it finds the run of that call.
     ///
     /// - Parameter context: The shared context of the tool.
-    /// - Returns: The report of the run: running with its last event and,
-    ///   after its task turn, the count of open runs that it started;
-    ///   finished with the full text; failed with the reason; or cancelled.
+    /// - Returns: The report of the run (``AgentRun/checkReport(by:)``):
+    ///   still working with the shared pending-work instruction, its
+    ///   progress and, after its task turn, the count of open runs that it
+    ///   started, with ``AgentRun/unchangedCheckSentence`` first when
+    ///   nothing changed after the last check of the caller; finished with
+    ///   the full text; failed with the reason; or cancelled.
     ///   With no `id`, one report for each run of the caller. A corrective
     ///   for an id that no run of the caller has.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
         guard let id else {
             return await context.reportsOfCallerRuns()
         }
-        return await context.answer(forRun: id) { run in .success(run.report) }
+        return await context.answer(forRun: id) { run in
+            .success(run.checkReport(by: ToolContext.current?.sessionID))
+        }
     }
 }
 

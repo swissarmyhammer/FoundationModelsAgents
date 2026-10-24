@@ -1,4 +1,5 @@
 @testable import FoundationModelsAgents
+import FoundationModelsExtras
 import FoundationModelsRouter
 import Testing
 
@@ -98,17 +99,16 @@ struct AgentsToolOperationsTests {
     }
 
     /// Gives the `check agent` text of a run whose first generation call is
-    /// in its gate: the task turn, with no pass, no tool call, and no text.
+    /// in its gate: the heading, the shared pending-work instruction, and the
+    /// progress line with no pass, no tool call, and no text.
     ///
     /// - Parameter run: The gated run.
     /// - Returns: The text.
-    private static func gatedReport(of run: AgentRun) -> String {
+    static func gatedReport(of run: AgentRun) -> String {
         """
-        Agent code-reviewer (\(run.id)) is running.
-        Phase: the task turn.
-        Passes: 0.
-        Last tools: none.
-        Text so far: none.
+        Agent code-reviewer (\(run.id)) is still working.
+        \(PendingRunEnvelope.pendingWorkInstruction)
+        Progress: 0 passes; last tools: none; text so far: none.
         """
     }
 

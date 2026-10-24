@@ -87,7 +87,7 @@ struct CheckAfterStartTests {
 
         let played = try await Self.answer(of: followUp)
 
-        #expect(played.answer?.hasPrefix("\(played.run.subject) is running.") == true)
+        #expect(played.answer?.hasPrefix("\(played.run.subject) is still working.") == true)
         #expect(played.final == .finished(Self.childText))
     }
 
@@ -97,7 +97,7 @@ struct CheckAfterStartTests {
 
         let played = try await Self.answer(of: followUp)
 
-        #expect(played.answer?.hasPrefix("\(played.run.subject) is running.") == true)
+        #expect(played.answer?.hasPrefix("\(played.run.subject) is still working.") == true)
         #expect(played.final == .finished(Self.childText))
     }
 

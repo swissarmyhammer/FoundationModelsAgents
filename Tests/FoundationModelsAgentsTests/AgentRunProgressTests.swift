@@ -5,7 +5,7 @@ import Testing
 import ULID
 
 /// Pins the progress record of a run in operation for `check agent`: the
-/// text for each phase, the pass count, and the limits of the tool names and
+/// one progress line, the pass count, and the limits of the tool names and
 /// of the text tail.
 @Suite("Agent run progress")
 struct AgentRunProgressTests {
@@ -108,26 +108,20 @@ struct AgentRunProgressTests {
         events.reduce(into: AgentRunProgress()) { progress, event in progress.apply(event) }
     }
 
-    @Test("a new record tells the task turn, no passes, no tools, and no text")
-    func newRecordTellsTaskTurn() {
-        #expect(
-            AgentRunProgress().text == """
-                Phase: the task turn.
-                Passes: 0.
-                Last tools: none.
-                Text so far: none.
-                """)
+    @Test("a new record is one progress line: no passes, no tools, and no text")
+    func newRecordIsOneProgressLine() {
+        #expect(AgentRunProgress().text == "Progress: 0 passes; last tools: none; text so far: none.")
     }
 
-    @Test("the first line tells each phase")
-    func firstLineTellsEachPhase() {
+    @Test("the progress line is the same in each phase")
+    func progressLineIsSameInEachPhase() {
         var waiting = AgentRunProgress()
         waiting.phase = .waitingForChildren
         var answeringMail = AgentRunProgress()
         answeringMail.phase = .answeringMail
 
-        #expect(waiting.text.hasPrefix("Phase: the wait for the agents that it started.\n"))
-        #expect(answeringMail.text.hasPrefix("Phase: an answer to a final message.\n"))
+        #expect(waiting.text == AgentRunProgress().text)
+        #expect(answeringMail.text == AgentRunProgress().text)
     }
 
     @Test("an entry event adds no pass: the text tells the count that the run sets from its one counter")
@@ -137,7 +131,7 @@ struct AgentRunProgressTests {
         progress.passes = Self.toolCallsAndResponsePasses
 
         #expect(fromEvents == 0)
-        #expect(progress.text.contains("\nPasses: \(Self.toolCallsAndResponsePasses).\n"))
+        #expect(progress.text.hasPrefix("Progress: \(Self.toolCallsAndResponsePasses) passes; "))
     }
 
     @Test("the record keeps only the newest tool names, up to the limit, in call order")
@@ -147,7 +141,7 @@ struct AgentRunProgressTests {
         let kept = Array(names.suffix(AgentRunProgress.toolNameLimit))
 
         #expect(progress.toolNames == kept)
-        #expect(progress.text.contains("\nLast tools: \(kept.joined(separator: ", ")).\n"))
+        #expect(progress.text.contains("; last tools: \(kept.joined(separator: ", ")); "))
     }
 
     @Test("only an open tool record adds a name: its close and the recorded tool call of the diff add none")
@@ -169,7 +163,7 @@ struct AgentRunProgressTests {
         let tail = String(long.suffix(AgentRunProgress.textTailLimit))
 
         #expect(progress.textTail == tail)
-        #expect(progress.text.hasSuffix("\nText so far: ...\(tail)"))
+        #expect(progress.text.hasSuffix("; text so far: ...\(tail)."))
     }
 
     @Test("text deltas add to the tail, and a text reset clears it")
@@ -178,7 +172,7 @@ struct AgentRunProgressTests {
         let reset = Self.record(applying: [.textDelta(Self.deliveredText), .textReset, .textDelta(Self.answer)])
 
         #expect(written.textTail == Self.answer)
-        #expect(written.text.hasSuffix("\nText so far: \(Self.answer)"))
+        #expect(written.text.hasSuffix("; text so far: \(Self.answer)."))
         #expect(reset.textTail == Self.answer)
     }
 
@@ -189,9 +183,12 @@ struct AgentRunProgressTests {
             .runMessage(Self.childEvent(.message, detail: Self.messageText))
         ])
 
-        #expect(progress.text.contains("\nLast event of \(Self.childToken): message: \(Self.messageFirstLine)\n"))
+        #expect(
+            progress.text == """
+                Progress: 0 passes; last tools: none; text so far: none.
+                Last event of \(Self.childToken): message: \(Self.messageFirstLine)
+                """)
         #expect(!progress.text.contains(Self.earlierMessage))
-        #expect(progress.text.hasSuffix("\nText so far: none."))
     }
 
     @Test("a child that settled is not running: the text has no message line for it")
@@ -210,6 +207,6 @@ struct AgentRunProgressTests {
         progress.replaceText(with: Self.deliveredText)
 
         #expect(progress.textTail == Self.deliveredText)
-        #expect(progress.text.hasSuffix("\nText so far: \(Self.deliveredText)"))
+        #expect(progress.text.hasSuffix("; text so far: \(Self.deliveredText)."))
     }
 }

@@ -361,7 +361,8 @@ public struct AgentsToolContext: Sendable {
     ///   have no runs." Both are a success.
     func reportsOfCallerRuns() async -> AgentsToolAnswer {
         await startedRuns.waitForStarts()
-        return .success(AgentsToolText.reports(of: await runner.runs(caller: ToolContext.current?.sessionID)))
+        let caller = ToolContext.current?.sessionID
+        return .success(AgentsToolText.reports(of: await runner.runs(caller: caller), caller: caller))
     }
 
     /// Finds the run that `id` names: the run with that id, or the run that

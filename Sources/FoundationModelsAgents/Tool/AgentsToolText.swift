@@ -1,5 +1,6 @@
 import FoundationModelsExtras
 import FoundationModelsRouter
+import ULID
 
 /// The plain-text answers of the `agents` tool.
 ///
@@ -121,14 +122,17 @@ enum AgentsToolText {
     /// Gives the answer of `check agent` with no id: one block for each run
     /// of the caller.
     ///
-    /// - Parameter runs: The runs of the caller, sorted by id.
-    /// - Returns: The ``AgentRun/report`` of each run, with a blank line
-    ///   between two reports, or ``noRuns`` when there is no run.
-    static func reports(of runs: [AgentRun]) -> String {
+    /// - Parameters:
+    ///   - runs: The runs of the caller, sorted by id.
+    ///   - caller: The session id of the caller, or `nil` for a call outside
+    ///     a Router session.
+    /// - Returns: The ``AgentRun/checkReport(by:)`` of each run, with a blank
+    ///   line between two reports, or ``noRuns`` when there is no run.
+    static func reports(of runs: [AgentRun], caller: ULID?) -> String {
         guard !runs.isEmpty else {
             return noRuns
         }
-        return runs.lazy.map(\.report).joined(separator: blockSeparator)
+        return runs.lazy.map { $0.checkReport(by: caller) }.joined(separator: blockSeparator)
     }
 
     /// Gives the answer of `start agent` outside a Router session, for a run
