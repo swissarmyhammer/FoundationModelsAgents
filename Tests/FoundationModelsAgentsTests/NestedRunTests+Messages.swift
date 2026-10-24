@@ -12,9 +12,8 @@ extension NestedRunTests {
     /// ends with the paused outcome and the held result.
     ///
     /// The parent runs on the `standard` slot, and the child on the `flash`
-    /// slot. A slot has one generation queue, and a run that waits on a gate
-    /// holds the queue of its slot. Thus one run can answer while the other
-    /// waits.
+    /// slot. The Router has no generation queue, thus one run can answer
+    /// while the other waits on a gate.
     @Suite("Messages from a child")
     struct Messages {
         /// The mail id of each `runMessage` and `runSettled` output of the

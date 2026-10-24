@@ -10,11 +10,8 @@ import FoundationModelsRouterTestSupport
 /// tools and writes the tool outputs into its transcript. The scripted model
 /// only gives the tool calls and the text.
 ///
-/// The backend names the generation queue of its model. The Router then
-/// submits each submission of the session to that queue, the same as it
-/// does for a live model: the sessions on one model generate one submission
-/// at a time, and the Router refuses a wait for the same model inside a
-/// submission.
+/// The Router has no generation queue for a model. Two sessions on one
+/// scripted model thus generate at the same time.
 final class ScriptedSessionBackend: LanguageModelSessionBackend {
     /// The model that a fork runs its session over.
     private let model: ScriptedAgentModel
@@ -25,19 +22,14 @@ final class ScriptedSessionBackend: LanguageModelSessionBackend {
     /// The live session that each call runs through.
     private let session: LanguageModelSession
 
-    /// The generation queue of the model of the session.
-    private let queue: GenerationQueue
-
     /// Makes a backend over a fresh session.
     ///
     /// - Parameters:
     ///   - model: The scripted model.
-    ///   - queue: The generation queue of the model.
     ///   - instructions: The session instructions, or `nil`.
     ///   - tools: The tools that the model can call.
-    init(model: ScriptedAgentModel, queue: GenerationQueue, instructions: String?, tools: [any Tool]) {
+    init(model: ScriptedAgentModel, instructions: String?, tools: [any Tool]) {
         self.model = model
-        self.queue = queue
         self.tools = tools
         session = LanguageModelSession(model: model, tools: tools, instructions: instructions)
     }
@@ -46,19 +38,12 @@ final class ScriptedSessionBackend: LanguageModelSessionBackend {
     ///
     /// - Parameters:
     ///   - model: The scripted model.
-    ///   - queue: The generation queue of the model.
     ///   - transcript: The transcript that the session starts from.
     ///   - tools: The tools that the model can call.
-    init(model: ScriptedAgentModel, queue: GenerationQueue, transcript: Transcript, tools: [any Tool]) {
+    init(model: ScriptedAgentModel, transcript: Transcript, tools: [any Tool]) {
         self.model = model
-        self.queue = queue
         self.tools = tools
         session = LanguageModelSession(model: model, tools: tools, transcript: transcript)
-    }
-
-    /// The generation queue of the model: each session on the model shares it.
-    var generationQueue: GenerationQueue? {
-        queue
     }
 
     func respond(to prompt: String, maxTokens: Int?) async throws -> String {
@@ -105,11 +90,11 @@ final class ScriptedSessionBackend: LanguageModelSessionBackend {
     }
 
     func makeFork(tools: [any Tool]) -> any LanguageModelSessionBackend {
-        ScriptedSessionBackend(model: model, queue: queue, transcript: session.transcript, tools: tools)
+        ScriptedSessionBackend(model: model, transcript: session.transcript, tools: tools)
     }
 
     func replacingTranscript(_ transcript: Transcript) -> any LanguageModelSessionBackend {
-        ScriptedSessionBackend(model: model, queue: queue, transcript: transcript, tools: tools)
+        ScriptedSessionBackend(model: model, transcript: transcript, tools: tools)
     }
 
     func transcriptEntries() -> [Transcript.Entry] {
@@ -126,15 +111,9 @@ final class ScriptedSessionBackend: LanguageModelSessionBackend {
 ///
 /// All four factories are written out. The protocol default of the two
 /// `tools:` factories DROPS the tools, and a scripted tool call needs them.
-///
-/// The Router gives each model identity one container, thus each scripted
-/// model has one ``queue``, and each session on the model shares it.
 struct ScriptedAgentContainer: LoadedLLMContainer {
     /// The model that each session runs over.
     let model: ScriptedAgentModel
-
-    /// The generation queue of the model.
-    let queue = GenerationQueue()
 
     /// The raw model, for `RoutedModel.makeLanguageModel()`.
     var languageModel: any FoundationModels.LanguageModel {
@@ -151,7 +130,7 @@ struct ScriptedAgentContainer: LoadedLLMContainer {
     }
 
     func makeSession(instructions: String?, tools: [any Tool]) -> any LanguageModelSessionBackend {
-        ScriptedSessionBackend(model: model, queue: queue, instructions: instructions, tools: tools)
+        ScriptedSessionBackend(model: model, instructions: instructions, tools: tools)
     }
 
     func makeSession(transcript: Transcript) -> any LanguageModelSessionBackend {
@@ -159,6 +138,6 @@ struct ScriptedAgentContainer: LoadedLLMContainer {
     }
 
     func makeSession(transcript: Transcript, tools: [any Tool]) -> any LanguageModelSessionBackend {
-        ScriptedSessionBackend(model: model, queue: queue, transcript: transcript, tools: tools)
+        ScriptedSessionBackend(model: model, transcript: transcript, tools: tools)
     }
 }

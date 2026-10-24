@@ -123,34 +123,36 @@ struct ScriptedProfileTests {
         #expect(thirdAnswer == thirdPrompt)
     }
 
-    /// Two sessions on one scripted model share the generation queue of that
-    /// model: the submission of the second session waits while a gated
-    /// submission of the first session holds the model.
-    @Test("Two sessions on one model share its generation queue")
-    func sessionsOnOneModelShareItsQueue() async throws {
+    /// Two sessions on one scripted model do not wait for each other: the
+    /// second session answers while a gated submission of the first session
+    /// holds the model.
+    @Test("A session answers while an other session on its model is held")
+    func sessionAnswersWhileOtherSessionOnModelIsHeld() async throws {
         let gate = ScriptedGate()
         let secondKey = "scripted-second-session"
+        let secondText = "the second final text"
         let script = ScriptedAgentScript([
             ScriptedAgentPlay(key: Self.promptKey, steps: [.wait(gate), .finalText(Self.finalText)]),
-            ScriptedAgentPlay(key: secondKey, steps: [.finalText(Self.finalText)])
+            ScriptedAgentPlay(key: secondKey, steps: [.finalText(secondText)])
         ])
         let (_, profile) = try await ScriptedProfile.make(script: script)
         let first = profile.flash.makeSession()
         let second = profile.flash.makeSession()
+        let firstFinished = TurnFlag()
 
-        let firstAnswer = Task { try await first.respond(to: Self.promptKey) }
-        try #require(await gate.waitForArrival(orEndOf: firstAnswer))
-        var secondEvents = await second.streamEvents(to: secondKey).makeAsyncIterator()
-        // The Router sends the delivery of the mail first; the submission
-        // event of the mail comes after it.
-        var firstSecondEvent = try await secondEvents.next()
-        if case .mailDelivered = firstSecondEvent {
-            firstSecondEvent = try await secondEvents.next()
+        let firstAnswer = Task {
+            let answer = try await first.respond(to: Self.promptKey)
+            firstFinished.set()
+            return answer
         }
+        try #require(await gate.waitForArrival(orEndOf: firstAnswer))
+        let secondAnswer = try await second.respond(to: secondKey)
+        let firstWasHeld = !firstFinished.isSet
         gate.open()
-        _ = try await firstAnswer.value
 
-        #expect(Self.isSubmissionQueued(firstSecondEvent))
+        #expect(secondAnswer == secondText)
+        #expect(firstWasHeld)
+        #expect(try await firstAnswer.value == Self.finalText)
     }
 
     /// Each pass of a scripted submission reports its own generation call,
@@ -168,15 +170,6 @@ struct ScriptedProfileTests {
             .reduce(0) { count, _ in count + 1 }
 
         #expect(calls == 1)
-    }
-
-    /// Tells if `event` is a queued submission.
-    ///
-    /// - Parameter event: An event, or `nil`.
-    /// - Returns: `true` for ``SessionEvent/submissionQueued(_:)``.
-    private static func isSubmissionQueued(_ event: SessionEvent?) -> Bool {
-        if case .submissionQueued = event { return true }
-        return false
     }
 
     /// Tells if `event` reports one generation call.

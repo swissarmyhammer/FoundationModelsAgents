@@ -63,8 +63,7 @@ extension NestedRunTests {
 
         /// A tool whose body waits on a gate, then gives a fixed output.
         ///
-        /// A child waits in a tool call, not in a generation call: a tool
-        /// call does not hold the generation queue of the slot. Thus all the
+        /// A child waits in a tool call, not in a generation call. All the
         /// children of the lead can wait at the same time, and the test opens
         /// their gates in its own order.
         struct GateTool: Tool {

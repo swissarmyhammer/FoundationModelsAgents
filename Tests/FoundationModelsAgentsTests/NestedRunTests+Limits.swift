@@ -114,8 +114,7 @@ extension NestedRunTests {
         /// `flash` slot). Each sibling starts one ``helper``, which runs on
         /// the slot of its sibling. The task answer of the second sibling
         /// waits on a gate before its `start agent` call, and each helper
-        /// waits on a gate. A gated submission holds the generation queue of
-        /// its model, thus each gated submission at one time is on its own
+        /// waits on a gate. Each gated submission at one time is on its own
         /// model. The root answers the mail of each sibling.
         ///
         /// - Parameters:

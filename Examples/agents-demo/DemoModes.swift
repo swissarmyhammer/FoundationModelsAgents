@@ -186,11 +186,11 @@ enum AgentsDemoModes {
     /// The flow is the flow of ``chat(profile:registry:workingDirectory:input:output:inlineSettleGrace:)``
     /// with ``fanOutInstructions`` and ``fanOutPrompt``. The model starts
     /// ``reviewerAgent`` on the `flash` slot and ``testWriterAgent`` on the
-    /// `standard` slot at the same time. The two slots have two generation
-    /// queues, thus neither run waits for the other. The final message of
-    /// each run that continues past the settle period comes to the root
-    /// session as mail, and the mode writes the answer to it. When `input`
-    /// ends, the mode writes one line for each run of the root session.
+    /// `standard` slot at the same time. Neither run waits for the other.
+    /// The final message of each run that continues past the settle period
+    /// comes to the root session as mail, and the mode writes the answer to
+    /// it. When `input` ends, the mode writes one line for each run of the
+    /// root session.
     ///
     /// - Parameters:
     ///   - profile: The resolved profile of the runs and of the root session.
@@ -251,7 +251,7 @@ enum AgentsDemoModes {
             [pausedPrefix + pause.description, sendMessageHint]
         case .textDelta, .textReset, .reasoningDelta, .toolCall, .toolStatus, .toolInvocation, .toolDisplay,
             .toolCallReport, .entryRecorded, .compaction, .discoveryPrimingFailed, .generationStalled,
-            .submissionQueued, .submissionStarted, .submissionEnded, .repetitionStopped,
+            .submissionStarted, .submissionEnded, .repetitionStopped,
             .elicitationRequested, .generationCall, .compactionStarted, .compactionFailed,
             .reasoningStopped, .runProgress, .mailDelivered, .cancelled, .signalDone, .lost,
              .workStarted, .workEnded, .elicitationEnded, .elicitationCompleted:

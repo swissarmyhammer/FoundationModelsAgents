@@ -13,9 +13,8 @@ enum AgentsDemoProfile {
 
     /// The profile that the example resolves: small `mlx-community` models.
     ///
-    /// The `standard` and `flash` slots have different models. Thus each slot
-    /// has its own generation queue, and a submission on one slot does not
-    /// wait for a submission on the other slot.
+    /// The `standard` and `flash` slots have different models. A submission
+    /// on one slot does not wait for a submission on the other slot.
     static let definition = ProfileDefinition(
         name: "agents-demo",
         description: "Small local models for the agents-demo example.",
