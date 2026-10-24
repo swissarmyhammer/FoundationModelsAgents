@@ -65,15 +65,21 @@ struct AgentRunProgress: Sendable, Equatable {
     /// order of the first message of each child.
     private(set) var childMessages: [ChildMessage] = []
 
+    /// The characters that end a sentence. A tail that ends with one of
+    /// them gets no full stop in the progress line.
+    static let endPunctuation: Set<Character> = [".", "!", "?", "…"]
+
     /// The lines that tell the record. The first line is the one progress
     /// line: "Progress: `passes` passes; last tools: `tools`; text so far:
-    /// `tail`." Then one line for the last message of each running child.
-    /// The text does not tell the phase: the heading of the run tells the
-    /// wait for its children.
+    /// `tail`." The line adds the full stop only when the tail does not end
+    /// with ``endPunctuation``. Then one line for the last message of each
+    /// running child. The text does not tell the phase: the heading of the
+    /// run tells the wait for its children.
     var text: String {
         let tools = toolNames.isEmpty ? Self.none : toolNames.joined(separator: ", ")
         let tail = textTail.isEmpty ? Self.none : (isCut ? Self.cutMark : "") + textTail
-        let progressLine = "Progress: \(passes) passes; last tools: \(tools); text so far: \(tail)."
+        let fullStop = tail.last.map(Self.endPunctuation.contains) == true ? "" : "."
+        let progressLine = "Progress: \(passes) passes; last tools: \(tools); text so far: \(tail)\(fullStop)"
         return ([progressLine] + childMessages.map(\.line)).joined(separator: "\n")
     }
 

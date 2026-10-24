@@ -100,7 +100,7 @@ struct CheckAgentRepeatTests {
 
         #expect(!second.hasPrefix(Self.unchangedSentence))
         #expect(second != first)
-        #expect(second.hasSuffix("; text so far: \(Self.progressText)."))
+        #expect(second.hasSuffix("; text so far: \(Self.progressText)"))
     }
 
     @Test("a check by an other caller does not lead with the unchanged sentence")

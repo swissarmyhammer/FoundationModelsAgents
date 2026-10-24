@@ -163,7 +163,17 @@ struct AgentRunProgressTests {
         let tail = String(long.suffix(AgentRunProgress.textTailLimit))
 
         #expect(progress.textTail == tail)
-        #expect(progress.text.hasSuffix("; text so far: ...\(tail)."))
+        #expect(progress.text.hasSuffix("; text so far: ...\(tail)"))
+    }
+
+    @Test("the progress line adds a full stop only when the tail has no end punctuation")
+    func fullStopOnlyWithoutEndPunctuation() {
+        let ends = ["The diff is correct.", "Done!", "Is it done?", "Reading the files…"]
+        for text in ends {
+            #expect(Self.record(applying: [.textDelta(text)]).text.hasSuffix("; text so far: \(text)"))
+        }
+        let open = "The diff is correct"
+        #expect(Self.record(applying: [.textDelta(open)]).text.hasSuffix("; text so far: \(open)."))
     }
 
     @Test("text deltas add to the tail, and a text reset clears it")
@@ -172,7 +182,7 @@ struct AgentRunProgressTests {
         let reset = Self.record(applying: [.textDelta(Self.deliveredText), .textReset, .textDelta(Self.answer)])
 
         #expect(written.textTail == Self.answer)
-        #expect(written.text.hasSuffix("; text so far: \(Self.answer)."))
+        #expect(written.text.hasSuffix("; text so far: \(Self.answer)"))
         #expect(reset.textTail == Self.answer)
     }
 
@@ -207,6 +217,6 @@ struct AgentRunProgressTests {
         progress.replaceText(with: Self.deliveredText)
 
         #expect(progress.textTail == Self.deliveredText)
-        #expect(progress.text.hasSuffix("; text so far: \(Self.deliveredText)."))
+        #expect(progress.text.hasSuffix("; text so far: \(Self.deliveredText)"))
     }
 }
