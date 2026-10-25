@@ -183,15 +183,17 @@ struct AgentsToolDescriptionTests {
                 + Self.listSeparator + Self.noAgentsLine)
     }
 
-    /// The pending-work text starts with "This is not the result.", thus the
-    /// sentence before it does not say the same words again.
-    @Test func theFixedSentencesSayThatTheCallIsNotTheResultOneTime() {
-        let notTheResult = "not the result"
+    /// The pending-work text tells how the result arrives, thus the fixed
+    /// sentences say it one time: they hold the shared text one time, and
+    /// the sentence before it names only the pending answer.
+    @Test func theFixedSentencesSayHowTheResultArrivesOneTime() {
+        let arrives = "will arrive"
 
         let description = AgentsToolDescription.make(agents: [], characterLimit: Self.largeLimit)
 
-        #expect(PendingRunEnvelope.pendingWorkInstruction.contains(notTheResult))
-        #expect(description.components(separatedBy: notTheResult).count == 2)
+        #expect(PendingRunEnvelope.pendingWorkInstruction.contains(arrives))
+        #expect(description.components(separatedBy: arrives).count == 2)
+        #expect(description.components(separatedBy: PendingRunEnvelope.pendingWorkInstruction).count == 2)
     }
 
     // MARK: - The delegation sentence

@@ -236,7 +236,7 @@ struct AgentsToolOperationsTests {
         #expect(
             cancelled == """
                 The cancel of Agent code-reviewer (\(run.id)) was sent (cancelled). \
-                The run stops when its turn ends.
+                The run stops when its current step ends.
                 """)
         #expect(checked == "Agent code-reviewer (\(run.id)) was cancelled.")
         #expect(

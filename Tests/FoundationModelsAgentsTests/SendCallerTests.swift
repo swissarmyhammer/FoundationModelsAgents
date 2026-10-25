@@ -43,9 +43,38 @@ struct SendCallerTests {
     /// word from the task.
     private static let noCallerText = "You have no caller."
 
+    /// The answer of `send caller` when the message was sent, word for word
+    /// from the user. It names no turn: the run goes on, and its last message
+    /// is its result.
+    private static let messageSentText = """
+        The message was sent to the session that started you. Go on with your work. \
+        When your work is done, your last message goes to that session as your result.
+        """
+
+    /// The description of the `send caller` operation, word for word from the
+    /// user.
+    private static let sendCallerDescription = """
+        Send a message to the session that started you, while you go on working. \
+        When your work is done, your last message goes to it as your result.
+        """
+
     /// The JSON arguments of the `start agent` call of the root session.
     private static let startArguments =
         #"{"op": "start agent", "name": "\#(lead)", "prompt": "\#(childPrompt)"}"#
+
+    @Test("the answer of a sent message tells the run to go on, and that its last message is its result")
+    func messageSentTextIsWordForWord() {
+        #expect(AgentsToolText.messageSentToCaller == Self.messageSentText)
+    }
+
+    @Test("the description of send caller tells the run to go on, and that its last message is its result")
+    func sendCallerDescriptionIsWordForWord() async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+        let sendCaller = harness.tool.operationTool.operationDescriptors.first { $0.opString == "send caller" }
+
+        #expect(sendCaller?.description == Self.sendCallerDescription)
+    }
 
     /// The script of the root session and of one child run.
     ///

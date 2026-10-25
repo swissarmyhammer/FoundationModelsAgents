@@ -67,7 +67,7 @@ public enum AgentRunFailure: Error, Sendable, Equatable {
         case .modelFailed(let text):
             "the model failed: \(text)"
         case .hitMaxTurns(let partial):
-            "the agent used more turns than its maxTurns limit; its text so far: \(partial)"
+            "the agent used more model passes than its maxTurns limit; its text so far: \(partial)"
         case .mailDeliveryPaused(let text):
             "the session did not deliver the final messages of the agents that it started: \(text)"
         }

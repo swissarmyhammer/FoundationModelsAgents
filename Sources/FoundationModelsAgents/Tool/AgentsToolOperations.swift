@@ -386,8 +386,8 @@ extension SendAgent {
 @Operation(
     verb: "send", noun: "caller",
     description: """
-        Send a message to the session that started you. You continue to work. \
-        Your final message still goes to it when you end.
+        Send a message to the session that started you, while you go on working. \
+        When your work is done, your last message goes to it as your result.
         """)
 struct SendCaller {
     /// The text of the message.

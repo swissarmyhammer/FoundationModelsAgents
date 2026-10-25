@@ -101,15 +101,15 @@ enum AgentsToolDescription {
     /// agent, what to put in the prompt, and how to delegate.
     ///
     /// The sentences end with `PendingRunEnvelope.pendingWorkInstruction` of
-    /// FoundationModelsExtras, the same text that the pending text of
-    /// `start agent` uses. That text starts with "This is not the result.",
-    /// thus the sentence before it names the pending answer and does not say
-    /// these words again.
+    /// FoundationModelsExtras, which the pending text of `start agent` also
+    /// builds on. That text tells how the result arrives, thus the sentence
+    /// before it names only the pending answer and does not say it again.
     ///
     /// The sentences do not point to `check agent`. The pending-work text
-    /// says "Do not call a tool to wait or to check", and a pointer to a
-    /// check operation tells the model to check. The descriptions of the
-    /// Multitool package have no such pointer for the same reason.
+    /// says that the model does not need to wait for the result or check on
+    /// it, and a pointer to a check operation tells the model to check. The
+    /// descriptions of the Multitool package have no such pointer for the
+    /// same reason.
     private static let fixedSentences = """
         An agent is a model session that works in the background. \(matchSentences) Each agent starts with \
         an empty context and sees only the prompt that you give it, so put the full task and all that the \

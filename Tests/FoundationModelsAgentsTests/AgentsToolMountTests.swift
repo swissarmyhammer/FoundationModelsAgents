@@ -51,13 +51,6 @@ struct AgentsToolMountTests {
     /// A completion token of a `start agent` call.
     private static let completionToken = "01M3N00000000000000000TOKN"
 
-    /// The sentence of the pending text of `start agent` that names the run
-    /// for ``completionToken``, word for word. Agents owns this sentence. It
-    /// names the run by its completion token, because the mail of the final
-    /// message names the run by the same token.
-    private static let runSentence =
-        #"The agent is running in the background, with completionToken "01M3N00000000000000000TOKN". "#
-
     /// Each op with the mode of its mount. A verb alias gives the mode of
     /// the operation that it names.
     private static let modes: [(op: String, mode: ToolMount.Mode)] = [
@@ -113,22 +106,78 @@ struct AgentsToolMountTests {
         #expect(harness.tool.inlineSettleGrace == ToolMount.defaultInlineSettleGrace)
     }
 
-    /// This test pins only the Agents part of the pending text: the literal
-    /// ``runSentence``. It also checks the composition: the shared
-    /// pending-work text follows that sentence, with nothing between them and
-    /// nothing after. The shared text tells the model that the session
-    /// injects the result, and not to wait or to check. FoundationModelsExtras
-    /// owns that text, and its test
-    /// `PendingRunEnvelopeTests.approvedPendingWorkInstruction` pins it word
-    /// for word. Thus this package holds no copy of it.
-    @Test("the pending text is the sentence that names the run by its completion token, then the shared pending-work text")
-    func pendingTextIsTheRunSentenceThenThePendingWorkInstruction() async throws {
+    /// The description of a `start agent` call: the agent and the start of
+    /// the prompt.
+    private static let startDescription = "agent code-reviewer: \(childPrompt)"
+
+    @Test("a start agent call is described by its agent and the start of its prompt", arguments: ["start agent", "run agent"])
+    func startAgentCallDescriptionNamesTheAgentAndThePrompt(op: String) async throws {
         let harness = try await AgentsToolHarness.make()
         defer { try? harness.delete() }
+        let arguments = try GeneratedContent(
+            json: #"{"op": "\#(op)", "name": "code-reviewer", "prompt": "\#(Self.childPrompt)"}"#)
 
-        let pendingText = harness.tool.collectInstruction(forCompletionToken: Self.completionToken)
+        #expect(harness.tool.callDescription(for: arguments) == Self.startDescription)
+    }
 
-        #expect(pendingText == Self.runSentence + PendingRunEnvelope.pendingWorkInstruction)
+    /// The description keeps the first line of the prompt that holds text,
+    /// cut to sixty characters with `…`, as the background calls of the
+    /// Multitool package do.
+    @Test("the description of a start agent call keeps one line of the prompt, cut to sixty characters")
+    func startAgentCallDescriptionIsOneCutLine() async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+        let longLine = String(repeating: "x", count: 70)
+        let arguments = try GeneratedContent(
+            json: #"{"op": "start agent", "name": "code-reviewer", "prompt": "\n  \#(longLine)\nsecond line"}"#)
+
+        #expect(
+            harness.tool.callDescription(for: arguments)
+                == "agent code-reviewer: \(String(repeating: "x", count: 60))…")
+    }
+
+    @Test("a start agent call with no prompt is described by its agent alone")
+    func startAgentCallDescriptionWithNoPromptNamesTheAgent() async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+        let arguments = try GeneratedContent(json: #"{"op": "start agent", "name": "code-reviewer"}"#)
+
+        #expect(harness.tool.callDescription(for: arguments) == "agent code-reviewer")
+    }
+
+    @Test("a call of another op has no description of its own", arguments: ["list agents", "check agent", "cancel agent", "send caller"])
+    func otherOperationsHaveNoCallDescription(op: String) async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+        let arguments = try GeneratedContent(json: #"{"op": "\#(op)", "name": "code-reviewer", "prompt": "a task"}"#)
+
+        #expect(harness.tool.callDescription(for: arguments) == nil)
+    }
+
+    /// The pending text comes from the default path of FoundationModelsExtras:
+    /// `collectInstruction(forCompletionToken:describing:)` with the
+    /// description of the call. FoundationModelsExtras owns that text, and its
+    /// tests pin it word for word. Thus this package holds no copy of it, and
+    /// this test checks that the text names the agent, the token, and the
+    /// status line.
+    @Test("the pending text of a start agent call names the agent, the completion token, and the status line")
+    func pendingTextNamesTheAgentTheTokenAndTheStatusLine() async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+        let arguments = try GeneratedContent(json: Self.startArguments)
+        let description = try #require(harness.tool.callDescription(for: arguments))
+
+        let pendingText = harness.tool.collectInstruction(
+            forCompletionToken: Self.completionToken, describing: description)
+
+        #expect(
+            pendingText
+                == PendingRunEnvelope.defaultCollectInstruction(
+                    forCompletionToken: Self.completionToken, describing: description))
+        #expect(pendingText.contains("code-reviewer"))
+        #expect(pendingText.contains(Self.completionToken))
+        #expect(pendingText.contains("Waiting on \(Self.startDescription) (\(Self.completionToken))."))
+        #expect(TurnLanguage.phrases(in: pendingText).isEmpty)
     }
 
     @Test(

@@ -280,18 +280,46 @@ extension AgentsTool: BackgroundTool {
         operationTool.mount(for: arguments)
     }
 
-    /// Gives the `next` sentence of the pending envelope of a call: the run
-    /// works in the background, and the session injects its final message
-    /// as a new message. The model does not call a tool to wait or to check.
+    /// Gives the short description that the pending text names a background
+    /// call by: `agent <name>: <start of the prompt>` for `start agent`, the
+    /// one background operation.
     ///
-    /// The sentence names the run by `completionToken`, the same token that
-    /// the mail of the final message names the run by.
+    /// The `next` text of the pending envelope is the default of
+    /// FoundationModelsExtras
+    /// (`PendingRunEnvelope.defaultCollectInstruction(forCompletionToken:describing:)`).
+    /// It names this description and the completion token, the same token
+    /// that the mail of the final message names the run by. That package
+    /// owns the one copy of the text.
     ///
-    /// - Parameter completionToken: The completion token of the call. The
-    ///   `BackgroundTool` protocol gives it.
-    /// - Returns: The sentence.
-    public func collectInstruction(forCompletionToken completionToken: String) -> String {
-        AgentsToolText.collectInstruction(forCompletionToken: completionToken)
+    /// The description keeps the first line of the prompt that holds text,
+    /// cut to ``AgentsToolText/callDescriptionTextLimit`` characters with
+    /// `…`, as the background calls of the Multitool package do.
+    ///
+    /// - Parameter arguments: The payload of the model.
+    /// - Returns: The description of a `start agent` call with a name, or
+    ///   `nil` for each other call, which is then named by its op.
+    public func callDescription(for arguments: GeneratedContent) -> String? {
+        guard mount(for: arguments)?.mode == .background,
+            let name = Self.string("name", of: arguments)
+        else {
+            return nil
+        }
+        return AgentsToolText.callDescription(agent: name, prompt: Self.string("prompt", of: arguments) ?? "")
+    }
+
+    /// The string field `field` of `arguments`, or `nil`.
+    ///
+    /// - Parameters:
+    ///   - field: The name of the field.
+    ///   - arguments: The payload of the model.
+    /// - Returns: The value, when it is a string.
+    private static func string(_ field: String, of arguments: GeneratedContent) -> String? {
+        guard case .structure(let properties, _) = arguments.kind,
+            case .string(let value)? = properties[field]?.kind
+        else {
+            return nil
+        }
+        return value
     }
 
     /// Gives the canceler of the call `completionToken`: it cancels the run

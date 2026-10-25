@@ -66,8 +66,8 @@ enum AgentsToolText {
     /// The answer of `send caller`, and of `send agent` with the id of the
     /// caller, when the message was sent to the caller.
     static let messageSentToCaller = """
-        The message was sent to the session that started you. Continue your work. \
-        Your final message goes to that session when you end.
+        The message was sent to the session that started you. Go on with your work. \
+        When your work is done, your last message goes to that session as your result.
         """
 
     /// The answer of `check agent` with no id for a caller with no run, and
@@ -146,32 +146,30 @@ enum AgentsToolText {
             + "Ask about it with {\"op\": \"check agent\", \"id\": \"\(run.id)\"}."
     }
 
-    /// Gives the `next` sentence of the pending envelope of a call in a
-    /// Router session.
+    /// The most characters of the prompt that a call description keeps: the
+    /// same limit as the background calls of the Multitool package.
+    static let callDescriptionTextLimit = 60
+
+    /// Gives the description of a `start agent` call that the pending text
+    /// names the call by: `agent <name>: <start of the prompt>`.
     ///
-    /// Only `start agent` is a background call. Its run works in the
-    /// background, and the session injects its final message into the
-    /// conversation of the caller as a new message. That message starts the
-    /// model again. Thus the sentence tells the model not to call a tool to
-    /// wait or to check. It tells the model to do other work that does not
-    /// need the result, or else to do nothing.
-    ///
-    /// The first sentence names the run by its completion token. The mail of
-    /// the final message names the run by the same token
-    /// (``AgentRun/finalMessage(for:)`` uses it as the correlation id). Thus
-    /// the model can match the run to the message that brings its result.
-    ///
-    /// The instruction after the first sentence is
-    /// `PendingRunEnvelope.pendingWorkInstruction` of FoundationModelsExtras.
-    /// That package owns the one copy of the text. The fixed sentences of
-    /// ``AgentsToolDescription`` and the background commands of the Multitool
-    /// package use the same text.
-    ///
-    /// - Parameter completionToken: The completion token of the call.
-    /// - Returns: The sentence that names the run, then the instruction.
-    static func collectInstruction(forCompletionToken completionToken: String) -> String {
-        "The agent is running in the background, with completionToken \"\(completionToken)\". "
-            + PendingRunEnvelope.pendingWorkInstruction
+    /// - Parameters:
+    ///   - agent: The name of the agent of the call.
+    ///   - prompt: The prompt of the call.
+    /// - Returns: `agent <name>: ` and the first line of `prompt` that holds
+    ///   text, cut to ``callDescriptionTextLimit`` characters with `…`, or
+    ///   `agent <name>` when the prompt holds no text.
+    static func callDescription(agent: String, prompt: String) -> String {
+        let subject = "agent \(agent)"
+        let line =
+            prompt.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty } ?? ""
+        guard !line.isEmpty else {
+            return subject
+        }
+        let cut = line.count > callDescriptionTextLimit ? line.prefix(callDescriptionTextLimit) + "…" : Substring(line)
+        return "\(subject): \(cut)"
     }
 
     /// Gives the corrective of `start agent` with a name that the catalog
@@ -274,7 +272,7 @@ enum AgentsToolText {
     static func cancel(_ outcome: CancelOutcome, of run: AgentRun) -> String {
         switch outcome {
         case .reported(let reported):
-            "The cancel of \(run.subject) was sent (\(reported.rawValue)). The run stops when its turn ends."
+            "The cancel of \(run.subject) was sent (\(reported.rawValue)). The run stops when its current step ends."
         case .alreadySettled(let final):
             "The run ended before the cancel.\n\n\(final.detail)"
         case .unknownToken:

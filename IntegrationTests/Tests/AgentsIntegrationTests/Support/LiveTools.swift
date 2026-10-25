@@ -285,12 +285,23 @@ extension LiveAgentsToolProbe: BackgroundTool {
         wrapped.mount(for: arguments)
     }
 
-    /// The `next` sentence of the real tool.
+    /// The description of one call of the real tool, which the pending text
+    /// names the call by.
     ///
-    /// - Parameter completionToken: The completion token of the call.
-    /// - Returns: The sentence.
-    func collectInstruction(forCompletionToken completionToken: String) -> String {
-        wrapped.collectInstruction(forCompletionToken: completionToken)
+    /// - Parameter arguments: The arguments of the call.
+    /// - Returns: The description of the real tool, or `nil`.
+    func callDescription(for arguments: GeneratedContent) -> String? {
+        wrapped.callDescription(for: arguments)
+    }
+
+    /// The `next` text of the real tool.
+    ///
+    /// - Parameters:
+    ///   - completionToken: The completion token of the call.
+    ///   - description: The description of the call.
+    /// - Returns: The text.
+    func collectInstruction(forCompletionToken completionToken: String, describing description: String) -> String {
+        wrapped.collectInstruction(forCompletionToken: completionToken, describing: description)
     }
 
     /// The canceler of the real tool.
