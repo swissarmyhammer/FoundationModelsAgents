@@ -275,6 +275,65 @@ holds a copy of the example. `ReadmeExampleTests` compares the texts, and
 runs the copy with a scripted profile over the fixture library. Thus the
 example compiles and runs.
 
+### Restore after a stop
+
+A process can stop while runs work. The recording of each run stays on disk,
+and the host can bring the runs back after a restart. A restored run is the
+same session, not a new one. Its tools and instructions come from the current
+agent files and the current tool catalog.
+
+A run is one-shot: it ends one time. An ended run is never started again. A
+restore makes a new `AgentRun` for the recorded session of a run that did not
+end.
+
+The host marks a session as ended with a closure that it gives to the
+environment:
+
+```text
+let environment = baseEnvironment.withSessionEnding { session, reason in
+    try await directory.markEnded(session, reason: reason)
+}
+```
+
+A run calls the closure when it reaches a real end: it finished, it failed, or
+a user cancelled it. The mark is durable before the result goes anywhere. If
+the mark fails, the run posts no result. `runner.stop()` is for the shutdown of
+the process. It marks nothing and posts no result, thus a later start of the
+host can restore the runs. `runner.cancelRuns(caller:)` is for a session that a
+user closes, and it marks the runs as cancelled.
+
+After a restart, the host does these steps for each caller session, from the
+root session down:
+
+```text
+let children = try await directory.recordedChildren(of: caller)
+let toRestore = AgentRunRestore.select(children: children)   // no ended marker
+let statuses = (try? await directory.runStatuses(of: caller)) ?? [:]
+let claims = AgentRunRestore.claims(for: toRestore, statuses: statuses)
+// Restore the caller with `claiming: claims` first. Then restore each child:
+let run = try await runner.restore(child, prompt: "", deferStart: true)
+// Start the runs when all of them are restored, the children first:
+run.resume()
+```
+
+- A child is selected when it has no ended marker.
+- A claimed call is an orphan call in the journal of the caller. The restored
+  child completes the original `start agent` call with its result. A child whose
+  call is not an orphan is restored too, and its result comes as mail.
+- `deferStart: true` keeps a run from starting. A restored child joins the
+  family of its caller when it is restored. Call `resume()` for the children
+  first and for the caller last, thus the caller does not end before its
+  children are attached.
+- A restored run has no live `start agent` call of its caller. It sends its
+  result to the caller as mail when it ends. A caller that is a run of the
+  runner gets the mail directly. For a caller that is not a run, for example the
+  root session of the host, give `callerMail` to the environment: a closure that
+  sends a message to a caller session and returns `true` when it did.
+- `AgentRun.completionToken` is the token of the first `start agent` call, thus
+  `check agent` and `cancel agent` find a restored run with the old token.
+- The host calls `restore` after it answered the resume request of its own
+  client. The call does no work before.
+
 ## Install
 
 macOS 27 or later. The package is not on a registry. Add it to the
