@@ -471,15 +471,15 @@ public actor AgentRunner {
     ///   - message: The text of the message.
     ///   - sender: The id of the session that sends the message.
     ///   - caller: The id of the session that gets the message.
-    /// - Returns: `true` when the caller got the message as mail. `false`
+    /// - Returns: The id of the mail that was posted to the caller. `nil`
     ///   when the caller is a run that ended, or when the caller is not a run
     ///   of this runner and the environment has no ``AgentEnvironment/callerMail``.
-    func mailCaller(_ message: String, from sender: ULID, to caller: ULID) async -> Bool {
+    func mailCaller(_ message: String, from sender: ULID, to caller: ULID) async -> MailID? {
         retireEndedRuns()
         if let run = openRuns[caller] {
-            return (try? run.deliver(message, from: .session(sender))) == .delivered
+            return (try? run.deliver(message, from: .session(sender)))?.mailID
         }
-        return await environment.callerMail?(message, sender, caller) ?? false
+        return await environment.callerMail?(message, sender, caller)
     }
 
     /// Gives the catalog of the registry with the warnings that need the

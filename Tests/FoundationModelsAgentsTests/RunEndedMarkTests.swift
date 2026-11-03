@@ -102,7 +102,7 @@ struct RunEndedMarkTests {
     func markComesBeforeCallerMail() async throws {
         let events = CallRecord<String>()
         let setup = try await Self.restoredSetup(
-            sessionEnding: { _, _ in events.add("mark") }, callerMail: { _, _, _ in events.add("mail"); return true },
+            sessionEnding: { _, _ in events.add("mark") }, callerMail: { _, _, _ in events.add("mail"); return MailID() },
             gate: nil)
         defer { try? setup.harness.delete() }
 
@@ -116,7 +116,7 @@ struct RunEndedMarkTests {
         struct MarkFailed: Error {}
         let events = CallRecord<String>()
         let setup = try await Self.restoredSetup(
-            sessionEnding: { _, _ in throw MarkFailed() }, callerMail: { _, _, _ in events.add("mail"); return true },
+            sessionEnding: { _, _ in throw MarkFailed() }, callerMail: { _, _, _ in events.add("mail"); return MailID() },
             gate: nil)
         defer { try? setup.harness.delete() }
 
@@ -130,7 +130,7 @@ struct RunEndedMarkTests {
         let gate = ScriptedGate()
         let events = CallRecord<String>()
         let setup = try await Self.restoredSetup(
-            sessionEnding: { _, _ in events.add("mark") }, callerMail: { _, _, _ in events.add("mail"); return true },
+            sessionEnding: { _, _ in events.add("mark") }, callerMail: { _, _, _ in events.add("mail"); return MailID() },
             gate: gate)
         defer { try? setup.harness.delete() }
         try #require(await gate.waitForArrival(orEndOf: setup.run))

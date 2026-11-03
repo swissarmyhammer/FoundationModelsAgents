@@ -59,7 +59,7 @@ struct RestoreReviewFixTests {
         let marks = CallRecord<SessionEndReason>()
         var environment = harness.environment(
             maxRetainedRuns: AgentEnvironment.defaultMaxRetainedRuns, maxDepth: maxDepth,
-            callerMail: { message, _, _ in mails.add(message); return true },
+            callerMail: { message, _, _ in mails.add(message); return MailID() },
             sessionEnding: { _, reason in
                 if let markGate { try? await markGate.wait() }
                 if markFails { throw MarkFailed() }

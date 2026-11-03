@@ -148,8 +148,8 @@ public final class AgentRun: Sendable {
         /// Mail this mail to this session now.
         case send(Mail, any RoutedSession)
 
-        /// The run holds the message, and sends it later.
-        case held
+        /// The run holds the message, and sends it later. The value is the id of the mail.
+        case held(MailID)
 
         /// The run does not accept the message: it started to end in this
         /// state.
@@ -744,9 +744,9 @@ public final class AgentRun: Sendable {
         switch admission {
         case .send(let mail, let session):
             send(mail, to: session)
-            return .delivered
-        case .held:
-            return .delivered
+            return .delivered(mail.id)
+        case .held(let id):
+            return .delivered(id)
         case .ended(let state):
             return .ended(state)
         }
@@ -812,7 +812,7 @@ public final class AgentRun: Sendable {
             return .send(mail, session)
         }
         storage.callerMessages = .holding(held + [mail])
-        return .held
+        return .held(mail.id)
     }
 
     /// Takes the first held mail from the gate, under the lock of the run.

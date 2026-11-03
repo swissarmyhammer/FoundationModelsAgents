@@ -155,7 +155,8 @@ struct AgentRunMessageTests {
         gate.open()
         let result = try await run.result()
 
-        #expect(outcome == .delivered)
+        #expect(outcome.isDelivered)
+        #expect(run.mailedUserTypeMail.map(\.id).contains(try #require(outcome.mailID)))
         #expect(harness.script.prompts.contains(where: Self.isCallerMessage))
         #expect(Self.isCallerMessage(result))
     }
@@ -197,7 +198,7 @@ struct AgentRunMessageTests {
         let lead = try await runner.start(NestedRunTests.lead, prompt: NestedRunTests.leadKey)
         try await taskAnswered.wait(orEndOf: lead)
         let outcome = try lead.deliver(Self.message, from: .user)
-        try #require(outcome == .delivered)
+        try #require(outcome.isDelivered)
         try await NestedRunTests.arrival(ofPromptContaining: Self.message, in: harness.script)
         childGate.open()
         let result = try await lead.result()
@@ -275,7 +276,7 @@ struct AgentRunMessageTests {
         let result = try await run.result()
         let prompts = harness.script.prompts
 
-        #expect(outcome == .delivered)
+        #expect(outcome.isDelivered)
         let firstPrompt = try #require(prompts.first)
         #expect(firstPrompt.contains(AgentRunTests.prompt))
         #expect(!Self.isCallerMessage(firstPrompt))
@@ -297,7 +298,7 @@ struct AgentRunMessageTests {
         let result = try await run.result()
         let prompts = harness.script.prompts
 
-        #expect(outcome == .delivered)
+        #expect(outcome.isDelivered)
         let firstPrompt = try #require(prompts.first)
         #expect(firstPrompt.contains(AgentRunTests.prompt))
         #expect(!Self.isCallerMessage(firstPrompt))
@@ -330,7 +331,7 @@ struct AgentRunMessageTests {
         settleGate.open()
         let result = try await run.result()
 
-        #expect(outcome == .delivered)
+        #expect(outcome.isDelivered)
         #expect(Self.isCallerMessage(result))
     }
 
@@ -357,7 +358,7 @@ struct AgentRunMessageTests {
             in: harness, hooks: AgentRunIdleHooks(beforeIdleCheck: { try? await checkGate.wait() }))
         try #require(await checkGate.waitForArrival(orEndOf: run))
         let outcome = try run.deliver(Self.message, from: .user)
-        try #require(outcome == .delivered)
+        try #require(outcome.isDelivered)
         await messageGate.waitForArrival()
         checkGate.open()
         try await messageAnswerRead.wait()
@@ -392,7 +393,10 @@ struct AgentRunMessageTests {
         let taskPosition = try #require(delivered.firstIndex(of: taskID))
         let messagePosition = try #require(delivered.firstIndex(of: messageID))
 
-        #expect(outcome == .delivered)
+        #expect(outcome.isDelivered)
+        // A held message has its id when it is accepted: the mail is made then, and the run sends
+        // that same mail later.
+        #expect(outcome.mailID == messageID)
         #expect(mailed.map(\.id) == [taskID, messageID])
         #expect(taskPosition < messagePosition)
         #expect(ledger.answered.contains { $0.contains(messageID) })
@@ -447,7 +451,7 @@ struct AgentRunMessageTests {
         settleGate.open()
         let final = await run.finalState()
 
-        #expect(outcome == .delivered)
+        #expect(outcome.isDelivered)
         #expect(run.mailedUserTypeMail.count == 2)
         return final
     }
@@ -484,7 +488,7 @@ struct AgentRunMessageTests {
         let result = try await run.result()
         let mailed = run.mailedUserTypeMail
 
-        #expect(outcome == .delivered)
+        #expect(outcome.isDelivered)
         #expect(mailed.count == 2)
         #expect(mailed.last?.sender == .user)
         #expect(

@@ -37,7 +37,7 @@ struct CallerMailRouteTests {
         let record = CallRecord<HostMail>()
         let runner = harness.makeRunner(callerMail: { message, sender, caller in
             record.add(HostMail(message: message, sender: sender, caller: caller))
-            return true
+            return MailID()
         })
         let sender = ULID()
         let caller = ULID()
@@ -51,11 +51,12 @@ struct CallerMailRouteTests {
     func hostMailResultIsReturned() async throws {
         let harness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
         defer { try? harness.delete() }
-        let runner = harness.makeRunner(callerMail: { _, _, _ in true })
+        let id = MailID()
+        let runner = harness.makeRunner(callerMail: { _, _, _ in id })
 
-        let delivered = await runner.mailCaller(Self.message, from: ULID(), to: ULID())
+        let posted = await runner.mailCaller(Self.message, from: ULID(), to: ULID())
 
-        #expect(delivered)
+        #expect(posted == id)
     }
 
     @Test("a caller that the runner does not hold, with no host mail closure, gets no message")
@@ -64,9 +65,9 @@ struct CallerMailRouteTests {
         defer { try? harness.delete() }
         let runner = harness.makeRunner()
 
-        let delivered = await runner.mailCaller(Self.message, from: ULID(), to: ULID())
+        let posted = await runner.mailCaller(Self.message, from: ULID(), to: ULID())
 
-        #expect(!delivered)
+        #expect(posted == nil)
     }
 
     @Test("a caller that is a run of the runner gets the message as mail, and answers it")
@@ -79,11 +80,11 @@ struct CallerMailRouteTests {
         let caller = try await runner.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
         try #require(await gate.waitForArrival(orEndOf: caller))
 
-        let delivered = await runner.mailCaller(Self.message, from: ULID(), to: caller.id)
+        let posted = await runner.mailCaller(Self.message, from: ULID(), to: caller.id)
         gate.open()
         _ = try await caller.result()
 
-        #expect(delivered)
+        #expect(posted != nil)
         #expect(harness.script.prompts.contains(where: { $0.contains(Self.message) }))
     }
 
@@ -108,7 +109,7 @@ struct CallerMailRouteTests {
         let record = CallRecord<HostMail>()
         let runner = harness.makeRunner(callerMail: { message, sender, caller in
             record.add(HostMail(message: message, sender: sender, caller: caller))
-            return true
+            return MailID()
         })
         let sender = ULID()
         let caller = ULID()
@@ -122,7 +123,7 @@ struct CallerMailRouteTests {
     func mailRouteAnswersSent() async throws {
         let harness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
         defer { try? harness.delete() }
-        let runner = harness.makeRunner(callerMail: { _, _, _ in true })
+        let runner = harness.makeRunner(callerMail: { _, _, _ in MailID() })
 
         let answer = await Self.mailRouteContext(runner: runner, caller: ULID())
             .messageCaller(Self.message, from: ULID())

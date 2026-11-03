@@ -359,7 +359,9 @@ run.resume()
   result to the caller as mail when it ends. A caller that is a run of the
   runner gets the mail directly. For a caller that is not a run, for example the
   root session of the host, give `callerMail` to the environment: a closure that
-  sends a message to a caller session and returns `true` when it did.
+  sends a message to a caller session and returns the `MailID` of the mail that it posted, or `nil`.
+  `AgentRun.deliver(_:from:)` also gives the `MailID` of the message in the session of the run:
+  `.delivered(MailID)`, also for a message that the run holds until its task prompt is sent.
 - `AgentRun.completionToken` is the token of the first `start agent` call, thus
   `check agent` and `cancel agent` find a restored run with the old token.
 - The host calls `restore` after it answered the resume request of its own

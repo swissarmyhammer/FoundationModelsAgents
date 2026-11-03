@@ -361,7 +361,7 @@ public struct AgentsToolContext: Sendable {
         case .call(let call):
             await call.message(message)
         case .mail:
-            guard let sender, await runner.mailCaller(message, from: sender, to: callerLink.sessionID) else {
+            guard let sender, await runner.mailCaller(message, from: sender, to: callerLink.sessionID) != nil else {
                 await recordMessageToCaller(message, outcome: .notDelivered)
                 return .corrective(AgentsToolText.callerNotReachable)
             }

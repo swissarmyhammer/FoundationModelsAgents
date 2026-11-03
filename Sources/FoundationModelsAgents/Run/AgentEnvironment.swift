@@ -46,8 +46,10 @@ public struct AgentEnvironment: Sendable {
     /// Sends a message to a caller session that the runner does not hold as a
     /// run, for example the root session of a host. It gets the text, the id
     /// of the session that sends the message, and the id of the caller
-    /// session. It returns `true` when the caller got the message as mail.
-    public typealias CallerMail = @Sendable (_ message: String, _ sender: ULID, _ caller: ULID) async -> Bool
+    /// session. It returns the id of the mail that it posted to the caller, or `nil` when the
+    /// caller got no mail. A host closure that returned `Bool` must now return the `MailID`: this
+    /// is a source break by design, because the host joins the id to its projection of the message.
+    public typealias CallerMail = @Sendable (_ message: String, _ sender: ULID, _ caller: ULID) async -> MailID?
 
     /// Marks the session of a run as ended, with the reason. A host gives
     /// `{ try await directory.markEnded($0, reason: $1) }` over its

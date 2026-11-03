@@ -257,7 +257,7 @@ extension NestedRunTests {
                 parts[1].gate.open()
                 let text = Self.pausedText(of: await lead.finalState())
 
-                #expect(outcome == .delivered)
+                #expect(outcome.isDelivered)
                 #expect(pauseAfterMessage == nil)
                 #expect(text?.contains(parts[1].text) == true)
                 #expect(text?.contains(parts[0].text) == false)
