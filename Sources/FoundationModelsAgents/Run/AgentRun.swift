@@ -640,7 +640,7 @@ public final class AgentRun: Sendable {
     private func markEnded(
         for final: AgentRunState, wasShutdown: Bool, environment: AgentEnvironment
     ) async -> Bool {
-        guard let sessionEnding = environment.sessionEnding, heldSession != nil, !wasShutdown else { return true }
+        guard environment.sessionEnding != nil, heldSession != nil, !wasShutdown else { return true }
         let reason: SessionEndReason
         switch final {
         case .finished:
@@ -652,15 +652,7 @@ public final class AgentRun: Sendable {
         case .running:
             return true
         }
-        do {
-            try await sessionEnding(id, reason)
-            return true
-        } catch {
-            var metadata = identityMetadata
-            metadata[AgentsTelemetry.LogMetadataKey.errorType] = .string(String(describing: type(of: error)))
-            environment.makeRunLogger().error("\(AgentsTelemetry.LogMessage.sessionEndMarkFailed)", metadata: metadata)
-            return false
-        }
+        return await environment.markSessionEnded(id, reason: reason, metadata: identityMetadata)
     }
 
     /// `true` when a stop of the runner asked for the cancel of the run.

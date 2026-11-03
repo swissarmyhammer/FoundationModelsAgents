@@ -77,6 +77,11 @@ public actor AgentRunner {
     /// caller, its slot, and its depth.
     var openRuns: [ULID: AgentRun] = [:]
 
+    /// The sessions that ``restoreInterrupted(of:caller:directory:prompts:)`` found with a
+    /// completed call and an unended marker, and tried to mark ended. A failed mark leaves the
+    /// marker off, thus a second call must not restore the session.
+    var sessionsEndedByRestore: Set<ULID> = []
+
     /// The finished runs, oldest first. Each run holds its id, its agent,
     /// and its final state with the final text.
     var records: [AgentRun] = []
@@ -226,9 +231,12 @@ public actor AgentRunner {
             return try await restoreChild(
                 child, prompt: prompt, deferStart: deferStart, claiming: claiming, caller: caller)
         } catch {
-            // The child cannot work again, thus its original call in the journal of the live caller
-            // ends as lost, and the caller does not wait for it.
-            _ = await completeClaim(child.startCallKey, of: child.parentSessionId, outcome: .lost, detail: nil)
+            // A permanent error means the child cannot work again, thus its original call in the
+            // journal of the live caller ends as lost, and the caller does not wait for it. A
+            // transient error can pass, thus the claim stays open for a later restore.
+            if !error.isTransient {
+                await endClaimAsLost(of: child)
+            }
             throw error
         }
     }
@@ -291,6 +299,14 @@ public actor AgentRunner {
             }
             return run
         }
+    }
+
+    /// Ends the original `start agent` call of `child` as lost in the journal of its caller, thus
+    /// the caller does not wait for a child that cannot work again.
+    ///
+    /// - Parameter child: The recorded child.
+    func endClaimAsLost(of child: RecordedChild) async {
+        _ = await completeClaim(child.startCallKey, of: child.parentSessionId, outcome: .lost, detail: nil)
     }
 
     /// Completes the original `start agent` call of a restored run in the journal of its

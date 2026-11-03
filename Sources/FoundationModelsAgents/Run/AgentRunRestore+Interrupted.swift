@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 import FoundationModelsRouter
 import ULID
 
@@ -98,12 +99,22 @@ extension AgentRunner {
     ///   - callerSession: The session that the host restores.
     ///   - directory: The directory of the recordings.
     /// - Returns: The keys. It is empty when the children or the journal cannot be read.
-    public nonisolated func claims(
+    public func claims(
         of callerSession: ULID, directory: RouterSessionDirectory
     ) async -> Set<RunKey> {
-        let source = RestoreSource(directory: directory)
-        guard let children = try? await source.recordedChildren(callerSession) else { return [] }
-        return await Self.claims(of: callerSession, children: AgentRunRestore.select(children: children), source: source)
+        await claims(of: callerSession, source: RestoreSource(directory: directory))
+    }
+
+    /// The claims of `callerSession` over any source of the reads.
+    func claims(of callerSession: ULID, source: RestoreSource) async -> Set<RunKey> {
+        let children: [RecordedChild]
+        do {
+            children = try await source.recordedChildren(callerSession)
+        } catch {
+            logClaimReadFailure(of: callerSession, error: error)
+            return []
+        }
+        return await readClaims(of: callerSession, children: AgentRunRestore.select(children: children), source: source)
             .claims
     }
 
@@ -154,15 +165,35 @@ extension AgentRunner {
 
     /// Reads the statuses of the calls in the journal of `session` and computes the claims for
     /// `children`. A failed read gives no claims and the text of the error.
-    private nonisolated static func claims(
+    private func readClaims(
         of session: ULID, children: [RecordedChild], source: RestoreSource
     ) async -> (claims: Set<RunKey>, readError: String?) {
+        let read = await readStatuses(of: session, source: source)
+        guard read.readError == nil else { return ([], read.readError) }
+        return (AgentRunRestore.claims(for: children, statuses: read.statuses), nil)
+    }
+
+    /// Reads the statuses of the calls in the journal of `session`. A failed read is logged and
+    /// gives no statuses and the text of the error.
+    private func readStatuses(
+        of session: ULID, source: RestoreSource
+    ) async -> (statuses: [RunKey: RunStatus], readError: String?) {
         do {
-            let statuses = try await source.runStatuses(session)
-            return (AgentRunRestore.claims(for: children, statuses: statuses), nil)
+            return (try await source.runStatuses(session), nil)
         } catch {
-            return ([], String(describing: error))
+            logClaimReadFailure(of: session, error: error)
+            return ([:], String(describing: error))
         }
+    }
+
+    /// Writes the record of a read that failed. The restore claims nothing for that session.
+    private func logClaimReadFailure(of session: ULID, error: any Error) {
+        var metadata: Logger.Metadata = [
+            AgentsTelemetry.LogMetadataKey.callerSessionID: .string(session.description),
+            AgentsTelemetry.LogMetadataKey.errorType: .string(String(describing: type(of: error))),
+        ]
+        metadata["error"] = .string(String(describing: error))
+        environment.makeRunLogger().warning("\(AgentsTelemetry.LogMessage.claimReadFailed)", metadata: metadata)
     }
 
     /// The lists that the restore builds.
@@ -177,14 +208,30 @@ extension AgentRunner {
         _ children: [RecordedChild], of session: ULID, callerRun: AgentRun?, source: RestoreSource,
         prompts: [ULID: String], report: inout Builder
     ) async {
+        // The statuses of the calls of `session`. A failed read is logged and listed as unreadable.
+        // The restore goes on with no statuses: the ended marker is the truth for "restorable",
+        // and the set of the sessions ended by an earlier restore still keeps a completed child
+        // from a second restore.
+        let read = await readStatuses(of: session, source: source)
+        if let readError = read.readError {
+            report.unreadable[session] = readError
+        }
+        let statuses = read.statuses
         for child in children {
+            if sessionsEndedByRestore.contains(child.sessionID) { continue }
+            if case .completed(let outcome)? = statuses[child.startCallKey], run(id: child.sessionID) == nil {
+                // The call has a result, but the session has no ended marker. A restore would run
+                // the work again, thus the session is marked ended and not restored.
+                await endSessionOfCompletedCall(child, outcome: outcome)
+                continue
+            }
             let grand = await selectedChildren(of: child.sessionID, source: source, report: &report)
             if let held = run(id: child.sessionID) {
                 // A second call: the run is live already. Its own children are checked below it.
                 await restore(grand, of: child.sessionID, callerRun: held, source: source, prompts: prompts, report: &report)
                 continue
             }
-            let read = await Self.claims(of: child.sessionID, children: grand, source: source)
+            let read = await readClaims(of: child.sessionID, children: grand, source: source)
             if let readError = read.readError {
                 report.unreadable[child.sessionID] = readError
             }
@@ -193,7 +240,7 @@ extension AgentRunner {
             if prompt == nil, child.firstPrompt == nil {
                 // Restoring blind would run the agent with no task. The claim ends as lost, thus
                 // the model of the caller sees the loss and decides.
-                _ = await completeClaim(child.startCallKey, of: child.parentSessionId, outcome: .lost, detail: nil)
+                await endClaimAsLost(of: child)
                 await recordFailure(
                     of: child, reason: FailedChild.promptNotRecordedReason, children: grand, source: source,
                     report: &report)
@@ -211,6 +258,24 @@ extension AgentRunner {
         }
     }
 
+    /// Marks the session of a child ended when its call has a result in the journal of its caller.
+    /// A mark that fails is logged, and the runner remembers the session, thus a later call does
+    /// not restore it.
+    private func endSessionOfCompletedCall(_ child: RecordedChild, outcome: OperationOutcome) async {
+        sessionsEndedByRestore.insert(child.sessionID)
+        let reason: SessionEndReason
+        switch outcome {
+        case .succeeded: reason = .finished
+        case .failed, .timedOut, .other: reason = .failed
+        case .cancelled, .stopped, .lost: reason = .cancelled
+        }
+        let metadata: Logger.Metadata = [
+            AgentsTelemetry.LogMetadataKey.callerSessionID: .string(child.parentSessionId.description),
+            AgentsTelemetry.LogMetadataKey.sessionID: .string(child.sessionID.description),
+        ]
+        _ = await environment.markSessionEnded(child.sessionID, reason: reason, metadata: metadata)
+    }
+
     /// Gives each child its recorded first prompt when the listing holds none.
     private func withFirstPrompts(_ children: [RecordedChild], source: RestoreSource) async
         -> [RecordedChild]
@@ -221,11 +286,7 @@ extension AgentRunner {
                 result.append(child)
                 continue
             }
-            result.append(
-                RecordedChild(
-                    sessionID: child.sessionID, agentID: child.agentID, agentName: child.agentName,
-                    parentSessionId: child.parentSessionId, parentToolCallId: child.parentToolCallId,
-                    ended: child.ended, firstPrompt: prompt))
+            result.append(child.withFirstPrompt(prompt))
         }
         return result
     }

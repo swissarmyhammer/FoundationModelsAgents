@@ -49,7 +49,7 @@ struct RestoreEndToEndTests {
             description: Does the work.
             ---
 
-            e2e-leaf-body-key $ARGUMENTS
+            $ARGUMENTS
             """,
     ]
 
@@ -59,6 +59,9 @@ struct RestoreEndToEndTests {
         let rootID: ULID
         let directory: RouterSessionDirectory
         let layer: TemporaryLayer
+        /// Holds the leaf of the first life, and the restored leaf of a continuing chain, which
+        /// takes the same step. A test opens it to let the leaf finish.
+        let leafGate: ScriptedGate
         /// Holds the restored leaf, for a test that cancels it.
         let restoredLeafGate: ScriptedGate
         /// The folder of the recording of the middle session.
@@ -106,14 +109,13 @@ struct RestoreEndToEndTests {
             key: callerKey, steps: NestedRunTests.parentPlay(callerKey, children: [(middle, middleKey)]).steps + spare)
         let middlePlay = ScriptedAgentPlay(
             key: middleKey, steps: NestedRunTests.parentPlay(middleKey, children: [(leaf, leafKey)]).steps + spare)
-        let leafPlay = ScriptedAgentPlay(key: leafKey, steps: [.wait(leafGate), .finalText("lost")])
+        let leafPlay = ScriptedAgentPlay(
+            key: leafKey, steps: [.wait(leafGate), .finalText(continuing ? leafResult : "lost")]
+                + (continuing ? [.finalText(leafResult)] : []))
         let script: ScriptedAgentScript
         if continuing {
-            // The restored leaf has no recorded prompt (it was cut before its first answer), thus
-            // it matches the key of its body. The first life matches the play of its prompt.
             script = ScriptedAgentScript([
                 rootPlay, callerPlay, middlePlay, leafPlay,
-                ScriptedAgentPlay(key: "e2e-leaf-body-key", steps: [.finalText(leafResult)]),
             ])
         } else {
             // A restored session also matches the play of its first prompt, thus the plays of
@@ -148,7 +150,7 @@ struct RestoreEndToEndTests {
         let directory = RouterSessionDirectory()
         await directory.useRecordingRoots { [folder] }
         return Cut(
-            harness: harness, rootID: root.id, directory: directory, layer: layer, restoredLeafGate: restoredLeafGate,
+            harness: harness, rootID: root.id, directory: directory, layer: layer, leafGate: leafGate, restoredLeafGate: restoredLeafGate,
             middleFolder: middleRun.recordingDirectory, middleID: middleRun.id, leafID: leafRun.id, layerAgentFile: AgentDocumentPath.of(middle))
     }
 
@@ -185,11 +187,6 @@ struct RestoreEndToEndTests {
             second, prompt: middleRestoredKey, deferStart: true, claiming: middleClaims)
         let leafRun = try await runner.restore(third, prompt: leafRestoredKey, deferStart: true)
         return Restored(caller: callerRun, middle: middleRun, leaf: leafRun)
-    }
-
-    /// The task prompt that the host gives for the leaf, which was cut before it recorded one.
-    private static func leafPrompts(_ cut: Cut) -> [ULID: String] {
-        [cut.leafID: "host-known-leaf-prompt"]
     }
 
     /// Makes the runner of the second life, with the real directory as the mark.
@@ -359,10 +356,11 @@ struct RestoreEndToEndTests {
         let runner = Self.secondRunner(cut)
 
         let report = await runner.restoreInterrupted(
-            of: cut.rootID, caller: nil, directory: cut.directory, prompts: Self.leafPrompts(cut))
+            of: cut.rootID, caller: nil, directory: cut.directory)
         let callerRun = try #require(report.restored.first)
         let states = report.restored.map(\.state)
         report.resumeAll()
+        cut.leafGate.open()
         let result = try await callerRun.result()
 
         #expect(report.restored.count == 3)
@@ -383,10 +381,10 @@ struct RestoreEndToEndTests {
         }
         let runner = Self.secondRunner(cut)
         let first = await runner.restoreInterrupted(
-            of: cut.rootID, caller: nil, directory: cut.directory, prompts: Self.leafPrompts(cut))
+            of: cut.rootID, caller: nil, directory: cut.directory)
 
         let second = await runner.restoreInterrupted(
-            of: cut.rootID, caller: nil, directory: cut.directory, prompts: Self.leafPrompts(cut))
+            of: cut.rootID, caller: nil, directory: cut.directory)
 
         #expect(first.restored.count == 3)
         #expect(second.restored.isEmpty)
@@ -405,7 +403,7 @@ struct RestoreEndToEndTests {
         let runner = Self.secondRunner(cut)
 
         let report = await runner.restoreInterrupted(
-            of: cut.rootID, caller: nil, directory: cut.directory, prompts: Self.leafPrompts(cut))
+            of: cut.rootID, caller: nil, directory: cut.directory)
 
         #expect(report.restored.map(\.agent.id) == [Self.caller])
         #expect(report.failed.map(\.isDescendantOfFailed) == [false, true])
@@ -427,7 +425,7 @@ struct RestoreEndToEndTests {
         let runner = Self.secondRunner(cut)
 
         let report = await runner.restoreInterrupted(
-            of: cut.rootID, caller: nil, directory: cut.directory, prompts: Self.leafPrompts(cut))
+            of: cut.rootID, caller: nil, directory: cut.directory)
 
         #expect(report.restored.isEmpty)
         #expect(report.unreadable[cut.rootID] != nil)
@@ -451,10 +449,31 @@ struct RestoreEndToEndTests {
         let runner = Self.secondRunner(cut)
 
         let report = await runner.restoreInterrupted(
-            of: cut.rootID, caller: nil, source: source, prompts: Self.leafPrompts(cut))
+            of: cut.rootID, caller: nil, source: source)
 
         #expect(report.unreadable[middleID] != nil)
         #expect(report.restored.count == 3)
+    }
+
+    @Test("a child cut in the middle of its first submission is restored with its recorded prompt")
+    func facadeRestoresChildCutInItsFirstSubmission() async throws {
+        let cut = try await Self.cutChain(continuing: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        let runner = Self.secondRunner(cut)
+
+        let report = await runner.restoreInterrupted(of: cut.rootID, caller: nil, directory: cut.directory)
+        let leaf = try #require(report.restored.last)
+        let instructions = try AgentRunTests.instructions(of: leaf)
+
+        #expect(report.failed.isEmpty)
+        #expect(leaf.agent.id == Self.leaf)
+        #expect(instructions.contains(Self.leafKey))
+        report.resumeAll()
+        cut.leafGate.open()
+        #expect(try await report.restored[0].result().contains("e2e-middle"))
     }
 
     @Test("a child with no recorded task prompt and no host prompt is failed, and its claim ends as lost")
@@ -464,9 +483,20 @@ struct RestoreEndToEndTests {
             try? cut.harness.delete()
             try? cut.layer.delete()
         }
+        // The Router records the prompt before the answer (write-ahead), so a real child always
+        // has one. The source hides the prompt of the leaf, as the record of an older Router.
+        let leafID = cut.leafID
+        var source = RestoreSource(directory: cut.directory)
+        let realChildren = source.recordedChildren
+        source.recordedChildren = { session in
+            try await realChildren(session).map { child in
+                child.sessionID == leafID ? child.withFirstPrompt(nil) : child
+            }
+        }
+        source.firstPrompt = { _ in nil }
         let runner = Self.secondRunner(cut)
 
-        let report = await runner.restoreInterrupted(of: cut.rootID, caller: nil, directory: cut.directory)
+        let report = await runner.restoreInterrupted(of: cut.rootID, caller: nil, source: source)
 
         #expect(report.restored.map(\.agent.id) == [Self.caller, Self.middle])
         #expect(report.failed.map(\.reason) == [FailedChild.promptNotRecordedReason])
@@ -483,10 +513,11 @@ struct RestoreEndToEndTests {
             try? cut.layer.delete()
         }
         let report = await Self.secondRunner(cut).restoreInterrupted(
-            of: cut.rootID, caller: nil, directory: cut.directory, prompts: Self.leafPrompts(cut))
+            of: cut.rootID, caller: nil, directory: cut.directory)
 
         #expect(report.resumeOrder.map(\.agent.id) == [Self.leaf, Self.middle, Self.caller])
         report.resumeAll()
+        cut.leafGate.open()
         _ = try await report.restored[0].result()
     }
 }

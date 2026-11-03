@@ -127,6 +127,10 @@ enum AgentsTelemetry {
         /// The id of the run. The value is an id, not content.
         static let runID = AttributeKey.runID
 
+        /// The id of a session that a record is about, when it is not the session of a run. The
+        /// value is an id, not content.
+        static let sessionID = prefix + "session.id"
+
         /// The id of the run that started this run. The value is an id, not
         /// content.
         static let parentRunID = AttributeKey.parentRunID
@@ -180,6 +184,14 @@ enum AgentsTelemetry {
         /// The message of the record that a run writes when the mark of its
         /// session as ended failed. A restore may then find the session.
         static let sessionEndMarkFailed = SpanName.run + " could not mark its session ended"
+
+        /// The message of the record that a run writes when the Router refuses the end mark,
+        /// because the host suspended the session. The session stays unended on purpose.
+        static let sessionEndMarkSuspended = SpanName.run + " left its suspended session unended"
+
+        /// The message of the record that the restore writes when it cannot read the journal
+        /// or the children of a session. The restore claims nothing for that session.
+        static let claimReadFailed = SpanName.run + " could not read the claims of a session"
 
         /// Gives the message of the record that a run writes at its final
         /// state: `FoundationModelsAgents.run finished`, `... failed` or

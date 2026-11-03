@@ -11,6 +11,18 @@ extension RecordedChild {
     }
 }
 
+extension RecordedChild {
+    /// The same child with another recorded first prompt.
+    ///
+    /// - Parameter prompt: The first prompt, or `nil` for a child whose prompt is not recorded.
+    /// - Returns: The copy.
+    func withFirstPrompt(_ prompt: String?) -> RecordedChild {
+        RecordedChild(
+            sessionID: sessionID, agentID: agentID, agentName: agentName, parentSessionId: parentSessionId,
+            parentToolCallId: parentToolCallId, ended: ended, firstPrompt: prompt)
+    }
+}
+
 /// The selection rule of the restore.
 public enum AgentRunRestore {
     /// Selects the children that the host restores: each child with no ended
@@ -42,14 +54,15 @@ public enum AgentRunRestore {
     /// - Parameters:
     ///   - children: The children to restore.
     ///   - statuses: The run statuses of the caller
-    ///     (``RouterSessionDirectory/runStatuses(of:)``). Give `[:]` when the
-    ///     read failed: the host then claims nothing.
+    ///     (``RouterSessionDirectory/runStatuses(of:)``). A child with no status
+    ///     has no event in the journal, thus its call is claimable too. When the
+    ///     read failed, the host must not call this: it claims nothing.
     /// - Returns: The keys to pass as `claiming`.
     public static func claims(for children: [RecordedChild], statuses: [RunKey: RunStatus]) -> Set<RunKey> {
         Set(
-            statuses.compactMap { key, status in
-                guard status == .orphaned, children.contains(where: { $0.startCallKey == key }) else { return nil }
-                return key
+            children.map(\.startCallKey).filter { key in
+                guard let status = statuses[key] else { return true }
+                return status == .orphaned
             })
     }
 }
@@ -83,4 +96,15 @@ public enum AgentRunRestoreError: Error, Sendable, Equatable {
 
     /// The `caller` run that the host gave is not the run of the caller session of the child.
     case callerMismatch
+}
+
+extension AgentRunRestoreError {
+    /// `true` for an error that can pass: the host can restore the child later, thus its claim
+    /// stays open. The other errors are permanent.
+    public var isTransient: Bool {
+        switch self {
+        case .stopped, .sessionEndingMissing, .catalogNotLoaded: true
+        case .unknownAgent, .tooDeep, .setupFailed, .sessionRestoreFailed, .callerMismatch: false
+        }
+    }
 }

@@ -1,6 +1,8 @@
 import Foundation
+import Logging
 @testable import FoundationModelsAgents
 import FoundationModelsRouter
+import TelemetryTestSupport
 import Testing
 import ULID
 
@@ -80,7 +82,8 @@ struct RunEndedMarkTests {
     /// Makes a recorded child of a finished run, and a script that plays its
     /// restored work.
     private static func restoredSetup(
-        sessionEnding: AgentEnvironment.SessionEnding?, callerMail: AgentEnvironment.CallerMail?, gate: ScriptedGate?
+        sessionEnding: AgentEnvironment.SessionEnding?, callerMail: AgentEnvironment.CallerMail?, gate: ScriptedGate?,
+        logger: Logger? = nil
     ) async throws -> (harness: AgentRunHarness, runner: AgentRunner, run: AgentRun) {
         // The restored session matches the play of its first prompt, thus one play holds the
         // steps of both lives.
@@ -88,7 +91,7 @@ struct RunEndedMarkTests {
         let steps: [ScriptedAgentStep] =
             [.finalText("first")] + gateSteps + [.finalText("restored text"), .finalTextOfLastPrompt]
         let harness = try await AgentRunHarness.make(
-            script: ScriptedAgentScript([ScriptedAgentPlay(key: "order-orig-key", steps: steps)]))
+            script: ScriptedAgentScript([ScriptedAgentPlay(key: "order-orig-key", steps: steps)]), logger: logger)
         let original = try await harness.makeRunner().start(AgentRunTests.testWriter, prompt: "order-orig-key")
         _ = try await original.result()
         let runner = harness.makeRunner(callerMail: callerMail, sessionEnding: sessionEnding)
@@ -122,6 +125,26 @@ struct RunEndedMarkTests {
 
         _ = try await setup.run.result()
 
+        #expect(events.all.isEmpty)
+    }
+
+    @Test("a mark that the Router refuses for a suspended session is not an error, and mails nothing")
+    func suspendedMarkIsNotLoggedAndMailsNothing() async throws {
+        let events = CallRecord<String>()
+        try await TelemetryCapture.run(forbidding: []) { context in
+            let setup = try await Self.restoredSetup(
+                sessionEnding: { id, _ in throw SessionEndedMarkerError.sessionSuspended(id) },
+                callerMail: { _, _, _ in events.add("mail"); return MailID() },
+                gate: nil, logger: context.logger)
+            defer { try? setup.harness.delete() }
+
+            _ = try await setup.run.result()
+
+            let failures = context.logRecords.filter {
+                "\($0.message)" == AgentsTelemetry.LogMessage.sessionEndMarkFailed
+            }
+            #expect(failures.isEmpty)
+        }
         #expect(events.all.isEmpty)
     }
 
