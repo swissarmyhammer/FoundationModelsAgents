@@ -49,7 +49,7 @@ struct RestoreEndToEndTests {
             description: Does the work.
             ---
 
-            $ARGUMENTS
+            e2e-leaf-body-key $ARGUMENTS
             """,
     ]
 
@@ -61,6 +61,12 @@ struct RestoreEndToEndTests {
         let layer: TemporaryLayer
         /// Holds the restored leaf, for a test that cancels it.
         let restoredLeafGate: ScriptedGate
+        /// The folder of the recording of the middle session.
+        let middleFolder: URL?
+        /// The session id of the middle run.
+        let middleID: ULID
+        /// The path of the middle agent file in the layer.
+        let layerAgentFile: String
     }
 
     /// The restored runs of the chain.
@@ -76,29 +82,51 @@ struct RestoreEndToEndTests {
     ///
     /// - Parameters:
     ///   - holdRestoredLeaf: `true` when the restored leaf waits on a gate.
+    ///   - continuing: `true` for plays that go on in the second life with the recorded first
+    ///     prompt, as `restoreInterrupted` restores it.
     ///   - orderlyQuit: `true` to suspend every session, stop the runner, and close the root
     ///     session, as the host does on a normal quit.
     /// - Returns: The cut chain.
     /// - Throws: The error of the setup.
-    private static func cutChain(holdRestoredLeaf: Bool = false, orderlyQuit: Bool = false) async throws -> Cut {
+    private static func cutChain(
+        holdRestoredLeaf: Bool = false, orderlyQuit: Bool = false, continuing: Bool = false
+    ) async throws -> Cut {
         let leafGate = ScriptedGate()
         let restoredLeafGate = ScriptedGate()
         let layer = try TemporaryLayer.make(holding: agentFiles)
         // A restored session also matches the play of its first prompt, thus the plays of the
         // restored sessions come first.
-        let script = ScriptedAgentScript([
-            ScriptedAgentPlay(
-                key: leafRestoredKey,
-                steps: (holdRestoredLeaf ? [.wait(restoredLeafGate)] : []) + [.finalText(leafResult)]),
-            ScriptedAgentPlay(key: callerRestoredKey, steps: [.finalText("caller-resumed"), .finalTextOfLastPrompt, .finalTextOfLastPrompt, .finalTextOfLastPrompt]),
-            ScriptedAgentPlay(key: middleRestoredKey, steps: [.finalText("middle-resumed"), .finalTextOfLastPrompt, .finalTextOfLastPrompt, .finalTextOfLastPrompt]),
-            ScriptedAgentPlay(
-                key: NestedRunTests.rootKey,
-                steps: [NestedRunTests.startStep(caller, prompt: callerKey), .finalText(NestedRunTests.rootText)]),
-            NestedRunTests.parentPlay(callerKey, children: [(middle, middleKey)]),
-            NestedRunTests.parentPlay(middleKey, children: [(leaf, leafKey)]),
-            ScriptedAgentPlay(key: leafKey, steps: [.wait(leafGate), .finalText("lost")]),
-        ])
+        let spare: [ScriptedAgentStep] = continuing ? [.finalTextOfLastPrompt, .finalTextOfLastPrompt, .finalTextOfLastPrompt] : []
+        let rootPlay = ScriptedAgentPlay(
+            key: NestedRunTests.rootKey,
+            steps: [NestedRunTests.startStep(caller, prompt: callerKey), .finalText(NestedRunTests.rootText)])
+        let callerPlay = ScriptedAgentPlay(
+            key: callerKey, steps: NestedRunTests.parentPlay(callerKey, children: [(middle, middleKey)]).steps + spare)
+        let middlePlay = ScriptedAgentPlay(
+            key: middleKey, steps: NestedRunTests.parentPlay(middleKey, children: [(leaf, leafKey)]).steps + spare)
+        let leafPlay = ScriptedAgentPlay(key: leafKey, steps: [.wait(leafGate), .finalText("lost")])
+        let script: ScriptedAgentScript
+        if continuing {
+            // The restored leaf has no recorded prompt (it was cut before its first answer), thus
+            // it matches the key of its body. The first life matches the play of its prompt.
+            script = ScriptedAgentScript([
+                rootPlay, callerPlay, middlePlay, leafPlay,
+                ScriptedAgentPlay(key: "e2e-leaf-body-key", steps: [.finalText(leafResult)]),
+            ])
+        } else {
+            // A restored session also matches the play of its first prompt, thus the plays of
+            // the restored sessions come first.
+            script = ScriptedAgentScript([
+                ScriptedAgentPlay(
+                    key: leafRestoredKey,
+                    steps: (holdRestoredLeaf ? [.wait(restoredLeafGate)] : []) + [.finalText(leafResult)]),
+                ScriptedAgentPlay(
+                    key: callerRestoredKey, steps: [.finalText("caller-resumed")] + Array(repeating: .finalTextOfLastPrompt, count: 3)),
+                ScriptedAgentPlay(
+                    key: middleRestoredKey, steps: [.finalText("middle-resumed")] + Array(repeating: .finalTextOfLastPrompt, count: 3)),
+                rootPlay, callerPlay, middlePlay, leafPlay,
+            ])
+        }
         let harness = try await AgentsToolHarness.make(script: script, registry: AgentRegistry(layers: [layer.layer]))
         let root = harness.makeRootSession(instructions: NestedRunTests.rootKey)
         _ = try await root.respond(to: NestedRunTests.rootPrompt)
@@ -118,7 +146,8 @@ struct RestoreEndToEndTests {
         let directory = RouterSessionDirectory()
         await directory.useRecordingRoots { [folder] }
         return Cut(
-            harness: harness, rootID: root.id, directory: directory, layer: layer, restoredLeafGate: restoredLeafGate)
+            harness: harness, rootID: root.id, directory: directory, layer: layer, restoredLeafGate: restoredLeafGate,
+            middleFolder: middleRun.recordingDirectory, middleID: middleRun.id, layerAgentFile: AgentDocumentPath.of(middle))
     }
 
     /// The unended children of `parent`, as a host selects them.
@@ -309,6 +338,125 @@ struct RestoreEndToEndTests {
 
         #expect(marker?.reason == .cancelled)
         #expect(left.isEmpty)
+    }
+
+    // MARK: - The facade
+
+    @Test("restoreInterrupted restores a crashed chain in tree order, unstarted, and resumeAll finishes it")
+    func facadeRestoresChain() async throws {
+        let cut = try await Self.cutChain(continuing: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        let runner = Self.secondRunner(cut)
+
+        let report = await runner.restoreInterrupted(of: cut.rootID, caller: nil, directory: cut.directory)
+        let callerRun = try #require(report.restored.first)
+        let states = report.restored.map(\.state)
+        report.resumeAll()
+        let result = try await callerRun.result()
+
+        #expect(report.restored.count == 3)
+        #expect(report.restored.map(\.agent.id) == [Self.caller, Self.middle, Self.leaf])
+        #expect(report.failed.isEmpty)
+        #expect(states.allSatisfy { $0 == .running })
+        let middleResult = try await report.restored[1].result()
+        #expect(result.contains("e2e-middle"))
+        #expect(middleResult.contains(Self.leafResult), "got: \(middleResult)")
+    }
+
+    @Test("a second restoreInterrupted for the same caller restores nothing")
+    func facadeSecondCallRestoresNothing() async throws {
+        let cut = try await Self.cutChain(continuing: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        let runner = Self.secondRunner(cut)
+        let first = await runner.restoreInterrupted(of: cut.rootID, caller: nil, directory: cut.directory)
+
+        let second = await runner.restoreInterrupted(of: cut.rootID, caller: nil, directory: cut.directory)
+
+        #expect(first.restored.count == 3)
+        #expect(second.restored.isEmpty)
+        #expect(second.failed.isEmpty)
+    }
+
+    @Test("a child whose agent definition is gone is failed, with its descendant, and the caller restores")
+    func facadeFailsChildWithoutDefinition() async throws {
+        let cut = try await Self.cutChain(continuing: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        try cut.layer.remove(cut.layerAgentFile)
+        try await cut.harness.runHarness.registry.reload()
+        let runner = Self.secondRunner(cut)
+
+        let report = await runner.restoreInterrupted(of: cut.rootID, caller: nil, directory: cut.directory)
+
+        #expect(report.restored.map(\.agent.id) == [Self.caller])
+        #expect(report.failed.map(\.isDescendantOfFailed) == [false, true])
+        #expect(report.failed.last?.reason == FailedChild.ancestorReason)
+    }
+
+    @Test("a corrupt recording makes the read fail; the report says so, and the call does not throw")
+    func facadeReportsUnreadableRecording() async throws {
+        let cut = try await Self.cutChain(continuing: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        let folder = try #require(cut.middleFolder)
+        for file in try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+        where file.lastPathComponent == "index.md" {
+            try Data([0xFF, 0xFE, 0x00, 0xC3, 0x28, 0x0A]).write(to: file)
+        }
+        let runner = Self.secondRunner(cut)
+
+        let report = await runner.restoreInterrupted(of: cut.rootID, caller: nil, directory: cut.directory)
+
+        #expect(report.restored.isEmpty)
+        #expect(report.unreadable[cut.rootID] != nil)
+    }
+
+    @Test("a status read that fails goes in the report, and the restore goes on without claims")
+    func facadeReportsUnreadableStatuses() async throws {
+        let cut = try await Self.cutChain(continuing: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        struct StatusFailed: Error {}
+        let middleID = cut.middleID
+        var source = RestoreSource(directory: cut.directory)
+        let realStatuses = source.runStatuses
+        source.runStatuses = { session in
+            if session == middleID { throw StatusFailed() }
+            return try await realStatuses(session)
+        }
+        let runner = Self.secondRunner(cut)
+
+        let report = await runner.restoreInterrupted(of: cut.rootID, caller: nil, source: source)
+
+        #expect(report.unreadable[middleID] != nil)
+        #expect(report.restored.count == 3)
+    }
+
+    @Test("resumeAll starts the children before their callers")
+    func resumeOrderIsLeavesUp() async throws {
+        let cut = try await Self.cutChain(continuing: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        let report = await Self.secondRunner(cut).restoreInterrupted(
+            of: cut.rootID, caller: nil, directory: cut.directory)
+
+        #expect(report.resumeOrder.map(\.agent.id) == [Self.leaf, Self.middle, Self.caller])
+        report.resumeAll()
+        _ = try await report.restored[0].result()
     }
 }
 

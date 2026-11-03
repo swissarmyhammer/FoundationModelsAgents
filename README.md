@@ -302,8 +302,37 @@ the process. It marks nothing and posts no result, thus a later start of the
 host can restore the runs. `runner.cancelRuns(caller:)` is for a session that a
 user closes, and it marks the runs as cancelled.
 
-After a restart, the host does these steps for each caller session, from the
-root session down:
+After a restart, one call does the whole order for one caller session:
+
+```text
+// Before the host restores its own session, get the claims for the calls of its children:
+let claims = await runner.claims(of: sessionID, directory: directory)
+// Restore the session of the host with `claimingRuns: claims`, then:
+let report = await runner.restoreInterrupted(of: sessionID, caller: nil, directory: directory)
+// ... answer the resume request of the client ...
+report.resumeAll()
+```
+
+`restoreInterrupted` reads the recorded children, selects those with no ended marker, reads
+the status of their calls, restores each child with `deferStart` as a child of its caller run
+(the children of each restored child too), and returns the runs not started. The report holds:
+
+- `restored`: the runs, each run before its children.
+- `failed`: each child that was not restored, with a short reason. A child whose ancestor was
+  not restored is in the list with `isDescendantOfFailed`. The claim of a failed child on its
+  live caller ends as lost.
+- `unreadable`: the sessions whose recorded children could not be read, with the reason. The
+  call never throws, thus the resume of the host session goes on.
+- `resumeAll()`: starts the runs, the children first and the callers last.
+
+Pass `caller:` when `sessionID` is the session of an agent run of the runner. A child that the
+runner holds already is skipped, thus a second call for the same caller restores nothing. The
+recorded first prompt of a child is `$ARGUMENTS` of its agent body. A child that was cut before
+its first answer has no recorded first prompt, and its `$ARGUMENTS` is empty.
+
+The steps in detail:
+
+The host does these steps for each caller session, from the root session down:
 
 ```text
 let children = try await directory.recordedChildren(of: caller)
