@@ -74,10 +74,13 @@ struct RestoreEndToEndTests {
     /// sessions and does not stop the runner, as a crash leaves them: the journals hold
     /// the runs as orphans.
     ///
-    /// - Parameter holdRestoredLeaf: `true` when the restored leaf waits on a gate.
+    /// - Parameters:
+    ///   - holdRestoredLeaf: `true` when the restored leaf waits on a gate.
+    ///   - orderlyQuit: `true` to suspend every session, stop the runner, and close the root
+    ///     session, as the host does on a normal quit.
     /// - Returns: The cut chain.
     /// - Throws: The error of the setup.
-    private static func cutChain(holdRestoredLeaf: Bool = false) async throws -> Cut {
+    private static func cutChain(holdRestoredLeaf: Bool = false, orderlyQuit: Bool = false) async throws -> Cut {
         let leafGate = ScriptedGate()
         let restoredLeafGate = ScriptedGate()
         let layer = try TemporaryLayer.make(holding: agentFiles)
@@ -105,6 +108,13 @@ struct RestoreEndToEndTests {
         let leafRun = try await NestedRunTests.onlyRun(of: harness.runner, caller: middleRun.id)
         try #require(await leafGate.waitForArrival(orEndOf: leafRun))
         let folder = try #require(root.recordingDirectory).deletingLastPathComponent()
+        if orderlyQuit {
+            for session in [root, callerRun.heldSession, middleRun.heldSession, leafRun.heldSession].compactMap(\.self) {
+                session.suspend()
+            }
+            await harness.runner.stop()
+            await root.close()
+        }
         let directory = RouterSessionDirectory()
         await directory.useRecordingRoots { [folder] }
         return Cut(
@@ -130,7 +140,6 @@ struct RestoreEndToEndTests {
     /// - Parameters:
     ///   - cut: The cut chain.
     ///   - runner: The runner that restores the runs.
-    ///   - breaking: A child agent id for the middle child that the catalog lacks, or `nil`.
     /// - Returns: The restored runs, not started.
     private static func restoreChain(_ cut: Cut, with runner: AgentRunner) async throws -> Restored {
         let directory = cut.directory
@@ -242,6 +251,64 @@ struct RestoreEndToEndTests {
         let statuses = try await directory.runStatuses(of: first.sessionID)
 
         #expect(statuses.values.contains(.completed(.lost)))
+    }
+
+
+    @Test("after an orderly quit, the runs are orphans in the journal and have no ended marker")
+    func orderlyQuitLeavesOrphansUnended() async throws {
+        let cut = try await Self.cutChain(orderlyQuit: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        let first = try #require(try await Self.selected(under: cut.rootID, in: cut.directory).first)
+        let rootStatuses = try await cut.directory.runStatuses(of: cut.rootID)
+
+        #expect(first.ended == nil)
+        #expect(rootStatuses.values.contains(.orphaned))
+        #expect(!rootStatuses.values.contains(.completed(.succeeded)))
+        #expect(!rootStatuses.values.contains(.completed(.cancelled)))
+    }
+
+    @Test("after an orderly quit, the restore finishes the chain and completes the original calls")
+    func orderlyQuitRestoresAndCompletesCalls() async throws {
+        let cut = try await Self.cutChain(orderlyQuit: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        let restored = try await Self.restoreChain(cut, with: Self.secondRunner(cut))
+        restored.leaf.resume()
+        restored.middle.resume()
+        restored.caller.resume()
+
+        let result = try await restored.caller.result()
+        let callerStatuses = try await cut.directory.runStatuses(of: restored.caller.id)
+        let middleStatuses = try await cut.directory.runStatuses(of: restored.middle.id)
+
+        #expect(result.contains(Self.leafResult))
+        #expect(callerStatuses.values.contains(.completed(.succeeded)))
+        #expect(middleStatuses.values.contains(.completed(.succeeded)))
+    }
+
+    @Test("cancelRuns of a caller marks its restored runs as cancelled, and they are not restored again")
+    func cancelRunsMarksCancelled() async throws {
+        let cut = try await Self.cutChain(holdRestoredLeaf: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        let runner = Self.secondRunner(cut)
+        let restored = try await Self.restoreChain(cut, with: runner)
+        restored.leaf.resume()
+        try #require(await cut.restoredLeafGate.waitForArrival(orEndOf: restored.leaf))
+
+        await runner.cancelRuns(caller: restored.middle.id)
+        let marker = try await cut.directory.endMarker(of: restored.leaf.id)
+        let left = try await Self.selected(under: restored.middle.id, in: cut.directory)
+
+        #expect(marker?.reason == .cancelled)
+        #expect(left.isEmpty)
     }
 }
 

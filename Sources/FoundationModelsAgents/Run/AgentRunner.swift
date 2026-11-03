@@ -206,8 +206,9 @@ public actor AgentRunner {
     ///
     /// - Parameters:
     ///   - child: The recorded child.
-    ///   - prompt: `$ARGUMENTS` of the body of the agent. The default is
-    ///     empty.
+    ///   - prompt: `$ARGUMENTS` of the body of the agent, or `nil` for the
+    ///     recorded first prompt of the child (``RecordedChild/firstPrompt``),
+    ///     and an empty text when the record holds none.
     ///   - deferStart: `true` to start the run at ``AgentRun/resume()``.
     ///   - claiming: The runs of this child, as a caller, that it claims in its
     ///     journal: the keys of its own interrupted children. A claimed run gets no
@@ -215,7 +216,7 @@ public actor AgentRunner {
     /// - Returns: The run, in operation.
     /// - Throws: ``AgentRunRestoreError``.
     public func restore(
-        _ child: RecordedChild, prompt: String = "", deferStart: Bool = false, claiming: Set<RunKey> = []
+        _ child: RecordedChild, prompt: String? = nil, deferStart: Bool = false, claiming: Set<RunKey> = []
     ) async throws(AgentRunRestoreError) -> AgentRun {
         do {
             return try await restoreChild(child, prompt: prompt, deferStart: deferStart, claiming: claiming)
@@ -230,7 +231,7 @@ public actor AgentRunner {
 
     /// The work of ``restore(_:prompt:deferStart:claiming:)``.
     private func restoreChild(
-        _ child: RecordedChild, prompt: String, deferStart: Bool, claiming: Set<RunKey>
+        _ child: RecordedChild, prompt: String?, deferStart: Bool, claiming: Set<RunKey>
     ) async throws(AgentRunRestoreError) -> AgentRun {
         let definition: AgentDefinition
         do {
@@ -248,7 +249,7 @@ public actor AgentRunner {
             throw .tooDeep(depth: depth, maxDepth: environment.maxDepth)
         }
         var request = AgentRunRequest(
-            definition: definition, prompt: prompt, context: nil,
+            definition: definition, prompt: prompt ?? child.firstPrompt ?? "", context: nil,
             inheritedSlot: environment.defaultSlot, depth: depth, parent: nil,
             agentsTool: AgentRun.agentsTool(of: self))
         request.restoredCaller = child.parentSessionId

@@ -141,6 +141,26 @@ struct RestoreRunTests {
         #expect(record.facts.agentID == AgentRunTests.reviewer)
     }
 
+    @Test("a restored run uses the recorded first prompt as $ARGUMENTS when the host gives no prompt")
+    func restoredRunUsesTheRecordedFirstPrompt() async throws {
+        let harness = try await AgentRunHarness.make(
+            script: ScriptedAgentScript([
+                ScriptedAgentPlay(key: "fp-recorded-key", steps: [.finalText("from the recorded prompt"), .finalText("from the recorded prompt")]),
+                ScriptedAgentPlay(key: "fp-original-key", steps: [.finalText("first life")]),
+            ]))
+        defer { try? harness.delete() }
+        let original = try await harness.makeRunner().start(AgentRunTests.testWriter, prompt: "fp-original-key")
+        _ = try await original.result()
+        let child = RecordedChild(
+            sessionID: original.id, agentID: AgentRunTests.testWriter, agentName: nil, parentSessionId: Self.caller,
+            parentToolCallId: "fp-token", ended: nil, firstPrompt: "fp-recorded-key")
+
+        let restored = try await harness.makeRunner().restore(child)
+
+        let text = try await restored.result()
+        #expect(text == "from the recorded prompt", "got: \(text)")
+    }
+
     @Test("a child with an agent id that the catalog lacks is refused")
     func unknownAgentIsRefused() async throws {
         let harness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
