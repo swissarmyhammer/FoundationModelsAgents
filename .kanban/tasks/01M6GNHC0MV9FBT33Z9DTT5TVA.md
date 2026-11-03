@@ -214,6 +214,32 @@ comments:
 
     Claim API (waits for the Router): when it lands, restore will call the claim for the OLD completion token, which is `child.parentToolCallId` and the correlation id of the run in the journal of the caller. The result of the restored run then completes the ORIGINAL `start agent` call, and the runner adds a StartedRuns entry under that token. The exact claim name is not known yet.
   timestamp: 2026-11-03T16:13:45.597586+00:00
+- actor: claude-code
+  id: 01m6h38qrv2sezhkzxcvp2svjj
+  text: |-
+    Answers to the three risks of the coordinator.
+
+    CORRECTION of an earlier claim: a restored child did NOT mail its final result to its caller. A restored run has no live `start agent` call, so nobody posted its result. This is fixed now: a restored run mails its final report to its caller when it ends (AgentRunRequest.resultMail, through AgentRunner.mailCaller). The mail goes after the ended mark.
+
+    1. A restored caller must not end before its restored children are attached.
+    - `restore(_:prompt:deferStart:)` has `deferStart`, and `AgentRun.resume()` starts the run. A deferred run has its session and its place in the family of its caller, and it gets no message until `resume()`.
+    - A restored child adds itself to the family of its caller at restore time, when the runner holds the caller run (AgentRun.parentRun). A run waits for its children only through this family.
+    - Host order: restore the caller with deferStart, restore its children (deferStart too), restore their children, then resume() from the leaves up to the caller. Without deferStart the order is caller first, children after, and the caller can end before its children attach.
+    - A cancel of a deferred run (runner.stop(), cancel()) closes its session and ends it as cancelled.
+    - Test (RestoreChainTests): a caller, a child and a grandchild. The caller gives the result that holds the grandchild result. Mutation: if the hold is ignored, the test fails ("result.contains(grandchildText)").
+    - The depth rule applies: a chain of three below a host session needs maxDepth 4.
+
+    2. Timing. `restore` does no work before it is called. The runner reads nothing at init, and the host calls restore after the ACP resume response. Each call restores one child, and it is safe to call once per child. A second call for the same session finds the session live and the Router refuses it (sessionRestoreFailed).
+
+    3. HARD PRECONDITION for the host: the host integration (cold resume and the re-drive of interrupted children in the agent package) stays OFF until the Router claim API and the write-ahead record land. Until then the Router restore posts a lost event for each orphan run to the caller, the caller model may start a NEW agent for the same work, and the host also restores the old child: duplicate work. The restore API stays as built.
+
+    Host usage note:
+    1. For each caller session, from the root down: `recordedChildren(of:)` and `runStatuses(of:)`. Put an error of the status read into `.failure`.
+    2. `AgentRunRestore.select(children:statuses:)`.
+    3. Restore each `.restorable` child with `restore(_:prompt:deferStart: true)`, caller first, then its children. Then `resume()` from the leaves up.
+    4. Announce each `.unknown` child as unknown.
+    5. Give the environment `callerMail` for a caller that is not a run, and `withSessionEnding { try await directory.markEnded($0, reason: $1) }`.
+  timestamp: 2026-11-03T16:18:23.643396+00:00
 position_column: review
 position_ordinal: '8180'
 title: AgentRunner restores an interrupted child run from disk and continues it, with tools and instructions from the current config

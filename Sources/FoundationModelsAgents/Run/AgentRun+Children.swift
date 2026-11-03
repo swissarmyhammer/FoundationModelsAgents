@@ -52,7 +52,14 @@ struct ParentRun: Sendable {
     /// because the `agents` tool of the session needs them.
     struct Family: Sendable {
         /// The runs that the run starts.
-        let children = AgentRunChildren()
+        let children: AgentRunChildren
+
+        /// Makes a family.
+        ///
+        /// - Parameter children: The children, or new ones by default.
+        init(children: AgentRunChildren = AgentRunChildren()) {
+            self.children = children
+        }
     }
 
     /// The depth of the calling run. A host-started run has depth one.

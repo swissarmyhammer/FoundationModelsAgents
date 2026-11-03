@@ -210,7 +210,9 @@ public actor AgentRunner {
     ///     empty.
     /// - Returns: The run, in operation.
     /// - Throws: ``AgentRunRestoreError``.
-    public func restore(_ child: RecordedChild, prompt: String = "") async throws(AgentRunRestoreError) -> AgentRun {
+    public func restore(
+        _ child: RecordedChild, prompt: String = "", deferStart: Bool = false
+    ) async throws(AgentRunRestoreError) -> AgentRun {
         let definition: AgentDefinition
         do {
             definition = try startableDefinition(named: child.agentID)
@@ -231,11 +233,26 @@ public actor AgentRunner {
             inheritedSlot: environment.defaultSlot, depth: depth, parent: nil,
             agentsTool: AgentRun.agentsTool(of: self))
         request.restoredCaller = child.parentSessionId
+        let caller = openRuns[child.parentSessionId]
+        request.parent = caller?.parentRun
+        let childID = child.sessionID
+        request.resultMail = { [weak self] report in
+            _ = await self?.mailCaller(report, from: childID, to: child.parentSessionId)
+        }
         return try await withSetup(caller: child.parentSessionId) { () async throws(AgentRunRestoreError) -> AgentRun in
             let run = try await AgentRun.restore(
                 request, sessionID: child.sessionID, environment: environment, renderer: renderer)
             openRuns[run.id] = run
-            run.begin(request.with(prompt: AgentsToolText.restoredRunContinue), environment: environment)
+            let startRequest = request.with(prompt: AgentsToolText.restoredRunContinue)
+            let isAdopted = request.parent?.children.add(run) ?? true
+            if deferStart {
+                run.holdStart(startRequest, environment: environment)
+            } else {
+                run.begin(startRequest, environment: environment, adopt: false)
+            }
+            if !isAdopted {
+                run.cancel()
+            }
             return run
         }
     }

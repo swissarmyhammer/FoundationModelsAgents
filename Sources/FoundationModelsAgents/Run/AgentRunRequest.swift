@@ -37,7 +37,7 @@ struct AgentRunRequest: Sendable {
     /// The run that starts this run with its `agents` tool, or `nil` when
     /// the caller is not a run. The new run adds itself to the children of
     /// that run.
-    let parent: ParentRun?
+    var parent: ParentRun?
 
     /// Makes the `agents` tool of the run, or `nil` when the run cannot
     /// start agents.
@@ -87,6 +87,11 @@ struct AgentRunRequest: Sendable {
     /// the mail route.
     var restoredCaller: ULID? = nil
 
+    /// Sends the final report of a restored run to its caller as mail, or
+    /// `nil`. A restored run has no live `start agent` call that gives its
+    /// result, thus the run mails the report when it ends.
+    var resultMail: (@Sendable (String) async -> Void)? = nil
+
     /// The link from the `agents` tool of the run to its caller: the call
     /// route when a `start agent` call started the run, the mail route for
     /// a restored caller, else `nil` for a run with no caller.
@@ -107,6 +112,7 @@ struct AgentRunRequest: Sendable {
             parent: parent, agentsTool: agentsTool, questionTarget: questionTarget,
             requestedDirectory: requestedDirectory)
         copy.restoredCaller = restoredCaller
+        copy.resultMail = resultMail
         return copy
     }
 

@@ -49,6 +49,9 @@ public final class AgentRun: Sendable {
         /// `true` after a caller cancelled the run.
         var cancelReason = CancelReason.none
 
+        /// The start of a restored run that waits for ``AgentRun/resume()``.
+        var heldBegin: (request: AgentRunRequest, environment: AgentEnvironment)?
+
         /// The final state of the run from the time that its answers end, or
         /// `nil` before that time. ``state`` stays
         /// ``AgentRunState/running`` until the run cancels its children and
@@ -181,6 +184,10 @@ public final class AgentRun: Sendable {
     /// The runs that this run started. The run finishes only after each of
     /// them ends and each mail of its call has a terminal event.
     let children: AgentRunChildren
+
+    /// The run as the `agents` tool sees a parent, or `nil` when the setup failed. A
+    /// restored child of this run adds itself to its family.
+    let parentRun: ParentRun?
 
     /// The watch of the session of the run. The follower of the run feeds
     /// it, and the run waits on it before it closes its session.
@@ -322,13 +329,18 @@ public final class AgentRun: Sendable {
     ) {
         self.id = id
         self.agent = request.definition
-        self.caller = request.context?.sessionID
-        self.parentRunID = request.parent == nil ? nil : request.context?.sessionID
+        self.caller = request.context?.sessionID ?? request.restoredCaller
+        self.parentRunID = request.parent == nil ? nil : (request.context?.sessionID ?? request.restoredCaller)
         self.depth = request.depth
         self.recordingDirectory = made?.session.recordingDirectory
         self.slot = made?.slot
         self.context = request.context
         self.children = family.children
+        self.parentRun = made.map { made in
+            ParentRun(
+                depth: request.depth, slot: made.slot, agentID: request.definition.id, family: family,
+                workingDirectory: made.workingDirectory)
+        }
         self.turns = AgentRunTurns(limit: request.definition.maxTurns)
         self.childSessionWork = ChildSessionWork(call: request.context, childSessionID: id)
         self.storage = Mutex(Storage(state: state, session: made?.session, driver: nil))
@@ -421,7 +433,8 @@ public final class AgentRun: Sendable {
         } catch {
             throw .sessionRestoreFailed(String(describing: error))
         }
-        let made = AgentSessionMaker.Made(session: restored.session, slot: setup.slot)
+        let made = AgentSessionMaker.Made(
+            session: restored.session, slot: setup.slot, workingDirectory: setup.workingDirectory)
         return AgentRun(id: sessionID, request: request, made: made, family: family, state: .running)
     }
 
@@ -435,11 +448,12 @@ public final class AgentRun: Sendable {
     /// - Parameters:
     ///   - request: The inputs of the run: the request of `make`.
     ///   - environment: The dependencies and the limits of the runs.
-    internal func begin(_ request: AgentRunRequest, environment: AgentEnvironment) {
+    internal func begin(_ request: AgentRunRequest, environment: AgentEnvironment, adopt: Bool = true) {
         guard let session = heldSession else { return }
-        let isAdopted = request.parent?.children.add(self) ?? true
+        let isAdopted = adopt ? (request.parent?.children.add(self) ?? true) : true
         startDriver(
-            on: session, prompt: request.prompt, questionTarget: request.questionTarget, environment: environment)
+            on: session, prompt: request.prompt, questionTarget: request.questionTarget, environment: environment,
+            resultMail: request.resultMail)
         if !isAdopted {
             cancel()
         }
@@ -480,6 +494,30 @@ public final class AgentRun: Sendable {
         return await driver?.value ?? state
     }
 
+    /// Keeps the start of the run until ``resume()``. The run has its session
+    /// and its place in the family of its caller, and it gets no message.
+    ///
+    /// - Parameters:
+    ///   - request: The request that ``begin(_:environment:adopt:)`` gets.
+    ///   - environment: The environment of the run.
+    func holdStart(_ request: AgentRunRequest, environment: AgentEnvironment) {
+        storage.withLock { $0.heldBegin = (request, environment) }
+    }
+
+    /// Starts a run that waits for its start (``holdStart(_:environment:)``).
+    /// A host restores a caller and its children first, then resumes them, thus
+    /// the caller does not end before its children are attached. The call does
+    /// nothing for a run that started, and for a cancelled run.
+    public func resume() {
+        let held = storage.withLock { storage in
+            defer { storage.heldBegin = nil }
+            return storage.heldBegin
+        }
+        if let held {
+            begin(held.request, environment: held.environment, adopt: false)
+        }
+    }
+
     /// Cancels the answers of the run and the runs that it started. The run
     /// stops its session, cancels its open children and waits for them, then
     /// closes its session and goes to ``AgentRunState/cancelled``. A run that
@@ -491,6 +529,7 @@ public final class AgentRun: Sendable {
     public func cancel() {
         storage.withLock { $0.cancelReason = .caller }
         signals.continuation.yield(.cancelRequested)
+        cancelHeldStart()
     }
 
     /// Cancels the run for a stop of the runner. The run then does not mark
@@ -503,6 +542,23 @@ public final class AgentRun: Sendable {
             }
         }
         signals.continuation.yield(.cancelRequested)
+        cancelHeldStart()
+    }
+
+    /// Ends a run that waits for ``resume()``: it starts no answer, closes its
+    /// session, and goes to ``AgentRunState/cancelled``.
+    private func cancelHeldStart() {
+        let held = storage.withLock { storage in
+            defer { storage.heldBegin = nil }
+            return storage.heldBegin
+        }
+        guard held != nil, let session = heldSession else { return }
+        let driver = Task {
+            await session.close()
+            self.end(in: .cancelled)
+            return AgentRunState.cancelled
+        }
+        storage.withLock { $0.driver = driver }
     }
 
     /// Marks the session of the run as ended, when the run reached a real
@@ -829,7 +885,7 @@ public final class AgentRun: Sendable {
     ///     the span and the logger of the records.
     private func startDriver(
         on session: any RoutedSession, prompt: String, questionTarget: SubagentQuestionTarget?,
-        environment: AgentEnvironment
+        environment: AgentEnvironment, resultMail: (@Sendable (String) async -> Void)? = nil
     ) {
         let driver = Task {
             await self.traced(in: environment) { spanContext in
@@ -841,6 +897,7 @@ public final class AgentRun: Sendable {
                     }
                 }.value
                 await self.markEnded(for: final, environment: environment)
+                await resultMail?(self.report(of: final))
                 self.end(in: final)
                 return final
             }

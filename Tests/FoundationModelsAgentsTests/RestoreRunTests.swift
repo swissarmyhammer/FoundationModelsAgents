@@ -20,10 +20,10 @@ struct RestoreRunTests {
     ///   - session: The session id of the child.
     ///   - agentID: The agent id of the child.
     /// - Returns: The child.
-    private static func child(_ session: ULID, agentID: String = AgentRunTests.reviewer) -> RecordedChild {
+    static func child(_ session: ULID, agentID: String = AgentRunTests.reviewer, caller: ULID = caller) -> RecordedChild {
         RecordedChild(
             sessionID: session, agentID: agentID, agentName: nil, parentSessionId: caller,
-            parentToolCallId: "token-1", ended: nil)
+            parentToolCallId: "token-\(session)", ended: nil)
     }
 
     @Test("a run whose runner stopped continues as the same session in a new runner")
@@ -98,5 +98,76 @@ struct RestoreRunTests {
         await #expect(throws: AgentRunRestoreError.tooDeep(depth: 2, maxDepth: 1)) {
             try await runner.restore(Self.child(ULID()))
         }
+    }
+}
+
+/// Pins the restore of a chain of three sessions: a caller, its child, and
+/// the child of that child. A restored caller does not end before its
+/// restored children are attached and have ended.
+@Suite("The restore of a chain of recorded runs")
+struct RestoreChainTests {
+    /// The root session of the host that is the caller of the first run.
+    private static let root = ULID()
+
+    /// The final text of the restored grandchild.
+    private static let grandchildText = "grandchild-result-key"
+
+    /// The final text of the restored child before it gets the result of its
+    /// own child.
+    private static let childText = "child-first-answer"
+
+    /// The final text of the restored caller before it gets the result of its
+    /// child.
+    private static let callerText = "caller-first-answer"
+
+    /// Makes the recorded child of a session.
+    ///
+    /// - Parameters:
+    ///   - session: The session id of the child.
+    ///   - caller: The caller session.
+    /// - Returns: The child.
+    private static func child(_ session: ULID, caller: ULID) -> RecordedChild {
+        RecordedChild(
+            sessionID: session, agentID: AgentRunTests.testWriter, agentName: nil, parentSessionId: caller,
+            parentToolCallId: "token-\(session)", ended: nil)
+    }
+
+    @Test("a restored caller waits for its restored child and its grandchild, and gives both results")
+    func callerGetsBothResults() async throws {
+        let gates = [ScriptedGate(), ScriptedGate(), ScriptedGate()]
+        let originals = ["chain-orig-a", "chain-orig-b", "chain-orig-c"]
+        let restores = ["chain-rest-a", "chain-rest-b", "chain-rest-c"]
+        let originalPlays = zip(originals, gates).map { key, gate in
+            ScriptedAgentPlay(key: key, steps: [.wait(gate), .finalText("lost")])
+        }
+        let restoredPlays = [
+            ScriptedAgentPlay(key: restores[0], steps: [.finalText(Self.callerText), .finalTextOfLastPrompt]),
+            ScriptedAgentPlay(key: restores[1], steps: [.finalText(Self.childText), .finalTextOfLastPrompt]),
+            ScriptedAgentPlay(key: restores[2], steps: [.finalText(Self.grandchildText)]),
+        ]
+        let harness = try await AgentRunHarness.make(script: ScriptedAgentScript(originalPlays + restoredPlays))
+        defer { try? harness.delete() }
+        let first = harness.makeRunner()
+        var runs: [AgentRun] = []
+        for (index, key) in originals.enumerated() {
+            let run = try await first.start(AgentRunTests.testWriter, prompt: key)
+            try #require(await gates[index].waitForArrival(orEndOf: run))
+            runs.append(run)
+        }
+        await first.stop()
+        let second = harness.makeRunner(maxDepth: 4)
+
+        let caller = try await second.restore(
+            RestoreRunTests.child(runs[0].id, agentID: AgentRunTests.testWriter, caller: Self.root), prompt: restores[0], deferStart: true)
+        let middle = try await second.restore(
+            RestoreRunTests.child(runs[1].id, agentID: AgentRunTests.testWriter, caller: caller.id), prompt: restores[1], deferStart: true)
+        let leaf = try await second.restore(
+            RestoreRunTests.child(runs[2].id, agentID: AgentRunTests.testWriter, caller: middle.id), prompt: restores[2], deferStart: true)
+        leaf.resume()
+        middle.resume()
+        caller.resume()
+
+        let result = try await caller.result()
+        #expect(result.contains(Self.grandchildText))
     }
 }

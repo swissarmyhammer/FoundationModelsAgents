@@ -35,6 +35,9 @@ struct AgentSessionMaker: Sendable {
 
         /// The slot of the model of the session.
         let slot: ModelSlot
+
+        /// The working folder of the run.
+        let workingDirectory: URL
     }
 
     /// What the shared step resolves for a run: everything of its session
@@ -94,7 +97,7 @@ struct AgentSessionMaker: Sendable {
                 inlineSettleGrace: environment.inlineSettleGrace,
                 userPresence: request.questionTarget?.userPresence ?? environment.runUserPresence,
                 parentCall: request.context))
-        return Made(session: session, slot: slot)
+        return Made(session: session, slot: slot, workingDirectory: setup.workingDirectory)
     }
 
     /// Resolves the instructions, the slot, and the tools of the run of
