@@ -87,10 +87,14 @@ struct AgentRunRequest: Sendable {
     /// the mail route.
     var restoredCaller: ULID? = nil
 
-    /// Sends the final report of a restored run to its caller as mail, or
+    /// The completion token of the `start agent` call that started a
+    /// restored run in its first life, or `nil`.
+    var restoredToken: String? = nil
+
+    /// Sends the final state and report of a restored run to its caller, or
     /// `nil`. A restored run has no live `start agent` call that gives its
     /// result, thus the run mails the report when it ends.
-    var resultMail: (@Sendable (String) async -> Void)? = nil
+    var resultMail: (@Sendable (AgentRunState, String) async -> Void)? = nil
 
     /// The link from the `agents` tool of the run to its caller: the call
     /// route when a `start agent` call started the run, the mail route for
@@ -112,6 +116,7 @@ struct AgentRunRequest: Sendable {
             parent: parent, agentsTool: agentsTool, questionTarget: questionTarget,
             requestedDirectory: requestedDirectory)
         copy.restoredCaller = restoredCaller
+        copy.restoredToken = restoredToken
         copy.resultMail = resultMail
         return copy
     }

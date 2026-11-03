@@ -185,6 +185,13 @@ public final class AgentRun: Sendable {
     /// them ends and each mail of its call has a terminal event.
     let children: AgentRunChildren
 
+    /// The completion token of the `start agent` call that started the run:
+    /// the token of the live call, or for a restored run the token of the call
+    /// in its first life. It is `nil` for a host-started run. The pending
+    /// envelope of the call holds the token, and `check agent` and `cancel
+    /// agent` accept it as the id of the run.
+    public let completionToken: String?
+
     /// The run as the `agents` tool sees a parent, or `nil` when the setup failed. A
     /// restored child of this run adds itself to its family.
     let parentRun: ParentRun?
@@ -336,6 +343,7 @@ public final class AgentRun: Sendable {
         self.slot = made?.slot
         self.context = request.context
         self.children = family.children
+        self.completionToken = request.context?.completionToken ?? request.restoredToken
         self.parentRun = made.map { made in
             ParentRun(
                 depth: request.depth, slot: made.slot, agentID: request.definition.id, family: family,
@@ -415,7 +423,8 @@ public final class AgentRun: Sendable {
     /// - Throws: ``AgentRunRestoreError/setupFailed(_:)`` or
     ///   ``AgentRunRestoreError/sessionRestoreFailed(_:)``.
     internal static func restore(
-        _ request: AgentRunRequest, sessionID: ULID, environment: AgentEnvironment, renderer: AgentBodyRenderer
+        _ request: AgentRunRequest, sessionID: ULID, claiming claims: Set<RunKey>, environment: AgentEnvironment,
+        renderer: AgentBodyRenderer
     ) async throws(AgentRunRestoreError) -> AgentRun {
         let family = ParentRun.Family()
         let maker = AgentSessionMaker(environment: environment, renderer: renderer)
@@ -429,7 +438,7 @@ public final class AgentRun: Sendable {
         do {
             restored = try await ModelMatch.model(of: setup.slot, in: environment.profile).restoreSession(
                 id: sessionID, instructions: setup.instructions, tools: setup.tools,
-                userPresence: environment.runUserPresence)
+                userPresence: environment.runUserPresence, claimingRuns: claims)
         } catch {
             throw .sessionRestoreFailed(String(describing: error))
         }
@@ -570,27 +579,33 @@ public final class AgentRun: Sendable {
     /// - Parameters:
     ///   - final: The final state of the run.
     ///   - environment: The environment that holds the closure of the mark.
-    private func markEnded(for final: AgentRunState, environment: AgentEnvironment) async {
-        guard let sessionEnding = environment.sessionEnding, heldSession != nil else { return }
-        let isShutdown = storage.withLock { $0.cancelReason == .shutdown }
+    private func markEnded(for final: AgentRunState, environment: AgentEnvironment) async -> Bool {
+        guard let sessionEnding = environment.sessionEnding, heldSession != nil, !isShutdownCancel else { return true }
         let reason: SessionEndReason
         switch final {
         case .finished:
             reason = .finished
         case .failed:
             reason = .failed
-        case .cancelled where !isShutdown:
+        case .cancelled:
             reason = .cancelled
-        case .cancelled, .running:
-            return
+        case .running:
+            return true
         }
         do {
             try await sessionEnding(id, reason)
+            return true
         } catch {
             var metadata = identityMetadata
             metadata[AgentsTelemetry.LogMetadataKey.errorType] = .string(String(describing: type(of: error)))
             environment.makeRunLogger().error("\(AgentsTelemetry.LogMessage.sessionEndMarkFailed)", metadata: metadata)
+            return false
         }
+    }
+
+    /// `true` when a stop of the runner asked for the cancel of the run.
+    var isShutdownCancel: Bool {
+        storage.withLock { $0.cancelReason == .shutdown }
     }
 
     /// Cancels the run, and tells what the cancel did (`cancel agent`).
@@ -885,7 +900,7 @@ public final class AgentRun: Sendable {
     ///     the span and the logger of the records.
     private func startDriver(
         on session: any RoutedSession, prompt: String, questionTarget: SubagentQuestionTarget?,
-        environment: AgentEnvironment, resultMail: (@Sendable (String) async -> Void)? = nil
+        environment: AgentEnvironment, resultMail: (@Sendable (AgentRunState, String) async -> Void)? = nil
     ) {
         let driver = Task {
             await self.traced(in: environment) { spanContext in
@@ -896,8 +911,13 @@ public final class AgentRun: Sendable {
                             observer: environment.runEventObserver)
                     }
                 }.value
-                await self.markEnded(for: final, environment: environment)
-                await resultMail?(self.report(of: final))
+                // The mark is durable before the result goes anywhere. A run that a stop of the
+                // runner cancelled, or whose mark failed, posts no result: a later start of the
+                // host restores it, and a posted result would give two answers for one call.
+                let isMarked = await self.markEnded(for: final, environment: environment)
+                if isMarked, !self.isShutdownCancel {
+                    await resultMail?(final, self.report(of: final))
+                }
                 self.end(in: final)
                 return final
             }

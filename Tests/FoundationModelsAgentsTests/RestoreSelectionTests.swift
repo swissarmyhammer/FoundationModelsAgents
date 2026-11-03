@@ -6,8 +6,7 @@ import Testing
 import ULID
 
 /// Pins which recorded children of a caller the host restores
-/// (``AgentRunRestore/select(children:statuses:)``): a child that is not
-/// ended and whose run is not completed with a real outcome.
+/// (``AgentRunRestore/select(children:)``): a child with no ended marker.
 @Suite("The selection of the children to restore")
 struct RestoreSelectionTests {
     /// The completion token of the spawning call in each test.
@@ -31,58 +30,49 @@ struct RestoreSelectionTests {
         [RunKey(tool: "agents", correlationID: token): status]
     }
 
-    @Test("a child with an orphaned run is restorable")
+    @Test("a child with no ended marker is restorable whatever the journal says: orphaned")
     func orphanedIsRestorable() {
         let child = Self.child()
 
-        let result = AgentRunRestore.select(children: [child], statuses: .success(Self.table(.orphaned)))
-
-        #expect(result == [.restorable(child)])
+        #expect(AgentRunRestore.select(children: [child]) == [child])
     }
 
-    @Test("a child with no status at all is restorable")
+    @Test("a child with no ended marker is restorable whatever the journal says: no status")
     func noStatusIsRestorable() {
         let child = Self.child()
 
-        let result = AgentRunRestore.select(children: [child], statuses: .success([:]))
-
-        #expect(result == [.restorable(child)])
+        #expect(AgentRunRestore.select(children: [child]) == [child])
     }
 
-    @Test("a child whose run is completed with a lost outcome is restorable")
-    func completedLostIsRestorable() {
+    @Test("a child with no ended marker is restorable also when its run is completed with a real outcome")
+    func unendedIsRestorableAfterSuccess() {
         let child = Self.child()
+        let claims = AgentRunRestore.claims(for: [child], statuses: Self.table(.completed(.succeeded)))
 
-        let result = AgentRunRestore.select(children: [child], statuses: .success(Self.table(.completed(.lost))))
-
-        #expect(result == [.restorable(child)])
-    }
-
-    @Test("a child whose run is completed with a real outcome is not restorable")
-    func completedSucceededIsNotRestorable() {
-        let result = AgentRunRestore.select(
-            children: [Self.child()], statuses: .success(Self.table(.completed(.succeeded))))
-
-        #expect(result.isEmpty)
+        #expect(AgentRunRestore.select(children: [child]) == [child])
+        #expect(claims.isEmpty)
     }
 
     @Test("a child with an ended marker is not restorable")
     func endedIsNotRestorable() {
         let ended = SessionEndedMarker(endedAt: Date(), reason: .finished)
 
-        let result = AgentRunRestore.select(
-            children: [Self.child(ended: ended)], statuses: .success(Self.table(.orphaned)))
-
-        #expect(result.isEmpty)
+        #expect(AgentRunRestore.select(children: [Self.child(ended: ended)]).isEmpty)
     }
 
-    @Test("a status read that failed gives each unended child as unknown, with the reason")
-    func failedStatusReadGivesUnknown() {
-        struct Damaged: Error, CustomStringConvertible { let description = "damaged tree" }
+    @Test("the claims hold the key of each child whose call is an orphan in the journal")
+    func claimsHoldOrphans() {
         let child = Self.child()
 
-        let result = AgentRunRestore.select(children: [child], statuses: .failure(Damaged()))
+        let claims = AgentRunRestore.claims(for: [child], statuses: Self.table(.orphaned))
 
-        #expect(result == [.unknown(child, reason: "damaged tree")])
+        #expect(claims == [RunKey(tool: "agents", correlationID: Self.token)])
+    }
+
+    @Test("the claims hold no key for a call that is completed with a lost outcome")
+    func claimsSkipCompleted() {
+        let claims = AgentRunRestore.claims(for: [Self.child()], statuses: Self.table(.completed(.lost)))
+
+        #expect(claims.isEmpty)
     }
 }

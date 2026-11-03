@@ -74,4 +74,90 @@ struct RunEndedMarkTests {
 
         #expect(record.all.isEmpty)
     }
+
+    // MARK: - Order and shutdown of a restored run
+
+    /// Makes a recorded child of a finished run, and a script that plays its
+    /// restored work.
+    private static func restoredSetup(
+        sessionEnding: AgentEnvironment.SessionEnding?, callerMail: AgentEnvironment.CallerMail?, gate: ScriptedGate?
+    ) async throws -> (harness: AgentRunHarness, runner: AgentRunner, run: AgentRun) {
+        // The restored session matches the play of its first prompt, thus one play holds the
+        // steps of both lives.
+        let gateSteps: [ScriptedAgentStep] = gate.map { [.wait($0)] } ?? []
+        let steps: [ScriptedAgentStep] =
+            [.finalText("first")] + gateSteps + [.finalText("restored text"), .finalTextOfLastPrompt]
+        let harness = try await AgentRunHarness.make(
+            script: ScriptedAgentScript([ScriptedAgentPlay(key: "order-orig-key", steps: steps)]))
+        let original = try await harness.makeRunner().start(AgentRunTests.testWriter, prompt: "order-orig-key")
+        _ = try await original.result()
+        let runner = harness.makeRunner(callerMail: callerMail, sessionEnding: sessionEnding)
+        let child = RecordedChild(
+            sessionID: original.id, agentID: AgentRunTests.testWriter, agentName: nil, parentSessionId: ULID(),
+            parentToolCallId: "order-token", ended: nil)
+        return (harness, runner, try await runner.restore(child, prompt: "order-rest-key"))
+    }
+
+    @Test("a restored run marks its session ended before it mails the result to its caller")
+    func markComesBeforeCallerMail() async throws {
+        let events = CallRecord<String>()
+        let setup = try await Self.restoredSetup(
+            sessionEnding: { _, _ in events.add("mark") }, callerMail: { _, _, _ in events.add("mail"); return true },
+            gate: nil)
+        defer { try? setup.harness.delete() }
+
+        _ = try await setup.run.result()
+
+        #expect(events.all == ["mark", "mail"])
+    }
+
+    @Test("a restored run whose mark failed mails no result to its caller")
+    func failedMarkMailsNothing() async throws {
+        struct MarkFailed: Error {}
+        let events = CallRecord<String>()
+        let setup = try await Self.restoredSetup(
+            sessionEnding: { _, _ in throw MarkFailed() }, callerMail: { _, _, _ in events.add("mail"); return true },
+            gate: nil)
+        defer { try? setup.harness.delete() }
+
+        _ = try await setup.run.result()
+
+        #expect(events.all.isEmpty)
+    }
+
+    @Test("a stop of the runner makes a restored run mark nothing and mail nothing")
+    func stopMarksAndMailsNothing() async throws {
+        let gate = ScriptedGate()
+        let events = CallRecord<String>()
+        let setup = try await Self.restoredSetup(
+            sessionEnding: { _, _ in events.add("mark") }, callerMail: { _, _, _ in events.add("mail"); return true },
+            gate: gate)
+        defer { try? setup.harness.delete() }
+        try #require(await gate.waitForArrival(orEndOf: setup.run))
+
+        await setup.runner.stop()
+
+        #expect(events.all.isEmpty)
+    }
+
+    @Test("the cancel of the runs of one caller, for a closed session, marks them cancelled")
+    func cancelRunsOfCallerMarksCancelled() async throws {
+        let gate = ScriptedGate()
+        let harness = try await AgentRunHarness.make(
+            script: AgentRunTests.script([.wait(gate), .finalText(AgentRunTests.finalText)]))
+        defer { try? harness.delete() }
+        let (record, closure) = Self.recording()
+        let runner = harness.makeRunner(sessionEnding: closure)
+        let caller = ULID()
+        let run = try await runner.start(
+            AgentRunRequest(
+                definition: try #require(harness.registry.catalog().definition(named: AgentRunTests.reviewer)),
+                prompt: AgentRunTests.prompt, context: nil, inheritedSlot: .standard, depth: 1, parent: nil,
+                agentsTool: nil, restoredCaller: caller))
+        try #require(await gate.waitForArrival(orEndOf: run))
+
+        await runner.cancelRuns(caller: caller)
+
+        #expect(record.all == [Mark(session: run.id, reason: .cancelled)])
+    }
 }

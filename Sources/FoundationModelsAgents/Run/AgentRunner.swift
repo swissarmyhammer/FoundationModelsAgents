@@ -208,10 +208,29 @@ public actor AgentRunner {
     ///   - child: The recorded child.
     ///   - prompt: `$ARGUMENTS` of the body of the agent. The default is
     ///     empty.
+    ///   - deferStart: `true` to start the run at ``AgentRun/resume()``.
+    ///   - claiming: The runs of this child, as a caller, that it claims in its
+    ///     journal: the keys of its own interrupted children. A claimed run gets no
+    ///     lost event, and the restored child of that run completes it.
     /// - Returns: The run, in operation.
     /// - Throws: ``AgentRunRestoreError``.
     public func restore(
-        _ child: RecordedChild, prompt: String = "", deferStart: Bool = false
+        _ child: RecordedChild, prompt: String = "", deferStart: Bool = false, claiming: Set<RunKey> = []
+    ) async throws(AgentRunRestoreError) -> AgentRun {
+        do {
+            return try await restoreChild(child, prompt: prompt, deferStart: deferStart, claiming: claiming)
+        } catch {
+            // The child cannot work again, thus its original call in the journal of the live caller
+            // ends as lost, and the caller does not wait for it.
+            let key = child.startCallKey
+            await openRuns[child.parentSessionId]?.heldSession?.completeClaimedRun(key, outcome: .lost, detail: nil)
+            throw error
+        }
+    }
+
+    /// The work of ``restore(_:prompt:deferStart:claiming:)``.
+    private func restoreChild(
+        _ child: RecordedChild, prompt: String, deferStart: Bool, claiming: Set<RunKey>
     ) async throws(AgentRunRestoreError) -> AgentRun {
         let definition: AgentDefinition
         do {
@@ -233,15 +252,19 @@ public actor AgentRunner {
             inheritedSlot: environment.defaultSlot, depth: depth, parent: nil,
             agentsTool: AgentRun.agentsTool(of: self))
         request.restoredCaller = child.parentSessionId
+        request.restoredToken = child.parentToolCallId
         let caller = openRuns[child.parentSessionId]
         request.parent = caller?.parentRun
         let childID = child.sessionID
-        request.resultMail = { [weak self] report in
+        let claimKey = child.startCallKey
+        request.resultMail = { [weak self] final, report in
+            await self?.completeClaim(claimKey, of: child.parentSessionId, after: final, report: report)
             _ = await self?.mailCaller(report, from: childID, to: child.parentSessionId)
         }
         return try await withSetup(caller: child.parentSessionId) { () async throws(AgentRunRestoreError) -> AgentRun in
             let run = try await AgentRun.restore(
-                request, sessionID: child.sessionID, environment: environment, renderer: renderer)
+                request, sessionID: child.sessionID, claiming: claiming, environment: environment,
+                renderer: renderer)
             openRuns[run.id] = run
             let startRequest = request.with(prompt: AgentsToolText.restoredRunContinue)
             let isAdopted = request.parent?.children.add(run) ?? true
@@ -255,6 +278,27 @@ public actor AgentRunner {
             }
             return run
         }
+    }
+
+    /// Completes the original `start agent` call of a restored run in the
+    /// journal of its caller, when the caller session is live and holds the
+    /// claim of the call (the caller was restored with `claiming`). A caller
+    /// that holds no such claim posts nothing.
+    ///
+    /// - Parameters:
+    ///   - key: The key of the claimed call.
+    ///   - caller: The session of the caller.
+    ///   - final: The final state of the restored run.
+    ///   - report: The report of the run, as the text of the result.
+    private func completeClaim(_ key: RunKey, of caller: ULID, after final: AgentRunState, report: String) async {
+        guard let session = openRuns[caller]?.heldSession else { return }
+        let outcome: OperationOutcome
+        switch final {
+        case .finished: outcome = .succeeded
+        case .failed: outcome = .failed
+        case .cancelled, .running: outcome = .cancelled
+        }
+        await session.completeClaimedRun(key, outcome: outcome, detail: report)
     }
 
     /// Checks that the runner can start an agent, and gives its definition.
@@ -357,6 +401,17 @@ public actor AgentRunner {
         return .started(await start(request))
     }
 
+    /// Finds a run by the completion token of its `start agent` call, in
+    /// operation or in the records. A restored run has the token of its first
+    /// life.
+    ///
+    /// - Parameter token: The token. The case of the letters does not matter.
+    /// - Returns: The run, or `nil` when no run has the token.
+    func run(completionToken token: String) -> AgentRun? {
+        let wanted = token.uppercased()
+        return (Array(openRuns.values) + records).first { $0.completionToken?.uppercased() == wanted }
+    }
+
     /// Finds a run in operation or the record of a finished run.
     ///
     /// - Parameter id: The id of the run.
@@ -438,7 +493,7 @@ public actor AgentRunner {
     /// `start agent` gives a corrective.
     public func stop() async {
         isStopped = true
-        await cancelRuns { _ in true }
+        await cancelRuns(forShutdown: true, where: { _ in true })
     }
 
     /// Cancels each run of one caller, and waits for each to close its
@@ -456,7 +511,7 @@ public actor AgentRunner {
     ///
     /// - Parameter caller: The id of the session of the caller.
     public func cancelRuns(caller: ULID) async {
-        await cancelRuns { $0 == caller }
+        await cancelRuns(forShutdown: false, where: { $0 == caller })
     }
 
     /// Cancels each run whose caller `isTarget` selects, and waits for each
@@ -470,17 +525,17 @@ public actor AgentRunner {
     ///
     /// - Parameter isTarget: Selects a caller: a session id, or `nil` for
     ///   the host.
-    private func cancelRuns(where isTarget: (ULID?) -> Bool) async {
+    private func cancelRuns(forShutdown: Bool, where isTarget: (ULID?) -> Bool) async {
         let setupKeys = setups.filter { isTarget($0.value.caller) }.map(\.key)
         for run in openRuns.values where isTarget(run.caller) {
-            run.cancelForShutdown()
+            forShutdown ? run.cancelForShutdown() : run.cancel()
         }
         for setupKey in setupKeys {
             await endOfSetup(setupKey)
         }
         let runs = openRuns.values.filter { isTarget($0.caller) }
         for run in runs {
-            run.cancelForShutdown()
+            forShutdown ? run.cancelForShutdown() : run.cancel()
         }
         for run in runs {
             _ = await run.finalState()

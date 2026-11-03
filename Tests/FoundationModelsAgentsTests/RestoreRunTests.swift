@@ -20,10 +20,12 @@ struct RestoreRunTests {
     ///   - session: The session id of the child.
     ///   - agentID: The agent id of the child.
     /// - Returns: The child.
-    static func child(_ session: ULID, agentID: String = AgentRunTests.reviewer, caller: ULID = caller) -> RecordedChild {
+    static func child(
+        _ session: ULID, agentID: String = AgentRunTests.reviewer, caller: ULID = caller, token: String? = nil
+    ) -> RecordedChild {
         RecordedChild(
             sessionID: session, agentID: agentID, agentName: nil, parentSessionId: caller,
-            parentToolCallId: "token-\(session)", ended: nil)
+            parentToolCallId: token ?? "token-\(session)", ended: nil)
     }
 
     @Test("a run whose runner stopped continues as the same session in a new runner")
@@ -64,6 +66,66 @@ struct RestoreRunTests {
         let restored = try await harness.makeRunner().restore(Self.child(run.id))
 
         #expect(try await restored.result() == Self.restoredText)
+    }
+
+    @Test("a restored run has the old completion token of the start agent call")
+    func restoredRunKeepsTheCompletionToken() async throws {
+        let harness = try await AgentRunHarness.make(
+            script: ScriptedAgentScript([
+                ScriptedAgentPlay(key: AgentRunTests.prompt, steps: [.finalText("lost")]),
+                ScriptedAgentPlay(
+                    key: AgentsToolText.restoredRunContinue, steps: [.finalText(Self.restoredText)]),
+            ]))
+        defer { try? harness.delete() }
+        let first = harness.makeRunner()
+        let run = try await first.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
+        _ = try await run.result()
+        let child = Self.child(run.id, token: "old-token-1")
+
+        let restored = try await harness.makeRunner().restore(child, deferStart: true)
+
+        #expect(restored.completionToken == "old-token-1")
+    }
+
+    @Test("the runner finds a restored run by the old completion token, in any letter case")
+    func runnerFindsRestoredRunByToken() async throws {
+        let harness = try await AgentRunHarness.make(
+            script: ScriptedAgentScript([
+                ScriptedAgentPlay(key: AgentRunTests.prompt, steps: [.finalText("lost")]),
+            ]))
+        defer { try? harness.delete() }
+        let run = try await harness.makeRunner().start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
+        _ = try await run.result()
+        let child = Self.child(run.id, token: "old-token-2")
+        let runner = harness.makeRunner()
+        let restored = try await runner.restore(child, deferStart: true)
+
+        let found = await runner.run(completionToken: "OLD-TOKEN-2")
+
+        #expect(found?.id == restored.id)
+    }
+
+    @Test("a claim of a run that is not an orphan makes the restore fail before the session restores")
+    func claimOfNonOrphanFails() async throws {
+        let harness = try await AgentRunHarness.make(
+            script: ScriptedAgentScript([
+                ScriptedAgentPlay(key: AgentRunTests.prompt, steps: [.finalText("done")]),
+            ]))
+        defer { try? harness.delete() }
+        let run = try await harness.makeRunner().start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
+        _ = try await run.result()
+        let key = RunKey(tool: ToolVocabulary.agentsToolName, correlationID: "no-such-run")
+
+        do {
+            _ = try await harness.makeRunner().restore(Self.child(run.id), claiming: [key])
+            Issue.record("The restore must fail.")
+        } catch {
+            guard case .sessionRestoreFailed(let reason) = error else {
+                Issue.record("Wrong error: \(error).")
+                return
+            }
+            #expect(reason.contains("runNotClaimable"))
+        }
     }
 
     @Test("a child with an agent id that the catalog lacks is refused")

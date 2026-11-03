@@ -240,6 +240,42 @@ comments:
     4. Announce each `.unknown` child as unknown.
     5. Give the environment `callerMail` for a caller that is not a run, and `withSessionEnding { try await directory.markEnded($0, reason: $1) }`.
   timestamp: 2026-11-03T16:18:23.643396+00:00
+- actor: claude-code
+  id: 01m6h59s5s0v9fm0eyhvs43qpm
+  text: |-
+    Shutdown order test, option A, with the real Router and a scripted model. Chain: root host session, caller, middle, leaf. The leaf waits on a gate.
+
+    Result: option A does NOT work with the current code. Order tested: root.close() first, then runner.stop(). The journal of the root holds the start-agent call of the caller as completed(succeeded), text "Agent ... was cancelled." It is not completed(lost). Thus select() does not find the run, and the run is not restorable. The same result holds for runner.stop() first and for the call that is still background (the caller waits for its children).
+
+    Cause: the Router cancels the body of the start-agent call when the session closes. Our cancel handler cancels the run, the run reports "cancelled", the body returns that text, and the Router records any returned body as succeeded. This happens before the close sweep can post a lost event.
+
+    What I tried and removed: the body throws CancellationError (still succeeded); the body parks (session close hangs). Nothing of this is committed.
+
+    Not tested: runner.stop() after close() on a run whose session is closed (no hang seen in the test run; the test finished). The mark: a body cancel is treated as a cancel of the caller, so the run marks its session ended as cancelled. This is also wrong for a shutdown. Fix in Agents (small, safe): the cancel of the body (session close) should use cancelForShutdown. It does not fix the journal outcome.
+
+    The WIP end-to-end test is at /private/tmp/claude-501/wip/RestoreEndToEndTests.swift and in the working tree, not committed (its cases fail). The Router session is asked how a body must end to leave the call open or lost.
+  timestamp: 2026-11-03T16:53:55.001510+00:00
+- actor: claude-code
+  id: 01m6h5yds19mdsxf2f3s5nsq95
+  text: |-
+    Coordinator decisions built (Router b24f6c62 claim API).
+
+    1. select: a child is restorable if it has no ended marker, whatever the journal says. API: `AgentRunRestore.select(children:)`. The `.unknown` candidate and the statuses parameter are removed. Tests: unended is restorable, ended is not.
+
+    2. Claims: `AgentRunRestore.claims(for:statuses:)` gives the keys of the children whose call is an orphan. The host passes them as `claiming` when it restores the caller. `restore(_:prompt:deferStart:claiming:)` passes them to restoreSession. A key that is not an orphan makes the restore fail before any session restores (test: runNotClaimable). A child whose call is not claimable is restored anyway, and its result comes to its caller as mail (interim path).
+
+    3. When a restored child ends, it completes the original call with `completeClaimedRun` (outcome succeeded, failed or cancelled; the report as detail) on the live caller session, then mails the report to the caller. The mail wakes the caller. If a child cannot be restored, its claim ends as lost on the live caller session. NOT tested end to end: a real orphan needs a crash without the close sweep, which the Router suspending close will give. The code path for completeClaimedRun is only compiled and covered by the not-claimable test.
+
+    4. Order and failure of the mark: in AgentRun the mark (sessionEnding) completes before the result mail and before the state that releases the journal result. If the mark fails, the run logs the error type, posts no result mail, and stays restorable. Tests: mark before mail; failed mark mails nothing.
+
+    5. Shutdown: `runner.stop()` marks nothing and posts no result mail, also for a run that finished after the stop (a cascade). `cancelRuns(caller:)` is for a user-closed session and marks the runs as cancelled. Tests for both. Mutation checks: failed mark still mails, shutdown still mails, shutdown still marks, mail before mark: each made a test fail.
+
+    6. `AgentRun.completionToken` is public: the token of the live call, or the old token of a restored run. `check agent` and `cancel agent` find a restored run by the old token (runner.run(completionToken:)).
+
+    7. Open: the journal result of a LIVE `start agent` call at a runner stop still records succeeded (the Router records any returned body as succeeded). With the unended-marker rule this does not matter for select. The Router suspending close is not in my checkout yet.
+
+    Docs: RunningAnAgent.md has the sections "Restoring an interrupted run" and "The ended marker".
+  timestamp: 2026-11-03T17:05:11.457056+00:00
 position_column: review
 position_ordinal: '8180'
 title: AgentRunner restores an interrupted child run from disk and continues it, with tools and instructions from the current config

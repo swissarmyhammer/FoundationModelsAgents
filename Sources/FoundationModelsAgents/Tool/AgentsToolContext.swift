@@ -414,7 +414,10 @@ public struct AgentsToolContext: Sendable {
         if let runID = ULID(ulidString: key), let run = await runner.run(id: runID) {
             return run
         }
-        return startedRuns.run(forCall: key)
+        if let run = startedRuns.run(forCall: key) {
+            return run
+        }
+        return await runner.run(completionToken: key)
     }
 
     /// Gives the form of an id that the model gave, in which it is compared

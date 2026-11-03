@@ -231,3 +231,52 @@ throws ``AgentRunnerError/stopped``.
 gives a run in operation or the record of a finished run.
 ``AgentEnvironment/maxRetainedRuns`` limits the records, and the runner
 removes the oldest record first.
+
+### Restoring an interrupted run
+
+A process can stop while a run works. The recording of the run stays on disk.
+After a restart, the host restores each interrupted child run, and it works
+again as the same session. The tools and the instructions of a restored run
+come from the current agent files and the current tool catalog, not from the
+old recording.
+
+The host does these steps for each caller session, from the root session down:
+
+1. Read the recorded children of the caller with the Router, and select the
+   children to restore with ``AgentRunRestore/select(children:)``. A child is
+   selected when it has no ended marker.
+2. Pass the keys from ``AgentRunRestore/claims(for:statuses:)`` as `claiming`
+   when it restores the caller. The original `start agent` call of each child
+   then waits in the journal of the caller, and the restored child completes it.
+   A child whose call is not an orphan is restored too, and its result comes as
+   mail.
+3. Restore the caller and its children with
+   ``AgentRunner/restore(_:prompt:deferStart:claiming:)``, the caller first,
+   each with `deferStart: true`. A child joins the family of its caller when it
+   is restored.
+4. Start the runs with ``AgentRun/resume()``, the children first and the caller
+   last. A caller that started before its children were attached could end
+   too early.
+
+The host calls ``AgentRunner/restore(_:prompt:deferStart:claiming:)`` after it
+answered the resume request of its own client. The call does no work before.
+The host gives `prompt` as `$ARGUMENTS` of the agent body. Its default is empty.
+
+A restored run has no live `start agent` call of its caller. It sends its
+result to the caller as mail when it ends. Its caller link uses the mail route,
+and the host gives ``AgentEnvironment/callerMail`` for a caller that is not a
+run of the runner. ``AgentRun/completionToken`` is the token of the first
+`start agent` call, thus `check agent` and `cancel agent` find the restored
+run with the old token.
+
+### The ended marker
+
+A run marks its session as ended with the host closure
+``AgentEnvironment/withSessionEnding(_:)``. It does this when it reaches a real
+end: it finished, it failed, or a user cancelled it. The mark is durable
+before the result goes anywhere. If the mark fails, the run posts no result.
+
+``AgentRunner/stop()`` is for the shutdown of the process. It marks nothing and
+it posts no result, thus the next start of the host can restore the runs.
+``AgentRunner/cancelRuns(caller:)`` is for a session that a user closes. It
+marks the runs as cancelled.
