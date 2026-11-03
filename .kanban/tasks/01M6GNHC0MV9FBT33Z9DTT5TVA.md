@@ -276,8 +276,8 @@ comments:
 
     Docs: RunningAnAgent.md has the sections "Restoring an interrupted run" and "The ended marker".
   timestamp: 2026-11-03T17:05:11.457056+00:00
-position_column: review
-position_ordinal: '8180'
+position_column: done
+position_ordinal: fb80
 title: AgentRunner restores an interrupted child run from disk and continues it, with tools and instructions from the current config
 ---
 ## What

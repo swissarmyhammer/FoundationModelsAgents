@@ -1,8 +1,8 @@
 ---
 assignees:
 - claude-code
-position_column: todo
-position_ordinal: '80'
+position_column: done
+position_ordinal: f980
 title: Fix the crash and restore review findings of the restore path
 ---
 Items from the independent crash and restore review.
