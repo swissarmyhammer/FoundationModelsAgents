@@ -79,32 +79,10 @@ struct RunEndedMarkTests {
 
     // MARK: - Order and shutdown of a restored run
 
-    /// Makes a recorded child of a finished run, and a script that plays its
-    /// restored work.
-    private static func restoredSetup(
-        sessionEnding: AgentEnvironment.SessionEnding?, callerMail: AgentEnvironment.CallerMail?, gate: ScriptedGate?,
-        logger: Logger? = nil
-    ) async throws -> (harness: AgentRunHarness, runner: AgentRunner, run: AgentRun) {
-        // The restored session matches the play of its first prompt, thus one play holds the
-        // steps of both lives.
-        let gateSteps: [ScriptedAgentStep] = gate.map { [.wait($0)] } ?? []
-        let steps: [ScriptedAgentStep] =
-            [.finalText("first")] + gateSteps + [.finalText("restored text"), .finalTextOfLastPrompt]
-        let harness = try await AgentRunHarness.make(
-            script: ScriptedAgentScript([ScriptedAgentPlay(key: "order-orig-key", steps: steps)]), logger: logger)
-        let original = try await harness.makeRunner().start(AgentRunTests.testWriter, prompt: "order-orig-key")
-        _ = try await original.result()
-        let runner = harness.makeRunner(callerMail: callerMail, sessionEnding: sessionEnding)
-        let child = RecordedChild(
-            sessionID: original.id, agentID: AgentRunTests.testWriter, agentName: nil, parentSessionId: ULID(),
-            parentToolCallId: "order-token", ended: nil)
-        return (harness, runner, try await runner.restore(child, prompt: "order-rest-key"))
-    }
-
     @Test("a restored run marks its session ended before it mails the result to its caller")
     func markComesBeforeCallerMail() async throws {
         let events = CallRecord<String>()
-        let setup = try await Self.restoredSetup(
+        let setup = try await RestoredRunFixture.make(
             sessionEnding: { _, _ in events.add("mark") }, callerMail: { _, _, _ in events.add("mail"); return MailID() },
             gate: nil)
         defer { try? setup.harness.delete() }
@@ -118,7 +96,7 @@ struct RunEndedMarkTests {
     func failedMarkMailsNothing() async throws {
         struct MarkFailed: Error {}
         let events = CallRecord<String>()
-        let setup = try await Self.restoredSetup(
+        let setup = try await RestoredRunFixture.make(
             sessionEnding: { _, _ in throw MarkFailed() }, callerMail: { _, _, _ in events.add("mail"); return MailID() },
             gate: nil)
         defer { try? setup.harness.delete() }
@@ -132,7 +110,7 @@ struct RunEndedMarkTests {
     func suspendedMarkIsNotLoggedAndMailsNothing() async throws {
         let events = CallRecord<String>()
         try await TelemetryCapture.run(forbidding: []) { context in
-            let setup = try await Self.restoredSetup(
+            let setup = try await RestoredRunFixture.make(
                 sessionEnding: { id, _ in throw SessionEndedMarkerError.sessionSuspended(id) },
                 callerMail: { _, _, _ in events.add("mail"); return MailID() },
                 gate: nil, logger: context.logger)
@@ -152,7 +130,7 @@ struct RunEndedMarkTests {
     func stopMarksAndMailsNothing() async throws {
         let gate = ScriptedGate()
         let events = CallRecord<String>()
-        let setup = try await Self.restoredSetup(
+        let setup = try await RestoredRunFixture.make(
             sessionEnding: { _, _ in events.add("mark") }, callerMail: { _, _, _ in events.add("mail"); return MailID() },
             gate: gate)
         defer { try? setup.harness.delete() }

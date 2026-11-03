@@ -11,12 +11,6 @@ import ULID
 /// what it does when a read or a mark fails.
 @Suite("The audit rules of the restore")
 struct RestoreAuditTests {
-    /// One call of the claim completion closure.
-    private struct ClaimCall: Sendable, Equatable {
-        let key: RunKey
-        let outcome: OperationOutcome
-    }
-
     private struct MarkFailed: Error {}
 
     private static func child(agent: String = AgentRunTests.testWriter, token: String = "audit-token") -> RecordedChild {
@@ -27,20 +21,26 @@ struct RestoreAuditTests {
 
     // MARK: - (4) transient errors keep the claim open
 
+    /// The error that the restore of `child` throws, or `nil` when it does not throw.
+    private static func restoreError(of child: RecordedChild, on runner: AgentRunner) async -> AgentRunRestoreError? {
+        do {
+            _ = try await runner.restore(child)
+            return nil
+        } catch {
+            return error
+        }
+    }
+
     @Test("a restore that fails for a reason that can pass leaves the claim of the call open")
     func transientErrorKeepsTheClaimOpen() async throws {
         let harness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
         defer { try? harness.delete() }
-        let claims = CallRecord<ClaimCall>()
-        let environment = harness.environment(maxRetainedRuns: 10, sessionEnding: nil).withClaimCompletion {
-            _, key, outcome, _ in
-            claims.add(ClaimCall(key: key, outcome: outcome))
-            return true
-        }
-        let runner = AgentRunner(registry: harness.registry, environment: environment)
+        let (runner, claims) = RestoredRunFixture.makeRunner(harness, sessionEnding: nil)
 
-        _ = try? await runner.restore(Self.child())
+        let error = await Self.restoreError(of: Self.child(), on: runner)
 
+        #expect(error == .sessionEndingMissing)
+        #expect(error?.isTransient == true)
         #expect(claims.all.isEmpty)
     }
 
@@ -48,16 +48,13 @@ struct RestoreAuditTests {
     func stoppedRunnerKeepsTheClaimOpen() async throws {
         let harness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
         defer { try? harness.delete() }
-        let claims = CallRecord<ClaimCall>()
-        let environment = harness.environment(maxRetainedRuns: 10).withClaimCompletion { _, key, outcome, _ in
-            claims.add(ClaimCall(key: key, outcome: outcome))
-            return true
-        }
-        let runner = AgentRunner(registry: harness.registry, environment: environment)
+        let (runner, claims) = RestoredRunFixture.makeRunner(harness)
         await runner.stop()
 
-        _ = try? await runner.restore(Self.child())
+        let error = await Self.restoreError(of: Self.child(), on: runner)
 
+        #expect(error == .stopped)
+        #expect(error?.isTransient == true)
         #expect(claims.all.isEmpty)
     }
 
@@ -65,17 +62,18 @@ struct RestoreAuditTests {
     func permanentErrorEndsTheClaimLost() async throws {
         let harness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))
         defer { try? harness.delete() }
-        let claims = CallRecord<ClaimCall>()
-        let environment = harness.environment(maxRetainedRuns: 10).withClaimCompletion { _, key, outcome, _ in
-            claims.add(ClaimCall(key: key, outcome: outcome))
-            return true
-        }
-        let runner = AgentRunner(registry: harness.registry, environment: environment)
+        let (runner, claims) = RestoredRunFixture.makeRunner(harness)
         let broken = Self.child(agent: "no-such-agent")
 
-        _ = try? await runner.restore(broken)
+        let error = await Self.restoreError(of: broken, on: runner)
 
-        #expect(claims.all == [ClaimCall(key: broken.startCallKey, outcome: .lost)])
+        #expect(error?.isTransient == false)
+
+        #expect(
+            claims.all == [
+                RestoredRunFixture.ClaimCall(
+                    caller: broken.parentSessionId, key: broken.startCallKey, outcome: .lost)
+            ])
     }
 
     // MARK: - (6) claims for a child with no status
