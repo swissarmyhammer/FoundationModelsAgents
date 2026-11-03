@@ -222,6 +222,21 @@ public struct AgentEnvironment: Sendable {
     /// for none (``ClaimCompletion``).
     public internal(set) var claimCompletion: ClaimCompletion? = nil
 
+    /// The recording root of the sessions of the runs, or `nil` for the default of the Router.
+    /// A host sets the root of its own sessions, thus one `RouterSessionDirectory` finds the
+    /// root session and its runs, and a restart can restore the runs.
+    public internal(set) var recordingRoot: URL? = nil
+
+    /// Gives a copy of the environment whose runs record their sessions under `recordingRoot`.
+    ///
+    /// - Parameter recordingRoot: The root, or `nil` for the default of the Router.
+    /// - Returns: The copy.
+    public func withRecordingRoot(_ recordingRoot: URL?) -> AgentEnvironment {
+        var copy = self
+        copy.recordingRoot = recordingRoot
+        return copy
+    }
+
     /// Gives a copy of the environment with a host closure that marks the
     /// session of a run as ended (``SessionEnding``).
     ///

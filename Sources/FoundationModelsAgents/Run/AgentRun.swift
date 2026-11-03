@@ -447,7 +447,7 @@ public final class AgentRun: Sendable {
         let restored: RestoredSession
         do {
             restored = try await ModelMatch.model(of: setup.slot, in: environment.profile).restoreSession(
-                id: sessionID, instructions: setup.instructions, tools: setup.tools,
+                id: sessionID, recordingRoot: environment.recordingRoot, instructions: setup.instructions, tools: setup.tools,
                 userPresence: environment.runUserPresence, claimingRuns: claims)
         } catch {
             throw .sessionRestoreFailed(String(describing: error))

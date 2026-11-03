@@ -88,6 +88,7 @@ struct AgentSessionMaker: Sendable {
             configuration: SessionConfiguration(
                 instructions: setup.instructions,
                 workingDirectory: setup.workingDirectory,
+                recordingRoot: environment.recordingRoot,
                 tools: setup.tools,
                 compaction: CompactionSettings(
                     budget: environment.budget(model.contextTokens),

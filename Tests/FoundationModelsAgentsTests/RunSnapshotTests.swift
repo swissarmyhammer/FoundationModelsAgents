@@ -109,3 +109,27 @@ struct RunSnapshotTests {
         #expect(rest.allSatisfy { $0.id == run.id })
     }
 }
+
+/// Pins ``AgentEnvironment/withRecordingRoot(_:)``: the sessions of the runs record under the
+/// root of the host, thus one directory finds the root session and its runs.
+@Suite("The recording root of the runs")
+struct RunRecordingRootTests {
+    @Test("a run records its session under the recording root of the environment")
+    func runRecordsUnderTheRoot() async throws {
+        let harness = try await AgentRunHarness.make(
+            script: AgentRunTests.script([.finalText(AgentRunTests.finalText)]))
+        defer { try? harness.delete() }
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("run-root-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let environment = harness.environment(maxRetainedRuns: 10).withRecordingRoot(root)
+        let runner = AgentRunner(registry: harness.registry, environment: environment)
+
+        let run = try await runner.start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
+        _ = try await run.result()
+
+        let directory = try #require(run.recordingDirectory)
+        #expect(directory.standardizedFileURL.path.hasPrefix(root.standardizedFileURL.path))
+    }
+}
