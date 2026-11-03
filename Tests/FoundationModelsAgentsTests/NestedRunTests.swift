@@ -407,8 +407,10 @@ struct NestedRunTests {
 
         #expect(leadTerminal.correlationID == leadToken)
         #expect(rootSpawn == nil)
-        #expect(leadSpawn == SessionRecord.AgentSpawn(parentSessionId: root.id, parentToolCallId: leadToken))
-        #expect(childSpawn == SessionRecord.AgentSpawn(parentSessionId: lead.id, parentToolCallId: childToken))
+        #expect(leadSpawn == SessionRecord.AgentSpawn(
+                parentSessionId: root.id, parentToolCallId: leadToken, rootSessionId: root.id))
+        #expect(childSpawn == SessionRecord.AgentSpawn(
+                parentSessionId: lead.id, parentToolCallId: childToken, rootSessionId: root.id))
         #expect(leadPosts.map(\.correlationID) == [leadToken])
     }
 }

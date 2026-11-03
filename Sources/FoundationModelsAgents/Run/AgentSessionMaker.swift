@@ -37,6 +37,23 @@ struct AgentSessionMaker: Sendable {
         let slot: ModelSlot
     }
 
+    /// What the shared step resolves for a run: everything of its session
+    /// that comes from the current definition and catalog.
+    struct ResolvedSetup {
+        /// The instructions of the session: the `AGENTS.md` files, the
+        /// rendered body, and the rendered skills.
+        let instructions: String
+
+        /// The slot of the model of the session.
+        let slot: ModelSlot
+
+        /// The tools of the session, with the `agents` tool of the run.
+        let tools: [any Tool]
+
+        /// The working folder of the run.
+        let workingDirectory: URL
+    }
+
     /// The text between two parts of the instructions.
     static let instructionsSeparator = "\n\n"
 
@@ -60,6 +77,44 @@ struct AgentSessionMaker: Sendable {
     func makeSession(
         for request: AgentRunRequest, family: ParentRun.Family
     ) async throws(AgentRunFailure) -> Made {
+        let setup = try await resolveSetup(for: request, family: family)
+        let definition = request.definition
+        let slot = setup.slot
+        let model = ModelMatch.model(of: slot, in: environment.profile)
+        let session = model.makeSession(
+            configuration: SessionConfiguration(
+                instructions: setup.instructions,
+                workingDirectory: setup.workingDirectory,
+                tools: setup.tools,
+                compaction: CompactionSettings(
+                    budget: environment.budget(model.contextTokens),
+                    prompt: definition.compactionPrompt ?? .default),
+                agentSpawn: request.agentSpawn,
+                mailOnlyAnswerLimit: environment.mailOnlyAnswerLimit,
+                inlineSettleGrace: environment.inlineSettleGrace,
+                userPresence: request.questionTarget?.userPresence ?? environment.runUserPresence,
+                parentCall: request.context))
+        return Made(session: session, slot: slot)
+    }
+
+    /// Resolves the instructions, the slot, and the tools of the run of
+    /// `request`, from the current definition and the current catalog.
+    ///
+    /// A new session and a restored session both use this step, thus no
+    /// second copy of the tool build exists.
+    ///
+    /// - Parameters:
+    ///   - request: The run.
+    ///   - family: The children of the run. The `agents` tool of the run adds
+    ///     to the children.
+    /// - Returns: The resolved setup.
+    /// - Throws: ``AgentRunFailure/bodyRenderFailed(_:)``,
+    ///   ``AgentRunFailure/skillRenderFailed(skill:description:)``,
+    ///   ``AgentRunFailure/agentsMdUnreadable(_:)``, or
+    ///   ``AgentRunFailure/toolsFailed(_:)``.
+    func resolveSetup(
+        for request: AgentRunRequest, family: ParentRun.Family
+    ) async throws(AgentRunFailure) -> ResolvedSetup {
         let definition = request.definition
         let workingDirectory = request.workingDirectory(default: environment.workingDirectory)
         let body = try renderer.render(definition, prompt: request.prompt)
@@ -73,21 +128,7 @@ struct AgentSessionMaker: Sendable {
             as: ParentRun(
                 depth: request.depth, slot: slot, agentID: definition.id, family: family,
                 workingDirectory: workingDirectory))
-        let model = ModelMatch.model(of: slot, in: environment.profile)
-        let session = model.makeSession(
-            configuration: SessionConfiguration(
-                instructions: instructions,
-                workingDirectory: workingDirectory,
-                tools: tools,
-                compaction: CompactionSettings(
-                    budget: environment.budget(model.contextTokens),
-                    prompt: definition.compactionPrompt ?? .default),
-                agentSpawn: request.agentSpawn,
-                mailOnlyAnswerLimit: environment.mailOnlyAnswerLimit,
-                inlineSettleGrace: environment.inlineSettleGrace,
-                userPresence: request.questionTarget?.userPresence ?? environment.runUserPresence,
-                parentCall: request.context))
-        return Made(session: session, slot: slot)
+        return ResolvedSetup(instructions: instructions, slot: slot, tools: tools, workingDirectory: workingDirectory)
     }
 
     /// Puts the instructions of a run in order: the text of each `AGENTS.md`
@@ -160,9 +201,7 @@ struct AgentSessionMaker: Sendable {
         for request: AgentRunRequest, as parent: ParentRun
     ) -> ToolResolver.AgentsToolFactory? {
         let belowMaxDepth = request.depth < environment.maxDepth
-        let callerLink = request.context.map { call in
-            AgentsToolContext.CallerLink(call: call, sessionID: call.sessionID)
-        }
+        let callerLink = request.callerLink
         guard let maker = request.agentsTool, belowMaxDepth || callerLink != nil else {
             return nil
         }

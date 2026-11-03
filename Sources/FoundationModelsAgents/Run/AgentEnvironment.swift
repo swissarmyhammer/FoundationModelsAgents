@@ -6,6 +6,7 @@ import FoundationModelsSkills
 import Logging
 import Metrics
 import Tracing
+import ULID
 
 /// The dependencies and the limits of the agent runs of one host.
 ///
@@ -41,6 +42,19 @@ public struct AgentEnvironment: Sendable {
     /// chain from the mail to the event. ``runEventObserver`` tells the
     /// contract.
     public typealias RunEventObserver = @Sendable (AgentRun, SessionOutput) -> Void
+
+    /// Sends a message to a caller session that the runner does not hold as a
+    /// run, for example the root session of a host. It gets the text, the id
+    /// of the session that sends the message, and the id of the caller
+    /// session. It returns `true` when the caller got the message as mail.
+    public typealias CallerMail = @Sendable (_ message: String, _ sender: ULID, _ caller: ULID) async -> Bool
+
+    /// Marks the session of a run as ended, with the reason. A host gives
+    /// `{ try await directory.markEnded($0, reason: $1) }` over its
+    /// `RouterSessionDirectory`. The run calls it when it reaches a real end,
+    /// before it gives its result. It never calls it for a stop of the
+    /// runner, thus a later start of the host can restore the run.
+    public typealias SessionEnding = @Sendable (_ session: ULID, _ reason: SessionEndReason) async throws -> Void
 
     /// The default of ``maxConcurrentAgents``.
     public static let defaultMaxConcurrentAgents = 4
@@ -183,6 +197,28 @@ public struct AgentEnvironment: Sendable {
     /// output of the body.
     public let runEventObserver: RunEventObserver?
 
+    /// Sends a message of a restored run to its caller, when the caller is a
+    /// session that the runner does not hold as a run, or `nil` for no such
+    /// route. The route is the mail route of a caller link: a restored run has
+    /// no live `start agent` call of its caller. A caller that is a run of the
+    /// runner gets the message without this closure.
+    public let callerMail: CallerMail?
+
+    /// The host closure that marks the session of a run as ended, or `nil`
+    /// for none (``SessionEnding``).
+    public internal(set) var sessionEnding: SessionEnding? = nil
+
+    /// Gives a copy of the environment with a host closure that marks the
+    /// session of a run as ended (``SessionEnding``).
+    ///
+    /// - Parameter sessionEnding: The closure, or `nil` for none.
+    /// - Returns: The copy.
+    public func withSessionEnding(_ sessionEnding: SessionEnding?) -> AgentEnvironment {
+        var copy = self
+        copy.sessionEnding = sessionEnding
+        return copy
+    }
+
     /// The most answers in a row that mail alone starts in the session of a
     /// run, with no caller message between them. Message mail and final
     /// messages both count. When the Router holds the mail at this limit,
@@ -260,6 +296,9 @@ public struct AgentEnvironment: Sendable {
     ///   - runEventObserver: The observer of the session events of each run,
     ///     or `nil` (the default) for no observer. ``runEventObserver`` tells
     ///     the contract.
+    ///   - callerMail: Sends a message of a restored run to a caller session
+    ///     that the runner does not hold as a run, or `nil` (the default) for
+    ///     no such route. ``callerMail`` tells the contract.
     /// - Returns: The environment.
     /// - Throws: Whatever `SkillsTool.make` throws.
     public static func make(
@@ -279,7 +318,8 @@ public struct AgentEnvironment: Sendable {
         logger: Logger? = nil,
         metricsFactory: (any MetricsFactory)? = nil,
         inlineSettleGrace: TimeInterval = ToolMount.defaultInlineSettleGrace,
-        runEventObserver: RunEventObserver? = nil
+        runEventObserver: RunEventObserver? = nil,
+        callerMail: CallerMail? = nil
     ) async throws -> AgentEnvironment {
         let skillsTool = try await makeSkillsTool(
             skills: skills, selectionModel: skillsSelectionModel,
@@ -289,7 +329,8 @@ public struct AgentEnvironment: Sendable {
             selectionModel: skillsSelectionModel, workingDirectory: workingDirectory, tools: tools,
             defaultSlot: defaultSlot, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
             maxRetainedRuns: maxRetainedRuns, budget: budget, tracer: tracer, logger: logger,
-            metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace, runEventObserver: runEventObserver)
+            metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace, runEventObserver: runEventObserver,
+            callerMail: callerMail)
     }
 
     /// Makes the `skills` tool from `skills`.
@@ -320,7 +361,7 @@ public struct AgentEnvironment: Sendable {
 
     /// Makes an environment over a `skills` tool that is already made.
     ///
-    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:)``
+    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:)``
     /// tells each parameter. `skillsTool` must be the tool that
     /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:)``
     /// made from `skills` and `skillsVisibility`. The init adds it to `tools`
@@ -347,7 +388,8 @@ public struct AgentEnvironment: Sendable {
         logger: Logger?,
         metricsFactory: (any MetricsFactory)?,
         inlineSettleGrace: TimeInterval,
-        runEventObserver: RunEventObserver? = nil
+        runEventObserver: RunEventObserver? = nil,
+        callerMail: CallerMail? = nil
     ) {
         precondition(
             ModelMatch.generationSlots.contains { $0.slot == defaultSlot },
@@ -377,5 +419,6 @@ public struct AgentEnvironment: Sendable {
         self.metricsFactory = metricsFactory
         self.inlineSettleGrace = max(0, inlineSettleGrace)
         self.runEventObserver = runEventObserver
+        self.callerMail = callerMail
     }
 }

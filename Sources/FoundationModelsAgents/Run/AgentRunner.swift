@@ -172,23 +172,114 @@ public actor AgentRunner {
     public func start(
         _ name: String, prompt: String, workingDirectory: URL?
     ) async throws(AgentRunnerError) -> AgentRun {
-        guard !isStopped else {
-            throw .stopped
-        }
-        guard registry.isLoaded else {
-            logStartBeforeLoad(of: name)
-            countStartBeforeLoad(of: name)
-            throw .catalogNotLoaded
-        }
-        let catalog = registry.catalog()
-        guard let definition = catalog.definition(named: name) else {
-            throw .unknownAgent(name: name, available: catalog.definitions.map(\.id))
+        let definition: AgentDefinition
+        do {
+            definition = try startableDefinition(named: name)
+        } catch {
+            if error == .catalogNotLoaded {
+                logStartBeforeLoad(of: name)
+                countStartBeforeLoad(of: name)
+            }
+            throw error
         }
         return await start(
             AgentRunRequest(
                 definition: definition, prompt: prompt, context: nil,
                 inheritedSlot: environment.defaultSlot, depth: Self.hostDepth, parent: nil,
                 agentsTool: AgentRun.agentsTool(of: self), requestedDirectory: workingDirectory))
+    }
+
+    /// Restores the run of a recorded child of a caller session, and
+    /// continues it.
+    ///
+    /// The session is the recorded session of the child, not a new one. Its
+    /// tools and instructions come from the current definition and catalog
+    /// (``AgentSessionMaker/resolveSetup(for:family:)``). The run has the mail
+    /// route to its caller: the caller session need not be live. The restore
+    /// does not count against ``AgentEnvironment/maxConcurrentAgents``, and it
+    /// checks ``AgentEnvironment/maxDepth``. The depth of the child is the
+    /// depth of its caller run when the runner holds that run, else two.
+    ///
+    /// The run gets one first message, the text that tells it to read its
+    /// transcript and go on. Choose the child with
+    /// ``AgentRunRestore/select(children:statuses:)``.
+    ///
+    /// - Parameters:
+    ///   - child: The recorded child.
+    ///   - prompt: `$ARGUMENTS` of the body of the agent. The default is
+    ///     empty.
+    /// - Returns: The run, in operation.
+    /// - Throws: ``AgentRunRestoreError``.
+    public func restore(_ child: RecordedChild, prompt: String = "") async throws(AgentRunRestoreError) -> AgentRun {
+        let definition: AgentDefinition
+        do {
+            definition = try startableDefinition(named: child.agentID)
+        } catch {
+            switch error {
+            case .stopped: throw .stopped
+            case .catalogNotLoaded: throw .catalogNotLoaded
+            case .unknownAgent: throw .unknownAgent(child.agentID)
+            }
+        }
+        retireEndedRuns()
+        let depth = (openRuns[child.parentSessionId]?.depth ?? Self.hostDepth) + 1
+        guard depth <= environment.maxDepth else {
+            throw .tooDeep(depth: depth, maxDepth: environment.maxDepth)
+        }
+        var request = AgentRunRequest(
+            definition: definition, prompt: prompt, context: nil,
+            inheritedSlot: environment.defaultSlot, depth: depth, parent: nil,
+            agentsTool: AgentRun.agentsTool(of: self))
+        request.restoredCaller = child.parentSessionId
+        return try await withSetup(caller: child.parentSessionId) { () async throws(AgentRunRestoreError) -> AgentRun in
+            let run = try await AgentRun.restore(
+                request, sessionID: child.sessionID, environment: environment, renderer: renderer)
+            openRuns[run.id] = run
+            run.begin(request.with(prompt: AgentsToolText.restoredRunContinue), environment: environment)
+            return run
+        }
+    }
+
+    /// Checks that the runner can start an agent, and gives its definition.
+    ///
+    /// - Parameter name: The id of the agent in the catalog of the registry.
+    /// - Returns: The definition.
+    /// - Throws: ``AgentRunnerError/stopped``,
+    ///   ``AgentRunnerError/catalogNotLoaded``, or
+    ///   ``AgentRunnerError/unknownAgent(name:available:)``.
+    private func startableDefinition(named name: String) throws(AgentRunnerError) -> AgentDefinition {
+        guard !isStopped else {
+            throw .stopped
+        }
+        guard registry.isLoaded else {
+            throw .catalogNotLoaded
+        }
+        let catalog = registry.catalog()
+        guard let definition = catalog.definition(named: name) else {
+            throw .unknownAgent(name: name, available: catalog.definitions.map(\.id))
+        }
+        return definition
+    }
+
+    /// Runs `body` while a setup of `caller` is in operation: a cancel call
+    /// that the setup blocks waits until `body` ends, on each exit path.
+    ///
+    /// - Parameters:
+    ///   - caller: The session of the caller, or `nil` for the host.
+    ///   - body: The setup and the first steps of the run.
+    /// - Returns: The value of `body`.
+    /// - Throws: The error of `body`.
+    private func withSetup<Value, Failure: Error>(
+        caller: ULID?, _ body: () async throws(Failure) -> Value
+    ) async throws(Failure) -> Value {
+        let setupKey = ULID()
+        setups[setupKey] = Setup(caller: caller)
+        defer {
+            for waiter in setups.removeValue(forKey: setupKey)?.waiters ?? [] {
+                waiter.resume()
+            }
+        }
+        return try await body()
     }
 
     /// Starts the run of `request`, and puts it in the index.
@@ -204,15 +295,12 @@ public actor AgentRunner {
     /// - Returns: The run. Its setup is done, thus it has its id.
     func start(_ request: AgentRunRequest) async -> AgentRun {
         retireEndedRuns()
-        let setupKey = ULID()
-        setups[setupKey] = Setup(caller: request.context?.sessionID)
-        let run = await AgentRun.make(request, environment: environment, renderer: renderer)
-        openRuns[run.id] = run
-        run.begin(request, environment: environment)
-        for waiter in setups.removeValue(forKey: setupKey)?.waiters ?? [] {
-            waiter.resume()
+        return await withSetup(caller: request.context?.sessionID) { () async -> AgentRun in
+            let run = await AgentRun.make(request, environment: environment, renderer: renderer)
+            openRuns[run.id] = run
+            run.begin(request, environment: environment)
+            return run
         }
-        return run
     }
 
     /// Starts the run of `request` when fewer than
@@ -274,6 +362,30 @@ public actor AgentRunner {
         return (Array(openRuns.values) + records)
             .filter { $0.caller == caller }
             .sorted { $0.id < $1.id }
+    }
+
+    /// Sends `message` as mail to the session `caller`: the mail route of a
+    /// caller link, for a caller that has no live `start agent` call of the
+    /// sending run (a restored run).
+    ///
+    /// A caller that is a run in operation gets the message through
+    /// ``AgentRun/deliver(_:from:)``, as a message from the session
+    /// `sender`. Each other caller gets it through
+    /// ``AgentEnvironment/callerMail``.
+    ///
+    /// - Parameters:
+    ///   - message: The text of the message.
+    ///   - sender: The id of the session that sends the message.
+    ///   - caller: The id of the session that gets the message.
+    /// - Returns: `true` when the caller got the message as mail. `false`
+    ///   when the caller is a run that ended, or when the caller is not a run
+    ///   of this runner and the environment has no ``AgentEnvironment/callerMail``.
+    func mailCaller(_ message: String, from sender: ULID, to caller: ULID) async -> Bool {
+        retireEndedRuns()
+        if let run = openRuns[caller] {
+            return (try? run.deliver(message, from: .session(sender))) == .delivered
+        }
+        return await environment.callerMail?(message, sender, caller) ?? false
     }
 
     /// Gives the catalog of the registry with the warnings that need the
@@ -344,14 +456,14 @@ public actor AgentRunner {
     private func cancelRuns(where isTarget: (ULID?) -> Bool) async {
         let setupKeys = setups.filter { isTarget($0.value.caller) }.map(\.key)
         for run in openRuns.values where isTarget(run.caller) {
-            run.cancel()
+            run.cancelForShutdown()
         }
         for setupKey in setupKeys {
             await endOfSetup(setupKey)
         }
         let runs = openRuns.values.filter { isTarget($0.caller) }
         for run in runs {
-            run.cancel()
+            run.cancelForShutdown()
         }
         for run in runs {
             _ = await run.finalState()

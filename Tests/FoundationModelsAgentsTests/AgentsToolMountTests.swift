@@ -242,7 +242,11 @@ struct AgentsToolMountTests {
 
         #expect(child.tools.count == 1)
         #expect(link.sessionID == child.rootID)
-        #expect(link.call.completionToken == child.call.completionToken)
+        guard case .call(let linkCall) = link.route else {
+            Issue.record("A caller link of a live start has the call route.")
+            return
+        }
+        #expect(linkCall.completionToken == child.call.completionToken)
         #expect(context.grant == .full)
     }
 

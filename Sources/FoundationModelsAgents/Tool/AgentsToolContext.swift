@@ -12,13 +12,26 @@ public struct AgentsToolContext: Sendable {
     /// The link from the tool of a run to the caller of that run: the
     /// session that started the run.
     struct CallerLink: Sendable {
-        /// The context of the `start agent` call in the session of the
-        /// caller. It is the ``AgentRun/context`` of the run.
-        let call: ToolContext
+        /// How a message of the run reaches the caller.
+        enum Route: Sendable {
+            /// The message is a `message` event of the `start agent` call that
+            /// started the run. The context of that call is the
+            /// ``AgentRun/context`` of the run.
+            case call(ToolContext)
+
+            /// The message is mail to the session of the caller
+            /// (``AgentRunner/mailCaller(_:from:to:)``). A restored run has
+            /// this route: the `start agent` call that started it is not
+            /// open any more.
+            case mail
+        }
 
         /// The id of the session of the caller. It is the
         /// ``AgentRun/caller`` of the run.
         let sessionID: ULID
+
+        /// How a message of the run reaches the caller.
+        let route: Route
     }
 
     /// The operations that the tool gives.
@@ -319,11 +332,24 @@ public struct AgentsToolContext: Sendable {
     /// `no_caller` outcome (``recordMessageToCaller(_:outcome:)``). A blank
     /// message sends nothing and gives no record.
     ///
-    /// - Parameter message: The text of the message.
+    /// The route of the caller link tells how the message goes. A `call`
+    /// route posts a `message` event on the `start agent` call. A `mail`
+    /// route sends mail to the session of the caller
+    /// (``AgentRunner/mailCaller(_:from:to:)``), also when the caller has no
+    /// open call of this run.
+    ///
+    /// - Parameters:
+    ///   - message: The text of the message.
+    ///   - sender: The id of the session that sends the message. The default
+    ///     is the session of the current tool call. A `call` route does not
+    ///     use it.
     /// - Returns: ``AgentsToolText/messageSentToCaller`` when the message was
-    ///   sent. A corrective for a run with no caller, or for a message that
-    ///   holds no text.
-    func messageCaller(_ message: String) async -> AgentsToolAnswer {
+    ///   sent. A corrective for a run with no caller, for a message that
+    ///   holds no text, or for a mail route whose caller cannot get the mail
+    ///   (``AgentsToolText/callerNotReachable``).
+    func messageCaller(
+        _ message: String, from sender: ULID? = ToolContext.current?.sessionID
+    ) async -> AgentsToolAnswer {
         guard let callerLink else {
             await recordMessageToCaller(message, outcome: .noCaller)
             return .corrective(AgentsToolText.noCaller)
@@ -331,7 +357,15 @@ public struct AgentsToolContext: Sendable {
         if let corrective = Self.blankMessageCorrective(message) {
             return corrective
         }
-        await callerLink.call.message(message)
+        switch callerLink.route {
+        case .call(let call):
+            await call.message(message)
+        case .mail:
+            guard let sender, await runner.mailCaller(message, from: sender, to: callerLink.sessionID) else {
+                await recordMessageToCaller(message, outcome: .notDelivered)
+                return .corrective(AgentsToolText.callerNotReachable)
+            }
+        }
         await recordMessageToCaller(message, outcome: .delivered)
         return .success(AgentsToolText.messageSentToCaller)
     }

@@ -294,7 +294,7 @@ struct AgentsToolDescriptionTests {
         _ = await started.run.finalState()
         await root.close()
         let call = try #require(started.context)
-        let link = AgentsToolContext.CallerLink(call: call, sessionID: call.sessionID)
+        let link = AgentsToolContext.CallerLink(sessionID: call.sessionID, route: .call(call))
         let tool = try await AgentsTool.make(
             context: AgentsToolContext(
                 runner: harness.runner, allowedNames: nil, parent: nil, callerLink: link, grant: grant))

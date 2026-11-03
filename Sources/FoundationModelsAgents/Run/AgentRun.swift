@@ -47,7 +47,7 @@ public final class AgentRun: Sendable {
         var pause: String?
 
         /// `true` after a caller cancelled the run.
-        var isCancelRequested = false
+        var cancelReason = CancelReason.none
 
         /// The final state of the run from the time that its answers end, or
         /// `nil` before that time. ``state`` stays
@@ -109,6 +109,19 @@ public final class AgentRun: Sendable {
     /// mail queue is first in, first out, thus it keeps the order, and the
     /// gate is open. The hold is only for the time before the task prompt is
     /// in the queue.
+    /// Why a cancel of the run was requested. One value holds the whole fact.
+    private enum CancelReason {
+        /// No cancel was requested.
+        case none
+
+        /// A stop of the runner asked for the cancel. The run does not mark
+        /// its session as ended, thus the host can restore it.
+        case shutdown
+
+        /// A caller asked for the cancel. The run marks its session as ended.
+        case caller
+    }
+
     private enum CallerMessageGate {
         /// The run holds these mails, in the order that they arrived. The
         /// task prompt is not in the mail queue yet, or the run did not yet
@@ -279,7 +292,7 @@ public final class AgentRun: Sendable {
 
     /// `true` after a caller cancelled the run.
     var isCancelRequested: Bool {
-        storage.withLock { $0.isCancelRequested }
+        storage.withLock { $0.cancelReason != .none }
     }
 
     /// The test hooks of the idle rule of the run.
@@ -376,6 +389,42 @@ public final class AgentRun: Sendable {
         return AgentRun(id: made.session.id, request: request, made: made, family: family, state: .running)
     }
 
+    /// Makes the run of a recorded child: the same setup as ``make(_:environment:renderer:)``,
+    /// but the session is the restored session of the child, with the tools
+    /// and the instructions of the current definition and catalog.
+    ///
+    /// - Parameters:
+    ///   - request: The inputs of the run. Its `restoredCaller` is the caller
+    ///     session of the child.
+    ///   - sessionID: The session id of the recorded child.
+    ///   - environment: The dependencies and the limits of the runs.
+    ///   - renderer: Renders the body of the agent.
+    /// - Returns: The run, in ``AgentRunState/running``.
+    /// - Throws: ``AgentRunRestoreError/setupFailed(_:)`` or
+    ///   ``AgentRunRestoreError/sessionRestoreFailed(_:)``.
+    internal static func restore(
+        _ request: AgentRunRequest, sessionID: ULID, environment: AgentEnvironment, renderer: AgentBodyRenderer
+    ) async throws(AgentRunRestoreError) -> AgentRun {
+        let family = ParentRun.Family()
+        let maker = AgentSessionMaker(environment: environment, renderer: renderer)
+        let setup: AgentSessionMaker.ResolvedSetup
+        do {
+            setup = try await maker.resolveSetup(for: request, family: family)
+        } catch {
+            throw .setupFailed(String(describing: error))
+        }
+        let restored: RestoredSession
+        do {
+            restored = try await ModelMatch.model(of: setup.slot, in: environment.profile).restoreSession(
+                id: sessionID, instructions: setup.instructions, tools: setup.tools,
+                userPresence: environment.runUserPresence)
+        } catch {
+            throw .sessionRestoreFailed(String(describing: error))
+        }
+        let made = AgentSessionMaker.Made(session: restored.session, slot: setup.slot)
+        return AgentRun(id: sessionID, request: request, made: made, family: family, state: .running)
+    }
+
     /// Begins the answers of a run that ``make(_:environment:renderer:)``
     /// gave. Call it one time for each run.
     ///
@@ -440,8 +489,52 @@ public final class AgentRun: Sendable {
     /// of that task. Thus the task still reads the session events while it
     /// stops the session and waits for the children.
     public func cancel() {
-        storage.withLock { $0.isCancelRequested = true }
+        storage.withLock { $0.cancelReason = .caller }
         signals.continuation.yield(.cancelRequested)
+    }
+
+    /// Cancels the run for a stop of the runner. The run then does not mark
+    /// its session as ended (``markEnded(for:environment:)``), thus the host
+    /// can restore it at its next start.
+    func cancelForShutdown() {
+        storage.withLock { storage in
+            if storage.cancelReason == .none {
+                storage.cancelReason = .shutdown
+            }
+        }
+        signals.continuation.yield(.cancelRequested)
+    }
+
+    /// Marks the session of the run as ended, when the run reached a real
+    /// end: it finished, it failed, or its caller cancelled it. The call
+    /// comes before the result of the run is given. A run with no session,
+    /// and a run that a stop of the runner cancelled, mark nothing. A mark
+    /// that throws does not change the result of the run.
+    ///
+    /// - Parameters:
+    ///   - final: The final state of the run.
+    ///   - environment: The environment that holds the closure of the mark.
+    private func markEnded(for final: AgentRunState, environment: AgentEnvironment) async {
+        guard let sessionEnding = environment.sessionEnding, heldSession != nil else { return }
+        let isShutdown = storage.withLock { $0.cancelReason == .shutdown }
+        let reason: SessionEndReason
+        switch final {
+        case .finished:
+            reason = .finished
+        case .failed:
+            reason = .failed
+        case .cancelled where !isShutdown:
+            reason = .cancelled
+        case .cancelled, .running:
+            return
+        }
+        do {
+            try await sessionEnding(id, reason)
+        } catch {
+            var metadata = identityMetadata
+            metadata[AgentsTelemetry.LogMetadataKey.errorType] = .string(String(describing: type(of: error)))
+            environment.makeRunLogger().error("\(AgentsTelemetry.LogMessage.sessionEndMarkFailed)", metadata: metadata)
+        }
     }
 
     /// Cancels the run, and tells what the cancel did (`cancel agent`).
@@ -576,7 +669,7 @@ public final class AgentRun: Sendable {
         if let settled = storage.settled {
             return .ended(settled)
         }
-        if storage.isCancelRequested {
+        if storage.cancelReason != .none {
             return .ended(.cancelled)
         }
         guard let session = storage.session else {
@@ -747,6 +840,7 @@ public final class AgentRun: Sendable {
                             observer: environment.runEventObserver)
                     }
                 }.value
+                await self.markEnded(for: final, environment: environment)
                 self.end(in: final)
                 return final
             }

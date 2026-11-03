@@ -63,6 +63,20 @@ enum AgentsToolText {
     /// host session, or a run that a host started.
     static let noCaller = "You have no caller."
 
+    /// The first message of a restored run. The process stopped while the run
+    /// worked, and the session reads its own transcript.
+    static let restoredRunContinue = """
+        The process stopped while you worked. Read your transcript, and go on with your task \
+        from the last step.
+        """
+
+    /// The corrective of `send caller` when the mail to the caller did not go
+    /// out: the session that started the run cannot get mail now.
+    static let callerNotReachable = """
+        The message was not sent: the session that started you cannot get mail now. \
+        Go on with your work.
+        """
+
     /// The answer of `send caller`, and of `send agent` with the id of the
     /// caller, when the message was sent to the caller.
     static let messageSentToCaller = """

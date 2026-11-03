@@ -319,7 +319,7 @@ extension SendAgent {
     ///
     /// When `id` is the id of the session that started the run of this
     /// tool, the call does the same as `send caller`
-    /// (``AgentsToolContext/messageCaller(_:)``). A run id is the id of its
+    /// (``AgentsToolContext/messageCaller(_:from:)``). A run id is the id of its
     /// session, thus the id of the parent run names the caller.
     ///
     /// Each message that goes to a run, or that a run refuses because it
@@ -397,8 +397,8 @@ struct SendCaller {
 
 extension SendCaller {
     /// Sends `message` to the caller of the run
-    /// (``AgentsToolContext/messageCaller(_:)``). The caller gets it as
-    /// mail, and the run continues. `messageCaller(_:)` writes the one
+    /// (``AgentsToolContext/messageCaller(_:from:)``). The caller gets it as
+    /// mail, and the run continues. `messageCaller(_:from:)` writes the one
     /// `agent.message.sent` record of the call, with the `to_caller`
     /// direction, because `send agent` with the id of the caller uses it too.
     ///

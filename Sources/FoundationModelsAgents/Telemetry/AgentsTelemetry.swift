@@ -177,6 +177,10 @@ enum AgentsTelemetry {
         /// The message of the record that a run writes when it starts.
         static let runStarted = SpanName.run + " started"
 
+        /// The message of the record that a run writes when the mark of its
+        /// session as ended failed. A restore may then find the session.
+        static let sessionEndMarkFailed = SpanName.run + " could not mark its session ended"
+
         /// Gives the message of the record that a run writes at its final
         /// state: `FoundationModelsAgents.run finished`, `... failed` or
         /// `... cancelled`.
@@ -290,5 +294,8 @@ enum AgentsTelemetry {
 
         /// The run that sent the message has no caller, and nobody got it.
         case noCaller = "no_caller"
+
+        /// The run has a caller, but the mail to it did not go out.
+        case notDelivered = "not_delivered"
     }
 }

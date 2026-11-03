@@ -1,6 +1,5 @@
 import FoundationModels
 import FoundationModelsExtras
-import Synchronization
 import ULID
 
 /// A tool whose body reads the session tree of its `ToolContext`, begins one
@@ -66,22 +65,4 @@ struct TreeProbeTool: Tool {
 }
 
 /// The calls of the ``TreeProbeTool`` instances of one test, in order.
-///
-/// A class, because the tools and the test hold the same record. A `Mutex`
-/// guards the calls, thus the `Sendable` conformance is compiler-checked.
-final class TreeProbeRecord: Sendable {
-    /// The calls, in order.
-    private let calls = Mutex<[TreeProbeTool.Call]>([])
-
-    /// The calls so far, in order.
-    var all: [TreeProbeTool.Call] {
-        calls.withLock { $0 }
-    }
-
-    /// Adds one call.
-    ///
-    /// - Parameter call: The facts of the call.
-    func add(_ call: TreeProbeTool.Call) {
-        calls.withLock { $0.append(call) }
-    }
-}
+typealias TreeProbeRecord = CallRecord<TreeProbeTool.Call>

@@ -118,6 +118,10 @@ struct AgentRunHarness {
     ///     The default is ``settleGrace``.
     ///   - runUserPresence: The user presence of the session of each run. The
     ///     default is `.headless`, the value of each run outside the tests.
+    ///   - callerMail: The host mail route of the environment, or `nil` (the
+    ///     default) for none.
+    ///   - sessionEnding: The host closure that marks a session as ended, or
+    ///     `nil` (the default) for none.
     /// - Returns: The environment.
     func environment(
         maxRetainedRuns: Int,
@@ -125,7 +129,9 @@ struct AgentRunHarness {
         maxDepth: Int = AgentEnvironment.defaultMaxDepth,
         mailOnlyAnswerLimit: Int = SessionConfiguration.defaultMailOnlyAnswerLimit,
         inlineSettleGrace: TimeInterval = settleGrace,
-        runUserPresence: UserPresence = .headless
+        runUserPresence: UserPresence = .headless,
+        callerMail: AgentEnvironment.CallerMail? = nil,
+        sessionEnding: AgentEnvironment.SessionEnding? = nil
     ) -> AgentEnvironment {
         var environment = AgentEnvironment(
             profile: profile, skills: skills, skillsTool: skillsTool,
@@ -133,7 +139,8 @@ struct AgentRunHarness {
             tools: tools, defaultSlot: .standard, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
             maxRetainedRuns: maxRetainedRuns, budget: budget, tracer: tracer, logger: logger,
             metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace,
-            runEventObserver: runEventObserver)
+            runEventObserver: runEventObserver, callerMail: callerMail)
+        environment.sessionEnding = sessionEnding
         environment.mailOnlyAnswerLimit = mailOnlyAnswerLimit
         environment.runUserPresence = runUserPresence
         return environment
@@ -157,6 +164,10 @@ struct AgentRunHarness {
     ///     The default is ``settleGrace``.
     ///   - runUserPresence: The user presence of the session of each run. The
     ///     default is `.headless`.
+    ///   - callerMail: The host mail route of the environment, or `nil` (the
+    ///     default) for none.
+    ///   - sessionEnding: The host closure that marks a session as ended, or
+    ///     `nil` (the default) for none.
     /// - Returns: The runner.
     func makeRunner(
         maxRetainedRuns: Int = AgentEnvironment.defaultMaxRetainedRuns,
@@ -164,14 +175,16 @@ struct AgentRunHarness {
         maxDepth: Int = AgentEnvironment.defaultMaxDepth,
         mailOnlyAnswerLimit: Int = SessionConfiguration.defaultMailOnlyAnswerLimit,
         inlineSettleGrace: TimeInterval = settleGrace,
-        runUserPresence: UserPresence = .headless
+        runUserPresence: UserPresence = .headless,
+        callerMail: AgentEnvironment.CallerMail? = nil,
+        sessionEnding: AgentEnvironment.SessionEnding? = nil
     ) -> AgentRunner {
         AgentRunner(
             registry: registry,
             environment: environment(
                 maxRetainedRuns: maxRetainedRuns, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
                 mailOnlyAnswerLimit: mailOnlyAnswerLimit, inlineSettleGrace: inlineSettleGrace,
-                runUserPresence: runUserPresence))
+                runUserPresence: runUserPresence, callerMail: callerMail, sessionEnding: sessionEnding))
     }
 
     /// Makes a root session of a host on `model`, with ``settleGrace`` as its

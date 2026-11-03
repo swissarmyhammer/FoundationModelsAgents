@@ -1,6 +1,7 @@
 import Foundation
 import FoundationModels
 import FoundationModelsRouter
+import ULID
 
 /// The inputs of one agent run: what to run, for which caller, where in the
 /// tree of runs, and in which folder.
@@ -78,6 +79,35 @@ struct AgentRunRequest: Sendable {
     /// - Returns: The working folder of the run.
     func workingDirectory(default environmentDirectory: URL) -> URL {
         requestedDirectory ?? parent?.workingDirectory ?? environmentDirectory
+    }
+
+    /// The session id of the caller of a restored run, or `nil`. A restored
+    /// run has a caller, but no live `start agent` call of that caller
+    /// (``context`` is `nil`). The caller link of its `agents` tool then has
+    /// the mail route.
+    var restoredCaller: ULID? = nil
+
+    /// The link from the `agents` tool of the run to its caller: the call
+    /// route when a `start agent` call started the run, the mail route for
+    /// a restored caller, else `nil` for a run with no caller.
+    var callerLink: AgentsToolContext.CallerLink? {
+        if let context {
+            return AgentsToolContext.CallerLink(sessionID: context.sessionID, route: .call(context))
+        }
+        return restoredCaller.map { AgentsToolContext.CallerLink(sessionID: $0, route: .mail) }
+    }
+
+    /// Gives the same request with another prompt.
+    ///
+    /// - Parameter prompt: The new prompt.
+    /// - Returns: The copy.
+    func with(prompt: String) -> AgentRunRequest {
+        var copy = AgentRunRequest(
+            definition: definition, prompt: prompt, context: context, inheritedSlot: inheritedSlot, depth: depth,
+            parent: parent, agentsTool: agentsTool, questionTarget: questionTarget,
+            requestedDirectory: requestedDirectory)
+        copy.restoredCaller = restoredCaller
+        return copy
     }
 
     /// The lineage record of the session of the run: the session and the
