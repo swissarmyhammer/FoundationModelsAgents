@@ -75,11 +75,11 @@ public actor AgentRunner {
 
     /// The runs whose turn can be in operation, by id. Each run holds its
     /// caller, its slot, and its depth.
-    private var openRuns: [ULID: AgentRun] = [:]
+    var openRuns: [ULID: AgentRun] = [:]
 
     /// The finished runs, oldest first. Each run holds its id, its agent,
     /// and its final state with the final text.
-    private var records: [AgentRun] = []
+    var records: [AgentRun] = []
 
     /// The count of limited starts whose setup is in operation. The actor
     /// can run a second call while a setup waits, thus the limit counts
@@ -92,6 +92,9 @@ public actor AgentRunner {
 
     /// `true` after ``stop()``. The runner then starts no run.
     private var isStopped = false
+
+    /// Sends the state changes of the runs to the subscribers of ``runChanges()``.
+    let changeHub = RunChangeHub()
 
     /// Makes a runner. It stores its inputs and does no I/O.
     ///
@@ -275,6 +278,7 @@ public actor AgentRunner {
                 request, sessionID: child.sessionID, claiming: claiming, environment: environment,
                 renderer: renderer)
             openRuns[run.id] = run
+            run.attach(changeHub)
             let startRequest = request.with(prompt: AgentsToolText.restoredRunContinue)
             let isAdopted = request.parent?.children.add(run) ?? true
             if deferStart {
@@ -376,6 +380,7 @@ public actor AgentRunner {
         return await withSetup(caller: request.context?.sessionID) { () async -> AgentRun in
             let run = await AgentRun.make(request, environment: environment, renderer: renderer)
             openRuns[run.id] = run
+            run.attach(changeHub)
             run.begin(request, environment: environment)
             return run
         }
@@ -511,6 +516,7 @@ public actor AgentRunner {
     public func stop() async {
         isStopped = true
         await cancelRuns(forShutdown: true, where: { _ in true })
+        changeHub.finish()
     }
 
     /// Cancels each run of one caller, and waits for each to close its
@@ -596,7 +602,7 @@ public actor AgentRunner {
     /// Moves each ended run from the runs in operation to the records, in
     /// id order, then removes the oldest records above
     /// ``AgentEnvironment/maxRetainedRuns``.
-    private func retireEndedRuns() {
+    func retireEndedRuns() {
         let ended = openRuns.values.filter { $0.state != .running }.sorted { $0.id < $1.id }
         for run in ended {
             openRuns[run.id] = nil

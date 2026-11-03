@@ -49,6 +49,12 @@ public final class AgentRun: Sendable {
         /// `true` after a caller cancelled the run.
         var cancelReason = CancelReason.none
 
+        /// Sends the snapshots of this run to the subscribers of the runner.
+        var changeHub: RunChangeHub?
+
+        /// The status that the hub got last, to send a snapshot for a change only.
+        var publishedStatus: AgentRunSnapshot.Status?
+
         /// The start of a restored run that waits for ``AgentRun/resume()``.
         var heldBegin: (request: AgentRunRequest, environment: AgentEnvironment)?
 
@@ -191,6 +197,9 @@ public final class AgentRun: Sendable {
     /// envelope of the call holds the token, and `check agent` and `cancel
     /// agent` accept it as the id of the run.
     public let completionToken: String?
+
+    /// The working folder of the run, or `nil` when the setup of the run failed.
+    public let workingDirectory: URL?
 
     /// The run as the `agents` tool sees a parent, or `nil` when the setup failed. A
     /// restored child of this run adds itself to its family.
@@ -344,6 +353,7 @@ public final class AgentRun: Sendable {
         self.context = request.context
         self.children = family.children
         self.completionToken = request.context?.completionToken ?? request.restoredToken
+        self.workingDirectory = made?.workingDirectory
         self.parentRun = made.map { made in
             ParentRun(
                 depth: request.depth, slot: made.slot, agentID: request.definition.id, family: family,
@@ -501,6 +511,25 @@ public final class AgentRun: Sendable {
     func finalState() async -> AgentRunState {
         let driver = storage.withLock { $0.driver }
         return await driver?.value ?? state
+    }
+
+    /// Connects the run to the change hub of its runner and sends its first snapshot.
+    ///
+    /// - Parameter hub: The hub.
+    func attach(_ hub: RunChangeHub) {
+        storage.withLock { $0.changeHub = hub }
+        publishChange()
+    }
+
+    /// Sends a snapshot of the run to the hub when its status changed since the last one.
+    func publishChange() {
+        let current = status
+        let hub = storage.withLock { storage -> RunChangeHub? in
+            guard storage.publishedStatus != current else { return nil }
+            storage.publishedStatus = current
+            return storage.changeHub
+        }
+        hub?.publish(self)
     }
 
     /// Keeps the start of the run until ``resume()``. The run has its session
@@ -974,6 +1003,7 @@ public final class AgentRun: Sendable {
                 storage.pause = nil
             }
         }
+        publishChange()
     }
 
     /// Records the final state of the run when its answers end. From this
@@ -1039,6 +1069,7 @@ public final class AgentRun: Sendable {
         for wait in waits {
             wait.cancel()
         }
+        publishChange()
     }
 }
 

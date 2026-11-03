@@ -392,6 +392,22 @@ Rules that the host must know:
   marks the runs as cancelled. Suspend the sessions of the Router before `stop()` on a normal
   quit.
 
+### State of the runs
+
+A host that shows the runs reads them as values:
+
+- `run.snapshot` is an `AgentRunSnapshot` of one run: `id`, `agentID`, `agentName`,
+  `agentDescription`, `callerSession`, `parentRunID`, `depth`, `completionToken`,
+  `workingDirectory`, `progress`, and `status`.
+- `status` is `.working`, `.waitingForChildren`, `.paused(reason)`, `.finished`,
+  `.failed(reason)`, or `.cancelled`. `status.isRunning` is `true` for the first three.
+- `await runner.snapshots()` gives one snapshot for each run in operation and each retained
+  record.
+- `await runner.runChanges()` gives an `AsyncStream<AgentRunSnapshot>`. It starts with the
+  current snapshot of each run in operation, so a late subscriber misses nothing. After that it
+  gives one snapshot for each change of a status, not for each event of a session. It finishes
+  at `runner.stop()`.
+
 ## Install
 
 macOS 27 or later. The package is not on a registry. Add it to the
