@@ -327,8 +327,10 @@ the status of their calls, restores each child with `deferStart` as a child of i
 
 Pass `caller:` when `sessionID` is the session of an agent run of the runner. A child that the
 runner holds already is skipped, thus a second call for the same caller restores nothing. The
-recorded first prompt of a child is `$ARGUMENTS` of its agent body. A child that was cut before
-its first answer has no recorded first prompt, and its `$ARGUMENTS` is empty.
+recorded first prompt of a child is `$ARGUMENTS` of its agent body. A child with no recorded first prompt (it was cut before its first answer) is not restored
+blind: it is in `failed` with the reason "its task prompt was not recorded", and its claim
+ends as lost, so the model of the caller sees the loss and can run the agent again. A host that
+knows the prompt gives it in `prompts:` (session id to prompt).
 
 The steps in detail:
 

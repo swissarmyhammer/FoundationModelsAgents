@@ -300,7 +300,7 @@ public actor AgentRunner {
     ///   - outcome: How the run ended.
     ///   - detail: The text of the result, or `nil`.
     /// - Returns: `true` when the caller held the claim and it is completed now.
-    private func completeClaim(
+    func completeClaim(
         _ key: RunKey, of caller: ULID, outcome: OperationOutcome, detail: String?
     ) async -> Bool {
         if let session = openRuns[caller]?.heldSession {

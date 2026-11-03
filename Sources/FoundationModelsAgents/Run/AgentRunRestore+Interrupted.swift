@@ -13,6 +13,10 @@ public struct FailedChild: Sendable, Equatable {
         case ancestorNotRestored
     }
 
+    /// The reason text of a child whose task prompt was not recorded and that the host gave no
+    /// prompt for.
+    public static let promptNotRecordedReason = "its task prompt was not recorded"
+
     /// The reason text of an unrestored descendant of a failed child.
     public static let ancestorReason = "an ancestor was not restored"
 
@@ -124,22 +128,27 @@ extension AgentRunner {
     ///   - caller: The run of that session when it is an agent run of this runner, else `nil`
     ///     for a session of the host.
     ///   - directory: The directory of the recordings.
+    ///   - prompts: A task prompt for a child, by its session id, for a host that knows it. A
+    ///     child with no recorded first prompt and no entry here is not restored: it is in
+    ///     ``RestoreReport/failed``, and its claim ends as lost.
     /// - Returns: The report. The call never throws: a read that fails goes in
     ///   ``RestoreReport/unreadable``, and the host goes on with the resume of its own session.
     public func restoreInterrupted(
-        of callerSession: ULID, caller: AgentRun?, directory: RouterSessionDirectory
+        of callerSession: ULID, caller: AgentRun?, directory: RouterSessionDirectory,
+        prompts: [ULID: String] = [:]
     ) async -> RestoreReport {
-        await restoreInterrupted(of: callerSession, caller: caller, source: RestoreSource(directory: directory))
+        await restoreInterrupted(
+            of: callerSession, caller: caller, source: RestoreSource(directory: directory), prompts: prompts)
     }
 
     /// The work of ``restoreInterrupted(of:caller:directory:)`` over any source of the reads.
     func restoreInterrupted(
-        of callerSession: ULID, caller: AgentRun?, source: RestoreSource
+        of callerSession: ULID, caller: AgentRun?, source: RestoreSource, prompts: [ULID: String] = [:]
     ) async -> RestoreReport {
         var report = Builder()
         let children = await selectedChildren(of: callerSession, source: source, report: &report)
         await restore(
-            children, of: callerSession, callerRun: caller, source: source, report: &report)
+            children, of: callerSession, callerRun: caller, source: source, prompts: prompts, report: &report)
         return RestoreReport(restored: report.restored, failed: report.failed, unreadable: report.unreadable)
     }
 
@@ -166,13 +175,13 @@ extension AgentRunner {
     /// Restores `children`, the selected children of `session`, and their descendants.
     private func restore(
         _ children: [RecordedChild], of session: ULID, callerRun: AgentRun?, source: RestoreSource,
-        report: inout Builder
+        prompts: [ULID: String], report: inout Builder
     ) async {
         for child in children {
             let grand = await selectedChildren(of: child.sessionID, source: source, report: &report)
             if let held = run(id: child.sessionID) {
                 // A second call: the run is live already. Its own children are checked below it.
-                await restore(grand, of: child.sessionID, callerRun: held, source: source, report: &report)
+                await restore(grand, of: child.sessionID, callerRun: held, source: source, prompts: prompts, report: &report)
                 continue
             }
             let read = await Self.claims(of: child.sessionID, children: grand, source: source)
@@ -180,14 +189,24 @@ extension AgentRunner {
                 report.unreadable[child.sessionID] = readError
             }
             let claims = read.claims
+            let prompt = prompts[child.sessionID]
+            if prompt == nil, child.firstPrompt == nil {
+                // Restoring blind would run the agent with no task. The claim ends as lost, thus
+                // the model of the caller sees the loss and decides.
+                _ = await completeClaim(child.startCallKey, of: child.parentSessionId, outcome: .lost, detail: nil)
+                await recordFailure(
+                    of: child, reason: FailedChild.promptNotRecordedReason, children: grand, source: source,
+                    report: &report)
+                continue
+            }
             do {
                 let restored = try await restore(
-                    child, deferStart: true, claiming: claims, caller: callerRun)
+                    child, prompt: prompt, deferStart: true, claiming: claims, caller: callerRun)
                 report.restored.append(restored)
-                await restore(grand, of: child.sessionID, callerRun: restored, source: source, report: &report)
+                await restore(grand, of: child.sessionID, callerRun: restored, source: source, prompts: prompts, report: &report)
             } catch {
-                report.failed.append(FailedChild(child: child, cause: .failed(reason: String(describing: error))))
-                await markDescendantsFailed(of: child.sessionID, children: grand, source: source, report: &report)
+                await recordFailure(
+                    of: child, reason: String(describing: error), children: grand, source: source, report: &report)
             }
         }
     }
@@ -223,6 +242,15 @@ extension AgentRunner {
             report.unreadable[session] = String(describing: error)
             return []
         }
+    }
+
+    /// Lists a child that was not restored as failed, and each unended descendant of it.
+    private func recordFailure(
+        of child: RecordedChild, reason: String, children: [RecordedChild], source: RestoreSource,
+        report: inout Builder
+    ) async {
+        report.failed.append(FailedChild(child: child, cause: .failed(reason: reason)))
+        await markDescendantsFailed(of: child.sessionID, children: children, source: source, report: &report)
     }
 
     /// Lists each unended descendant of an unrestored child as failed.
