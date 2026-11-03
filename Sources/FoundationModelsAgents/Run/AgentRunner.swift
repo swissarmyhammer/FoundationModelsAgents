@@ -216,23 +216,26 @@ public actor AgentRunner {
     /// - Returns: The run, in operation.
     /// - Throws: ``AgentRunRestoreError``.
     public func restore(
-        _ child: RecordedChild, prompt: String? = nil, deferStart: Bool = false, claiming: Set<RunKey> = []
+        _ child: RecordedChild, prompt: String? = nil, deferStart: Bool = false, claiming: Set<RunKey> = [],
+        caller: AgentRun? = nil
     ) async throws(AgentRunRestoreError) -> AgentRun {
         do {
-            return try await restoreChild(child, prompt: prompt, deferStart: deferStart, claiming: claiming)
+            return try await restoreChild(
+                child, prompt: prompt, deferStart: deferStart, claiming: claiming, caller: caller)
         } catch {
             // The child cannot work again, thus its original call in the journal of the live caller
             // ends as lost, and the caller does not wait for it.
-            let key = child.startCallKey
-            await openRuns[child.parentSessionId]?.heldSession?.completeClaimedRun(key, outcome: .lost, detail: nil)
+            _ = await completeClaim(child.startCallKey, of: child.parentSessionId, outcome: .lost, detail: nil)
             throw error
         }
     }
 
     /// The work of ``restore(_:prompt:deferStart:claiming:)``.
     private func restoreChild(
-        _ child: RecordedChild, prompt: String?, deferStart: Bool, claiming: Set<RunKey>
+        _ child: RecordedChild, prompt: String?, deferStart: Bool, claiming: Set<RunKey>, caller: AgentRun?
     ) async throws(AgentRunRestoreError) -> AgentRun {
+        guard environment.sessionEnding != nil else { throw .sessionEndingMissing }
+        if let caller, caller.id != child.parentSessionId { throw .callerMismatch }
         let definition: AgentDefinition
         do {
             definition = try startableDefinition(named: child.agentID)
@@ -244,7 +247,8 @@ public actor AgentRunner {
             }
         }
         retireEndedRuns()
-        let depth = (openRuns[child.parentSessionId]?.depth ?? Self.hostDepth) + 1
+        let callerRun = caller ?? openRuns[child.parentSessionId]
+        let depth = (callerRun?.depth ?? Self.hostDepth) + 1
         guard depth <= environment.maxDepth else {
             throw .tooDeep(depth: depth, maxDepth: environment.maxDepth)
         }
@@ -254,13 +258,17 @@ public actor AgentRunner {
             agentsTool: AgentRun.agentsTool(of: self))
         request.restoredCaller = child.parentSessionId
         request.restoredToken = child.parentToolCallId
-        let caller = openRuns[child.parentSessionId]
-        request.parent = caller?.parentRun
+        request.parent = callerRun?.parentRun
         let childID = child.sessionID
         let claimKey = child.startCallKey
         request.resultMail = { [weak self] final, report in
-            await self?.completeClaim(claimKey, of: child.parentSessionId, after: final, report: report)
-            _ = await self?.mailCaller(report, from: childID, to: child.parentSessionId)
+            guard let self else { return }
+            let isClaimed = await self.completeClaim(
+                claimKey, of: child.parentSessionId, outcome: Self.outcome(of: final), detail: report)
+            // A completed claim is run mail in the transcript of the caller and starts no
+            // answer. The short mail wakes the caller. Without a claim the mail holds the result.
+            let text = isClaimed ? AgentsToolText.claimedResultWake : report
+            _ = await self.mailCaller(text, from: childID, to: child.parentSessionId)
         }
         return try await withSetup(caller: child.parentSessionId) { () async throws(AgentRunRestoreError) -> AgentRun in
             let run = try await AgentRun.restore(
@@ -281,25 +289,33 @@ public actor AgentRunner {
         }
     }
 
-    /// Completes the original `start agent` call of a restored run in the
-    /// journal of its caller, when the caller session is live and holds the
-    /// claim of the call (the caller was restored with `claiming`). A caller
-    /// that holds no such claim posts nothing.
+    /// Completes the original `start agent` call of a restored run in the journal of its
+    /// caller. A caller that is a run of the runner completes it on its live session. Any other
+    /// caller, for example the root session of the host, uses
+    /// ``AgentEnvironment/claimCompletion``.
     ///
     /// - Parameters:
     ///   - key: The key of the claimed call.
     ///   - caller: The session of the caller.
-    ///   - final: The final state of the restored run.
-    ///   - report: The report of the run, as the text of the result.
-    private func completeClaim(_ key: RunKey, of caller: ULID, after final: AgentRunState, report: String) async {
-        guard let session = openRuns[caller]?.heldSession else { return }
-        let outcome: OperationOutcome
-        switch final {
-        case .finished: outcome = .succeeded
-        case .failed: outcome = .failed
-        case .cancelled, .running: outcome = .cancelled
+    ///   - outcome: How the run ended.
+    ///   - detail: The text of the result, or `nil`.
+    /// - Returns: `true` when the caller held the claim and it is completed now.
+    private func completeClaim(
+        _ key: RunKey, of caller: ULID, outcome: OperationOutcome, detail: String?
+    ) async -> Bool {
+        if let session = openRuns[caller]?.heldSession {
+            return await session.completeClaimedRun(key, outcome: outcome, detail: detail)
         }
-        await session.completeClaimedRun(key, outcome: outcome, detail: report)
+        return await environment.claimCompletion?(caller, key, outcome, detail) ?? false
+    }
+
+    /// The outcome of the original call for the final state of a restored run.
+    private static func outcome(of final: AgentRunState) -> OperationOutcome {
+        switch final {
+        case .finished: .succeeded
+        case .failed: .failed
+        case .cancelled, .running: .cancelled
+        }
     }
 
     /// Checks that the runner can start an agent, and gives its definition.

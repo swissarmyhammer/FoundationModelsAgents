@@ -561,13 +561,42 @@ public final class AgentRun: Sendable {
             defer { storage.heldBegin = nil }
             return storage.heldBegin
         }
-        guard held != nil, let session = heldSession else { return }
+        guard let held, let session = heldSession else { return }
+        let wasShutdown = isShutdownCancel
         let driver = Task {
             await session.close()
-            self.end(in: .cancelled)
+            await self.conclude(
+                .cancelled, wasShutdown: wasShutdown, environment: held.environment,
+                resultMail: held.request.resultMail)
             return AgentRunState.cancelled
         }
         storage.withLock { $0.driver = driver }
+    }
+
+    /// Ends a run: the mark first, then the result to the caller, then the final state.
+    ///
+    /// The mark is durable before the result goes anywhere. A run that a stop of the runner
+    /// cancelled posts no mark and no result, thus a later start of the host restores it. A
+    /// failed mark posts no result of a restored run, and the run stays unended, thus the host
+    /// restores it again. A live run has no way to withhold its result: the call of its caller
+    /// reads the final state. For a live run a failed mark can therefore repeat work after a
+    /// restart.
+    ///
+    /// - Parameters:
+    ///   - final: The final state of the answers.
+    ///   - wasShutdown: `true` when a stop of the runner asked for the cancel before the answers
+    ///     ended.
+    ///   - environment: The environment of the run.
+    ///   - resultMail: Sends the result of a restored run to its caller, or `nil`.
+    private func conclude(
+        _ final: AgentRunState, wasShutdown: Bool, environment: AgentEnvironment,
+        resultMail: (@Sendable (AgentRunState, String) async -> Void)?
+    ) async {
+        let isMarked = await markEnded(for: final, wasShutdown: wasShutdown, environment: environment)
+        if isMarked, !wasShutdown {
+            await resultMail?(final, report(of: final))
+        }
+        end(in: final)
     }
 
     /// Marks the session of the run as ended, when the run reached a real
@@ -579,8 +608,10 @@ public final class AgentRun: Sendable {
     /// - Parameters:
     ///   - final: The final state of the run.
     ///   - environment: The environment that holds the closure of the mark.
-    private func markEnded(for final: AgentRunState, environment: AgentEnvironment) async -> Bool {
-        guard let sessionEnding = environment.sessionEnding, heldSession != nil, !isShutdownCancel else { return true }
+    private func markEnded(
+        for final: AgentRunState, wasShutdown: Bool, environment: AgentEnvironment
+    ) async -> Bool {
+        guard let sessionEnding = environment.sessionEnding, heldSession != nil, !wasShutdown else { return true }
         let reason: SessionEndReason
         switch final {
         case .finished:
@@ -904,21 +935,19 @@ public final class AgentRun: Sendable {
     ) {
         let driver = Task {
             await self.traced(in: environment) { spanContext in
-                let final = await Task.detached {
+                let answered = await Task.detached {
                     await ServiceContext.withValue(spanContext) {
                         await self.drive(
                             session, prompt: prompt, questionTarget: questionTarget,
                             observer: environment.runEventObserver)
                     }
                 }.value
-                // The mark is durable before the result goes anywhere. A run that a stop of the
-                // runner cancelled, or whose mark failed, posts no result: a later start of the
-                // host restores it, and a posted result would give two answers for one call.
-                let isMarked = await self.markEnded(for: final, environment: environment)
-                if isMarked, !self.isShutdownCancel {
-                    await resultMail?(final, self.report(of: final))
-                }
-                self.end(in: final)
+                // The cancel reason is read now, when the answers ended: a run that finished
+                // before a stop of the runner is a real finish.
+                let wasShutdown = self.isShutdownCancel
+                let final = answered
+                await self.conclude(
+                    final, wasShutdown: wasShutdown, environment: environment, resultMail: resultMail)
                 return final
             }
         }

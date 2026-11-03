@@ -63,6 +63,10 @@ enum AgentsToolText {
     /// host session, or a run that a host started.
     static let noCaller = "You have no caller."
 
+    /// The mail that wakes a caller when the result of its restored child is already in its
+    /// transcript as the result of the original call.
+    static let claimedResultWake = "The result of your call to an agent is in the transcript."
+
     /// The first message of a restored run. The process stopped while the run
     /// worked, and the session reads its own transcript.
     static let restoredRunContinue = """

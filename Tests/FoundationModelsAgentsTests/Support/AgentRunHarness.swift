@@ -131,7 +131,7 @@ struct AgentRunHarness {
         inlineSettleGrace: TimeInterval = settleGrace,
         runUserPresence: UserPresence = .headless,
         callerMail: AgentEnvironment.CallerMail? = nil,
-        sessionEnding: AgentEnvironment.SessionEnding? = nil
+        sessionEnding: AgentEnvironment.SessionEnding? = { _, _ in }
     ) -> AgentEnvironment {
         var environment = AgentEnvironment(
             profile: profile, skills: skills, skillsTool: skillsTool,
@@ -177,7 +177,7 @@ struct AgentRunHarness {
         inlineSettleGrace: TimeInterval = settleGrace,
         runUserPresence: UserPresence = .headless,
         callerMail: AgentEnvironment.CallerMail? = nil,
-        sessionEnding: AgentEnvironment.SessionEnding? = nil
+        sessionEnding: AgentEnvironment.SessionEnding? = { _, _ in }
     ) -> AgentRunner {
         AgentRunner(
             registry: registry,

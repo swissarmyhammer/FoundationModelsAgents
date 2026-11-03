@@ -56,6 +56,16 @@ public struct AgentEnvironment: Sendable {
     /// runner, thus a later start of the host can restore the run.
     public typealias SessionEnding = @Sendable (_ session: ULID, _ reason: SessionEndReason) async throws -> Void
 
+    /// Completes a claimed call on a caller session that the runner does not hold as a run, for
+    /// example the root session of the host. It gets the caller session, the key of the call,
+    /// the outcome, and the text of the result. It returns `true` when the call was an open
+    /// claim and the closure completed it. A host gives
+    /// `{ try await session.completeClaimedRun(key, outcome: outcome, detail: detail) }` over
+    /// the live session.
+    public typealias ClaimCompletion = @Sendable (
+        _ caller: ULID, _ key: RunKey, _ outcome: OperationOutcome, _ detail: String?
+    ) async -> Bool
+
     /// The default of ``maxConcurrentAgents``.
     public static let defaultMaxConcurrentAgents = 4
 
@@ -208,6 +218,10 @@ public struct AgentEnvironment: Sendable {
     /// for none (``SessionEnding``).
     public internal(set) var sessionEnding: SessionEnding? = nil
 
+    /// The host closure that completes a claimed call on a caller that is not a run, or `nil`
+    /// for none (``ClaimCompletion``).
+    public internal(set) var claimCompletion: ClaimCompletion? = nil
+
     /// Gives a copy of the environment with a host closure that marks the
     /// session of a run as ended (``SessionEnding``).
     ///
@@ -216,6 +230,17 @@ public struct AgentEnvironment: Sendable {
     public func withSessionEnding(_ sessionEnding: SessionEnding?) -> AgentEnvironment {
         var copy = self
         copy.sessionEnding = sessionEnding
+        return copy
+    }
+
+    /// Gives a copy of the environment with a host closure that completes a claimed call on a
+    /// caller session that is not a run (``ClaimCompletion``).
+    ///
+    /// - Parameter claimCompletion: The closure, or `nil` for none.
+    /// - Returns: The copy.
+    public func withClaimCompletion(_ claimCompletion: ClaimCompletion?) -> AgentEnvironment {
+        var copy = self
+        copy.claimCompletion = claimCompletion
         return copy
     }
 

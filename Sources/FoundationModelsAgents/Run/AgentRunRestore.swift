@@ -48,8 +48,7 @@ public enum AgentRunRestore {
     public static func claims(for children: [RecordedChild], statuses: [RunKey: RunStatus]) -> Set<RunKey> {
         Set(
             statuses.compactMap { key, status in
-                guard status == .orphaned, children.contains(where: { $0.parentToolCallId == key.correlationID })
-                else { return nil }
+                guard status == .orphaned, children.contains(where: { $0.startCallKey == key }) else { return nil }
                 return key
             })
     }
@@ -76,4 +75,12 @@ public enum AgentRunRestoreError: Error, Sendable, Equatable {
 
     /// The Router could not restore the session.
     case sessionRestoreFailed(String)
+
+    /// The environment has no mark closure (``AgentEnvironment/withSessionEnding(_:)``). A
+    /// restored run must mark its session as ended at its real end, else the host restores
+    /// it again.
+    case sessionEndingMissing
+
+    /// The `caller` run that the host gave is not the run of the caller session of the child.
+    case callerMismatch
 }

@@ -334,6 +334,33 @@ run.resume()
 - The host calls `restore` after it answered the resume request of its own
   client. The call does no work before.
 
+Rules that the host must know:
+
+- `restore` needs the mark closure (`withSessionEnding`). Without it, `restore` throws
+  `sessionEndingMissing`, because a restored run that cannot mark its end would be restored
+  again at each start.
+- Restore the caller before its children. Give the restored caller run as `caller:` to
+  `restore` for a child that is a child of a run. The runner then takes the real depth from the
+  chain, checks `maxDepth`, and adds the child to the family of the caller. A `caller:` that is
+  not the caller session of the child throws `callerMismatch`.
+- A restored run does not count against `maxConcurrentAgents`, because its work was already
+  running before the stop. `maxDepth` is checked.
+- When the claim of the original call is completed, the caller gets a short wake-up mail and the
+  result is in the transcript as the result of the call. When there is no claim, the mail holds
+  the result. For a caller that is not a run, give `withClaimCompletion` to the environment: a
+  closure that completes the claim on the live session of the caller and returns `true` when it
+  did.
+- The mark is durable before the result goes out. If the mark fails, a restored run mails
+  nothing and stays unended, and the host restores it again. A live run cannot withhold its
+  result from the call of its caller, thus a failed mark can repeat its work after a restart.
+  Treat a failing mark closure as an error of the host.
+- A crash between the mark and the mail loses the result. This is at most once by design. The
+  model sees that the call was interrupted, and it can run the agent again.
+- The quit path of the host calls `runner.stop()`, never `cancelRuns(caller:)`. `stop()` marks
+  nothing and posts no result. `cancelRuns(caller:)` is for a session that a user closes, and it
+  marks the runs as cancelled. Suspend the sessions of the Router before `stop()` on a normal
+  quit.
+
 ## Install
 
 macOS 27 or later. The package is not on a registry. Add it to the
