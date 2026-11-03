@@ -128,6 +128,19 @@ struct RestoreRunTests {
         }
     }
 
+    @Test("the recorded session of a run holds the agent id of the run")
+    func recordedSessionHoldsTheAgentID() async throws {
+        let harness = try await AgentRunHarness.make(
+            script: ScriptedAgentScript([ScriptedAgentPlay(key: AgentRunTests.prompt, steps: [.finalText("done")])]))
+        defer { try? harness.delete() }
+        let run = try await harness.makeRunner().start(AgentRunTests.reviewer, prompt: AgentRunTests.prompt)
+        _ = try await run.result()
+
+        let record = try AgentRunTests.recordedSession(of: run).record
+
+        #expect(record.facts.agentID == AgentRunTests.reviewer)
+    }
+
     @Test("a child with an agent id that the catalog lacks is refused")
     func unknownAgentIsRefused() async throws {
         let harness = try await AgentRunHarness.make(script: ScriptedAgentScript([]))

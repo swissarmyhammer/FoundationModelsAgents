@@ -96,7 +96,8 @@ struct AgentSessionMaker: Sendable {
                 mailOnlyAnswerLimit: environment.mailOnlyAnswerLimit,
                 inlineSettleGrace: environment.inlineSettleGrace,
                 userPresence: request.questionTarget?.userPresence ?? environment.runUserPresence,
-                parentCall: request.context))
+                parentCall: request.context,
+                agentID: definition.id, agentName: definition.id))
         return Made(session: session, slot: slot, workingDirectory: setup.workingDirectory)
     }
 
