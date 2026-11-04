@@ -239,6 +239,22 @@ public struct AgentEnvironment: Sendable {
         return copy
     }
 
+    /// The reader of the recorded events of a session, or `nil` for none. A restored child session
+    /// gets it, because a cold resume has no live parent call that could give it. A tool of that
+    /// session reads through `ToolContext.transcript(of:)`. With `nil`, that call throws
+    /// `SessionTranscriptError.noSource`.
+    public internal(set) var transcriptReader: (any SessionTranscriptReader)? = nil
+
+    /// Gives a copy of the environment whose restored child sessions get `transcriptReader`.
+    ///
+    /// - Parameter transcriptReader: The reader, or `nil` for none.
+    /// - Returns: The copy.
+    public func withTranscriptReader(_ transcriptReader: (any SessionTranscriptReader)?) -> AgentEnvironment {
+        var copy = self
+        copy.transcriptReader = transcriptReader
+        return copy
+    }
+
     /// Gives a copy of the environment with a host closure that marks the
     /// session of a run as ended (``SessionEnding``).
     ///

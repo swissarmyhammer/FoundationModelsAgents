@@ -265,7 +265,10 @@ The host gives `prompt` as `$ARGUMENTS` of the agent body. Its default is empty.
 A restored run has no live `start agent` call of its caller. It sends its
 result to the caller as mail when it ends. Its caller link uses the mail route,
 and the host gives ``AgentEnvironment/callerMail`` for a caller that is not a
-run of the runner. ``AgentRun/completionToken`` is the token of the first
+run of the runner. A restored run has no live parent call that gives a transcript
+reader to its tools, thus the host gives ``AgentEnvironment/transcriptReader`` (see
+``AgentEnvironment/withTranscriptReader(_:)``). Without it, a tool of the restored run
+gets `SessionTranscriptError.noSource`. ``AgentRun/completionToken`` is the token of the first
 `start agent` call, thus `check agent` and `cancel agent` find the restored
 run with the old token.
 
