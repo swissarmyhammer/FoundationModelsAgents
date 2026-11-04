@@ -8,8 +8,24 @@ comments:
     - note: the Router checkout was old and had no transcriptReader argument on restoreSession. `swift package update FoundationModelsRouter` moved it to 6331c9c (Package.resolved is untracked). Router takes the reader as `transcriptReader:` of restoreSession. A live child keeps the reader through childSite of the parent call.
     - next: review. Nothing is committed or pushed.
   timestamp: 2026-11-04T13:15:25.423253+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m6kb9sjtrs9phthejw1h02nv
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD. Findings 0, confirmed 0, refuted 1. 7 pairs attempted, 0 failed. 3 files not reviewed: 2 under .kanban (ignore rule), 1 DocC file (no validator).
+    - next: none. The task moved to done.
+  timestamp: 2026-11-04T13:17:15.738880+00:00
+- actor: claude-code
+  id: 01m6kba20d8707az0806mh7vb1
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — 5 files
+    - test: green — swift test, 762 passed
+    - commit: 64053a5
+    - review: clean — 0 findings
+  timestamp: 2026-11-04T13:17:24.365907+00:00
+position_column: done
+position_ordinal: fd80
 title: Give the transcript reader to a restored child session (AgentRun.restore)
 ---
 AgentRun.restore (Sources/FoundationModelsAgents/Run/AgentRun.swift) calls restoreSession without transcriptReader, so a child session that a cold resume restores has no SessionTranscriptReader, and a tool in it gets SessionTranscriptError.noSource. A live child keeps the reader of its parent (Router childSite). Needed: AgentEnvironment carries an optional transcriptReader, and restore gives it to restoreSession. Then the ACP agent (FoundationModelsACPAgent, card ^zgqxj7z) gives it in AgentsComposition and adds the test for the restore of a child session. Found by the review of ^zgqxj7z. Not changed by the ACP agent, because the package is a family package.
