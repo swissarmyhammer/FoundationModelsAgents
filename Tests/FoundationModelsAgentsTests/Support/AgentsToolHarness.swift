@@ -41,6 +41,8 @@ struct AgentsToolHarness {
     ///     `.full`.
     ///   - telemetry: The tracer, the logger and the metrics factory of the
     ///     router and of each run. The default has none of them.
+    ///   - runEventObserver: The observer of the session events of each run.
+    ///     The default is none.
     /// - Returns: The harness.
     /// - Throws: The error of the run harness, or of `AgentsTool.make`.
     static func make(
@@ -50,11 +52,12 @@ struct AgentsToolHarness {
         catalogCharacterLimit: Int = SkillsTool.defaultCatalogCharacterLimit,
         maxConcurrentAgents: Int = AgentEnvironment.defaultMaxConcurrentAgents,
         grant: AgentsToolContext.Grant = .full,
-        telemetry: HarnessTelemetry = HarnessTelemetry()
+        telemetry: HarnessTelemetry = HarnessTelemetry(),
+        runEventObserver: AgentEnvironment.RunEventObserver? = nil
     ) async throws -> AgentsToolHarness {
         let runHarness = try await AgentRunHarness.make(
             script: script, registry: registry, tracer: telemetry.tracer, logger: telemetry.logger,
-            metricsFactory: telemetry.metricsFactory)
+            metricsFactory: telemetry.metricsFactory, runEventObserver: runEventObserver)
         let runner = runHarness.makeRunner(maxConcurrentAgents: maxConcurrentAgents)
         let context = AgentsToolContext(
             runner: runner, allowedNames: allowedNames, parent: nil, callerLink: nil, grant: grant)

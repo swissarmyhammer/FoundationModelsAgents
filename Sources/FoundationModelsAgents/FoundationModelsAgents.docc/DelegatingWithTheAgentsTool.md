@@ -107,6 +107,21 @@ holds the direction (`to_run` or `to_caller`), the outcome (`delivered`,
 `ended`, or `no_caller`), and the length of the message. It never holds the
 text of the message.
 
+A message that goes out as mail also gives the host a typed record. The call attaches it to
+its tool-call report with the schema name `FoundationModelsAgents.AgentMessageSent`, and the
+host reads it from `SessionEvent.toolCallReport`. The model never sees it, and it holds no
+text of the message. The JSON document has these keys:
+
+| Key | Type | Meaning |
+|-----|------|---------|
+| `mailId` | string | The ULID of the mail in the session of the receiver. |
+| `direction` | string | `toChild` for `send agent`, `toCaller` for `send caller`. |
+| `receiverRunId` | string, only for `toChild` | The id of the run that got the message. |
+| `receiverSessionId` | string | The ULID of the session that got the mail. |
+
+A `send caller` call over the `start agent` call route (a caller that is a host session) posts a
+`message` event and makes no mail, so it attaches no record.
+
 ### The mount of each operation
 
 `start agent` is a background run.

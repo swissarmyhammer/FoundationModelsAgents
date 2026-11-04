@@ -193,6 +193,10 @@ enum AgentsTelemetry {
         /// or the children of a session. The restore claims nothing for that session.
         static let claimReadFailed = SpanName.run + " could not read the claims of a session"
 
+        /// The message of the record that a message call writes when it cannot encode the typed record
+        /// for the host. The host gets no record for that message.
+        static let messageRecordNotEncoded = SpanName.run + " could not encode the record of a sent message"
+
         /// Gives the message of the record that a run writes at its final
         /// state: `FoundationModelsAgents.run finished`, `... failed` or
         /// `... cancelled`.

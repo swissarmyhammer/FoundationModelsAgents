@@ -43,14 +43,6 @@ struct ChildSessionWorkTests {
         }
     }
 
-    /// A sink that drops each event.
-    private struct DroppingSink: OperationEventSink {
-        /// Drops the event.
-        ///
-        /// - Parameter event: The event.
-        func post(event: OperationEvent) async {}
-    }
-
     /// A check of open questions that tells that the child has none.
     private static let noQuestion: @Sendable () async -> Bool = { false }
 

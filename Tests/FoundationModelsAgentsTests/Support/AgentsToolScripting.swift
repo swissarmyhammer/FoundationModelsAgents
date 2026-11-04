@@ -169,6 +169,8 @@ extension AgentsToolHarness {
     ///     of its play.
     ///   - rootPrompt: The first prompt of the root session. Its answer
     ///     starts the run.
+    ///   - runEventObserver: The observer of the session events of each run.
+    ///     The default is none.
     ///   - setUp: Receives the root session before its first message. The
     ///     default does nothing.
     ///   - body: Reads the events of the root session and the run.
@@ -180,10 +182,11 @@ extension AgentsToolHarness {
         telemetry: HarnessTelemetry = HarnessTelemetry(),
         rootKey: String,
         rootPrompt: String,
+        runEventObserver: AgentEnvironment.RunEventObserver? = nil,
         setUp: (any RoutedSession) -> Void = { _ in },
         body: (inout StartedRootRun) async throws -> Value
     ) async throws -> Value {
-        let harness = try await make(script: script, telemetry: telemetry)
+        let harness = try await make(script: script, telemetry: telemetry, runEventObserver: runEventObserver)
         defer { try? harness.delete() }
         let root = harness.makeRootSession(instructions: rootKey, slot: \.flash)
         setUp(root)

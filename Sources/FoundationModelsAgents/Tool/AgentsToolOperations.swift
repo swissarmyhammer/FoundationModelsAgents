@@ -370,7 +370,10 @@ extension SendAgent {
             AgentMessageRecord(
                 direction: .toRun, run: run, outcome: AgentsTelemetry.MessageOutcome(outcome), length: message.count))
         switch outcome {
-        case .delivered:
+        case .delivered(let mailID):
+            AgentMessageSent.attach(
+                mailID: mailID, direction: .toChild, receiverRunID: run.id, receiverSession: run.id,
+                logger: context.runner.environment.makeRunLogger())
             return .success(AgentsToolText.messageSent(to: run))
         case .ended(let state):
             return .corrective(AgentsToolText.runEnded(id: run.id.description, state: state))
