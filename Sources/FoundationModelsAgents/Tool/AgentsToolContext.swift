@@ -130,8 +130,9 @@ public struct AgentsToolContext: Sendable {
     /// names.
     ///
     /// An absolute path names its folder. A relative path starts from the
-    /// folder of the creator (``baseDirectory``). A path that holds no text
-    /// names no folder, thus the run works in the folder of its creator
+    /// folder of the creator (``baseDirectory``). A path that holds no text,
+    /// or that is a text of no value (``noFolderTexts``), names no folder,
+    /// thus the run works in the folder of its creator
     /// (``AgentRunRequest/workingDirectory(default:)``).
     ///
     /// - Parameter path: The text of the field, or `nil` when the call has
@@ -142,9 +143,17 @@ public struct AgentsToolContext: Sendable {
             return nil
         }
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !Self.noFolderTexts.contains(trimmed.lowercased()) else {
+            return nil
+        }
         return URL(filePath: trimmed, directoryHint: .isDirectory, relativeTo: baseDirectory)
             .absoluteURL.standardizedFileURL
     }
+
+    /// The texts that a model gives for a value it does not have, in lower
+    /// case. A model can write such a text in place of an absent
+    /// `workingDirectory`, and the text names no folder.
+    private static let noFolderTexts: Set<String> = ["nil", "null", "none", "undefined"]
 
     /// Tells whether the tool can start `definition`.
     ///

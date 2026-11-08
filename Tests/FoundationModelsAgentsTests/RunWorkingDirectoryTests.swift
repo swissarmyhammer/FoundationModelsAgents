@@ -395,6 +395,41 @@ struct RunWorkingDirectoryTests {
         #expect(try await Self.recordedFolder(of: child) == fixture.parentFolder.root.canonicalPath)
     }
 
+    @Test(
+        "a placeholder text of no folder names no folder, thus the child works in the folder of its parent",
+        arguments: ["nil", "NULL", " None ", "undefined"])
+    func placeholderRequestFolderNamesNoFolder(_ placeholder: String) async throws {
+        let fixture = try await Self.makeFixture()
+        defer { fixture.delete() }
+
+        let child = try await Self.startChild(Self.dotAgent, folder: placeholder, in: fixture)
+
+        #expect(try await Self.recordedFolder(of: child) == fixture.parentFolder.root.canonicalPath)
+        #expect(try AgentRunTests.instructions(of: child).contains(Self.parentNote))
+    }
+
+    @Test("a folder of a start agent call that does not exist starts no run, and the corrective names the path")
+    func missingRequestFolderStartsNoRun() async throws {
+        let fixture = try await Self.makeFixture()
+        defer { fixture.delete() }
+        let runner = fixture.harness.makeRunner()
+        let parent = ParentRun(
+            depth: AgentRunner.hostDepth, slot: .standard, agentID: Self.leadAgent, family: ParentRun.Family(),
+            workingDirectory: fixture.parentFolder.root)
+        let tool = try await AgentsTool.make(
+            context: AgentsToolContext(runner: runner, allowedNames: nil, parent: parent, callerLink: nil, grant: .full))
+        let toolHarness = AgentsToolHarness(runHarness: fixture.harness, runner: runner, tool: tool)
+
+        let answer = try await toolHarness.call(
+            "start agent", ["name": Self.dotAgent, "prompt": Self.prompt, Self.folderField: "missing"])
+
+        let missing = fixture.parentFolder.root.appendingPathComponent("missing", isDirectory: true)
+            .standardizedFileURL
+        #expect(answer == AgentsToolText.missingFolder(missing))
+        #expect(answer.contains(missing.path))
+        #expect(await runner.runs(caller: nil).isEmpty)
+    }
+
     @Test("a child that a run starts works in the folder of that run, also for an agent-folder agent")
     func childOfRunUsesFolderOfThatRun() async throws {
         let fixture = try await Self.makeFixture(plays: [

@@ -1,3 +1,4 @@
+import Foundation
 import FoundationModelsExtras
 import FoundationModelsRouter
 import ULID
@@ -40,6 +41,19 @@ enum AgentsToolText {
     static let blankPrompt = """
         The prompt is blank. An agent sees only its prompt, so put the full task in the prompt.
         """
+
+    /// The corrective of `start agent` with a `workingDirectory` whose folder
+    /// does not exist.
+    ///
+    /// - Parameter folder: The folder that the field names, resolved against
+    ///   the folder of the creator.
+    /// - Returns: The text, with the path of `folder`.
+    static func missingFolder(_ folder: URL) -> String {
+        """
+        The folder \(folder.path) does not exist, so no agent started. \
+        Leave workingDirectory out to use your own folder.
+        """
+    }
 
     /// The corrective of `start agent` after ``AgentRunner/stop()``, and the
     /// error text of `agents agent start` after that call.

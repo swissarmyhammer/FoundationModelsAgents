@@ -126,8 +126,9 @@ struct StartAgent {
     /// of the run (``AgentsToolContext/requestedDirectory(at:)``).
     @Guide(
         description: """
-            Optional. The path of the folder for the agent to work in. \
-            A relative path starts from your working folder. Leave it out to keep the default folder.
+            Optional. Omit the field to have the agent work in your own folder. \
+            When given, the path of an existing folder for the agent to work in, never the text nil. \
+            A relative path starts from your working folder.
             """)
     var workingDirectory: String?
 }
@@ -167,14 +168,16 @@ extension StartAgent {
     /// session starts, and the session is not a run, works in
     /// ``AgentEnvironment/workingDirectory``
     /// (``AgentRunRequest/workingDirectory(default:)``). The run never works
-    /// in the folder of its agent by default.
+    /// in the folder of its agent by default. A named folder that does not
+    /// exist starts no run.
     ///
     /// - Parameter context: The shared context of the tool.
     /// - Returns: The final message text of the run in a Router session, or
     ///   the id of the run outside one. The report of a run whose setup
     ///   failed. A corrective for a blank prompt, for a name that the tool
     ///   cannot start, for a name that no agent has, for a depth above the
-    ///   limit, for a full run limit, or for a runner that
+    ///   limit, for a folder that does not exist, for a full run limit, or
+    ///   for a runner that
     ///   ``AgentRunner/stop()`` stopped.
     func execute(in context: AgentsToolContext) async throws -> AgentsToolAnswer {
         guard AgentDefinitionRules.holdsText(prompt) else {
@@ -189,13 +192,17 @@ extension StartAgent {
         guard context.childDepth <= maxDepth else {
             return .corrective(AgentsToolText.atDepthLimit(maxDepth: maxDepth))
         }
+        let requestedDirectory = context.requestedDirectory(at: workingDirectory)
+        if let requestedDirectory, !Self.isFolder(requestedDirectory) {
+            return .corrective(AgentsToolText.missingFolder(requestedDirectory))
+        }
         let callContext = ToolContext.current
         let start = await runner.startWithinLimit(
             AgentRunRequest(
                 definition: definition, prompt: prompt, context: callContext,
                 inheritedSlot: context.inheritedSlot, depth: context.childDepth, parent: context.parent,
                 agentsTool: AgentRun.agentsTool(of: runner), questionTarget: SubagentQuestionTarget.current,
-                requestedDirectory: context.requestedDirectory(at: workingDirectory)))
+                requestedDirectory: requestedDirectory))
         switch start {
         case .atLimit(let working):
             return .corrective(AgentsToolText.atLimit(working: working))
@@ -210,6 +217,17 @@ extension StartAgent {
             }
             return .success(await context.finalMessage(of: run, startedBy: callContext))
         }
+    }
+
+    /// Tells whether `url` is a folder that exists.
+    ///
+    /// The stack of Extras reads the file system: a one-layer stack whose
+    /// root is `url` holds its root only when that root is a folder.
+    ///
+    /// - Parameter url: The folder that `workingDirectory` names.
+    /// - Returns: `true` when the file system has a folder at `url`.
+    private static func isFolder(_ url: URL) -> Bool {
+        !DotfolderStack(layers: [DotfolderStack.Layer(source: .project, root: url)]).layerDirectories().isEmpty
     }
 
     /// Gives the corrective for a name that the tool cannot start.
