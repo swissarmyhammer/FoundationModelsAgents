@@ -20,30 +20,37 @@ struct ScheduleAgent {
             (2026-11-10T09:00), an interval (every 10 minutes), or plain English (weekdays at 9 AM). \
             The shortest schedule is 1 minute.
             """)
+    @OperationParam(aliases: ["cron", "when", "at", "every", "interval", "frequency", "recurrence", "spec", "expression", "time", "timing"])
     var schedule: String
 
     /// The task of each firing.
     @Guide(description: "The full task of each firing. The agent sees only this text.")
+    @OperationParam(aliases: ["task", "message", "instructions", "instruction", "text", "query", "job"])
     var prompt: String
 
     /// The agent of each firing, or `nil` for the default agent.
     @Guide(description: "Optional. The name of the agent to run. Leave it out to run the default agent.")
+    @OperationParam(aliases: ["agentName", "agentID", "agentId", "subagent", "subagentType", "agentType", "worker"])
     var agent: String?
 
     /// The end of a recurring task, or `nil`.
     @Guide(description: "Optional. An ISO date and time after which the task stops. Default: 7 days.")
+    @OperationParam(aliases: ["end", "ends", "endAt", "endDate", "endTime", "expires", "expiresAt", "expiry", "stopAt", "deadline", "untilDate"])
     var until: String?
 
     /// The most firings of a recurring task, or `nil`.
     @Guide(description: "Optional. The most times to run.")
+    @OperationParam(aliases: ["times", "repeat", "repeats", "maxRuns", "runs", "occurrences", "iterations", "limit", "maxCount"])
     var count: Int?
 
     /// The name of the task, or `nil` for a made name.
     @Guide(description: "Optional. A short name for the scheduled task.")
+    @OperationParam(aliases: ["name", "label", "taskName", "scheduleName", "description"])
     var title: String?
 
     /// The time zone, or `nil` for the local time zone.
     @Guide(description: "Optional. An IANA time zone, for example America/New_York. Default: the local time zone.")
+    @OperationParam(aliases: ["tz", "zone", "timezone", "timeZoneID", "timeZoneId", "timeZoneName"])
     var timeZone: String?
 }
 
@@ -82,7 +89,7 @@ extension ScheduleAgent {
             zone = .current
         }
         let runner = context.runner
-        let now = await runner.scheduler.clock.now
+        let now = runner.scheduler.clock.now
         var end: Date?
         if let until, AgentDefinitionRules.holdsText(until) {
             guard let date = AgentScheduleSpec.parseDate(until.trimmingCharacters(in: .whitespaces), timeZone: zone)
@@ -133,6 +140,7 @@ extension ListSchedules {
 struct GetSchedule {
     /// The id of the task.
     @Guide(description: "The id of the scheduled agent.")
+    @OperationParam(aliases: ["scheduleID", "scheduleId", "taskID", "taskId", "schedule", "task", "jobID", "jobId"])
     var id: String
 }
 
@@ -155,6 +163,7 @@ extension GetSchedule {
 struct CancelSchedule {
     /// The id of the task.
     @Guide(description: "The id of the scheduled agent.")
+    @OperationParam(aliases: ["scheduleID", "scheduleId", "taskID", "taskId", "schedule", "task", "jobID", "jobId"])
     var id: String
 }
 
@@ -177,6 +186,7 @@ extension CancelSchedule {
 struct PauseSchedule {
     /// The id of the task.
     @Guide(description: "The id of the scheduled agent.")
+    @OperationParam(aliases: ["scheduleID", "scheduleId", "taskID", "taskId", "schedule", "task", "jobID", "jobId"])
     var id: String
 }
 
@@ -201,6 +211,7 @@ extension PauseSchedule {
 struct ResumeSchedule {
     /// The id of the task.
     @Guide(description: "The id of the scheduled agent.")
+    @OperationParam(aliases: ["scheduleID", "scheduleId", "taskID", "taskId", "schedule", "task", "jobID", "jobId"])
     var id: String
 }
 
@@ -226,6 +237,7 @@ extension ResumeSchedule {
 struct StartSchedule {
     /// The id of the task.
     @Guide(description: "The id of the scheduled agent.")
+    @OperationParam(aliases: ["scheduleID", "scheduleId", "taskID", "taskId", "schedule", "task", "jobID", "jobId"])
     var id: String
 }
 

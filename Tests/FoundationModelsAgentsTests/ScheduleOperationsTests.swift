@@ -125,6 +125,43 @@ struct ScheduleOperationsTests {
         #expect(await harness.runner.scheduledTasks(owner: nil).isEmpty)
     }
 
+    // MARK: - Forgiving field names
+
+    @Test("schedule agent takes the common other names of its fields")
+    func forgivingCreateFields() async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+
+        let answer = try await harness.call(
+            "schedule agent",
+            [
+                "cron": "0 9 * * *", "task": Self.prompt, "agent_name": Self.agent, "name": "nightly",
+                "tz": "UTC", "end_date": "2999-01-01T00:00:00Z"
+            ])
+
+        #expect(answer.hasPrefix("Scheduled task \"nightly\" ("), "\(answer)")
+        let task = try #require(await harness.runner.scheduledTasks(owner: nil).first)
+        #expect(task.agent == Self.agent)
+        #expect(task.prompt == Self.prompt)
+        #expect(task.schedule == "0 9 * * *")
+        #expect(task.timeZoneIdentifier == "GMT")
+        #expect(task.end == ISO8601DateFormatter().date(from: "2999-01-01T00:00:00Z"))
+    }
+
+    @Test("the id operations take schedule_id and task_id")
+    func forgivingIDFields() async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+        let id = try Self.id(
+            in: try await Self.schedule(harness, ["schedule": "every 10 minutes", "agent": Self.agent]))
+
+        let got = try await harness.call("get schedule", ["schedule_id": id])
+        let paused = try await harness.call("pause schedule", ["taskId": id])
+
+        #expect(got.contains(Self.prompt))
+        #expect(paused.contains("paused"))
+    }
+
     // MARK: - The other operations
 
     @Test("list schedules shows each task with its fields")

@@ -94,6 +94,11 @@ actor AgentScheduler {
     /// `true` after ``stop()``.
     private var isStopped = false
 
+    /// The last firing pass: a tick of the timer or a `start schedule`. Each
+    /// pass waits for the one before it, thus two passes never fire the same
+    /// task at the same time.
+    private var lastPass: Task<Void, Never>?
+
     /// Makes a scheduler.
     ///
     /// - Parameters:
@@ -264,8 +269,30 @@ actor AgentScheduler {
     // MARK: - Firing
 
     /// Fires each active task that is due at the current time, then sets the
-    /// timer again.
+    /// timer again. The pass waits for the pass before it.
     func tick() async {
+        await serially { scheduler in await scheduler.fireDueTasks() }
+    }
+
+    /// Runs `body` after the pass before it ends.
+    ///
+    /// - Parameter body: The pass.
+    /// - Returns: The value of `body`.
+    private func serially<Value: Sendable>(
+        _ body: @escaping @Sendable (isolated AgentScheduler) async -> Value
+    ) async -> Value {
+        let previous = lastPass
+        let pass = Task { () -> Value in
+            await previous?.value
+            return await body(self)
+        }
+        lastPass = Task { _ = await pass.value }
+        return await pass.value
+    }
+
+    /// Fires each active task that is due at the current time, then sets the
+    /// timer again.
+    private func fireDueTasks() async {
         let now = clock.now
         let due = tasks.values.filter { task in
             task.state == .active && (task.nextFiring.map { $0 <= now } ?? false)
@@ -285,12 +312,16 @@ actor AgentScheduler {
     ///     schedule, and a paused task fires too.
     /// - Returns: What the firing did.
     func fire(id: ULID, at now: Date, isManual: Bool) async -> AgentScheduleFiring {
-        guard var task = tasks[id], task.state != .ended, !starting.contains(id) else { return .notFound }
+        guard let snapshot = tasks[id], snapshot.state != .ended, !starting.contains(id) else { return .notFound }
+        let missed = isManual ? 0 : missedFirings(of: snapshot, before: now)
+        let isLive = await isLive(snapshot)
+        // Read the task again: a pause, a resume or a cancel can come during the check.
+        guard var task = tasks[id], task.state != .ended else { return .notFound }
         if !isManual {
-            task.missedCount += missedFirings(of: task, before: now)
+            task.missedCount += missed
             task.advance(after: now)
         }
-        guard await !isLive(task) else {
+        guard !isLive else {
             task.skippedCount += 1
             tasks[id] = task
             log(AgentsTelemetry.LogMessage.scheduleSkipped, task)
@@ -305,8 +336,7 @@ actor AgentScheduler {
         starting.remove(id)
         guard var current = tasks[id] else { return start }
         switch start {
-        case .started(let runID):
-            current.liveRunID = runID
+        case .started:
             log(AgentsTelemetry.LogMessage.scheduleFired, current, firing: number)
         case .failed(let reason):
             current.lastResult = reason
@@ -325,9 +355,11 @@ actor AgentScheduler {
     /// - Parameter id: The id of the task.
     /// - Returns: What the firing did.
     func runNow(id: ULID) async -> AgentScheduleFiring {
-        let firing = await fire(id: id, at: clock.now, isManual: true)
-        rearm()
-        return firing
+        await serially { scheduler in
+            let firing = await scheduler.fire(id: id, at: scheduler.clock.now, isManual: true)
+            scheduler.rearm()
+            return firing
+        }
     }
 
     /// Counts the firings of `task` after its due time and up to `now`: the
@@ -379,6 +411,7 @@ actor AgentScheduler {
         }
         switch start {
         case .started(let run):
+            tasks[taskID]?.liveRunID = run.id
             if let owner = task.owner, let workSite = workSites[owner] {
                 leases[taskID] = workSite("scheduled-\(run.id)")
             }
