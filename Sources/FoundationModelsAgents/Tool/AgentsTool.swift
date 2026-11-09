@@ -194,7 +194,7 @@ public struct AgentsTool: Tool {
             description: AgentsToolDescription.addingCaller(to: description, callerID: callerID),
             context: context,
             operations: operations(of: context.grant),
-            resolver: OperationResolver(verbAliases: verbAliases, nounAliases: nounAliases)
+            resolver: OperationResolver(verbAliases: verbAliases, nounAliases: nounAliases, inferOp: inferredOp(of:))
         )
         return try AgentsTool(
             operationTool: operationTool, context: context, notices: notices,
@@ -295,7 +295,7 @@ public struct AgentsTool: Tool {
     ///   agent, or its op does not take an agent.
     static func agentNameConflict(in arguments: GeneratedContent) -> String? {
         guard case .structure(let properties, _) = arguments.kind,
-            case .string(let op)? = properties[OperationKeys.opFieldName]?.kind,
+            let op = explicitOp(of: properties) ?? inferredOp(of: arguments),
             op.split(whereSeparator: \.isWhitespace).last?.lowercased() == StartAgent.noun
         else {
             return nil
@@ -312,6 +312,45 @@ public struct AgentsTool: Tool {
         }
         guard names.count > 1 else { return nil }
         return AgentsToolText.conflictingAgentNames(names[0], names[1])
+    }
+
+    /// The keys of `start agent`: its fields and the aliases of its agent
+    /// field, normalized (``normalizedKey(_:)``).
+    private static let startAgentKeys = Set((agentNameKeys + ["prompt", "workingDirectory"]).map(normalizedKey))
+
+    /// Gives the op of a payload with no `op` whose fields fit one op alone:
+    /// `start agent` for a `prompt` and an agent name, with no field that
+    /// `start agent` does not take. Seen live in the bench run planner24:
+    /// `{"name": "planner", "agent": "planner", "prompt": "…"}`.
+    ///
+    /// - Parameter arguments: The payload of the model.
+    /// - Returns: `start agent`, or `nil` when the payload holds an op or
+    ///   its fields do not fit `start agent` alone. The resolver then gives
+    ///   the corrective of an unknown op.
+    static func inferredOp(of arguments: GeneratedContent) -> String? {
+        guard case .structure(let properties, _) = arguments.kind, explicitOp(of: properties) == nil else {
+            return nil
+        }
+        let keys = Set(properties.keys.map(normalizedKey))
+        guard keys.isSubset(of: startAgentKeys), keys.contains(normalizedKey("prompt")),
+            !keys.isDisjoint(with: agentNameKeys.map(normalizedKey))
+        else {
+            return nil
+        }
+        return StartAgent.opString
+    }
+
+    /// The `op` of a payload, or `nil` when it has none or an empty one.
+    ///
+    /// - Parameter properties: The fields of the payload.
+    /// - Returns: The op.
+    private static func explicitOp(of properties: [String: GeneratedContent]) -> String? {
+        guard case .string(let op)? = properties[OperationKeys.opFieldName]?.kind,
+            !op.trimmingCharacters(in: .whitespaces).isEmpty
+        else {
+            return nil
+        }
+        return op
     }
 
     /// A key with case, `_` and `-` removed.

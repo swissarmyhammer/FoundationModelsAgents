@@ -99,6 +99,18 @@ struct AgentsToolHarness {
             arguments: GeneratedContent(properties: Array(properties), uniquingKeysWith: { _, last in last }))
     }
 
+    /// Calls the tool with the fields `fields` and no `op`, as a model does
+    /// that leaves the op out.
+    ///
+    /// - Parameter fields: The fields of the payload.
+    /// - Returns: The answer of the tool.
+    /// - Throws: The error of `AgentsTool.call(arguments:)`.
+    func callWithNoOp(_ fields: [String: String]) async throws -> String {
+        let properties = fields.map { field -> (String, any ConvertibleToGeneratedContent) in (field.key, field.value) }
+        return try await tool.call(
+            arguments: GeneratedContent(properties: properties, uniquingKeysWith: { _, last in last }))
+    }
+
     /// Removes the folders of the run harness.
     ///
     /// - Throws: The error of the file system.

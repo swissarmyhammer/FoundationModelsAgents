@@ -6,6 +6,10 @@ import Testing
 /// Pins one key for the agent of `start agent` and `schedule agent`: each op
 /// takes `name` and `agent` for it, and refuses two different values.
 ///
+/// A call with no `op` whose fields fit `start agent` alone, a `prompt` and
+/// an agent name, starts the agent. A call whose fields fit no op alone
+/// keeps the corrective of an unknown op.
+///
 /// Seen live in the bench run planner24: the model sent
 /// `{"op": "start agent", "agent": "planner", "prompt": "..."}` and got
 /// "Missing required parameter(s): name.", because `schedule agent` names
@@ -106,5 +110,56 @@ struct ForgivingAgentNameTests {
             for: GeneratedContent(properties: ["op": "start agent", "agent": Self.agent, "prompt": Self.prompt]))
 
         #expect(description == AgentsToolText.callDescription(agent: Self.agent, prompt: Self.prompt))
+    }
+
+    @Test("a call with no op, an agent name and a prompt starts the agent")
+    func noOpStartsTheAgent() async throws {
+        let harness = try await Self.harness()
+        defer { try? harness.delete() }
+
+        let answer = try await harness.callWithNoOp(["name": Self.agent, "agent": Self.agent, "prompt": Self.prompt])
+
+        #expect(answer.hasPrefix("Agent \(Self.agent) started with the id"), "\(answer)")
+    }
+
+    @Test("a call with no op, the agent key and a prompt starts the agent")
+    func noOpWithAgentKeyStartsTheAgent() async throws {
+        let harness = try await Self.harness()
+        defer { try? harness.delete() }
+
+        let answer = try await harness.callWithNoOp(["agent": Self.agent, "prompt": Self.prompt])
+
+        #expect(answer.hasPrefix("Agent \(Self.agent) started with the id"), "\(answer)")
+    }
+
+    @Test("a call with no op and two different agents is refused, and starts no run")
+    func noOpWithTwoAgentsIsRefused() async throws {
+        let harness = try await Self.harness()
+        defer { try? harness.delete() }
+
+        let answer = try await harness.callWithNoOp(
+            ["name": Self.agent, "agent": Self.otherAgent, "prompt": Self.prompt])
+
+        #expect(answer == AgentsToolText.conflictingAgentNames(Self.agent, Self.otherAgent))
+        #expect(await harness.runner.runs.isEmpty)
+    }
+
+    @Test("a call with no op whose fields do not fit start agent alone keeps the unknown-op corrective")
+    func noOpThatFitsNoOneOpIsNotInferred() async throws {
+        let payloads: [[String: String]] = [
+            ["agent": Self.agent, "prompt": Self.prompt, "schedule": "every 10 minutes"],
+            ["prompt": Self.prompt],
+            ["name": Self.agent]
+        ]
+        for payload in payloads {
+            let harness = try await Self.harness()
+            defer { try? harness.delete() }
+
+            let answer = try await harness.callWithNoOp(payload)
+
+            #expect(answer.contains("Unknown operation"), "\(payload): \(answer)")
+            #expect(await harness.runner.runs.isEmpty)
+            #expect(await harness.runner.scheduledTasks(owner: nil).isEmpty)
+        }
     }
 }
