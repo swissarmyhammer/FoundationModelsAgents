@@ -207,8 +207,18 @@ public struct AgentsTool: Tool {
     /// - Returns: The message operations for
     ///   ``AgentsToolContext/Grant/messagingOnly``. For
     ///   ``AgentsToolContext/Grant/full``, the operations that list, find,
-    ///   start, check, and cancel agents, then the message operations.
+    ///   start, check, and cancel agents, then the message operations, then
+    ///   the schedule operations.
     private static func operations(of grant: AgentsToolContext.Grant) -> [AnyOperation<AgentsToolContext>] {
+        let scheduleOperations = [
+            AnyOperation(ScheduleAgent.self),
+            AnyOperation(ListSchedules.self),
+            AnyOperation(GetSchedule.self),
+            AnyOperation(PauseSchedule.self),
+            AnyOperation(ResumeSchedule.self),
+            AnyOperation(StartSchedule.self),
+            AnyOperation(CancelSchedule.self)
+        ]
         let messageOperations = [AnyOperation(SendAgent.self), AnyOperation(SendCaller.self)]
         switch grant {
         case .full:
@@ -218,7 +228,7 @@ public struct AgentsTool: Tool {
                 AnyOperation(StartAgent.self),
                 AnyOperation(CheckAgent.self),
                 AnyOperation(CancelAgent.self)
-            ] + messageOperations
+            ] + messageOperations + scheduleOperations
         case .messagingOnly:
             return messageOperations
         }

@@ -1,6 +1,7 @@
 import Foundation
 import FoundationModelsExtras
 @testable import FoundationModelsAgents
+import Synchronization
 import Testing
 import ULID
 
@@ -15,14 +16,6 @@ struct AgentScheduleStoreTests {
     /// The prompt whose play ends at once.
     private static let pingPrompt = "store-ping: say pong"
 
-    /// Makes a file store whose session folders are under `root`.
-    ///
-    /// - Parameter root: The folder of the session folders.
-    /// - Returns: The store.
-    private static func store(under root: URL) -> FileAgentScheduleStore {
-        FileAgentScheduleStore { session in root.appendingPathComponent(session.description, isDirectory: true) }
-    }
-
     /// Makes a runner over the fixture agents with `clock` and `store`.
     ///
     /// - Parameters:
@@ -31,7 +24,7 @@ struct AgentScheduleStoreTests {
     ///   - store: The store.
     /// - Returns: The runner.
     private static func runner(
-        _ harness: AgentRunHarness, clock: ManualScheduleClock, store: FileAgentScheduleStore
+        _ harness: AgentRunHarness, clock: ManualScheduleClock, store: MemoryScheduleStore
     ) async -> AgentRunner {
         let runner = AgentRunner(
             registry: harness.registry,
@@ -50,41 +43,46 @@ struct AgentScheduleStoreTests {
             script: ScriptedAgentScript([ScriptedAgentPlay(key: pingPrompt, steps: [.finalText("pong")])]))
     }
 
-    @Test("the file store saves and reads the tasks of a session, and an empty save removes the file")
-    func fileStoreRoundTrip() async throws {
-        let root = try TemporaryLayer.makeEmpty()
-        defer { try? root.delete() }
-        let store = Self.store(under: root.root)
-        let owner = ULID()
+    /// A store that keeps the saved tasks of each session in memory, as a
+    /// host keeps them in the folder of the session.
+    final class MemoryScheduleStore: AgentScheduleStore, Sendable {
+        /// The saved tasks, by session.
+        private let saved = Mutex<[ULID: [AgentScheduledTask]]>([:])
+
+        func save(_ tasks: [AgentScheduledTask], of owner: ULID) async throws {
+            saved.withLock { $0[owner] = tasks.isEmpty ? nil : tasks }
+        }
+
+        func load(of owner: ULID) async throws -> [AgentScheduledTask] {
+            saved.withLock { $0[owner] ?? [] }
+        }
+    }
+
+    @Test("the saved tasks survive a JSON round trip, as a host file store writes them")
+    func tasksAreCodable() throws {
         let task = AgentScheduledTask(
-            AgentScheduleRequest(prompt: "p", spec: .interval(seconds: 600), owner: owner), now: Self.start)
+            AgentScheduleRequest(prompt: "p", spec: .interval(seconds: 600), owner: ULID()), now: Self.start)
 
-        try await store.save([task], of: owner)
-        let file = root.root.appendingPathComponent("\(owner)/\(FileAgentScheduleStore.fileName)")
-        #expect(FileManager.default.fileExists(atPath: file.path))
-        #expect(try await store.load(of: owner) == [task])
+        let decoded = try JSONDecoder().decode([AgentScheduledTask].self, from: JSONEncoder().encode([task]))
 
-        try await store.save([], of: owner)
-        #expect(!FileManager.default.fileExists(atPath: file.path))
-        #expect(try await store.load(of: owner).isEmpty)
+        #expect(decoded == [task])
     }
 
     @Test("a new runner restores the saved tasks of a session, and a missed firing runs once")
     func restoreAfterRestart() async throws {
-        let root = try TemporaryLayer.makeEmpty()
-        defer { try? root.delete() }
         let harness = try await Self.harness()
         defer { try? harness.delete() }
         let clock = ManualScheduleClock(start: Self.start)
         let owner = ULID()
-        let first = await Self.runner(harness, clock: clock, store: Self.store(under: root.root))
+        let store = MemoryScheduleStore()
+        let first = await Self.runner(harness, clock: clock, store: store)
         let task = await first.schedule(
             AgentScheduleRequest(
                 agent: "code-reviewer", prompt: Self.pingPrompt, spec: .interval(seconds: 60), owner: owner))
         await first.stop()
 
         clock.advance(by: 600)
-        let second = await Self.runner(harness, clock: clock, store: Self.store(under: root.root))
+        let second = await Self.runner(harness, clock: clock, store: store)
         let restored = try await second.restoreSchedules(of: owner)
         await second.scheduler.tick()
 
@@ -97,13 +95,12 @@ struct AgentScheduleStoreTests {
 
     @Test("a second restore of the same session restores nothing")
     func secondRestoreIsEmpty() async throws {
-        let root = try TemporaryLayer.makeEmpty()
-        defer { try? root.delete() }
         let harness = try await Self.harness()
         defer { try? harness.delete() }
         let clock = ManualScheduleClock(start: Self.start)
         let owner = ULID()
-        let runner = await Self.runner(harness, clock: clock, store: Self.store(under: root.root))
+        let store = MemoryScheduleStore()
+        let runner = await Self.runner(harness, clock: clock, store: store)
         _ = await runner.schedule(AgentScheduleRequest(prompt: Self.pingPrompt, spec: .interval(seconds: 60), owner: owner))
 
         #expect(try await runner.restoreSchedules(of: owner).isEmpty)
@@ -111,11 +108,9 @@ struct AgentScheduleStoreTests {
 
     @Test("closing the session removes its saved tasks")
     func closeRemovesTheFile() async throws {
-        let root = try TemporaryLayer.makeEmpty()
-        defer { try? root.delete() }
         let harness = try await Self.harness()
         defer { try? harness.delete() }
-        let store = Self.store(under: root.root)
+        let store = MemoryScheduleStore()
         let owner = ULID()
         let runner = await Self.runner(harness, clock: ManualScheduleClock(start: Self.start), store: store)
         _ = await runner.schedule(AgentScheduleRequest(prompt: Self.pingPrompt, spec: .interval(seconds: 60), owner: owner))

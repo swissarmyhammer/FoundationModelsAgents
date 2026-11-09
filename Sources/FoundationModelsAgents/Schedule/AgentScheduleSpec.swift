@@ -5,7 +5,7 @@ import Foundation
 ///
 /// ``parse(_:timeZone:now:)`` reads the three direct forms of a schedule text
 /// with no model. A text in English gives ``Parse/notDirect``, and the
-/// normalizer of the scheduler turns it into a direct form first.
+/// normalizer of the scheduler changes it into a direct form first.
 public enum AgentScheduleSpec: Sendable, Equatable, Codable {
     /// A cron expression, read in the time zone of the task.
     case cron(CronExpression)
@@ -120,7 +120,7 @@ public enum AgentScheduleSpec: Sendable, Equatable, Codable {
     ///   - text: The trimmed text.
     ///   - timeZone: The time zone of a time with no zone.
     /// - Returns: The date, or `nil` when the text is not a date and time.
-    private static func parseDate(_ text: String, timeZone: TimeZone) -> Date? {
+    static func parseDate(_ text: String, timeZone: TimeZone) -> Date? {
         let zoned = ISO8601DateFormatter()
         if let date = zoned.date(from: text) {
             return date

@@ -364,3 +364,35 @@ after the name as the prompt, waits for it, and gives the final text. The run
 works in the folder of the session that runs the command: the
 `workingDirectory` of the `SlashCommand.Invocation`. See "The working folder
 of a run" in <doc:RunningAnAgent>.
+
+## Scheduled agents
+
+The tool also runs an agent on a timer. `schedule agent` takes a `schedule`
+and a `prompt`, and optionally `agent` (the default agent when left out),
+`until`, `count`, `title` and `timeZone`. The schedule is a 5-field cron
+expression, one ISO date and time, or `every N minutes|hours|days`, read with
+no model. English goes to the flash slot (the selection model of the
+environment), whose answer must be one of these forms; an ambiguous text is
+refused with a corrective, never guessed. The shortest schedule is 1 minute.
+The answer shows the normalized schedule, the time zone, the next 3 firings
+and the end. A recurring task with no `until` and no `count` ends after 7 days
+(``AgentScheduledTask/defaultLifetime``).
+
+`list schedules`, `get schedule`, `pause schedule`, `resume schedule`,
+`start schedule` (`run schedule` by the verb alias: fire now) and
+`cancel schedule` see only the tasks of the calling session.
+
+Each firing is a child run of the session that made the task, started through
+the runner as a restored child is: the caller is that session, on the mail
+route. The result of every firing is mailed to that session, with the task
+name, its id and the firing number. A firing that is due while the run of the
+previous firing still works is skipped and counted. The firings that a sleep
+or a down process missed run once, then the schedule goes on. A pending task
+holds no work in its session; a running firing holds one `childSession` lease
+in the work registry of its session.
+
+A task belongs to its session: ``AgentRunner/cancelRuns(caller:)`` ends and
+removes the tasks of the session. The host saves them with
+``AgentRunner/useScheduleStore(_:)`` (an ``AgentScheduleStore`` over the
+folder of each session), and a restart or a resume restores them with
+``AgentRunner/restoreSchedules(of:workSite:)``.

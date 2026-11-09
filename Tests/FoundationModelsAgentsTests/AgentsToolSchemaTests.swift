@@ -17,7 +17,9 @@ struct AgentsToolSchemaTests {
 
     /// The op strings of the operations, in tool order.
     private static let opStrings = [
-        "list agents", "find agents", "start agent", "check agent", "cancel agent", "send agent", "send caller"
+        "list agents", "find agents", "start agent", "check agent", "cancel agent", "send agent", "send caller",
+        "schedule agent", "list schedules", "get schedule", "pause schedule", "resume schedule", "start schedule",
+        "cancel schedule"
     ]
 
     /// The op strings of a tool with the messaging grant, in tool order.
@@ -83,7 +85,14 @@ struct AgentsToolSchemaTests {
                 "check agent": ["id?"],
                 "cancel agent": ["id"],
                 "send agent": ["id", "message"],
-                "send caller": ["message"]
+                "send caller": ["message"],
+                "schedule agent": ["schedule", "prompt", "agent?", "until?", "count?", "title?", "timeZone?"],
+                "list schedules": [],
+                "get schedule": ["id"],
+                "pause schedule": ["id"],
+                "resume schedule": ["id"],
+                "start schedule": ["id"],
+                "cancel schedule": ["id"]
             ])
     }
 
@@ -97,7 +106,7 @@ struct AgentsToolSchemaTests {
             Set(properties.keys)
                 == [
                     OperationKeys.opFieldName, "filter", "query", "limit", "name", "prompt", "workingDirectory", "id",
-                    "message"
+                    "message", "schedule", "agent", "until", "count", "title", "timeZone"
                 ])
     }
 

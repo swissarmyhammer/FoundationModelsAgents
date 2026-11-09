@@ -33,7 +33,7 @@ public struct AgentScheduleNormalization: Sendable, Equatable {
     }
 }
 
-/// Turns an English schedule text into a direct form.
+/// Changes an English schedule text into a direct form.
 public protocol AgentScheduleNormalizing: Sendable {
     /// Normalizes `text`.
     ///
@@ -54,7 +54,7 @@ public struct ModelScheduleNormalizer: AgentScheduleNormalizing {
 
     /// The instructions of each normalizer session.
     static let instructions = """
-        You turn one schedule text into one machine form. You never guess.
+        You change one schedule text into one machine form. You never guess.
         - A schedule that repeats on days or times of the clock: a 5-field cron expression.
         - A schedule that repeats at a fixed step: every N minutes, every N hours, or every N days.
         - One time, for example 'in two hours' or 'tomorrow at 9 AM': the local date and time as \
