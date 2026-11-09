@@ -34,6 +34,22 @@ struct AgentsToolSchemaTests {
 
     // MARK: - The operations
 
+    /// An `.object` parameter is a JSON object or text that holds one, so its
+    /// schema is anyOf a string and an object, and it names no single `type`.
+    @Test func anObjectParameterTakesAnObjectOrText() throws {
+        let probe = DynamicGenerationSchema(
+            name: "Probe",
+            properties: [
+                DynamicGenerationSchema.Property(
+                    name: "value", schema: AgentsToolSchema.typeSchema(for: .object, named: "Probe.value"))
+            ])
+        let schema = try GenerationSchema(root: probe, dependencies: [])
+
+        let value = try Self.property(named: "value", in: schema)
+
+        #expect(value["type"] == nil)
+    }
+
     @Test func theToolIsNamedAgents() async throws {
         let harness = try await AgentsToolHarness.make()
         defer { try? harness.delete() }

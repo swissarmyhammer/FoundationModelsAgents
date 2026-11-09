@@ -43,7 +43,7 @@ enum AgentsToolSchema {
             DynamicGenerationSchema.Property(
                 name: parameter.name,
                 description: parameter.description,
-                schema: typeSchema(for: parameter.type),
+                schema: typeSchema(for: parameter.type, named: "\(name).\(parameter.name)"),
                 isOptional: true)
         }
         let root = DynamicGenerationSchema(name: name, properties: [opField] + fields)
@@ -67,9 +67,18 @@ enum AgentsToolSchema {
 
     /// Gives the value schema of one parameter type.
     ///
-    /// - Parameter type: The parameter type.
+    /// An `.object` parameter is `anyOf` a string and an object with no
+    /// properties, the same shape as `GraphQLArguments.generationSchema` of
+    /// `FoundationModelsExtras`. Its encoded JSON Schema has no `type`, thus a
+    /// host that checks the `type` of each argument lets a script send a plain
+    /// object, and the model sends one JSON object in text.
+    ///
+    /// - Parameters:
+    ///   - type: The parameter type.
+    ///   - name: A name that is unique in the tool schema, such as
+    ///     "<tool>.<parameter>". The named schemas of `.object` take it.
     /// - Returns: The schema that FoundationModels uses for that type.
-    private static func typeSchema(for type: ParamType) -> DynamicGenerationSchema {
+    static func typeSchema(for type: ParamType, named name: String) -> DynamicGenerationSchema {
         switch type {
         case .string:
             DynamicGenerationSchema(type: String.self)
@@ -79,8 +88,16 @@ enum AgentsToolSchema {
             DynamicGenerationSchema(type: Double.self)
         case .boolean:
             DynamicGenerationSchema(type: Bool.self)
+        case .object:
+            DynamicGenerationSchema(
+                name: name,
+                description: "one JSON object in text",
+                anyOf: [
+                    DynamicGenerationSchema(type: String.self),
+                    DynamicGenerationSchema(name: "\(name).object", properties: []),
+                ])
         case .array(let element):
-            DynamicGenerationSchema(arrayOf: typeSchema(for: element))
+            DynamicGenerationSchema(arrayOf: typeSchema(for: element, named: "\(name).element"))
         }
     }
 }
