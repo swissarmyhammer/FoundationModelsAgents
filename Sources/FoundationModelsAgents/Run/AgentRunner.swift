@@ -101,6 +101,9 @@ public actor AgentRunner {
     /// Sends the state changes of the runs to the subscribers of ``runChanges()``.
     let changeHub = RunChangeHub()
 
+    /// Fires the scheduled agents of the runner.
+    let scheduler: AgentScheduler
+
     /// Makes a runner. It stores its inputs and does no I/O.
     ///
     /// The init also makes ``agentSearch`` over the current catalog of
@@ -113,12 +116,25 @@ public actor AgentRunner {
     ///     its `load()` before the first run.
     ///   - environment: The dependencies and the limits of the runs.
     public init(registry: AgentRegistry, environment: AgentEnvironment) {
+        self.init(registry: registry, environment: environment, scheduleClock: SystemScheduleClock())
+    }
+
+    /// Makes a runner with the time source of its scheduled agents.
+    ///
+    /// - Parameters:
+    ///   - registry: The registry that gives the definitions.
+    ///   - environment: The dependencies and the limits of the runs.
+    ///   - scheduleClock: The time source of the scheduled agents.
+    init(registry: AgentRegistry, environment: AgentEnvironment, scheduleClock: any AgentScheduleClock) {
+        let reference = AgentRunnerReference()
+        self.scheduler = AgentScheduler(clock: scheduleClock, runnerReference: reference)
         self.registry = registry
         self.environment = environment
         self.renderer = AgentBodyRenderer(registry: registry)
         self.agentSearch = AgentSearch(
             registry: registry, selectionModel: environment.selectionModel,
             embedder: ProfileEmbedding(model: environment.profile.embedding))
+        reference.set(self)
     }
 
     /// The runs whose turn is in operation, sorted by id.
@@ -531,6 +547,7 @@ public actor AgentRunner {
     /// `start agent` gives a corrective.
     public func stop() async {
         isStopped = true
+        await scheduler.stop()
         await cancelRuns(forShutdown: true, where: { _ in true })
         changeHub.finish()
     }
@@ -548,8 +565,13 @@ public actor AgentRunner {
     /// operation when the host closes the session. The runs of each other
     /// caller stay as they are.
     ///
+    /// The call also ends each scheduled agent of the caller: a task belongs
+    /// to its session, thus the close of the session ends it and removes its
+    /// saved copy. A shutdown (``stop()``) keeps the saved tasks.
+    ///
     /// - Parameter caller: The id of the session of the caller.
     public func cancelRuns(caller: ULID) async {
+        await scheduler.endTasks(owner: caller)
         await cancelRuns(forShutdown: false, where: { $0 == caller })
     }
 

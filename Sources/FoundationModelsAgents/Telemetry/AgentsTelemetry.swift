@@ -131,6 +131,23 @@ enum AgentsTelemetry {
         /// value is an id, not content.
         static let sessionID = prefix + "session.id"
 
+        /// The id of a scheduled agent. The value is an id, not content.
+        static let scheduleID = prefix + "schedule.id"
+
+        /// The normalized schedule of a scheduled agent: a cron text, a time,
+        /// or an interval. The value is not content.
+        static let schedule = prefix + "schedule.spec"
+
+        /// The state of a scheduled agent: active, paused or ended.
+        static let scheduleState = prefix + "schedule.state"
+
+        /// The number of a firing of a scheduled agent.
+        static let scheduleFiring = prefix + "schedule.firing"
+
+        /// Why a firing of a scheduled agent started no run. The value names
+        /// an agent or a limit, not content.
+        static let scheduleFailure = prefix + "schedule.failure"
+
         /// The id of the run that started this run. The value is an id, not
         /// content.
         static let parentRunID = AttributeKey.parentRunID
@@ -180,6 +197,20 @@ enum AgentsTelemetry {
     enum LogMessage {
         /// The message of the record that a run writes when it starts.
         static let runStarted = SpanName.run + " started"
+
+        /// The message of the record of a new scheduled agent.
+        static let scheduleCreated = prefix + "schedule created"
+
+        /// The message of the record of a firing of a scheduled agent.
+        static let scheduleFired = prefix + "schedule fired"
+
+        /// The message of the record of a firing that was skipped, because
+        /// the run of the previous firing still worked.
+        static let scheduleSkipped = prefix + "schedule skipped"
+
+        /// The message of the record of a scheduled agent that a call or the
+        /// close of its session ended.
+        static let scheduleCancelled = prefix + "schedule cancelled"
 
         /// The message of the record that a run writes when the mark of its
         /// session as ended failed. A restore may then find the session.
