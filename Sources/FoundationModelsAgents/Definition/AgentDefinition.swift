@@ -63,11 +63,17 @@ public struct AgentDefinition: Sendable {
     public let unknownFields: [String: YAMLValue]
 
     /// `true` when the model can see and start the agent: the description is
-    /// valid and `disable-model-invocation` is not `true`.
+    /// valid, `disable-model-invocation` is not `true`, and the agent is not
+    /// the default agent.
+    ///
+    /// The default agent (``AgentCatalog/defaultAgentID``) is the main
+    /// session of the host, thus it is never model-visible, whatever its
+    /// frontmatter says. Otherwise the main session could give its task to a
+    /// copy of itself.
     public let isModelVisible: Bool
 
     /// `true` when the agent is a slash command: `user-invocable` is not
-    /// `false`.
+    /// `false`, and the agent is not the default agent.
     public let isUserInvocable: Bool
 
     /// The layer that gave the file.
@@ -227,8 +233,9 @@ public struct AgentDefinition: Sendable {
         self.color = frontmatter.color
         self.background = frontmatter.background
         self.unknownFields = frontmatter.unknownFields
-        self.isModelVisible = hasValidDescription && frontmatter.disableModelInvocation != true
-        self.isUserInvocable = frontmatter.userInvocable != false
+        let isDefaultAgent = id == AgentCatalog.defaultAgentID
+        self.isModelVisible = hasValidDescription && frontmatter.disableModelInvocation != true && !isDefaultAgent
+        self.isUserInvocable = frontmatter.userInvocable != false && !isDefaultAgent
         self.layer = layer
         self.provenance = provenance
         self.marketplaceLayer = marketplaceLayer

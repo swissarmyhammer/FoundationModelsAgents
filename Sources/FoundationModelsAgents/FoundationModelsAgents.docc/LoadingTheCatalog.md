@@ -60,6 +60,15 @@ Each local layer also holds its agents in the agent folder form, with no
 - ``AgentCatalog/defaultAgent`` gives the agent `default`, or `nil`. A host
   starts its root session from it when it is present, and uses its own
   instructions when it is `nil`.
+  ``AgentRunner/defaultAgentInstructions()`` gives the rendered body and the
+  rendered `skills:` preload of the default agent, with no run. `$ARGUMENTS`
+  renders as empty text.
+- The default agent is never model-visible and never a slash command, whatever
+  its frontmatter says: it is the main session, and the main session must not
+  give its task to a copy of itself.
+- Each body renders with the `templateContext` of the registry, the same
+  context that the host gives its `SkillsRegistry`. Thus a body can gate a
+  section with `{% if tools.kanban.enabled %}`.
 - When `<root>/AGENT.md` and `<root>/default/AGENT.md` are in the same layer,
   the root file wins, and the subfolder gives one warning. A `default` agent
   in a higher layer, for example `agents/default/AGENT.md` of the project,

@@ -62,7 +62,7 @@ public actor AgentRunner {
     let environment: AgentEnvironment
 
     /// Renders the body of each agent.
-    private let renderer: AgentBodyRenderer
+    let renderer: AgentBodyRenderer
 
     /// The search of `find agents` over the model-visible agents of
     /// ``registry``. It follows each catalog of `onReload`, and it chooses

@@ -11,7 +11,8 @@ import Marketplace
 ///    no `$ARGUMENTS` is one `.original` span.
 /// 2. **Stencil.** `StenciledDotfolderStack.render(_:at:in:)` renders the
 ///    text as the document `agents/<id>/AGENT.md` of the winning layer, with
-///    the `variables` of the registry. An include walks from
+///    the `variables` and the `templateContext` of the registry. An include
+///    walks from
 ///    `agents/<id>/_partials/` of the agent folder, to `agents/_partials/`,
 ///    up to `_partials/` of the layer root. The document of the agent folder
 ///    form is `<id>/AGENT.md`, and its include walks from `<id>/_partials/`
@@ -31,6 +32,10 @@ struct AgentBodyRenderer: Sendable {
     /// The values that the render interpolates.
     let variables: [String: String]
 
+    /// The structured values that the render interpolates, at the rung of
+    /// `variables`: the session template context of the host.
+    let templateContext: [String: TemplateValue]
+
     /// Makes a renderer over the local layers and the variables of
     /// `registry`.
     ///
@@ -39,6 +44,7 @@ struct AgentBodyRenderer: Sendable {
     init(registry: AgentRegistry) {
         self.localLayers = registry.localLayers
         self.variables = registry.variables
+        self.templateContext = registry.templateContext
     }
 
     /// Renders the body of `definition` with `prompt`.
@@ -52,7 +58,8 @@ struct AgentBodyRenderer: Sendable {
     ///   the render error.
     func render(_ definition: AgentDefinition, prompt: String) throws(AgentRunFailure) -> String {
         let stack = StenciledDotfolderStack(
-            base: DotfolderStack(layers: scopedLayers(of: definition)), variables: variables)
+            base: DotfolderStack(layers: scopedLayers(of: definition)), variables: variables,
+            values: templateContext)
         do {
             return try stack.render(
                 Self.substitutingArguments(in: definition.body, with: prompt),

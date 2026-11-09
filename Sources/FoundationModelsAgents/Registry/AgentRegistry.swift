@@ -50,6 +50,13 @@ public final class AgentRegistry: Sendable {
     /// The values that the render of each body interpolates.
     public let variables: [String: String]
 
+    /// The structured values that the render of each body interpolates, at
+    /// the rung of `variables`: the session template context of the host,
+    /// the same context that the host gives its `SkillsRegistry`, for example
+    /// `tools.<group>.enabled`. A key here wins over the same key of
+    /// `variables`.
+    public let templateContext: [String: TemplateValue]
+
     /// Whether a watcher watches the layer roots after the first build.
     private let watch: Bool
 
@@ -96,9 +103,15 @@ public final class AgentRegistry: Sendable {
     ///   - variables: The values that the render of each body interpolates.
     ///     The default is no values.
     ///   - watch: Whether to rebuild the catalog when a layer root changes.
-    ///     The default is `false`. See `init(layers:variables:watch:)`.
-    public convenience init(stack: DotfolderStack, variables: [String: String] = [:], watch: Bool = false) {
-        self.init(layers: stack.layers, variables: variables, watch: watch)
+    ///     The default is `false`. See `init(layers:variables:templateContext:watch:)`.
+    ///   - templateContext: The structured values that the render of each
+    ///     body interpolates, for example `tools.<group>.enabled`. The
+    ///     default is no values.
+    public convenience init(
+        stack: DotfolderStack, variables: [String: String] = [:],
+        templateContext: [String: TemplateValue] = [:], watch: Bool = false
+    ) {
+        self.init(layers: stack.layers, variables: variables, templateContext: templateContext, watch: watch)
     }
 
     /// Makes a registry over a list of layers. It reads no file: call
@@ -120,10 +133,16 @@ public final class AgentRegistry: Sendable {
     ///     The default is `false`. With `true`, the first `load()` starts a
     ///     `DotfolderWatcher` over each layer root. Each change calls
     ///     `reload()`.
+    ///   - templateContext: The structured values that the render of each
+    ///     body interpolates, for example `tools.<group>.enabled`. The
+    ///     default is no values.
     public convenience init(
-        layers: [DotfolderStack.Layer], variables: [String: String] = [:], watch: Bool = false
+        layers: [DotfolderStack.Layer], variables: [String: String] = [:],
+        templateContext: [String: TemplateValue] = [:], watch: Bool = false
     ) {
-        self.init(marketplaces: nil, localLayers: layers, variables: variables, watch: watch)
+        self.init(
+            marketplaces: nil, localLayers: layers, variables: variables, templateContext: templateContext,
+            watch: watch)
     }
 
     /// Makes a registry over the layers of a marketplace provider and the
@@ -151,11 +170,16 @@ public final class AgentRegistry: Sendable {
     ///     `DotfolderWatcher` over each local layer root, and over the root
     ///     of each marketplace layer that `isWatchable` marks. Each change
     ///     calls `reload()`.
+    ///   - templateContext: The structured values that the render of each
+    ///     body interpolates, for example `tools.<group>.enabled`. The
+    ///     default is no values.
     public convenience init(
         marketplaces: any MarketplaceLayerProviding, stack: DotfolderStack, variables: [String: String] = [:],
-        watch: Bool = false
+        templateContext: [String: TemplateValue] = [:], watch: Bool = false
     ) {
-        self.init(marketplaces: marketplaces, localLayers: stack.layers, variables: variables, watch: watch)
+        self.init(
+            marketplaces: marketplaces, localLayers: stack.layers, variables: variables,
+            templateContext: templateContext, watch: watch)
     }
 
     /// Makes a registry that stores its inputs. It reads no file.
@@ -164,15 +188,18 @@ public final class AgentRegistry: Sendable {
     ///   - marketplaces: The provider of the marketplace layers, or `nil`.
     ///   - localLayers: The local layers, lowest precedence first.
     ///   - variables: The values that the render of each body interpolates.
+    ///   - templateContext: The structured values that the render of each
+    ///     body interpolates.
     ///   - watch: Whether a watcher watches the layer roots after the first
     ///     build.
     private init(
         marketplaces: (any MarketplaceLayerProviding)?, localLayers: [DotfolderStack.Layer],
-        variables: [String: String], watch: Bool
+        variables: [String: String], templateContext: [String: TemplateValue], watch: Bool
     ) {
         self.marketplaces = marketplaces
         self.localLayers = localLayers
         self.variables = variables
+        self.templateContext = templateContext
         self.watch = watch
         graphPort = AgentsGraphPort(build: currentBuild)
     }
