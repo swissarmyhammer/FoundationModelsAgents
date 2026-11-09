@@ -30,7 +30,7 @@ struct ScheduleAgent {
 
     /// The agent of each firing, or `nil` for the default agent.
     @Guide(description: "Optional. The name of the agent to run. Leave it out to run the default agent.")
-    @OperationParam(aliases: ["agentName", "agentID", "agentId", "subagent", "subagentType", "agentType", "worker"])
+    @OperationParam(aliases: ["name", "agentName", "agentID", "agentId", "subagent", "subagentType", "agentType", "worker"])
     var agent: String?
 
     /// The end of a recurring task, or `nil`.
@@ -45,7 +45,7 @@ struct ScheduleAgent {
 
     /// The name of the task, or `nil` for a made name.
     @Guide(description: "Optional. A short name for the scheduled task.")
-    @OperationParam(aliases: ["name", "label", "taskName", "scheduleName", "description"])
+    @OperationParam(aliases: ["label", "taskName", "scheduleName", "description"])
     var title: String?
 
     /// The time zone, or `nil` for the local time zone.

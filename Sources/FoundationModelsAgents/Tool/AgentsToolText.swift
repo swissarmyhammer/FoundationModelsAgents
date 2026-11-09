@@ -204,6 +204,18 @@ enum AgentsToolText {
         return "\(subject): \(cut)"
     }
 
+    /// Gives the corrective of `start agent` or `schedule agent` with two
+    /// different agents: one in `name` and one in `agent` or another agent
+    /// key (``AgentsTool/agentNameKeys``).
+    ///
+    /// - Parameters:
+    ///   - first: The first agent that the call names.
+    ///   - second: The second agent that the call names.
+    /// - Returns: The corrective.
+    static func conflictingAgentNames(_ first: String, _ second: String) -> String {
+        "The call names two agents, \(first) and \(second). Give the agent one time, in the name field."
+    }
+
     /// Gives the corrective of `start agent` with a name that the catalog
     /// does not have, or that a reload removed.
     ///

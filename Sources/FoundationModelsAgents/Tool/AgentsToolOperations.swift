@@ -114,8 +114,11 @@ extension FindAgents {
     description: "Start an agent on a task. A run that ends fast gives its final message; a longer run works in the background.",
     mount: ToolMount(mode: .background))
 struct StartAgent {
-    /// The name of the agent to start.
+    /// The name of the agent to start. The other names are those of the
+    /// agent field of `schedule agent` and of other agent tools, thus a model
+    /// that mixes them still starts the agent (``AgentsTool/agentNameKeys``).
     @Guide(description: "The name of the agent to start.")
+    @OperationParam(aliases: ["agent", "agentName", "agentID", "agentId", "agentType", "subagent", "subagentType"])
     var name: String
 
     /// The full task for the agent.

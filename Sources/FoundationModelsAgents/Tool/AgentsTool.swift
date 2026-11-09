@@ -270,8 +270,56 @@ public struct AgentsTool: Tool {
                 context.startedRuns.close(call: call.completionToken)
             }
         }
+        if let conflict = Self.agentNameConflict(in: arguments) {
+            return conflict
+        }
         let answer = try await operationTool.call(arguments: arguments)
         return (try? JSONDecoder().decode(String.self, from: Data(answer.utf8))) ?? answer
+    }
+
+    /// The keys that name the agent of `start agent` and `schedule agent`:
+    /// the field of each op and the aliases of both. Each is compared with
+    /// case, `_` and `-` removed, as the resolver of the operations compares
+    /// keys.
+    static let agentNameKeys = [
+        "name", "agent", "agentName", "agentID", "agentType", "subagent", "subagentType"
+    ]
+
+    /// Gives the corrective for a call of an `… agent` op that names two
+    /// different agents, for example `name` and `agent`. The resolver of the
+    /// operations takes the canonical key and drops the alias, thus without
+    /// this check the call would run the agent that the model did not mean.
+    ///
+    /// - Parameter arguments: The payload of the model.
+    /// - Returns: The corrective, or `nil` when the call names at most one
+    ///   agent, or its op does not take an agent.
+    static func agentNameConflict(in arguments: GeneratedContent) -> String? {
+        guard case .structure(let properties, _) = arguments.kind,
+            case .string(let op)? = properties[OperationKeys.opFieldName]?.kind,
+            op.split(whereSeparator: \.isWhitespace).last?.lowercased() == StartAgent.noun
+        else {
+            return nil
+        }
+        let valuesByKey = Dictionary(
+            properties.map { (normalizedKey($0.key), $0.value) }, uniquingKeysWith: { first, _ in first })
+        var names: [String] = []
+        for key in agentNameKeys {
+            guard case .string(let text)? = valuesByKey[normalizedKey(key)]?.kind else { continue }
+            let name = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !name.isEmpty, !names.contains(name) {
+                names.append(name)
+            }
+        }
+        guard names.count > 1 else { return nil }
+        return AgentsToolText.conflictingAgentNames(names[0], names[1])
+    }
+
+    /// A key with case, `_` and `-` removed.
+    ///
+    /// - Parameter key: The key.
+    /// - Returns: The normalized key.
+    private static func normalizedKey(_ key: String) -> String {
+        key.lowercased().filter { $0 != "_" && $0 != "-" }
     }
 }
 
@@ -310,7 +358,7 @@ extension AgentsTool: BackgroundTool {
     ///   `nil` for each other call, which is then named by its op.
     public func callDescription(for arguments: GeneratedContent) -> String? {
         guard mount(for: arguments)?.mode == .background,
-            let name = Self.string("name", of: arguments)
+            let name = Self.agentNameKeys.lazy.compactMap({ Self.string($0, of: arguments) }).first
         else {
             return nil
         }

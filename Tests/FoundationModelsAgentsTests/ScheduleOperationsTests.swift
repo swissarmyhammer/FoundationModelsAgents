@@ -135,7 +135,7 @@ struct ScheduleOperationsTests {
         let answer = try await harness.call(
             "schedule agent",
             [
-                "cron": "0 9 * * *", "task": Self.prompt, "agent_name": Self.agent, "name": "nightly",
+                "cron": "0 9 * * *", "task": Self.prompt, "agent_name": Self.agent, "label": "nightly",
                 "tz": "UTC", "end_date": "2999-01-01T00:00:00Z"
             ])
 
