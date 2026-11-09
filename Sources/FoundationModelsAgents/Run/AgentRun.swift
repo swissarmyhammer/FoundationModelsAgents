@@ -39,6 +39,10 @@ public final class AgentRun: Sendable {
         /// The answers of the session so far.
         var answers = AgentRunAnswers()
 
+        /// `true` from a `SessionEvent.workStarted` of the session to its
+        /// next `SessionEvent.workEnded`: the no-work signal of the Router.
+        var sessionHasWork = false
+
         /// The description of the hold of the mail while the Router holds the
         /// final messages of the children (`SessionEvent.mailDeliveryPaused`),
         /// or `nil` when no hold is in force. The start of a submission ends
@@ -311,6 +315,14 @@ public final class AgentRun: Sendable {
     /// The answers of the session of the run so far.
     var answers: AgentRunAnswers {
         storage.withLock { $0.answers }
+    }
+
+    /// `true` while the session of the run has work, as its last work event
+    /// tells it: a `SessionEvent.workStarted` with no
+    /// `SessionEvent.workEnded` after it. Queued mail, an answer that runs,
+    /// an open tool call or background run, and a child session are work.
+    var sessionHasWork: Bool {
+        storage.withLock { $0.sessionHasWork }
     }
 
     /// `true` after a caller cancelled the run.
@@ -977,7 +989,8 @@ public final class AgentRun: Sendable {
     }
 
     /// Adds one event of the session to the record of the run: its progress,
-    /// its answers, its phase, and the hold of its mail.
+    /// its answers, its phase, the hold of its mail, and its work state
+    /// (``sessionHasWork``).
     ///
     /// `mailDeliveryPaused` starts a hold. The start of a submission ends it:
     /// while the Router holds the mail, only user-type mail starts an answer,
@@ -994,6 +1007,12 @@ public final class AgentRun: Sendable {
             }
             if case .submissionStarted = event {
                 storage.pause = nil
+            }
+            if case .workStarted = event {
+                storage.sessionHasWork = true
+            }
+            if case .workEnded = event {
+                storage.sessionHasWork = false
             }
         }
         publishChange()

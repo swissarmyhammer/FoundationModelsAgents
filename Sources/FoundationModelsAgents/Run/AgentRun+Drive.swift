@@ -54,9 +54,10 @@ extension AgentRun {
     /// that this run started: each final message is mail, and mail starts an
     /// answer with no call of this run.
     ///
-    /// The run ends when its session is idle (``acceptedMessagesIfIdle(on:)``)
-    /// and no message from the caller arrived after the idle check
-    /// (``settle(idle:acceptedMessages:)``). The reply of the last answer is
+    /// The run ends when its session is idle (``acceptedMessagesIfIdle(on:)``),
+    /// first of all when the Router reported no work for the session
+    /// (`SessionEvent.workEnded`), and no message from the caller arrived
+    /// after the idle check (``settle(idle:acceptedMessages:)``). The reply of the last answer is
     /// then its result. The run also ends when the count of passes goes above
     /// the `maxTurns` limit, when an answer fails, when the Router holds the
     /// mail, or when a caller cancels it.
@@ -422,7 +423,8 @@ extension AgentRun {
     ///   ``AgentRunSignal/idle(_:acceptedMessages:)`` when the session is
     ///   idle.
     /// - A run event of a child, a terminal event of a mail with no answer,
-    ///   and the close record of a tool call give
+    ///   the close record of a tool call, and the no-work event of the
+    ///   session (`workEnded`) give
     ///   ``AgentRunSignal/idle(_:acceptedMessages:)`` when the session is
     ///   idle after them (``idleSignalAfterRunEvent(on:)``).
     /// - A failed answer to mail alone gives
@@ -446,7 +448,7 @@ extension AgentRun {
                 return .limitHit(partial: answer.reply)
             }
             return await idleSignal(reply: answer.reply, on: session)
-        case .runSettled, .runMessage, .cancelled, .lost, .elicitationEnded, .elicitationCompleted:
+        case .runSettled, .runMessage, .cancelled, .lost, .elicitationEnded, .elicitationCompleted, .workEnded:
             return await signalAfterRunEvent(on: session)
         case .toolInvocation(let record, _) where record.closedAt != nil:
             return await signalAfterRunEvent(on: session)
@@ -524,6 +526,14 @@ extension AgentRun {
     /// call. It reads no text of a prompt and no transcript. The session is
     /// idle when all of these are true:
     ///
+    /// - The Router reported no work for the session (``sessionHasWork``):
+    ///   the last work event of the session is `workEnded`. This is the end
+    ///   signal of the run. The Router keeps work open for each result of a
+    ///   background run until its answer ends, also for a result that
+    ///   settled inside an answer and waits in the queue as run mail. The
+    ///   end of the answer before it is then not the end of the run: the
+    ///   answer to the result is. `workEnded` comes after the `answered` of
+    ///   the last answer, and gives a new idle check (``signal(after:on:)``).
     /// - No answer is open.
     /// - No message from the caller is on its way to the mail queue
     ///   (``acceptedMessagesWhenNoneInbound``).
@@ -570,7 +580,7 @@ extension AgentRun {
     ///   `nil` when it is not idle.
     private func acceptedMessagesIfIdle(on session: any RoutedSession) async -> Int? {
         await idleHooks.beforeIdleCheck()
-        guard !answers.isAnswerOpen,
+        guard !sessionHasWork, !answers.isAnswerOpen,
             let acceptedMessages = acceptedMessagesWhenNoneInbound,
             children.runs.allSatisfy({ $0.state != .running })
         else {
