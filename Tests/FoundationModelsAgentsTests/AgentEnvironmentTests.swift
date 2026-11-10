@@ -26,13 +26,6 @@ struct AgentEnvironmentTests {
     /// catalog.
     static let skillsToolName = "skills"
 
-    /// Makes a skills registry with no layers.
-    ///
-    /// - Returns: A registry that holds no skill.
-    static func makeEmptySkills() -> SkillsRegistry {
-        SkillsRegistry(roots: [], mode: .open)
-    }
-
     /// Resolves a scripted profile with no plays.
     ///
     /// - Returns: The profile.
@@ -48,7 +41,7 @@ struct AgentEnvironmentTests {
     func defaultsHaveTheirStatedValues() async throws {
         let profile = try await Self.makeProfile()
 
-        let environment = try await AgentEnvironment.make(profile: profile, skills: Self.makeEmptySkills())
+        let environment = try await AgentEnvironment.make(profile: profile, skills: SkillsRegistry.makeEmpty())
 
         #expect(environment.profile === profile)
         #expect(environment.workingDirectory == URL.currentDirectory())
@@ -70,7 +63,7 @@ struct AgentEnvironmentTests {
         tools.register(Self.probeToolName) { ProbeTool(name: Self.probeToolName) }
 
         let environment = try await AgentEnvironment.make(
-            profile: profile, skills: Self.makeEmptySkills(), workingDirectory: directory,
+            profile: profile, skills: SkillsRegistry.makeEmpty(), workingDirectory: directory,
             tools: tools, defaultSlot: .flash, maxConcurrentAgents: Self.customLimit,
             maxDepth: Self.customLimit, maxRetainedRuns: Self.customLimit,
             budget: { _ in nil })
@@ -91,7 +84,7 @@ struct AgentEnvironmentTests {
         let profile = try await Self.makeProfile()
 
         let environment = try await AgentEnvironment.make(
-            profile: profile, skills: Self.makeEmptySkills(), maxConcurrentAgents: 1,
+            profile: profile, skills: SkillsRegistry.makeEmpty(), maxConcurrentAgents: 1,
             maxDepth: 1, maxRetainedRuns: 0)
 
         #expect(environment.maxConcurrentAgents == 1)
@@ -105,7 +98,7 @@ struct AgentEnvironmentTests {
         await #expect(processExitsWith: .failure) {
             let profile = try await Self.makeProfile()
             _ = try await AgentEnvironment.make(
-                profile: profile, skills: Self.makeEmptySkills(), defaultSlot: .embedding)
+                profile: profile, skills: SkillsRegistry.makeEmpty(), defaultSlot: .embedding)
         }
     }
 
@@ -115,7 +108,7 @@ struct AgentEnvironmentTests {
         await #expect(processExitsWith: .failure) {
             let profile = try await Self.makeProfile()
             _ = try await AgentEnvironment.make(
-                profile: profile, skills: Self.makeEmptySkills(), maxConcurrentAgents: 0)
+                profile: profile, skills: SkillsRegistry.makeEmpty(), maxConcurrentAgents: 0)
         }
     }
 
@@ -124,7 +117,7 @@ struct AgentEnvironmentTests {
     func zeroDepthStopsTheProcess() async {
         await #expect(processExitsWith: .failure) {
             let profile = try await Self.makeProfile()
-            _ = try await AgentEnvironment.make(profile: profile, skills: Self.makeEmptySkills(), maxDepth: 0)
+            _ = try await AgentEnvironment.make(profile: profile, skills: SkillsRegistry.makeEmpty(), maxDepth: 0)
         }
     }
 
@@ -134,7 +127,7 @@ struct AgentEnvironmentTests {
         await #expect(processExitsWith: .failure) {
             let profile = try await Self.makeProfile()
             _ = try await AgentEnvironment.make(
-                profile: profile, skills: Self.makeEmptySkills(),
+                profile: profile, skills: SkillsRegistry.makeEmpty(),
                 maxRetainedRuns: Self.limitBelowRange)
         }
     }

@@ -75,7 +75,7 @@ enum SessionInstructionsFixture {
     ///   - skills: The skills registry.
     /// - Returns: The harness and its runner. The test deletes the harness.
     static func makeRunner(
-        registry: AgentRegistry, skills: SkillsRegistry = SkillsRegistry(roots: [], mode: .open)
+        registry: AgentRegistry, skills: SkillsRegistry = SkillsRegistry.makeEmpty()
     ) async throws -> (harness: AgentRunHarness, runner: AgentRunner) {
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([]), registry: registry, skills: skills)

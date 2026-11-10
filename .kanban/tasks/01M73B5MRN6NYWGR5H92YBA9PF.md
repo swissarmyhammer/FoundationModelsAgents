@@ -23,6 +23,31 @@ comments:
     - Normal dependency: root `swift build --build-tests` complete, zero warnings in our code (only the mlx "missing creator" note). `swift test`: 913 tests in 119 suites passed. IntegrationTests `swift build`: complete.
     - next: /review
   timestamp: 2026-11-10T18:36:38.137467+00:00
+- actor: claude-code
+  id: 01m73c4tw89ge9k0av04yn1eqc
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (04aa733). 3 findings (3 confirmed, 1 refuted). Tests/FoundationModelsAgentsTests/FindAgentsTests.swift:140, Tests/FoundationModelsAgentsTests/SkillsToolSharingTests.swift:163, Tests/FoundationModelsAgentsTests/Support/SessionInstructionsFixture.swift:78 (all reuse/reuse: use AgentEnvironmentTests.makeEmptySkills() in place of the inline empty SkillsRegistry).
+    - next: implement the 3 findings, then review again.
+  timestamp: 2026-11-10T18:39:52.712166+00:00
+- actor: claude-code
+  id: 01m73c57hbwt8j4yhygs2dn5ja
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 11 files; 19 SkillsRegistry calls get mode: .open; no-default build check passed
+    - test: green — root swift build --build-tests clean; swift test 913 passed in 119 suites; IntegrationTests build clean
+    - commit: 04aa733
+    - review: findings — Tests/FoundationModelsAgentsTests/FindAgentsTests.swift:140, Tests/FoundationModelsAgentsTests/SkillsToolSharingTests.swift:163, Tests/FoundationModelsAgentsTests/Support/SessionInstructionsFixture.swift:78
+  timestamp: 2026-11-10T18:40:05.675862+00:00
+- actor: claude-code
+  id: 01m73c97n1qkq9gkwg96v20bfz
+  text: |-
+    Findings fix: I moved the empty-registry helper from `AgentEnvironmentTests.makeEmptySkills()` to the new Support file `Support/SkillsRegistry+Empty.swift` as `SkillsRegistry.makeEmpty()`. Reason: two Support files (AgentRunHarness, SessionInstructionsFixture) must use it, and a Support file must not depend on one test suite. The user permitted this move. Each caller now uses `SkillsRegistry.makeEmpty()`: AgentEnvironmentTests (7 calls), FindAgentsTests, SkillsToolSharingTests (the argument), the default of `skills` in Support/SessionInstructionsFixture.makeRunner, and the default of `skills` in Support/AgentRunHarness.make (one more inline empty registry that the search found). A search of Tests/ finds `SkillsRegistry(roots: [], mode: .open)` only in the helper. The demo and IntegrationTests are not in the test target, thus their inline registries stay.
+
+    ### implement — changed
+    - evidence: 6 files — Tests/FoundationModelsAgentsTests/Support/SkillsRegistry+Empty.swift (new), AgentEnvironmentTests.swift, FindAgentsTests.swift, SkillsToolSharingTests.swift, Support/AgentRunHarness.swift, Support/SessionInstructionsFixture.swift. `swift build --build-tests`: complete, zero warnings in our code (only the mlx "missing creator" note). `swift test`: 913 tests in 119 suites passed.
+    - next: /review
+  timestamp: 2026-11-10T18:42:16.865428+00:00
 position_column: doing
 position_ordinal: '80'
 title: 'Give mode: explicitly at each SkillsRegistry init, for the required mode of FoundationModelsSkills (EXTRAS-12)'
@@ -44,3 +69,17 @@ FoundationModelsSkills main (73ebb7a) added `mode: ToolMode` (FoundationModelsEx
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass. #step1
+
+## Review Findings (2026-11-10 12:38)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 10 file(s) reviewed, 5 not reviewed.
+
+> 4 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 4 file(s)
+
+> 1 file(s) not reviewed — no validator matched:
+> - `README.md` — no validator matches this file
+
+- [x] `Tests/FoundationModelsAgentsTests/FindAgentsTests.swift:140` `reuse/reuse` — The new code writes SkillsRegistry(roots: [], mode: .open) inline. The test target already has a helper that makes this same empty registry. Writing it again means two copies of the empty-skills setup can drift apart. Replace the inline registry with `AgentEnvironmentTests.makeEmptySkills()`, as the test already does for `makeProfile()` on the same line.
+- [x] `Tests/FoundationModelsAgentsTests/SkillsToolSharingTests.swift:163` `reuse/reuse` — The new argument `SkillsRegistry(roots: [], mode: .open)` duplicates the existing empty-registry helper. The test needs no skills, so the helper fits exactly. Pass `AgentEnvironmentTests.makeEmptySkills()` in place of the inline registry.
+- [x] `Tests/FoundationModelsAgentsTests/Support/SessionInstructionsFixture.swift:78` `reuse/reuse` — The default argument for `skills` repeats the empty SkillsRegistry construction. The existing helper in the same test module already makes this value. Set the default to `AgentEnvironmentTests.makeEmptySkills()`.

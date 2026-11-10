@@ -160,7 +160,7 @@ struct SkillsToolSharingTests {
             var tools = ToolCatalog()
             tools.register(Self.skillsToolName) { ProbeTool(name: Self.skillsToolName) }
             _ = try await AgentEnvironment.make(
-                profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry(roots: [], mode: .open),
+                profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry.makeEmpty(),
                 tools: tools)
         }
     }
