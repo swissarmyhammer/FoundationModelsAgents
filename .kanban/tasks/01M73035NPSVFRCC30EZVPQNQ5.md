@@ -18,10 +18,27 @@ comments:
     - evidence: 14 files — DelegatingWithTheAgentsTool.md (new section "Writing agents", table rows, verb aliases, mount list, child-run note), LoadingTheCatalog.md, FoundationModelsAgents.md (AgentWriteLayer in topics), RunningAnAgent.md, README.md, docs/skills-and-agents.md, DocumentationTests.swift, and doc comments only in AgentsGraph.swift, AgentEnvironment.swift, AgentRun.swift, AgentRunRestore.swift, AgentRunRestore+Interrupted.swift, AgentRunner.swift, AgentsTool.swift. `xcrun docc convert ... --warnings-as-errors`: exit 0, 0 diagnostics (29 errors on main before). `swift test`: 913 tests in 119 suites passed, 0 failures, no warning in our code.
     - next: /review
   timestamp: 2026-11-10T17:26:08.412090+00:00
+- actor: claude-code
+  id: 01m7382gm1945dmdreqtwd7acy
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (d87a59b): 0 findings, 0 confirmed, 0 refuted. No validator matches the 6 Markdown files of this change (README.md, docs/skills-and-agents.md, and 4 files in FoundationModelsAgents.docc). The engine did not review these files. The .reviewignore rule excludes the 2 .kanban files.
+    - next: none. The task is in done.
+  timestamp: 2026-11-10T17:28:42.369053+00:00
+- actor: claude-code
+  id: 01m7384htzgv411a2bf570tv0t
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — DelegatingWithTheAgentsTool.md, LoadingTheCatalog.md, FoundationModelsAgents.md, RunningAnAgent.md, README.md, docs/skills-and-agents.md, DocumentationTests.swift; doc comments only in 7 Swift files
+    - test: green — swift build --build-tests 0 warnings in our code; swift test 913 passed in 119 suites (ReadmeExampleTests is in it)
+    - docc: xcrun docc convert --warnings-as-errors exit 0, 0 diagnostics (checked again by the orchestrator)
+    - commit: d87a59b
+    - review: clean — 0 findings; the 6 Markdown files have no validator, so the engine did not read them
+  timestamp: 2026-11-10T17:29:49.151296+00:00
 depends_on:
 - 01M7302JRZ9TWN09M5V08FZTZN
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: ff8e80
 title: 'AG-9: document the write operations of the agents tool'
 ---
 ## What
