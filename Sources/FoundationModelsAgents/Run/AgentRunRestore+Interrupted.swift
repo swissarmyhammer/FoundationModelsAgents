@@ -41,7 +41,7 @@ public struct FailedChild: Sendable, Equatable {
     }
 }
 
-/// The result of ``AgentRunner/restoreInterrupted(of:caller:directory:)``.
+/// The result of ``AgentRunner/restoreInterrupted(of:caller:directory:prompts:)``.
 public struct RestoreReport: Sendable {
     /// The restored runs, not started, in tree order: each run comes before its children.
     public let restored: [AgentRun]

@@ -106,7 +106,7 @@ public actor AgentRunner {
 
     /// Makes a runner. It stores its inputs and does no I/O.
     ///
-    /// The init also makes ``agentSearch`` over the current catalog of
+    /// The init also makes `agentSearch` over the current catalog of
     /// `registry`. The search embeds nothing here, and starts one task that
     /// follows `registry.onReload`. Thus a runner made before the first
     /// `registry.load()` gets the catalog of that load.
@@ -218,7 +218,7 @@ public actor AgentRunner {
     ///
     /// The session is the recorded session of the child, not a new one. Its
     /// tools and instructions come from the current definition and catalog
-    /// (``AgentSessionMaker/resolveSetup(for:family:)``). The run has the mail
+    /// (`AgentSessionMaker.resolveSetup(for:family:)`). The run has the mail
     /// route to its caller: the caller session need not be live. The restore
     /// does not count against ``AgentEnvironment/maxConcurrentAgents``, and it
     /// checks ``AgentEnvironment/maxDepth``. The depth of the child is the
@@ -226,17 +226,21 @@ public actor AgentRunner {
     ///
     /// The run gets one first message, the text that tells it to read its
     /// transcript and go on. Choose the child with
-    /// ``AgentRunRestore/select(children:statuses:)``.
+    /// ``AgentRunRestore/select(children:)``.
     ///
     /// - Parameters:
     ///   - child: The recorded child.
     ///   - prompt: `$ARGUMENTS` of the body of the agent, or `nil` for the
-    ///     recorded first prompt of the child (``RecordedChild/firstPrompt``),
+    ///     recorded first prompt of the child (`RecordedChild.firstPrompt`),
     ///     and an empty text when the record holds none.
     ///   - deferStart: `true` to start the run at ``AgentRun/resume()``.
     ///   - claiming: The runs of this child, as a caller, that it claims in its
     ///     journal: the keys of its own interrupted children. A claimed run gets no
     ///     lost event, and the restored child of that run completes it.
+    ///   - caller: The run of the caller session when it is an agent run of
+    ///     this runner, else `nil`. With `nil`, the runner uses the open run of
+    ///     the caller session, if it holds one. A run of a different session
+    ///     gives ``AgentRunRestoreError/callerMismatch``.
     /// - Returns: The run, in operation.
     /// - Throws: ``AgentRunRestoreError``.
     public func restore(
@@ -257,7 +261,7 @@ public actor AgentRunner {
         }
     }
 
-    /// The work of ``restore(_:prompt:deferStart:claiming:)``.
+    /// The work of ``restore(_:prompt:deferStart:claiming:caller:)``.
     private func restoreChild(
         _ child: RecordedChild, prompt: String?, deferStart: Bool, claiming: Set<RunKey>, caller: AgentRun?
     ) async throws(AgentRunRestoreError) -> AgentRun {

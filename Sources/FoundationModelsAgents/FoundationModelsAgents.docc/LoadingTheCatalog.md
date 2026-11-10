@@ -195,6 +195,16 @@ for await catalog in agents.onReload {
 }
 ```
 
+### Writes of the agents tool
+
+The `add agent`, `edit agent`, and `remove agent` operations of the `agents`
+tool write into the local layers of the registry: the user layer, or the
+project layer when the call gives `layer: project` (``AgentWriteLayer``). A
+`.defaults` layer and a marketplace layer are read-only. The registry
+reloads after each write, thus the next `catalog()` holds the change, and
+``AgentRegistry/onReload`` publishes the new catalog. See "Writing agents"
+in <doc:DelegatingWithTheAgentsTool>.
+
 ### Read the catalog
 
 ``AgentCatalog`` gives:

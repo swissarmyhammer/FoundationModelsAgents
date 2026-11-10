@@ -14,9 +14,13 @@ An agent run is a new Router session in the same process. The run gets a task,
 works in the background with its own context and its own tools, and gives back
 one final text when it ends. While the run works, it and its caller can send
 messages to each other. The caller keeps its own context. A model starts
-agents through one tool, `agents`, with seven operations: `list agents`,
-`find agents`, `start agent`, `check agent`, `cancel agent`, `send agent`, and
-`send caller` (`send parent` is the same call). `find agents` searches the
+agents through one tool, `agents`, with ten operations on agents and runs:
+`list agents`, `find agents`, `start agent`, `check agent`, `cancel agent`,
+`add agent`, `edit agent`, `remove agent`, `send agent`, and `send caller`
+(`send parent` is the same call). The tool also has the schedule operations.
+`add agent`, `edit agent`, and `remove agent` write an agent folder in the
+user layer, or in the project layer with `layer: project`, and the registry
+reloads after each write. `find agents` searches the
 descriptions of the agents, and a small model picks the best matches, as the
 `search skill` operation of the `skills` tool does. An agent whose `tools` key
 lists `Agent` gets each operation, thus agents can start agents. Each other

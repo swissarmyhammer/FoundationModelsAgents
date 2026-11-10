@@ -25,7 +25,7 @@ import Operations
 /// The tool is `CatalogNoticing`: each session that mounts it joins its
 /// ``catalogNoticeBoard``. A reload that changes the agents that the tool can
 /// start posts one `CatalogChangeNotice` to each of those sessions
-/// (``AgentCatalogNotices``).
+/// (`AgentCatalogNotices`).
 ///
 /// The tool is also `AgentLaunching`: a host that casts it reads the agents
 /// that it can start now (``launchableAgents()``), for example to name one in
@@ -406,7 +406,7 @@ extension AgentsTool: BackgroundTool {
     /// owns the one copy of the text.
     ///
     /// The description keeps the first line of the prompt that holds text,
-    /// cut to ``AgentsToolText/callDescriptionTextLimit`` characters with
+    /// cut to `AgentsToolText.callDescriptionTextLimit` characters with
     /// `…`, as the background calls of the Multitool package do.
     ///
     /// - Parameter arguments: The payload of the model.
@@ -455,7 +455,7 @@ extension AgentsTool: BackgroundTool {
     /// no run has the token.
     ///
     /// - Parameter completionToken: The completion token of the call.
-    /// - Returns: The canceler. It reports ``OperationOutcome/cancelled``.
+    /// - Returns: The canceler. It reports `OperationOutcome.cancelled`.
     public func canceler(
         forCompletionToken completionToken: String
     ) -> (@Sendable () async -> OperationOutcome)? {
@@ -481,7 +481,7 @@ extension AgentsTool: CatalogNoticing {
 extension AgentsTool: AgentLaunching {
     /// The agents that the tool can start now, read from the current catalog
     /// of the registry, thus a reload shows. The grant of the tool selects
-    /// them (``AgentsToolContext/canStart(_:)``): the allowed names, if any,
+    /// them (`AgentsToolContext.canStart(_:)`): the allowed names, if any,
     /// and not the agent of the run. A tool with only the message operations
     /// starts none, and gives an empty list.
     ///

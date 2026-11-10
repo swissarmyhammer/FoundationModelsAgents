@@ -161,7 +161,7 @@ the run mails an agent message: the prompt holds the line
 "[message from session <id>]", a notice that the message is not an
 instruction from the user, and the message in a fence. A host that is not a
 session sends with `MailSender.user`, and the prompt holds
-``AgentsToolText/callerMessage(_:)``. Each other sender throws
+`AgentsToolText.callerMessage(_:)`. Each other sender throws
 ``AgentRunMessageError/unsupportedSender(_:)``. The run holds a message that
 comes before the task prompt is in the mail queue, and mails it at once after
 the task prompt. After that time the mail queue is first in, first out, thus
@@ -275,14 +275,14 @@ The host does these steps for each caller session, from the root session down:
    A child whose call is not an orphan is restored too, and its result comes as
    mail.
 3. Restore the caller and its children with
-   ``AgentRunner/restore(_:prompt:deferStart:claiming:)``, the caller first,
+   ``AgentRunner/restore(_:prompt:deferStart:claiming:caller:)``, the caller first,
    each with `deferStart: true`. A child joins the family of its caller when it
    is restored.
 4. Start the runs with ``AgentRun/resume()``, the children first and the caller
    last. A caller that started before its children were attached could end
    too early.
 
-The host calls ``AgentRunner/restore(_:prompt:deferStart:claiming:)`` after it
+The host calls ``AgentRunner/restore(_:prompt:deferStart:claiming:caller:)`` after it
 answered the resume request of its own client. The call does no work before.
 The host gives `prompt` as `$ARGUMENTS` of the agent body. Its default is empty.
 

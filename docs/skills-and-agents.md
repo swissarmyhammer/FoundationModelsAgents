@@ -51,7 +51,9 @@ a caller can send messages to that caller. A run that a `start agent` call
 started has a caller, thus it gets an `agents` tool with `send agent` and
 `send caller` also when its `tools` key does not list `Agent`. A host-started
 run has no caller, and with no `Agent` entry it gets no `agents` tool.
-`disallowedTools: Agent` removes the tool in each case. The table of the
+`disallowedTools: Agent` removes the tool in each case. A run with an
+`Agent` entry under the depth limit gets each operation, also `add agent`,
+`edit agent`, and `remove agent`, thus it can write agents. The table of the
 operations of the tool of a run is in
 [DelegatingWithTheAgentsTool.md](../Sources/FoundationModelsAgents/FoundationModelsAgents.docc/DelegatingWithTheAgentsTool.md).
 
@@ -82,7 +84,8 @@ surface transfer. Decisions about text in the current context do not.
 | Argument substitution and quarantine | `$ARGUMENTS` only: this package puts the prompt into the body as a quarantined span. |
 | Shell injection; `RenderPolicy` | Not copied. A system prompt is static. |
 | `preload: true` into the host's instructions | Not copied. The `skills:` key preloads into the agent's own context. |
-| Resources and `run script` under the skill folder | The agent folder holds resources: each file of the folder other than `AGENT.md`. `AgentDefinition.folderURL` gives the folder of the winning layer. No operation gives the resources yet, and there is no `run script`. |
+| Resources and `run script` under the skill folder | The agent folder holds resources: each file of the folder other than `AGENT.md`. `AgentDefinition.folderURL` gives the folder of the winning layer. No operation reads the resources yet, and there is no `run script`. `edit agent` with a `document` path writes a resource. |
+| `add skill`, `edit skill`, `remove skill` with the `layer` option `user` or `project` | Same: `add agent`, `edit agent`, and `remove agent` of the `agents` tool, with the same `layer` values and the default `user`. The registry reloads after each write. |
 | `search skill` | Replaced by D61: `find agents` of the `agents` tool. See "Find an agent" below. `list agents` still gives the full catalog. |
 | `OperationDescribing`, `ForkableTool` | Not copied. |
 | A slash command delivers the raw body as a prompt | Different: a slash command starts a run. |

@@ -555,7 +555,7 @@ public final class AgentRun: Sendable {
         storage.withLock { $0.heldBegin = (request, environment) }
     }
 
-    /// Starts a run that waits for its start (``holdStart(_:environment:)``).
+    /// Starts a run that waits for its start (`holdStart(_:environment:)`).
     /// A host restores a caller and its children first, then resumes them, thus
     /// the caller does not end before its children are attached. The call does
     /// nothing for a run that started, and for a cancelled run.
@@ -702,7 +702,7 @@ public final class AgentRun: Sendable {
     /// its task prompt, and while it waits for its children. The session
     /// then answers the message before the run ends, because a message that
     /// the run accepted keeps it from the idle end
-    /// (``acceptedMessagesIfIdle(on:)``, ``settle(idle:acceptedMessages:)``).
+    /// (`acceptedMessagesIfIdle(on:)`, `settle(idle:acceptedMessages:)`).
     ///
     /// The sender gives the kind of the mail:
     ///
@@ -711,16 +711,16 @@ public final class AgentRun: Sendable {
     ///   before the content, and fences the content as untrusted input in the
     ///   prompt, thus the run adds no prefix of its own.
     /// - `MailSender.user`: a host that is not a session. The mail is a user
-    ///   message with the prompt ``AgentsToolText/callerMessage(_:)``,
+    ///   message with the prompt `AgentsToolText.callerMessage(_:)`,
     ///   because no Router line names a user.
     /// - Each other sender throws ``AgentRunMessageError/unsupportedSender(_:)``,
     ///   and the run mails nothing.
     ///
-    /// The run makes the ``Mail`` when it accepts the message. The task
+    /// The run makes the `Mail` when it accepts the message. The task
     /// prompt is always the first mail of the session. Before the task
     /// prompt is in the mail queue, the run holds the mail
-    /// (``CallerMessageGate``). The run mails each held mail, in order, at
-    /// once after it mails the task prompt (``releaseHeldMessages(to:)``).
+    /// (`CallerMessageGate`). The run mails each held mail, in order, at
+    /// once after it mails the task prompt (`releaseHeldMessages(to:)`).
     /// After that time the mail queue is first in, first out, thus it keeps
     /// the order. A held message keeps the run from the idle end as a
     /// message on its way to the queue does. A run that is cancelled before
@@ -734,7 +734,7 @@ public final class AgentRun: Sendable {
     ///   - message: The text of the caller.
     ///   - sender: The sender of the message: `.session(id)` for a session,
     ///     or `.user` for a host that is not a session.
-    /// - Returns: ``AgentRunMessageOutcome/delivered`` when the run accepted
+    /// - Returns: ``AgentRunMessageOutcome/delivered(_:)`` when the run accepted
     ///   the message: the session got it, or the run holds it.
     ///   ``AgentRunMessageOutcome/ended(_:)`` with the final state when the
     ///   run started to end before the message: its answers ended, a caller

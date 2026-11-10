@@ -35,7 +35,7 @@ public enum AgentRunRestore {
     /// a shutdown or a crash, whatever the journal of its caller says.
     ///
     /// - Parameter children: The recorded children of the caller
-    ///   (``RouterSessionDirectory/recordedChildren(of:)``).
+    ///   (`RouterSessionDirectory.recordedChildren(of:)`).
     /// - Returns: The children with no ended marker, in the order of
     ///   `children`.
     public static func select(children: [RecordedChild]) -> [RecordedChild] {
@@ -45,7 +45,7 @@ public enum AgentRunRestore {
     /// Gives the keys of the calls that a restored caller claims in its
     /// journal: the call of each child that is an orphan there. A claimed call
     /// gets no lost event, and the restored child completes it
-    /// (``AgentRunner/restore(_:prompt:deferStart:claiming:)``).
+    /// (``AgentRunner/restore(_:prompt:deferStart:claiming:caller:)``).
     ///
     /// A child whose call is not an orphan (the journal has a terminal event
     /// for it) is not claimable. The host restores such a child anyway, and
@@ -54,7 +54,7 @@ public enum AgentRunRestore {
     /// - Parameters:
     ///   - children: The children to restore.
     ///   - statuses: The run statuses of the caller
-    ///     (``RouterSessionDirectory/runStatuses(of:)``). A child with no status
+    ///     (`RouterSessionDirectory.runStatuses(of:)`). A child with no status
     ///     has no event in the journal, thus its call is claimable too. When the
     ///     read failed, the host must not call this: it claims nothing.
     /// - Returns: The keys to pass as `claiming`.
@@ -67,7 +67,7 @@ public enum AgentRunRestore {
     }
 }
 
-/// An error of ``AgentRunner/restore(_:prompt:deferStart:claiming:)``. The
+/// An error of ``AgentRunner/restore(_:prompt:deferStart:claiming:caller:)``. The
 /// restore starts no run.
 public enum AgentRunRestoreError: Error, Sendable, Equatable {
     /// The host called ``AgentRunner/stop()``.

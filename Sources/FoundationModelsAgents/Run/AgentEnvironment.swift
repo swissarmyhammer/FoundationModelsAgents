@@ -190,7 +190,7 @@ public struct AgentEnvironment: Sendable {
     /// The observer of the session events of each run, or `nil` for no
     /// observer. `nil` is the default.
     ///
-    /// The observer gets each ``SessionOutput``: the event and its origin.
+    /// The observer gets each `SessionOutput`: the event and its origin.
     /// Each run calls the observer, the child runs too. The run reads the
     /// session-event subscription of its session in one loop, and calls the
     /// observer synchronously in that loop, first for each event, before the
@@ -199,7 +199,7 @@ public struct AgentEnvironment: Sendable {
     /// run while it runs: it must return quickly, and it must not wait for
     /// the run. Two runs can call it at the same time.
     ///
-    /// The open ``SessionEvent/toolInvocation(_:toolCallID:)`` record of a
+    /// The open `SessionEvent.toolInvocation(_:toolCallID:)` record of a
     /// tool run carries the completion token of that tool run. The Router
     /// gives the open record to the subscription before the body of the
     /// tool starts. The loop of the run and the body of the tool are two

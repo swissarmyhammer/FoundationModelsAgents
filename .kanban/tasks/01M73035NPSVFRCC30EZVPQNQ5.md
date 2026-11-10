@@ -1,10 +1,27 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m737xq7tjcdeagr862hnj91w
+  text: |-
+    Research and implementation notes:
+    - CI does not run DocC: ci.yml gives no `docc-target` input to the shared workflow, and Package.swift has no swift-docc-plugin, thus `swift package generate-documentation` is not available. The DocC check is the method of the earlier documentation task: `swift package dump-symbol-graph --minimum-access-level public`, then `xcrun docc convert <catalog> --additional-symbol-graph-dir <dir with FoundationModelsAgents*.symbols.json> --warnings-as-errors`.
+    - On main, that build gave 29 errors before this task: symbol links in public doc comments and in RunningAnAgent.md to internal or external symbols (AgentsToolText, Mail, SessionOutput, RouterSessionDirectory, OperationOutcome, and others), the old signature `restore(_:prompt:deferStart:claiming:)` (now with `caller:`), `restoreInterrupted(of:caller:directory:)` (now with `prompts:`), `select(children:statuses:)` (the real one is `select(children:)`), `AgentRunMessageOutcome/delivered` (now `delivered(_:)`), a missing `caller` parameter doc of `AgentRunner.restore`, and a double-backtick example sentence in DelegatingWithTheAgentsTool.md. The acceptance criterion needs a build with no warning, thus I changed each such link to a code span or to the correct symbol, and documented `caller`. Only doc comments changed in the Swift sources.
+    - The real behavior that the docs state: `add agent` of `default` writes the root AGENT.md (it is not edit only: add works when the layer has no root AGENT.md); `remove agent` of `default` gives `cannotRemoveDefault`. `create`/`new` map to add through the default aliases of the resolver. A skipped add (no frontmatter) gives a diagnostic of the id, thus it DOES give a change event; the no-event cases are only the three that the tests show: an edit of a document that is not AGENT.md, an edit with the same text, an edit of a copy that a higher layer hides.
+    - DocumentationTests: `toolOperations` now holds add/edit/remove agent. RED: 3 issues on DelegatingWithTheAgentsTool before the doc change.
+  timestamp: 2026-11-10T17:26:05.306195+00:00
+- actor: claude-code
+  id: 01m737xt8whmxnndrfnpwnws5z
+  text: |-
+    ### implement — changed
+    - evidence: 14 files — DelegatingWithTheAgentsTool.md (new section "Writing agents", table rows, verb aliases, mount list, child-run note), LoadingTheCatalog.md, FoundationModelsAgents.md (AgentWriteLayer in topics), RunningAnAgent.md, README.md, docs/skills-and-agents.md, DocumentationTests.swift, and doc comments only in AgentsGraph.swift, AgentEnvironment.swift, AgentRun.swift, AgentRunRestore.swift, AgentRunRestore+Interrupted.swift, AgentRunner.swift, AgentsTool.swift. `xcrun docc convert ... --warnings-as-errors`: exit 0, 0 diagnostics (29 errors on main before). `swift test`: 913 tests in 119 suites passed, 0 failures, no warning in our code.
+    - next: /review
+  timestamp: 2026-11-10T17:26:08.412090+00:00
 depends_on:
 - 01M7302JRZ9TWN09M5V08FZTZN
-position_column: todo
-position_ordinal: '8280'
+position_column: doing
+position_ordinal: '80'
 title: 'AG-9: document the write operations of the agents tool'
 ---
 ## What

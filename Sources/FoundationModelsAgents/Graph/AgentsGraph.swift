@@ -121,7 +121,7 @@ public final class AgentsGraph: GraphQLEndpoint {
     /// Runs one GraphQL document.
     ///
     /// Each field of the document reads one catalog and the cursor of its
-    /// newest change (``AgentsGraphContext``).
+    /// newest change (`AgentsGraphContext`).
     ///
     /// - Parameters:
     ///   - query: The GraphQL document.
