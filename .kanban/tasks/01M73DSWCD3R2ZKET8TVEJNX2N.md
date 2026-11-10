@@ -34,6 +34,35 @@ comments:
     - evidence: `swift build --build-tests` no error, no warning in our code (only the known mlx "missing creator" note); `swift test` 933 tests in 121 suites passed.
     - next: /review
   timestamp: 2026-11-10T19:24:22.881487+00:00
+- actor: claude-code
+  id: 01m73ezycvmy2sq6nq37evx06z
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (28808c9): 1 finding (1 confirmed, 2 refuted) — Sources/FoundationModelsAgents/Run/AgentRunRestore+Interrupted.swift:313
+    - next: implement the finding (replace `try?` with do/catch that logs a warning, keep the fallback), then review again.
+  timestamp: 2026-11-10T19:29:38.203387+00:00
+- actor: claude-code
+  id: 01m73f0azpd8bj6acf5h7rb9n8
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — AgentTaskPromptRecord.swift (new), AgentRun.swift, AgentRun+Logging.swift, AgentRunRestore+Interrupted.swift, AgentsTelemetry.swift, README.md, 4 test files
+    - test: green — root swift build --build-tests clean; swift test 933 passed in 121 suites; IntegrationTests build clean; RestoreEndToEndTests x3 stable
+    - commit: 28808c9
+    - review: findings — Sources/FoundationModelsAgents/Run/AgentRunRestore+Interrupted.swift:313
+  timestamp: 2026-11-10T19:29:51.094361+00:00
+- actor: claude-code
+  id: 01m73f77dxzv1hrezxjrvxka7y
+  text: |-
+    Review finding fixed (not committed).
+    - `recordedPrompt` in AgentRunRestore+Interrupted.swift had two `try?` reads: the task prompt record and the Router first prompt. Both now go through `readPrompt(of:record:read:)`: a do/catch that calls `logPromptReadFailure` and gives `nil`, thus the restore uses the next source. The fallback order is the same.
+    - The warning record has the message `AgentsTelemetry.LogMessage.recordReadFailed`, the new metadata key `LogMetadataKey.recordName` (`task-prompt.md` or `router first prompt`), the session id, the caller session id, the error type and the error text, in the style of `logClaimReadFailure`. It never holds the prompt text.
+    - AgentTaskPromptRecord.swift has no `try?`. Its read throws, and the caller now logs the error.
+    - Test: `unreadableTaskPromptRecordIsLoggedAndSkipped` in RestoreEndToEndTests. It writes bytes that are not UTF-8 to the caller record, restores, and expects one warning, no failed child, and no instructions divergence (the Router prompt was used). RED: 0 warnings. GREEN after the fix. `cutChain` takes an optional `logger` for this test.
+
+    ### implement — changed
+    - evidence: AgentRunRestore+Interrupted.swift, AgentsTelemetry.swift, RestoreEndToEndTests.swift; `swift build --build-tests` no error, no warning in our code (only the known mlx "missing creator" note); `swift test` 934 tests in 121 suites passed.
+    - next: /review
+  timestamp: 2026-11-10T19:33:36.829762+00:00
 position_column: doing
 position_ordinal: '80'
 title: A run records its task prompt before it is announced, so a kill after the announcement restores it
@@ -57,3 +86,15 @@ Defect from FoundationModelsACPAgent (agreed with testudoapp-75). A run is annou
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass. #step1 #bug
+
+## Review Findings (2026-11-10 13:27)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 9 file(s) reviewed, 3 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+> 1 file(s) not reviewed — no validator matched:
+> - `README.md` — no validator matches this file
+
+- [x] `Sources/FoundationModelsAgents/Run/AgentRunRestore+Interrupted.swift:313` `completeness/public-output-contract` — The task prompt record read is wrapped in `try?`, so a record that exists but cannot be read (for example, a file that is not UTF-8 text, which throws `ReadError.notText`) is dropped with no log. The restore then silently falls back to the listed or Router first prompt. The file already logs a comparable read failure (`logClaimReadFailure`), so an operator has no way to see that the intended record was ignored. Replace `try?` with a do/catch that logs the failure at warning level (the record name and the session id, never the record text) and then uses the next source. Keep the fallback, so the restore still goes on.

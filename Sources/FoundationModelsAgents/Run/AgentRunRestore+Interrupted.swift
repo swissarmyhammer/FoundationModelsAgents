@@ -292,7 +292,8 @@ extension AgentRunner {
 
     /// Gives each child its recorded task prompt as its first prompt: the record of its run
     /// first, then the first prompt of the listing, then the first prompt that the Router reads
-    /// for the session. A read that fails gives no prompt, and the next source is used.
+    /// for the session. A read that fails is logged at warning level, gives no prompt, and the
+    /// next source is used.
     private func withFirstPrompts(_ children: [RecordedChild], source: RestoreSource) async
         -> [RecordedChild]
     {
@@ -310,13 +311,51 @@ extension AgentRunner {
     ///   - source: The reads of the restore.
     /// - Returns: The prompt, or `nil` when no source holds one.
     private func recordedPrompt(of child: RecordedChild, source: RestoreSource) async -> String? {
-        if let recorded = try? await source.taskPrompt(child.sessionID) {
+        if let recorded = await readPrompt(
+            of: child, record: AgentTaskPromptRecord.fileName, read: source.taskPrompt)
+        {
             return recorded
         }
         if let listed = child.firstPrompt {
             return listed
         }
-        return try? await source.firstPrompt(child.sessionID)
+        return await readPrompt(of: child, record: Self.routerFirstPromptRecordName, read: source.firstPrompt)
+    }
+
+    /// The record name of the first prompt that the Router recorded for a session, in the log
+    /// record of a read that failed.
+    private static let routerFirstPromptRecordName = "router first prompt"
+
+    /// Reads one prompt record of `child`. A read that fails is logged, and gives no prompt, thus
+    /// the restore uses the next source.
+    ///
+    /// - Parameters:
+    ///   - child: A recorded child.
+    ///   - record: The name of the record, for the log record of a read that fails.
+    ///   - read: The read of the record.
+    /// - Returns: The prompt, or `nil` when the record holds none or cannot be read.
+    private func readPrompt(
+        of child: RecordedChild, record: String, read: @Sendable (ULID) async throws -> String?
+    ) async -> String? {
+        do {
+            return try await read(child.sessionID)
+        } catch {
+            logPromptReadFailure(of: child, record: record, error: error)
+            return nil
+        }
+    }
+
+    /// Writes the record of a prompt record that exists but cannot be read. The record holds the
+    /// name of the record, the ids of the sessions and the error, never the text of the prompt.
+    private func logPromptReadFailure(of child: RecordedChild, record: String, error: any Error) {
+        var metadata: Logger.Metadata = [
+            AgentsTelemetry.LogMetadataKey.recordName: .string(record),
+            AgentsTelemetry.LogMetadataKey.sessionID: .string(child.sessionID.description),
+            AgentsTelemetry.LogMetadataKey.callerSessionID: .string(child.parentSessionId.description),
+            AgentsTelemetry.LogMetadataKey.errorType: .string(String(describing: type(of: error))),
+        ]
+        metadata["error"] = .string(String(describing: error))
+        environment.makeRunLogger().warning("\(AgentsTelemetry.LogMessage.recordReadFailed)", metadata: metadata)
     }
 
     /// The selected children of `session`. A failed read gives none and goes in the report.

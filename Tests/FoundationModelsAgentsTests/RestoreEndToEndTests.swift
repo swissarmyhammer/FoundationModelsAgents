@@ -2,6 +2,8 @@ import Foundation
 @testable import FoundationModelsAgents
 import FoundationModelsExtras
 import FoundationModelsRouter
+import Logging
+import TelemetryTestSupport
 import Testing
 import ULID
 
@@ -95,10 +97,13 @@ struct RestoreEndToEndTests {
     ///     prompt, as `restoreInterrupted` restores it.
     ///   - orderlyQuit: `true` to suspend every session, stop the runner, and close the root
     ///     session, as the host does on a normal quit.
+    ///   - logger: The logger of each run of the two lives, or `nil` (the default) for a new
+    ///     logger for each run.
     /// - Returns: The cut chain.
     /// - Throws: The error of the setup.
     private static func cutChain(
-        holdRestoredLeaf: Bool = false, orderlyQuit: Bool = false, continuing: Bool = false
+        holdRestoredLeaf: Bool = false, orderlyQuit: Bool = false, continuing: Bool = false,
+        logger: Logger? = nil
     ) async throws -> Cut {
         let leafGate = ScriptedGate()
         let restoredLeafGate = ScriptedGate()
@@ -135,7 +140,8 @@ struct RestoreEndToEndTests {
                 rootPlay, callerPlay, middlePlay, leafPlay,
             ])
         }
-        let harness = try await AgentsToolHarness.make(script: script, registry: AgentRegistry(layers: [layer.layer]))
+        let harness = try await AgentsToolHarness.make(
+            script: script, registry: AgentRegistry(layers: [layer.layer]), telemetry: HarnessTelemetry(logger: logger))
         let root = harness.makeRootSession(instructions: NestedRunTests.rootKey)
         _ = try await root.respond(to: NestedRunTests.rootPrompt)
         try await NestedRunTests.arrival(ofPromptContaining: leafKey, in: script)
@@ -595,6 +601,38 @@ struct RestoreEndToEndTests {
         report.resumeAll()
         cut.leafGate.open()
         #expect(try await report.restored[0].result().contains("e2e-middle"))
+    }
+
+    @Test("a task prompt record that cannot be read logs one warning, and the restore uses the next prompt source")
+    func unreadableTaskPromptRecordIsLoggedAndSkipped() async throws {
+        let (report, warnings) = try await TelemetryCapture.run(forbidding: []) { context in
+            let cut = try await Self.cutChain(continuing: true, logger: context.logger)
+            defer {
+                try? cut.harness.delete()
+                try? cut.layer.delete()
+            }
+            // A record that is not UTF-8 text cannot be read. The Router still holds the first
+            // prompt of the caller.
+            let record = cut.recordingRoot
+                .appendingPathComponent(cut.callerID.description, isDirectory: true)
+                .appendingPathComponent(AgentTaskPromptRecord.fileName, isDirectory: false)
+            try Data([0xFF, 0xFE, 0xC3, 0x28]).write(to: record)
+
+            let report = await Self.secondRunner(cut).restoreInterrupted(
+                of: cut.rootID, caller: nil, directory: cut.directory)
+            let warnings = context.logRecords.filter {
+                "\($0.message)" == AgentsTelemetry.LogMessage.recordReadFailed && $0.level == .warning
+            }
+            let callerRun = try #require(report.restored.first { $0.id == cut.callerID })
+            #expect(try !Self.restoreChangedInstructions(of: callerRun))
+            report.resumeAll()
+            cut.leafGate.open()
+            _ = try await callerRun.result()
+            return (report, warnings)
+        }
+
+        #expect(report.failed.isEmpty)
+        #expect(warnings.count == 1)
     }
 
     @Test("resumeAll starts the children before their callers")

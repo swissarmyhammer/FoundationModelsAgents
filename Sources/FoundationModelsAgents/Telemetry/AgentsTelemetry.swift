@@ -131,6 +131,10 @@ enum AgentsTelemetry {
         /// value is an id, not content.
         static let sessionID = prefix + "session.id"
 
+        /// The name of a record that the restore could not read, for example the name of the file
+        /// of the task prompt record. The value is a name, not content.
+        static let recordName = prefix + "restore.record"
+
         /// The id of a scheduled agent. The value is an id, not content.
         static let scheduleID = prefix + "schedule.id"
 
@@ -223,6 +227,10 @@ enum AgentsTelemetry {
         /// The message of the record that the restore writes when it cannot read the journal
         /// or the children of a session. The restore claims nothing for that session.
         static let claimReadFailed = SpanName.run + " could not read the claims of a session"
+
+        /// The message of the record that the restore writes when a record of the task prompt of a
+        /// session exists but cannot be read. The restore then uses the next source of the prompt.
+        static let recordReadFailed = SpanName.run + " could not read a prompt record of a session"
 
         /// The message of the record that a run writes when it cannot write the record of its task
         /// prompt (`AgentTaskPromptRecord`). A restore then reads the first prompt that the Router
