@@ -35,17 +35,27 @@ extension AgentRun {
         report(of: state)
     }
 
-    /// The sentence that leads a repeated `check agent` text of a run in
-    /// operation when nothing changed after the last check of the same
-    /// caller.
-    static let unchangedCheckSentence = "You checked this agent before, and nothing changed."
+    /// The whole text of a repeated `check agent` of the run in operation by
+    /// a caller that got the same text before: short, with no progress, and
+    /// with the step that the model takes next. Seen live in the bench run
+    /// planner24 (django__django-14752): the root checked two running
+    /// planners in alternation 60 times in one answer, while each answer gave
+    /// the full text of the run again.
+    var repeatedCheckText: String {
+        """
+        You checked agent \(agent.id) (\(id)) before, and nothing changed: it is still working. \
+        Do not check it again. Its result will arrive in this conversation as a message, and no tool \
+        can make it come sooner. Go on with work that does not need it. If no work is left, post your \
+        status as plain text now: what you wait on.
+        """
+    }
 
     /// Gives the text of ``report`` for a `check agent` call by `caller`.
     ///
     /// The run keeps the last text of the run in operation that each caller
     /// got (``recordCheck(_:by:)``). When `caller` gets the same text again,
-    /// thus nothing changed after its last check, the text starts with
-    /// ``unchangedCheckSentence``. The text of a run that ended does not
+    /// thus nothing changed after its last check, the check gives
+    /// ``repeatedCheckText`` in place of the text. The text of a run that ended does not
     /// change.
     ///
     /// - Parameter caller: The session id of the caller, or `nil` for a call
@@ -57,7 +67,7 @@ extension AgentRun {
             return report(of: state)
         }
         let text = runningText
-        return recordCheck(text, by: caller) ? "\(Self.unchangedCheckSentence) \(text)" : text
+        return recordCheck(text, by: caller) ? repeatedCheckText : text
     }
 
     /// Gives the text that tells `state`.
