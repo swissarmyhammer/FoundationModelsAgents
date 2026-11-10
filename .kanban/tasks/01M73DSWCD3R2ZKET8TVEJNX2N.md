@@ -90,8 +90,24 @@ comments:
     - evidence: Sources/FoundationModelsAgents/Run/AgentRunRestore+Interrupted.swift; `swift build --build-tests` has 0 errors and 0 warnings in our code (only the SwiftPM mlx bundle note); `swift test`: 934 tests in 121 suites passed.
     - next: /review
   timestamp: 2026-11-10T19:41:39.100626+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m73g06rbjj03y3ddbvwrpbwa
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (b4e3824). 0 findings, 0 confirmed, 0 refuted. 7 validator runs attempted, 0 failed. 1 file reviewed. All prior Review Findings items are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-11-10T19:47:15.339980+00:00
+- actor: claude-code
+  id: 01m73g0j7f59g1vpttyrfthdyb
+  text: |-
+    ### finish iteration 3 — clean
+    - implement: changed — AgentRunRestore+Interrupted.swift (one logReadFailure helper)
+    - test: green — root swift build --build-tests clean; swift test 934 passed in 121 suites; IntegrationTests build clean
+    - commit: b4e3824
+    - review: clean — 0 findings; 2 of 2 prior items checked; task moved to done
+  timestamp: 2026-11-10T19:47:27.087558+00:00
+position_column: done
+position_ordinal: ff9280
 title: A run records its task prompt before it is announced, so a kill after the announcement restores it
 ---
 ## What
