@@ -70,12 +70,14 @@ skill.
 - ``AgentListing``
 - ``AgentDiagnostic``
 - ``AgentReloadReport``
+- ``RootAgentLoad``
 
 ### Runs
 
 - ``AgentEnvironment``
 - ``ToolCatalog``
 - ``AgentRunner``
+- ``SessionAgentInstructions``
 - ``AgentRun``
 - ``AgentRunState``
 - ``AgentRunMessageOutcome``

@@ -39,6 +39,30 @@ the catalog of the registry at each start, thus call
 ``AgentsTool/make(context:catalogCharacterLimit:)`` throw
 ``AgentRunnerError/catalogNotLoaded``.
 
+### The instructions of a main session
+
+The host makes its main session with no run. ``SessionAgentInstructions``
+holds the instructions of the agent of that session: the rendered body, then
+the rendered body of each skill of the `skills:` key, in the order of the
+key. `$ARGUMENTS` renders as empty text.
+
+- ``AgentRunner/sessionAgentInstructions(for:)`` gives the instructions of
+  any agent. The partials of the render come from the provenance of the
+  definition, thus a definition that the catalog does not hold also renders.
+- ``AgentRunner/defaultAgentInstructions()`` gives the instructions of the
+  default agent of the catalog, or `nil` when no layer gives it.
+- ``AgentRegistry/rootAgent(in:id:)`` reads the root `AGENT.md` of one folder
+  as an agent, with no catalog. Give its definition to
+  `sessionAgentInstructions(for:)`.
+
+```swift
+let load = AgentRegistry.rootAgent(in: agentFolderURL, id: "reviewer")
+if let definition = load.definition {
+    let instructions = try await runner.sessionAgentInstructions(for: definition)
+    // Make the main session from instructions.text.
+}
+```
+
 ### Start a run and wait for it
 
 ``AgentRunner/start(_:prompt:)`` starts a host-driven run and gives the run at

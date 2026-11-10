@@ -104,7 +104,12 @@ struct AgentLayerScan: Sendable {
 /// A sync engine keeps each folder, and writes a placeholder only in place of
 /// a file. Thus a hidden file directly in the layer root is never an agent
 /// folder. For example, `.env.local` gives no agent `env`.
-private struct AgentFolderFormScan {
+///
+/// ``rootCopy(of:in:at:)`` gives the root copy of one layer with an id that
+/// the caller gives. `AgentRegistry.rootAgent(in:id:)` uses it, thus the
+/// read of the root `AGENT.md` of one folder uses the same names as the
+/// build.
+struct AgentFolderFormScan {
     /// The copy of the default agent: the root `AGENT.md`, or its
     /// placeholder.
     let rootCopy: AgentCopy?
@@ -119,20 +124,63 @@ private struct AgentFolderFormScan {
     ///   - layer: The local layer.
     ///   - layerIndex: The position of the layer in the combined layer list.
     init(_ layer: DotfolderStack.Layer, at layerIndex: Int) {
-        let paths = DotfolderStack(layers: [layer]).urls().keys
-        let rootNames = paths.filter { !$0.contains(Self.separator) }
+        let paths = Self.paths(in: layer)
         let folderEntries = paths.compactMap(Self.folderEntry).filter { AgentDefinitionRules.isValidID($0.folder) }
         let namesByFolder = Dictionary(grouping: folderEntries, by: \.folder).mapValues { $0.map(\.name) }
-        rootCopy = Self.copy(
-            of: AgentCatalog.defaultAgentID, kind: .rootDocument, names: rootNames, folder: nil,
-            layerIndex: layerIndex)
+        rootCopy = Self.rootCopy(of: AgentCatalog.defaultAgentID, names: Self.rootNames(in: paths), at: layerIndex)
         folderCopies = namesByFolder.compactMap { folder, names in
             Self.copy(of: folder, kind: .agentFolder, names: names, folder: folder, layerIndex: layerIndex)
         }
     }
 
+    /// Gives the copy of the root `AGENT.md` of one layer, or of its
+    /// placeholder, with the id `id`.
+    ///
+    /// The scan reads no text. It does not look at `<id>/AGENT.md` or at
+    /// `agents/`.
+    ///
+    /// - Parameters:
+    ///   - id: The id that the copy gets.
+    ///   - layer: The layer whose root holds the document.
+    ///   - layerIndex: The position of the layer in its layer list.
+    /// - Returns: The copy, or `nil` when the root holds neither `AGENT.md`
+    ///   nor its placeholder.
+    static func rootCopy(of id: String, in layer: DotfolderStack.Layer, at layerIndex: Int) -> AgentCopy? {
+        rootCopy(of: id, names: rootNames(in: paths(in: layer)), at: layerIndex)
+    }
+
     /// The character between the components of a path.
     private static let separator = "/"
+
+    /// Lists the path of each file of a layer, relative to its root. The
+    /// list holds the hidden files too.
+    ///
+    /// - Parameter layer: The layer.
+    /// - Returns: The paths, in no order.
+    private static func paths(in layer: DotfolderStack.Layer) -> [String] {
+        Array(DotfolderStack(layers: [layer]).urls().keys)
+    }
+
+    /// Gives the names of the files directly in the layer root.
+    ///
+    /// - Parameter paths: The file paths of the layer, relative to its root.
+    /// - Returns: Each path with no separator.
+    private static func rootNames(in paths: [String]) -> [String] {
+        paths.filter { !$0.contains(separator) }
+    }
+
+    /// Gives the copy of the root document from the names of the files
+    /// directly in the layer root.
+    ///
+    /// - Parameters:
+    ///   - id: The id that the copy gets.
+    ///   - names: The names of the files directly in the layer root.
+    ///   - layerIndex: The position of the layer in its layer list.
+    /// - Returns: The copy, or `nil` when the root holds neither the
+    ///   document nor its placeholder.
+    private static func rootCopy(of id: String, names: [String], at layerIndex: Int) -> AgentCopy? {
+        copy(of: id, kind: .rootDocument, names: names, folder: nil, layerIndex: layerIndex)
+    }
 
     /// The count of the components of the path of a file directly in an
     /// agent folder: the folder and the file name.

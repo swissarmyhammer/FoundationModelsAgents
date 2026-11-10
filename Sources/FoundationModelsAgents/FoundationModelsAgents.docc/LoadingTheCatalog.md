@@ -62,7 +62,15 @@ Each local layer also holds its agents in the agent folder form, with no
   instructions when it is `nil`.
   ``AgentRunner/defaultAgentInstructions()`` gives the rendered body and the
   rendered `skills:` preload of the default agent, with no run. `$ARGUMENTS`
-  renders as empty text.
+  renders as empty text. ``AgentRunner/sessionAgentInstructions(for:)`` gives
+  the same ``SessionAgentInstructions`` for any agent.
+- ``AgentRegistry/rootAgent(in:id:)`` reads only the root `AGENT.md` of one
+  folder, with no catalog, as a local layer with the source `project`. A
+  folder with an `AGENT.md` at its root is an agent. The definition gets the
+  id of the call, `default` when the call gives no id. A folder with no
+  `AGENT.md` gives no definition and no diagnostic. A file that is not valid,
+  a placeholder, and an id that is not valid give no definition and their
+  diagnostics.
 - The default agent is never model-visible and never a slash command, whatever
   its frontmatter says: it is the main session, and the main session must not
   give its task to a copy of itself.

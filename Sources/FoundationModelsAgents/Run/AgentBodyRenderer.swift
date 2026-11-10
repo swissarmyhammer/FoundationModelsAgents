@@ -76,6 +76,11 @@ struct AgentBodyRenderer: Sendable {
     /// only. A document of the agent folder form sees its own layer only,
     /// thus a partial of a different layer stays out of it.
     ///
+    /// The scope comes from the provenance of `definition`, not from the
+    /// catalog or from a layer position. Thus a definition that names a
+    /// layer that the registry does not have also renders, for example the
+    /// result of `AgentRegistry.rootAgent(in:id:)`.
+    ///
     /// - Parameter definition: The agent whose body to render.
     /// - Returns: The layers, lowest precedence first.
     private func scopedLayers(of definition: AgentDefinition) -> [DotfolderStack.Layer] {

@@ -1,8 +1,37 @@
 ---
 assignees:
 - claude-code
-position_column: todo
-position_ordinal: '8380'
+comments:
+- actor: claude-code
+  id: 01m7353htzy8hfd3jqn40gr4zy
+  text: |-
+    Research:
+    - `AgentBodyRenderer.scopedLayers(of:)` does not use the catalog or a layer index. For the agent folder form (also `.rootDocument`) it uses `[definition.layer]` only. Thus a definition from `rootAgent(in:)` (kind `.rootDocument`, layer at the folder) renders with the partials of its folder, also when the registry does not have that layer. The renderer needs no code change; its doc comment gets a sentence for this.
+    - `AgentFolderFormScan` (private in AgentLayerScan.swift) makes the root copy with the fixed id `default`. Plan: a static `rootCopy(of:in:at:)` that takes the id, used by the scan and by `rootAgent(in:id:)`.
+    - `AgentCatalogBuilder.readWinner` does the coordinated read (through `FileCoordination`), the not-local skip, the enabled rule and the rule table. Plan: one internal builder entry that reads one root copy with `readWinner`, so the parser and the read are the same as the catalog build.
+    - The only callers of `DefaultAgentInstructions` are AgentRunner+DefaultAgent.swift and DefaultAgentTests.swift (the tests use `defaultAgentInstructions()` only). LoadingTheCatalog.md names `defaultAgentInstructions()`; RunningAnAgent.md does not name the type yet.
+  timestamp: 2026-11-10T16:36:50.655008+00:00
+- actor: claude-code
+  id: 01m735fjcwszxez2dze8443tnq
+  text: |-
+    Implementation landed (TDD: each new suite failed to compile first, for the missing API, then passed).
+    - `AgentFolderFormScan` is now internal, with `rootCopy(of:in:at:)` that takes the id. The catalog scan uses the same helper for its root copy with the id `default`.
+    - `AgentCatalogBuilder.loadRootCopy(_:of:)` reads one root copy with `readWinner`. Thus `rootAgent(in:id:)` uses the same coordinated read (`FileCoordination`), the same not-local skip and the same rule table as the build.
+    - `AgentBodyRenderer` needed no code change: for the agent folder form it uses `[definition.layer]` only. Its doc comment now states this.
+    - An invalid id is checked before the scan, thus it gives one `invalidID` diagnostic also when the folder has no `AGENT.md`. The diagnostic uses `AgentDefinitionRules.invalidIDFinding`, whose message says "the folder name"; the value is the id of the call.
+    - Discovery: `AgentFolderFixture.agentText` puts a blank line before the body, thus a rendered body starts with a newline. The new tests that compare a full body use a local helper with no blank line.
+    - No existing test named the type `DefaultAgentInstructions`. DefaultAgentTests calls `defaultAgentInstructions()` only, and it passes with no change.
+    - Docs: RunningAnAgent.md gets the section "The instructions of a main session" (it did not name the old type). LoadingTheCatalog.md names `sessionAgentInstructions(for:)` and `rootAgent(in:id:)`. The Topics of FoundationModelsAgents.md list `RootAgentLoad` and `SessionAgentInstructions`.
+  timestamp: 2026-11-10T16:43:24.444338+00:00
+- actor: claude-code
+  id: 01m735fnmzbqa41nxae7884ybn
+  text: |-
+    ### implement — changed
+    - evidence: 12 files — Sources/FoundationModelsAgents/Run/AgentRunner+DefaultAgent.swift, Sources/FoundationModelsAgents/Run/AgentBodyRenderer.swift, Sources/FoundationModelsAgents/Registry/AgentRegistry+RootAgent.swift (new), Sources/FoundationModelsAgents/Registry/AgentLayerScan.swift, Sources/FoundationModelsAgents/Registry/AgentCatalogBuilder.swift, Sources/FoundationModelsAgents/FoundationModelsAgents.docc/RunningAnAgent.md, LoadingTheCatalog.md, FoundationModelsAgents.md, Tests/FoundationModelsAgentsTests/RootAgentTests.swift (new, 11 tests), Tests/FoundationModelsAgentsTests/SessionAgentInstructionsTests.swift (new, 5 tests); `swift build --build-tests`: 0 errors, 0 warnings in our code (only the known mlx "missing creator" note); `swift test`: 882 tests in 118 suites passed.
+    - next: /review
+  timestamp: 2026-11-10T16:43:27.775071+00:00
+position_column: doing
+position_ordinal: '80'
 title: 'ACPA-1: AgentRunner renders the instructions of any agent for a main session, and AgentRegistry reads the root AGENT.md of a folder'
 ---
 ## What
@@ -15,19 +44,19 @@ FoundationModelsACPAgent (task `^p21q32s`, ACPA-1) waits on two public APIs. tes
 5. Update the doc comments, and the DocC article `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/RunningAnAgent.md` where it names `DefaultAgentInstructions`.
 
 ## Acceptance Criteria
-- [ ] `sessionAgentInstructions(for:)` of a named agent that is not `default` gives its rendered body and the bodies of its `skills:` preload, in order.
-- [ ] `sessionAgentInstructions(for:)` accepts a definition from `rootAgent(in:)` of a folder that is not a layer of the registry.
-- [ ] `defaultAgentInstructions()` gives the same result as before for the default agent.
-- [ ] `rootAgent(in:)` gives the definition for a folder with an `AGENT.md`, a nil definition and no diagnostic for a folder with no `AGENT.md`, and diagnostics for a file with no frontmatter.
-- [ ] `rootAgent(in:id:)` gives the definition the id of the call, and the id `default` when the call gives no id. An invalid id gives a nil definition and an `invalidID` diagnostic.
-- [ ] `rootAgent(in:)` does not load `<folder>/<id>/AGENT.md` or `<folder>/agents/<id>/AGENT.md`.
-- [ ] No type with the name `DefaultAgentInstructions` remains.
+- [x] `sessionAgentInstructions(for:)` of a named agent that is not `default` gives its rendered body and the bodies of its `skills:` preload, in order.
+- [x] `sessionAgentInstructions(for:)` accepts a definition from `rootAgent(in:)` of a folder that is not a layer of the registry.
+- [x] `defaultAgentInstructions()` gives the same result as before for the default agent.
+- [x] `rootAgent(in:)` gives the definition for a folder with an `AGENT.md`, a nil definition and no diagnostic for a folder with no `AGENT.md`, and diagnostics for a file with no frontmatter.
+- [x] `rootAgent(in:id:)` gives the definition the id of the call, and the id `default` when the call gives no id. An invalid id gives a nil definition and an `invalidID` diagnostic.
+- [x] `rootAgent(in:)` does not load `<folder>/<id>/AGENT.md` or `<folder>/agents/<id>/AGENT.md`.
+- [x] No type with the name `DefaultAgentInstructions` remains.
 
 ## Tests
-- [ ] New `Tests/FoundationModelsAgentsTests/SessionAgentInstructionsTests.swift`: a named non-default agent with a body and a `skills:` key renders its body and its skills; a definition from `rootAgent(in:)` renders, also with a partial; `defaultAgentInstructions()` is unchanged.
-- [ ] New `Tests/FoundationModelsAgentsTests/RootAgentTests.swift`: a folder with an `AGENT.md`; a folder with none; a file with no frontmatter; a call with `id: "reviewer"` and a call with no id; a call with an invalid id; a folder that also has `reviewer/AGENT.md` and `agents/helper/AGENT.md` (neither loads).
-- [ ] Update each existing test that names `DefaultAgentInstructions`.
-- [ ] `swift build --build-tests` gives no error and no warning. `swift test` passes.
+- [x] New `Tests/FoundationModelsAgentsTests/SessionAgentInstructionsTests.swift`: a named non-default agent with a body and a `skills:` key renders its body and its skills; a definition from `rootAgent(in:)` renders, also with a partial; `defaultAgentInstructions()` is unchanged.
+- [x] New `Tests/FoundationModelsAgentsTests/RootAgentTests.swift`: a folder with an `AGENT.md`; a folder with none; a file with no frontmatter; a call with `id: "reviewer"` and a call with no id; a call with an invalid id; a folder that also has `reviewer/AGENT.md` and `agents/helper/AGENT.md` (neither loads).
+- [x] Update each existing test that names `DefaultAgentInstructions`.
+- [x] `swift build --build-tests` gives no error and no warning. `swift test` passes.
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass. #step1 #ACPA-1

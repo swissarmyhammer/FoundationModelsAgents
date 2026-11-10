@@ -152,7 +152,17 @@ enum AgentCatalogBuilder {
     ///   - layers: The layers of the build.
     /// - Returns: The layer root with the path of the copy.
     private static func url(of copy: AgentCopy, in layers: [AgentCatalogLayer]) -> URL {
-        layers[copy.layerIndex].layer.root.appendingPathComponent(copy.path)
+        url(of: copy, in: layers[copy.layerIndex])
+    }
+
+    /// Gives the URL of the file of a copy in its layer.
+    ///
+    /// - Parameters:
+    ///   - copy: The copy.
+    ///   - layer: The layer of the copy.
+    /// - Returns: The layer root with the path of the copy.
+    private static func url(of copy: AgentCopy, in layer: AgentCatalogLayer) -> URL {
+        layer.layer.root.appendingPathComponent(copy.path)
     }
 
     /// Loads one agent folder: the read of the winning copy, the rule table,
@@ -191,6 +201,26 @@ enum AgentCatalogBuilder {
         return AgentFolderLoad(
             definition: read.definition,
             diagnostics: read.diagnostics + hiddenCopyAdvisories + hiddenDefaultFolderWarnings)
+    }
+
+    /// Reads one root copy of one local layer by itself, and applies the rule
+    /// table.
+    ///
+    /// The read is the read of the winning copy of a build: the coordinated
+    /// read, the not-local skip, the `enabled` rule and the rule table. There
+    /// is no other copy, thus no advisory for a hidden copy.
+    ///
+    /// - Parameters:
+    ///   - copy: The copy of the root `AGENT.md`, or of its placeholder.
+    ///   - layer: The local layer of the copy. Its position is
+    ///     `copy.layerIndex`.
+    /// - Returns: The agent, or `nil`, with the diagnostics of the read and
+    ///   of the rule table.
+    static func loadRootCopy(_ copy: AgentCopy, of layer: AgentCatalogLayer) -> RootAgentLoad {
+        let provenance = AgentDiagnostic.Provenance(
+            layerIndex: copy.layerIndex, layerRoot: layer.layer.root, url: url(of: copy, in: layer))
+        let read = readWinner(copy, of: layer, provenance: provenance, marketplaceLayer: nil)
+        return RootAgentLoad(definition: read.definition, diagnostics: read.diagnostics)
     }
 
     /// Reads the winning copy of one agent, and applies the rule table.
