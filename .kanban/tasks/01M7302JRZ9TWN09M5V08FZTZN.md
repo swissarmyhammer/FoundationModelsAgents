@@ -62,10 +62,26 @@ comments:
     - evidence: 1 file — Tests/FoundationModelsAgentsTests/AgentsToolWriteTests.swift (+ kanban files). `swift build --build-tests`: 0 errors, 0 warnings in our code (one SwiftPM warning about the mlx-swift_Cmlx bundle, not our code). `swift test`: 913 tests in 119 suites passed. AgentsToolWriteTests: 29 tests passed.
     - next: /review
   timestamp: 2026-11-10T17:17:33.119396+00:00
+- actor: claude-code
+  id: 01m737hgvt3r14s2sqg3gngnym
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (ab714fe). 0 findings, 0 confirmed, 0 refuted. 7 validator runs, 0 failed. 1 file reviewed. The 1 prior finding is checked.
+    - next: none. The task moved to done.
+  timestamp: 2026-11-10T17:19:25.562208+00:00
+- actor: claude-code
+  id: 01m737htf8rn8hy93v189903y1
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — AgentsToolWriteTests.swift (project-layer cases for add, edit, remove)
+    - test: green — swift build --build-tests 0 warnings in our code; swift test 913 passed in 119 suites
+    - commit: ab714fe
+    - review: clean — 0 findings; 1 of 1 prior item checked; task moved to done
+  timestamp: 2026-11-10T17:19:35.400519+00:00
 depends_on:
 - 01M73022AZKH760297EN693YD3
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: ff8d80
 title: 'AG-9: the agents tool gets add agent, edit agent and remove agent, with the layer option'
 ---
 ## What
