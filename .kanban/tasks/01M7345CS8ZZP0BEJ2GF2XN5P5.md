@@ -55,8 +55,24 @@ comments:
     - evidence: 3 files — Tests/FoundationModelsAgentsTests/Support/SessionInstructionsFixture.swift (new), Tests/FoundationModelsAgentsTests/DefaultAgentTests.swift, Tests/FoundationModelsAgentsTests/SessionAgentInstructionsTests.swift; `swift build --build-tests`: 0 errors, 0 warnings in our code (only the known mlx "missing creator" note); `swift test`: 882 tests in 118 suites passed.
     - next: /review
   timestamp: 2026-11-10T16:50:24.454237+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m73605w23mq58p1d761d8yzg
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (28ae8eb): 0 findings, 0 confirmed, 2 refuted, 7 attempted, 0 failed. All prior Review Findings items are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-11-10T16:52:28.674065+00:00
+- actor: claude-code
+  id: 01m7360evjbf6bk33rhn93p2v6
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — Support/SessionInstructionsFixture.swift (new), DefaultAgentTests.swift, SessionAgentInstructionsTests.swift
+    - test: green — swift build --build-tests 0 warnings in our code; swift test 882 passed in 118 suites
+    - commit: 28ae8eb
+    - review: clean — 0 findings; 1 of 1 prior item checked; task moved to done
+  timestamp: 2026-11-10T16:52:37.874872+00:00
+position_column: done
+position_ordinal: ff8c80
 title: 'ACPA-1: AgentRunner renders the instructions of any agent for a main session, and AgentRegistry reads the root AGENT.md of a folder'
 ---
 ## What
