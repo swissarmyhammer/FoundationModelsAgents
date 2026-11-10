@@ -357,8 +357,14 @@ public struct AgentEnvironment: Sendable {
     ///   - callerMail: Sends a message of a restored run to a caller session
     ///     that the runner does not hold as a run, or `nil` (the default) for
     ///     no such route. ``callerMail`` tells the contract.
+    ///   - sandboxProbe: The probe that tells if the process is sandboxed.
+    ///     The environment gives it to `SkillsTool.make`. The default,
+    ///     `SandboxProbe.live`, reads the current process. A test gives
+    ///     `SandboxProbe.fixed(_:)`.
     /// - Returns: The environment.
-    /// - Throws: Whatever `SkillsTool.make` throws.
+    /// - Throws: `ToolModeError.openModeInSandbox` when the mode of `skills`
+    ///   is `ToolMode.open` and `sandboxProbe` tells that the process is
+    ///   sandboxed. Whatever else `SkillsTool.make` throws.
     public static func make(
         profile: LanguageModelProfile,
         skills: SkillsRegistry,
@@ -377,11 +383,13 @@ public struct AgentEnvironment: Sendable {
         metricsFactory: (any MetricsFactory)? = nil,
         inlineSettleGrace: TimeInterval = ToolMount.defaultInlineSettleGrace,
         runEventObserver: RunEventObserver? = nil,
-        callerMail: CallerMail? = nil
+        callerMail: CallerMail? = nil,
+        sandboxProbe: SandboxProbe = .live
     ) async throws -> AgentEnvironment {
         let skillsTool = try await makeSkillsTool(
             skills: skills, selectionModel: skillsSelectionModel,
-            catalogCharacterLimit: skillsCatalogCharacterLimit, visibility: skillsVisibility)
+            catalogCharacterLimit: skillsCatalogCharacterLimit, visibility: skillsVisibility,
+            sandboxProbe: sandboxProbe)
         return AgentEnvironment(
             profile: profile, skills: skills, skillsTool: skillsTool, skillsVisibility: skillsVisibility,
             selectionModel: skillsSelectionModel, workingDirectory: workingDirectory, tools: tools,
@@ -400,28 +408,33 @@ public struct AgentEnvironment: Sendable {
     ///   - catalogCharacterLimit: The most characters of the catalog list of
     ///     the description.
     ///   - visibility: Tells if the tool shows a skill.
+    ///   - sandboxProbe: The probe that tells if the process is sandboxed.
     /// - Returns: The tool.
-    /// - Throws: Whatever `SkillsTool.make` throws.
+    /// - Throws: `ToolModeError.openModeInSandbox` when the mode of `skills`
+    ///   is `ToolMode.open` and `sandboxProbe` tells that the process is
+    ///   sandboxed. Whatever else `SkillsTool.make` throws.
     static func makeSkillsTool(
         skills: SkillsRegistry,
         selectionModel: (any FoundationModels.LanguageModel)?,
         catalogCharacterLimit: Int,
-        visibility: @escaping SkillsVisibility
+        visibility: @escaping SkillsVisibility,
+        sandboxProbe: SandboxProbe
     ) async throws -> SkillsCatalogTool {
         guard let selectionModel else {
             return try await SkillsTool.make(
-                registry: skills, catalogCharacterLimit: catalogCharacterLimit, visibilityPredicate: visibility)
+                registry: skills, catalogCharacterLimit: catalogCharacterLimit, visibilityPredicate: visibility,
+                sandboxProbe: sandboxProbe)
         }
         return try await SkillsTool.make(
             registry: skills, model: selectionModel, catalogCharacterLimit: catalogCharacterLimit,
-            visibilityPredicate: visibility)
+            visibilityPredicate: visibility, sandboxProbe: sandboxProbe)
     }
 
     /// Makes an environment over a `skills` tool that is already made.
     ///
-    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:)``
+    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:sandboxProbe:)``
     /// tells each parameter. `skillsTool` must be the tool that
-    /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:)``
+    /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:sandboxProbe:)``
     /// made from `skills` and `skillsVisibility`. The init adds it to `tools`
     /// under its name. `selectionModel` is the model of the selection tier of
     /// `find agents`, and the default is `nil`. Give the model that made

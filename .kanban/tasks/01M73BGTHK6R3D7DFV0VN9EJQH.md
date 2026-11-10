@@ -1,9 +1,21 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m73cp2t91vjn2nj08rvehsaw
+  text: 'Research: `swift package update FoundationModelsSkills` moved the local pin to b4e39c5 (b1b3121 is an ancestor). Package.resolved is in .gitignore, thus the pin change is local only and is not in the diff. Both `SkillsTool.make` overloads have `sandboxProbe: SandboxProbe = .live`. FoundationModelsSkills re-exports FoundationModelsExtras, thus the test file needs no new import. The internal `makeSkillsTool` now takes `sandboxProbe` with no default; the one other caller, `AgentRunHarness`, gives `.live`. The DocC symbol links to `make(...)` in RunningAnAgent.md and DelegatingWithTheAgentsTool.md and in the init doc comment now include `sandboxProbe:`.'
+  timestamp: 2026-11-10T18:49:17.897698+00:00
+- actor: claude-code
+  id: 01m73cp4mm1mcngt1hqfkqg1zq
+  text: |-
+    ### implement — changed
+    - evidence: AgentEnvironment.swift, AgentEnvironmentTests.swift (4 new tests), Support/AgentRunHarness.swift, docc RunningAnAgent.md, docc DelegatingWithTheAgentsTool.md. RED: the build failed with "extra argument 'sandboxProbe'". `swift build --build-tests`: 0 errors, 0 warnings in our code (only the known mlx "missing creator" note). `swift test`: 916 tests in 119 suites passed.
+    - next: /review
+  timestamp: 2026-11-10T18:49:19.764462+00:00
 depends_on:
 - 01M73B5MRN6NYWGR5H92YBA9PF
-position_column: todo
+position_column: doing
 position_ordinal: '80'
 title: AgentEnvironment.make takes a SandboxProbe and gives it to SkillsTool.make (SK-7d)
 ---

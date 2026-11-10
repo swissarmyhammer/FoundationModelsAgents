@@ -263,7 +263,7 @@ struct AgentRunHarness {
         try await registry.load()
         let skillsTool = try await AgentEnvironment.makeSkillsTool(
             skills: skills, selectionModel: nil, catalogCharacterLimit: SkillsTool.defaultCatalogCharacterLimit,
-            visibility: AgentEnvironment.defaultSkillsVisibility)
+            visibility: AgentEnvironment.defaultSkillsVisibility, sandboxProbe: .live)
         return AgentRunHarness(
             router: router, profile: profile, script: script, registry: registry, skills: skills,
             skillsTool: skillsTool, budget: budget, tools: tools, tracer: tracer, logger: logger,

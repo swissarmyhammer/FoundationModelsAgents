@@ -92,6 +92,52 @@ struct AgentEnvironmentTests {
         #expect(environment.maxRetainedRuns == 0)
     }
 
+    /// A registry in the open mode cannot work in a sandboxed process, thus
+    /// `make` stops with the error of the tool mode.
+    @Test("A sandboxed probe and an open registry throw openModeInSandbox")
+    func sandboxedProbeWithOpenRegistryThrows() async throws {
+        let profile = try await Self.makeProfile()
+
+        await #expect(throws: ToolModeError.openModeInSandbox) {
+            _ = try await AgentEnvironment.make(
+                profile: profile, skills: SkillsRegistry.makeEmpty(), sandboxProbe: .fixed(true))
+        }
+    }
+
+    /// A registry in the open mode works in a process that is not
+    /// sandboxed.
+    @Test("A probe that is not sandboxed and an open registry make an environment")
+    func unsandboxedProbeWithOpenRegistryMakesAnEnvironment() async throws {
+        let profile = try await Self.makeProfile()
+
+        let environment = try await AgentEnvironment.make(
+            profile: profile, skills: SkillsRegistry.makeEmpty(), sandboxProbe: .fixed(false))
+
+        #expect(environment.tools.names == [Self.skillsToolName])
+    }
+
+    /// A registry in the sandboxed mode works in a sandboxed process.
+    @Test("A sandboxed probe and a sandboxed registry make an environment")
+    func sandboxedProbeWithSandboxedRegistryMakesAnEnvironment() async throws {
+        let profile = try await Self.makeProfile()
+
+        let environment = try await AgentEnvironment.make(
+            profile: profile, skills: SkillsRegistry(roots: [], mode: .sandboxed), sandboxProbe: .fixed(true))
+
+        #expect(environment.tools.names == [Self.skillsToolName])
+    }
+
+    /// With no probe, `make` reads the current process. The test process is
+    /// not sandboxed, thus an open registry makes an environment as before.
+    @Test("No probe and an open registry make an environment")
+    func noProbeWithOpenRegistryMakesAnEnvironment() async throws {
+        let profile = try await Self.makeProfile()
+
+        let environment = try await AgentEnvironment.make(profile: profile, skills: SkillsRegistry.makeEmpty())
+
+        #expect(environment.tools.names == [Self.skillsToolName])
+    }
+
     /// The `embedding` slot makes no session, thus it is not a default slot.
     @Test("The embedding slot is not a default slot")
     func embeddingDefaultSlotStopsTheProcess() async {
