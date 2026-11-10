@@ -63,6 +63,33 @@ comments:
     - evidence: AgentRunRestore+Interrupted.swift, AgentsTelemetry.swift, RestoreEndToEndTests.swift; `swift build --build-tests` no error, no warning in our code (only the known mlx "missing creator" note); `swift test` 934 tests in 121 suites passed.
     - next: /review
   timestamp: 2026-11-10T19:33:36.829762+00:00
+- actor: claude-code
+  id: 01m73fd7nz78e766as2fefcw71
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (6027446); 1 finding (1 confirmed, 1 refuted) — Sources/FoundationModelsAgents/Run/AgentRunRestore+Interrupted.swift:350 (reuse/reuse). All prior items are checked.
+    - next: implement the open finding in the 2026-11-10 13:35 section: one shared private helper for the warning log of logClaimReadFailure and logPromptReadFailure.
+  timestamp: 2026-11-10T19:36:53.695054+00:00
+- actor: claude-code
+  id: 01m73fdmfp7b4ddzjphrfpq896
+  text: |-
+    ### finish iteration 2 — findings
+    - implement: changed — AgentRunRestore+Interrupted.swift, AgentsTelemetry.swift, RestoreEndToEndTests.swift
+    - test: green — root swift build --build-tests clean; swift test 934 passed in 121 suites; IntegrationTests build clean
+    - commit: 6027446
+    - review: findings — Sources/FoundationModelsAgents/Run/AgentRunRestore+Interrupted.swift:350 (1 of 1 prior item checked)
+  timestamp: 2026-11-10T19:37:06.806728+00:00
+- actor: claude-code
+  id: 01m73fnycwmt6jh0mxpgtznp3j
+  text: |-
+    Reuse finding fixed. `AgentRunRestore+Interrupted.swift` has a new private helper `logReadFailure(_:metadata:error:)`. It adds `errorType` and `error` to the given metadata and writes the warning through `environment.makeRunLogger()`. `logClaimReadFailure` and `logPromptReadFailure` give their message and their session or record metadata to it. The keys, the level and the messages of each record did not change.
+
+    Search of the other restore files: `AgentRunRestore.swift` and `AgentTaskPromptRecord.swift` write no log records. `AgentEnvironment+SessionEnd.swift` (`markSessionEnded`) is an `AgentEnvironment` extension that logs at error level with no `error` key. It is a different shape, thus it does not use the helper. `selectedChildren` puts a failed read in the report and does not log.
+
+    ### implement — changed
+    - evidence: Sources/FoundationModelsAgents/Run/AgentRunRestore+Interrupted.swift; `swift build --build-tests` has 0 errors and 0 warnings in our code (only the SwiftPM mlx bundle note); `swift test`: 934 tests in 121 suites passed.
+    - next: /review
+  timestamp: 2026-11-10T19:41:39.100626+00:00
 position_column: doing
 position_ordinal: '80'
 title: A run records its task prompt before it is announced, so a kill after the announcement restores it
@@ -98,3 +125,12 @@ Defect from FoundationModelsACPAgent (agreed with testudoapp-75). A run is annou
 > - `README.md` — no validator matches this file
 
 - [x] `Sources/FoundationModelsAgents/Run/AgentRunRestore+Interrupted.swift:313` `completeness/public-output-contract` — The task prompt record read is wrapped in `try?`, so a record that exists but cannot be read (for example, a file that is not UTF-8 text, which throws `ReadError.notText`) is dropped with no log. The restore then silently falls back to the listed or Router first prompt. The file already logs a comparable read failure (`logClaimReadFailure`), so an operator has no way to see that the intended record was ignored. Replace `try?` with a do/catch that logs the failure at warning level (the record name and the session id, never the record text) and then uses the next source. Keep the fallback, so the restore still goes on.
+
+## Review Findings (2026-11-10 13:35)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 3 file(s) reviewed, 2 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+- [x] `Sources/FoundationModelsAgents/Run/AgentRunRestore+Interrupted.swift:350` `reuse/reuse` — logPromptReadFailure reimplements logClaimReadFailure, which already sits in the same type (AgentRunner). Both build the same metadata (errorType, then error as String(describing:)) and write a warning through environment.makeRunLogger(). Only the message, the record name, and the extra session ids differ. Two copies of this error-logging shape will drift apart. Generalize logClaimReadFailure into one private helper that takes the message, the extra metadata (for example the record name and the caller session id), and the error. Have both logClaimReadFailure and logPromptReadFailure call it. Keep the error-to-metadata mapping in one place.

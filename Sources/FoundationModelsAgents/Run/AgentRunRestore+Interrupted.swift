@@ -202,12 +202,24 @@ extension AgentRunner {
 
     /// Writes the record of a read that failed. The restore claims nothing for that session.
     private func logClaimReadFailure(of session: ULID, error: any Error) {
-        var metadata: Logger.Metadata = [
-            AgentsTelemetry.LogMetadataKey.callerSessionID: .string(session.description),
-            AgentsTelemetry.LogMetadataKey.errorType: .string(String(describing: type(of: error))),
-        ]
+        logReadFailure(
+            AgentsTelemetry.LogMessage.claimReadFailed,
+            metadata: [AgentsTelemetry.LogMetadataKey.callerSessionID: .string(session.description)],
+            error: error)
+    }
+
+    /// Writes a warning record of a read of the restore that failed. This is the one place that
+    /// adds the error to the metadata of such a record.
+    ///
+    /// - Parameters:
+    ///   - message: The message of the record.
+    ///   - metadata: The metadata that identifies the read, for example the ids of the sessions.
+    ///   - error: The error of the read. The record holds its type and its text.
+    private func logReadFailure(_ message: String, metadata: Logger.Metadata, error: any Error) {
+        var metadata = metadata
+        metadata[AgentsTelemetry.LogMetadataKey.errorType] = .string(String(describing: type(of: error)))
         metadata["error"] = .string(String(describing: error))
-        environment.makeRunLogger().warning("\(AgentsTelemetry.LogMessage.claimReadFailed)", metadata: metadata)
+        environment.makeRunLogger().warning("\(message)", metadata: metadata)
     }
 
     /// The lists that the restore builds.
@@ -348,14 +360,14 @@ extension AgentRunner {
     /// Writes the record of a prompt record that exists but cannot be read. The record holds the
     /// name of the record, the ids of the sessions and the error, never the text of the prompt.
     private func logPromptReadFailure(of child: RecordedChild, record: String, error: any Error) {
-        var metadata: Logger.Metadata = [
-            AgentsTelemetry.LogMetadataKey.recordName: .string(record),
-            AgentsTelemetry.LogMetadataKey.sessionID: .string(child.sessionID.description),
-            AgentsTelemetry.LogMetadataKey.callerSessionID: .string(child.parentSessionId.description),
-            AgentsTelemetry.LogMetadataKey.errorType: .string(String(describing: type(of: error))),
-        ]
-        metadata["error"] = .string(String(describing: error))
-        environment.makeRunLogger().warning("\(AgentsTelemetry.LogMessage.recordReadFailed)", metadata: metadata)
+        logReadFailure(
+            AgentsTelemetry.LogMessage.recordReadFailed,
+            metadata: [
+                AgentsTelemetry.LogMetadataKey.recordName: .string(record),
+                AgentsTelemetry.LogMetadataKey.sessionID: .string(child.sessionID.description),
+                AgentsTelemetry.LogMetadataKey.callerSessionID: .string(child.parentSessionId.description),
+            ],
+            error: error)
     }
 
     /// The selected children of `session`. A failed read gives none and goes in the report.
