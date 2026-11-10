@@ -66,6 +66,12 @@ struct AgentsToolWriteTests {
     /// A `layer` value that is not a layer.
     private static let badLayer = "global"
 
+    /// The `layer` value of the project layer.
+    private static let projectLayer = AgentWriteLayer.project.rawValue
+
+    /// The files of a layer that holds a valid copy of ``id``.
+    private static let agentFiles = [AgentFolderFixture.documentPath(of: id): agentText]
+
     /// Each verb alias of a write operation, with the first word of the
     /// answer of the operation that it names.
     private static let verbAliases: [(op: String, action: String)] = [
@@ -96,7 +102,7 @@ struct AgentsToolWriteTests {
         let fixture = try await WriteFixture.make()
         defer { fixture.delete() }
 
-        _ = try await fixture.call("add agent", ["name": Self.id, "content": Self.agentText, "layer": "project"])
+        _ = try await fixture.call("add agent", ["name": Self.id, "content": Self.agentText, "layer": Self.projectLayer])
 
         #expect(try fixture.project.text(at: AgentFolderFixture.documentPath(of: Self.id)) == Self.agentText)
         #expect(fixture.registry.catalog().definition(named: Self.id)?.layer.source == .project)
@@ -113,6 +119,18 @@ struct AgentsToolWriteTests {
         #expect(
             answer == "Added the agent `\(Self.id)` to the user layer: `\(path)`." + Self.partSeparator
                 + "The agent `\(Self.id)` is in the catalog with no diagnostics.")
+    }
+
+    @Test("the answer of add agent with the layer project names the file and the project layer")
+    func addToTheProjectLayerAnswerNamesTheProjectLayer() async throws {
+        let fixture = try await WriteFixture.make()
+        defer { fixture.delete() }
+        let path = fixture.project.root.appendingPathComponent(AgentFolderFixture.documentPath(of: Self.id)).path
+
+        let answer = try await fixture.call(
+            "add agent", ["name": Self.id, "content": Self.agentText, "layer": Self.projectLayer])
+
+        #expect(answer.hasPrefix("Added the agent `\(Self.id)` to the project layer: `\(path)`."))
     }
 
     @Test("start agent starts an agent that add agent wrote in the same session")
@@ -233,6 +251,31 @@ struct AgentsToolWriteTests {
         #expect(answer.hasSuffix("The catalog did not change: the copy in the project layer wins."))
     }
 
+    @Test("edit agent with the layer project changes the project copy, and the user copy stays")
+    func editOfTheProjectLayerChangesOnlyTheProjectCopy() async throws {
+        let fixture = try await WriteFixture.make(user: Self.agentFiles, project: Self.agentFiles)
+        defer { fixture.delete() }
+        let document = AgentFolderFixture.documentPath(of: Self.id)
+
+        _ = try await fixture.call(
+            "edit agent", ["name": Self.id, "content": Self.noDescriptionText, "layer": Self.projectLayer])
+
+        #expect(try fixture.project.text(at: document) == Self.noDescriptionText)
+        #expect(try fixture.user.text(at: document) == Self.agentText)
+    }
+
+    @Test("the answer of edit agent with the layer project names the file and the project layer")
+    func editOfTheProjectLayerAnswerNamesTheProjectLayer() async throws {
+        let fixture = try await WriteFixture.make(user: Self.agentFiles, project: Self.agentFiles)
+        defer { fixture.delete() }
+        let path = fixture.project.root.appendingPathComponent(AgentFolderFixture.documentPath(of: Self.id)).path
+
+        let answer = try await fixture.call(
+            "edit agent", ["name": Self.id, "content": Self.noDescriptionText, "layer": Self.projectLayer])
+
+        #expect(answer.hasPrefix("Edited the agent `\(Self.id)` in the project layer: `\(path)`."))
+    }
+
     // MARK: - remove agent
 
     @Test("remove agent deletes the agent folder, and the catalog does not hold the agent")
@@ -255,6 +298,29 @@ struct AgentsToolWriteTests {
         let answer = try await fixture.call("remove agent", ["name": Self.id])
 
         #expect(answer.hasPrefix("Removed the agent `\(Self.id)` from the user layer: `\(folder)"))
+    }
+
+    @Test("remove agent with the layer project deletes the project folder, keeps the user copy, and names the project layer")
+    func removeOfTheProjectLayerDeletesOnlyTheProjectCopy() async throws {
+        let fixture = try await WriteFixture.make(user: Self.agentFiles, project: Self.agentFiles)
+        defer { fixture.delete() }
+        let folder = fixture.project.root.appendingPathComponent(Self.id, isDirectory: true).path
+
+        let answer = try await fixture.call("remove agent", ["name": Self.id, "layer": Self.projectLayer])
+
+        #expect(!FileManager.default.fileExists(atPath: folder))
+        #expect(try fixture.user.text(at: AgentFolderFixture.documentPath(of: Self.id)) == Self.agentText)
+        #expect(answer.hasPrefix("Removed the agent `\(Self.id)` from the project layer: `\(folder)"))
+    }
+
+    @Test("remove agent with the layer project leaves the user copy in the catalog")
+    func removeOfTheProjectLayerLeavesTheUserCopyInTheCatalog() async throws {
+        let fixture = try await WriteFixture.make(user: Self.agentFiles, project: Self.agentFiles)
+        defer { fixture.delete() }
+
+        _ = try await fixture.call("remove agent", ["name": Self.id, "layer": Self.projectLayer])
+
+        #expect(fixture.registry.catalog().definition(named: Self.id)?.layer.source == .user)
     }
 
     // MARK: - Correctives
@@ -286,6 +352,22 @@ struct AgentsToolWriteTests {
         let before = try fixture.snapshot()
 
         let answer = try await fixture.call(op, ["name": name, "content": Self.agentText])
+
+        #expect(answer == error.message)
+        #expect(try fixture.snapshot() == before)
+    }
+
+    @Test(
+        "edit agent and remove agent with the layer project of an agent that only the user layer holds give the corrective of the writer, and change no file",
+        arguments: ["edit agent", "remove agent"])
+    func aProjectLayerWriteOfAUserOnlyAgentGivesTheCorrective(op: String) async throws {
+        let fixture = try await WriteFixture.make(user: Self.agentFiles)
+        defer { fixture.delete() }
+        let before = try fixture.snapshot()
+        let error = AgentWriterError.notFound(id: Self.id, layer: .project, existsIn: [.user])
+
+        let answer = try await fixture.call(
+            op, ["name": Self.id, "content": Self.agentText, "layer": Self.projectLayer])
 
         #expect(answer == error.message)
         #expect(try fixture.snapshot() == before)
@@ -326,6 +408,20 @@ struct AgentsToolWriteTests {
         let start = try await fixture.cursor()
 
         _ = try await fixture.call("edit agent", ["name": Self.id, "content": Self.noDescriptionText])
+        let event = try await fixture.firstEvent(after: start)
+
+        #expect(event.ids == ChangedIDs(changed: [Self.id]))
+        #expect(try await fixture.cursor() == event.cursor)
+    }
+
+    @Test("edit agent with the layer project of the winning AGENT.md gives one change event with the id in changed")
+    func editOfTheProjectAgentDocumentGivesOneEvent() async throws {
+        let fixture = try await WriteFixture.make(user: Self.agentFiles, project: Self.agentFiles)
+        defer { fixture.delete() }
+        let start = try await fixture.cursor()
+
+        _ = try await fixture.call(
+            "edit agent", ["name": Self.id, "content": Self.noDescriptionText, "layer": Self.projectLayer])
         let event = try await fixture.firstEvent(after: start)
 
         #expect(event.ids == ChangedIDs(changed: [Self.id]))

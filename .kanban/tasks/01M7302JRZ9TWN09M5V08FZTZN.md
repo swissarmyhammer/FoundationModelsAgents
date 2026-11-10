@@ -31,6 +31,37 @@ comments:
     - evidence: 14 files — new Sources/FoundationModelsAgents/Tool/AgentsToolWriteOperations.swift, Sources/FoundationModelsAgents/Tool/AgentsToolWriteText.swift, Tests/FoundationModelsAgentsTests/AgentsToolWriteTests.swift, Tests/FoundationModelsAgentsTests/Support/ChangeEvent.swift; changed AgentsTool.swift, AgentsToolDescription.swift, AgentWriterTests.swift, AgentsGraphChangesTests.swift, AgentsToolDescriptionTests.swift, AgentsToolMountTests.swift, AgentsToolSchemaTests.swift, Support/TemporaryLayer.swift (+ kanban files). `swift build --build-tests`: 0 errors, 0 warnings. `swift test`: 906 tests in 119 suites passed.
     - next: /review
   timestamp: 2026-11-10T17:08:57.822187+00:00
+- actor: claude-code
+  id: 01m7376hajxwmww5kb10x0kndv
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (9d6bcc4). 1 finding, 1 confirmed, 3 refuted, 14 attempted, 0 failed. Tests/FoundationModelsAgentsTests/AgentsToolWriteTests.swift:239 (completeness/inverse-operation-coverage).
+    - next: Add a test that writes an agent to the project layer, calls remove agent with layer project, and asserts that the project folder is gone and that the answer names the project layer. Then review again.
+  timestamp: 2026-11-10T17:13:25.586195+00:00
+- actor: claude-code
+  id: 01m73771ryfx2kwkvnsznzazdt
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 12 files (AgentsToolWriteOperations.swift, AgentsToolWriteText.swift, AgentsToolWriteTests.swift, Support/ChangeEvent.swift new; AgentsTool.swift, AgentsToolDescription.swift, 6 test files)
+    - test: green — swift build --build-tests 0 warnings in our code; swift test 906 passed in 119 suites
+    - commit: 9d6bcc4
+    - review: findings — Tests/FoundationModelsAgentsTests/AgentsToolWriteTests.swift:239
+  timestamp: 2026-11-10T17:13:42.430685+00:00
+- actor: claude-code
+  id: 01m737e1g52dmgg5ddavrtxf8a
+  text: |-
+    Finding fixed: the project-layer cases in AgentsToolWriteTests.swift, in the whole file.
+    - New tests: remove agent with layer project (the project folder is gone, the user copy stays, the answer names the project layer); remove agent with layer project leaves the user copy in the catalog; edit agent with layer project changes only the project copy; the edit answer names the project layer; the add answer with layer project names the project layer; edit agent and remove agent with layer project of a user-only agent give the notFound corrective (existsIn [.user]) and change no file; edit agent with layer project of the winning AGENT.md gives one change event.
+    - New constants: `projectLayer` (from AgentWriteLayer.project) and `agentFiles`. The add test with layer project uses `projectLayer` in place of the literal.
+    - The production code already existed, thus the tests passed at once. A check: a temporary change that sets each layer to user made all the new tests fail (12 issues). The source file is restored, with no diff.
+  timestamp: 2026-11-10T17:17:31.525874+00:00
+- actor: claude-code
+  id: 01m737e31zbwx7gwes58z3bgb9
+  text: |-
+    ### implement — changed
+    - evidence: 1 file — Tests/FoundationModelsAgentsTests/AgentsToolWriteTests.swift (+ kanban files). `swift build --build-tests`: 0 errors, 0 warnings in our code (one SwiftPM warning about the mlx-swift_Cmlx bundle, not our code). `swift test`: 913 tests in 119 suites passed. AgentsToolWriteTests: 29 tests passed.
+    - next: /review
+  timestamp: 2026-11-10T17:17:33.119396+00:00
 depends_on:
 - 01M73022AZKH760297EN693YD3
 position_column: doing
@@ -77,3 +108,12 @@ Add the three write operations of AG-9 to `AgentsTool`. They use `AgentWriter` (
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass. #step1 #AG-9
+
+## Review Findings (2026-11-10 11:10)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 12 file(s) reviewed, 2 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+- [x] `Tests/FoundationModelsAgentsTests/AgentsToolWriteTests.swift:239` `completeness/inverse-operation-coverage` — The layer option was added to remove agent, and add agent with layer project is tested (line 95), but no test runs remove agent with layer project. The only remove tests (lines 238-258) use the user layer. The inverse direction of the project-layer write is therefore unproven, and a project-layer remove could delete the wrong folder or miss the project copy. Add one test that writes an agent to the project layer, calls remove agent with layer project, and asserts the project folder is gone and the answer names the project layer.
