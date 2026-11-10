@@ -343,6 +343,8 @@ struct AgentsToolDescriptionTests {
     /// - Returns: The sentence.
     private static func callerSentence(_ callerID: ULID) -> String {
         "The session that started you has the id \(callerID). "
-            + #"Send a message to it with {"op": "send caller", "message": "..."}."#
+            + #"Send a message to it with {"op": "send caller", "message": "..."}. "#
+            + "Each message wakes it. Send one only for a critical error that you cannot recover from. "
+            + "Your final report comes to it on its own when you are done."
     }
 }

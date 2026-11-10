@@ -193,15 +193,21 @@ enum AgentsToolDescription {
         return description + listSeparator + callerSentence(callerID: callerID)
     }
 
-    /// Gives the caller sentence: the id of the caller session, and the
-    /// `send caller` call that sends a message to it.
+    /// Gives the caller sentence: the id of the caller session, the
+    /// `send caller` call that sends a message to it, and the rule that a
+    /// message is only for a critical error that the run cannot recover
+    /// from. Each message wakes the caller: seen live, a tester sent 11
+    /// "still running" messages in 5 minutes, and each one started an
+    /// answer of the root.
     ///
     /// - Parameter callerID: The id of the session of the caller.
     /// - Returns: The sentence.
     private static func callerSentence(callerID: ULID) -> String {
         """
         The session that started you has the id \(callerID). \
-        Send a message to it with {"op": "send caller", "message": "..."}.
+        Send a message to it with {"op": "send caller", "message": "..."}. \
+        Each message wakes it. Send one only for a critical error that you cannot recover from. \
+        Your final report comes to it on its own when you are done.
         """
     }
 

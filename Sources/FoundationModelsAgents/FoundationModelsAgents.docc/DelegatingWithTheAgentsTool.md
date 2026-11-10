@@ -88,10 +88,13 @@ the corrective "The run `id` ended (`state`), and it gets no more messages.
 Start a new run." An id of a run of a different caller gives the corrective of
 an unknown id.
 
-A run with a caller can send a message to that caller while it works:
+A run with a caller can send a message to that caller while it works. Each
+message wakes the caller, thus the caller sentence of the tool description
+tells the model to send one only for a critical error that it cannot recover
+from. The final message of the run comes to the caller on its own:
 
 ```json
-{"op": "send caller", "message": "I found two errors. I continue with the tests."}
+{"op": "send caller", "message": "Blocked: the test database does not start (OperationalError: could not connect to server). I cannot go on."}
 ```
 
 The message comes to the session of the caller as mail
