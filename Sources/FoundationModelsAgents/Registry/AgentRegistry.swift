@@ -35,8 +35,9 @@ import Synchronization
 /// `layerUpdates` value of the provider. With `watch: true`, a
 /// `DotfolderWatcher` also watches each local layer root and each watchable
 /// marketplace layer root. Each change calls `reload()`, and `onReload`
-/// publishes each new catalog. The registry stops the watcher when the host
-/// releases the registry.
+/// publishes each new catalog. ``stopWatching()`` stops the follow of the
+/// changes and keeps the last catalog. The registry also stops the watcher
+/// when the host releases the registry.
 ///
 /// The registry keeps `layers` and `variables` for the render of a body at
 /// run start. Each definition names the layer that gave it, and a

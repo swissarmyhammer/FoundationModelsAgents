@@ -24,6 +24,25 @@ extension AgentRegistry {
     public var onReload: AsyncStream<AgentCatalog> {
         reloads.subscribe()
     }
+
+    /// Stops the follow of the changes: the watcher of the layer roots and
+    /// the task of the `layerUpdates` values of the provider.
+    ///
+    /// A host calls it when it does not use the registry for a time but
+    /// keeps it, for example for a closed session. After the call, a change
+    /// of a layer gives no reload and no new catalog. `catalog()` gives the
+    /// last catalog. A later `load()` or `reload()` reads the files again and
+    /// publishes its catalog, but it does not start a watcher again.
+    ///
+    /// The call waits until a reload that a change started is complete.
+    /// Thus no catalog of a change comes after the call returns.
+    ///
+    /// A second call does nothing. A call before `load()` stops the registry
+    /// before it watches. A registry with `watch: false` and no provider
+    /// follows no change, thus the call does nothing.
+    public func stopWatching() async {
+        await reloads.stop()
+    }
 }
 
 /// Follows the changes of the layers of one `AgentRegistry`, and publishes
@@ -44,8 +63,9 @@ extension AgentRegistry {
 /// requests while a reload runs gives one more reload, and that reload reads
 /// the last state of the files.
 ///
-/// The `deinit` stops the watcher, cancels the two tasks, and finishes each
-/// `onReload` stream. The task that calls `reload()` keeps a weak reference to
+/// `stop()` stops the watcher and the two tasks, and no later call starts
+/// them again. The `deinit` stops the watcher, cancels the two tasks, and
+/// finishes each `onReload` stream. The task that calls `reload()` keeps a weak reference to
 /// the registry. Thus the registry is released when the host releases it.
 final class AgentReloadLoop: Sendable {
     /// The watcher of the watched roots.
@@ -74,6 +94,33 @@ final class AgentReloadLoop: Sendable {
 
         /// A build ran, and the tasks follow the requests and the updates.
         case following(Following)
+
+        /// `stop()` ran. Nothing follows the changes, and nothing starts to.
+        case stopped
+    }
+
+    /// The watch of the loop.
+    private enum WatchState {
+        /// No watcher runs, and a build can start one.
+        case idle
+
+        /// A watcher runs.
+        case watching(Watch)
+
+        /// `stop()` ran. No watcher runs, and no build starts one.
+        case stopped
+
+        /// The watcher that runs, or `nil`.
+        fileprivate var watcher: DotfolderWatcher? {
+            guard case .watching(let watch) = self else { return nil }
+            return watch.watcher
+        }
+
+        /// The roots that the watcher watches, or `nil`.
+        fileprivate var roots: [URL]? {
+            guard case .watching(let watch) = self else { return nil }
+            return watch.roots
+        }
     }
 
     /// The continuation of the request stream.
@@ -85,8 +132,8 @@ final class AgentReloadLoop: Sendable {
     /// What the loop does now.
     private let phase: Mutex<Phase>
 
-    /// The current watch, or `nil` when the loop watches no root.
-    private let currentWatch = Mutex<Watch?>(nil)
+    /// The current watch.
+    private let currentWatch = Mutex(WatchState.idle)
 
     /// Makes a loop that does not follow the changes yet. It reads no file.
     init() {
@@ -98,7 +145,7 @@ final class AgentReloadLoop: Sendable {
     /// Stops the watcher, cancels the tasks, and finishes each `onReload`
     /// stream.
     deinit {
-        currentWatch.withLock { $0?.watcher.stop() }
+        currentWatch.withLock { $0.watcher?.stop() }
         phase.withLock { phase in
             guard case .following(let following) = phase else { return }
             following.requestTask.cancel()
@@ -106,6 +153,31 @@ final class AgentReloadLoop: Sendable {
         }
         requests.finish()
         broadcaster.finishAll()
+    }
+
+    /// Whether a watcher watches roots now.
+    var isWatching: Bool {
+        currentWatch.withLock { $0.watcher != nil }
+    }
+
+    /// Stops the watcher and the two tasks, and waits until the request task
+    /// ends. Thus a reload that a request started is complete when the call
+    /// returns. No later `follow` or `watch` call starts them again. A second
+    /// call does nothing.
+    func stop() async {
+        currentWatch.withLock { state in
+            state.watcher?.stop()
+            state = .stopped
+        }
+        let following = phase.withLock { phase -> Following? in
+            defer { phase = .stopped }
+            guard case .following(let following) = phase else { return nil }
+            return following
+        }
+        guard let following else { return }
+        following.updatesTask?.cancel()
+        following.requestTask.cancel()
+        await following.requestTask.value
     }
 
     /// Makes a new `onReload` stream.
@@ -143,15 +215,16 @@ final class AgentReloadLoop: Sendable {
 
     /// Watches `roots`. It keeps the current watcher when it watches the same
     /// roots, and replaces it when the roots changed, for example when a
-    /// provider gives a new watchable layer.
+    /// provider gives a new watchable layer. After `stop()` it does nothing.
     ///
     /// - Parameter roots: The roots to watch, in layer order, or `nil` for no
     ///   watch.
     func watch(roots: [URL]?) {
         currentWatch.withLock { current in
-            guard current?.roots != roots else { return }
-            current?.watcher.stop()
-            current = roots.map(startWatch(of:))
+            if case .stopped = current { return }
+            guard current.roots != roots else { return }
+            current.watcher?.stop()
+            current = roots.map { .watching(startWatch(of: $0)) } ?? .idle
         }
     }
 

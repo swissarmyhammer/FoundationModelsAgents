@@ -179,6 +179,12 @@ the layer, thus the watcher sees it. When a placeholder becomes the full
 watcher sees that too. A host that gets a change notification of its own, for
 example from a metadata query, calls ``AgentRegistry/reload()``.
 
+A host that keeps a registry but does not use it, for example the registry of
+a closed session, calls ``AgentRegistry/stopWatching()``. The call stops the
+watcher and the follow of the `layerUpdates` values. `catalog()` then gives the
+last catalog. A later `reload()` still reads the files, but it does not start
+the watcher again.
+
 The build runs outside the lock, and the new catalog replaces the old catalog
 in one step. A `catalog()` call during a reload gives the previous catalog. A
 caller that holds a catalog keeps a value that does not change. A run in
