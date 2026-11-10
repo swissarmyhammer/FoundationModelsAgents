@@ -337,7 +337,7 @@ enum AgentsDemoModes {
     ) async throws -> AgentRunner {
         try await registry.load()
         let environment = try await AgentEnvironment.make(
-            profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory,
+            profile: profile, skills: SkillsRegistry(roots: [], mode: .open), workingDirectory: workingDirectory,
             inlineSettleGrace: inlineSettleGrace)
         return AgentRunner(registry: registry, environment: environment)
     }

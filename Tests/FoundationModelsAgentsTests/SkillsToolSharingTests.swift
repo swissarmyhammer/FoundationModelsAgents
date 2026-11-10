@@ -79,8 +79,8 @@ struct SkillsToolSharingTests {
     func oneRegistryReachesEachReader() async throws {
         let root = try Self.makeSkillsRoot(holding: [Self.firstSkill])
         defer { try? root.delete() }
-        let skills = SkillsRegistry(roots: [root.root], watch: true)
-        let reloads = try #require(skills.onReload)
+        let skills = SkillsRegistry(roots: [root.root], mode: .open, watch: true)
+        let reloads = skills.onReload
         let environment = try await AgentEnvironment.make(
             profile: try await AgentEnvironmentTests.makeProfile(), skills: skills)
 
@@ -100,7 +100,7 @@ struct SkillsToolSharingTests {
         let root = try Self.makeSkillsRoot(holding: [Self.firstSkill])
         defer { try? root.delete() }
         let environment = try await AgentEnvironment.make(
-            profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry(roots: [root.root]))
+            profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry(roots: [root.root], mode: .open))
 
         let catalogTool = try #require(environment.tools.makeTool(named: Self.skillsToolName) as? SkillsCatalogTool)
 
@@ -114,7 +114,7 @@ struct SkillsToolSharingTests {
         let root = try Self.makeSkillsRoot(holding: [Self.firstSkill, Self.laterSkill])
         defer { try? root.delete() }
         let environment = try await AgentEnvironment.make(
-            profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry(roots: [root.root]),
+            profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry(roots: [root.root], mode: .open),
             skillsVisibility: { metadata in metadata.id != Self.laterSkill })
 
         let selection = environment.skillsPreload.selection(of: [Self.laterSkill, Self.firstSkill])
@@ -129,7 +129,7 @@ struct SkillsToolSharingTests {
         let root = try Self.makeSkillsRoot(holding: [Self.firstSkill])
         defer { try? root.delete() }
         let profile = try await AgentEnvironmentTests.makeProfile()
-        let skills = SkillsRegistry(roots: [root.root])
+        let skills = SkillsRegistry(roots: [root.root], mode: .open)
 
         let full = try await AgentEnvironment.make(profile: profile, skills: skills)
         let limited = try await AgentEnvironment.make(
@@ -145,7 +145,7 @@ struct SkillsToolSharingTests {
         defer { try? root.delete() }
         let calls = SelectionProbeCalls()
         let environment = try await AgentEnvironment.make(
-            profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry(roots: [root.root]),
+            profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry(roots: [root.root], mode: .open),
             skillsSelectionModel: SelectionProbeModel(calls: calls))
 
         let answer = try await Self.call(environment.skillsTool, with: Self.searchCall)
@@ -160,7 +160,7 @@ struct SkillsToolSharingTests {
             var tools = ToolCatalog()
             tools.register(Self.skillsToolName) { ProbeTool(name: Self.skillsToolName) }
             _ = try await AgentEnvironment.make(
-                profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry(roots: []),
+                profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry(roots: [], mode: .open),
                 tools: tools)
         }
     }

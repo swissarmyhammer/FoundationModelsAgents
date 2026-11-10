@@ -30,7 +30,7 @@ struct AgentEnvironmentTests {
     ///
     /// - Returns: A registry that holds no skill.
     static func makeEmptySkills() -> SkillsRegistry {
-        SkillsRegistry(roots: [])
+        SkillsRegistry(roots: [], mode: .open)
     }
 
     /// Resolves a scripted profile with no plays.

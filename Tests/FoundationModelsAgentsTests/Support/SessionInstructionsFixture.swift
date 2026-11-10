@@ -65,7 +65,7 @@ enum SessionInstructionsFixture {
         return SkillsRegistry(layers: [
             DotfolderStack.Layer(
                 source: .project, root: layer.root.appendingPathComponent(skillsFolderName, isDirectory: true))
-        ])
+        ], mode: .open)
     }
 
     /// Makes a runner over `registry` and `skills`, with no play.
@@ -75,7 +75,7 @@ enum SessionInstructionsFixture {
     ///   - skills: The skills registry.
     /// - Returns: The harness and its runner. The test deletes the harness.
     static func makeRunner(
-        registry: AgentRegistry, skills: SkillsRegistry = SkillsRegistry(roots: [])
+        registry: AgentRegistry, skills: SkillsRegistry = SkillsRegistry(roots: [], mode: .open)
     ) async throws -> (harness: AgentRunHarness, runner: AgentRunner) {
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([]), registry: registry, skills: skills)

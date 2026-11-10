@@ -137,7 +137,7 @@ struct FindAgentsTests {
         let registry = AgentRegistry(stack: FixtureLibrary.stack())
         try await registry.load()
         let environment = try await AgentEnvironment.make(
-            profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry(roots: []),
+            profile: try await AgentEnvironmentTests.makeProfile(), skills: SkillsRegistry(roots: [], mode: .open),
             skillsSelectionModel: SelectionProbeModel(calls: calls, answer: Self.reviewerSelection))
         let tool = try await AgentsTool.make(
             context: AgentsToolContext(runner: AgentRunner(registry: registry, environment: environment)))

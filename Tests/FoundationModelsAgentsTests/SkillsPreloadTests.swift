@@ -160,7 +160,7 @@ struct SkillsPreloadTests {
                 root: FixtureLibrary.defaultsDirectory.appendingPathComponent(skillsFolderName, isDirectory: true)),
             DotfolderStack.Layer(
                 source: .project, root: layer.root.appendingPathComponent(skillsFolderName, isDirectory: true))
-        ])
+        ], mode: .open)
         return Library(layer: layer, agents: AgentRegistry(layers: [layer.layer]), skills: skills)
     }
 

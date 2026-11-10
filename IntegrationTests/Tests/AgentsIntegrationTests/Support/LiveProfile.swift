@@ -101,7 +101,7 @@ struct LiveProfile: Sendable {
         inlineSettleGrace: TimeInterval = ToolMount.defaultInlineSettleGrace
     ) async throws -> AgentRunner {
         let environment = try await AgentEnvironment.make(
-            profile: profile, skills: SkillsRegistry(roots: []), workingDirectory: workingDirectory, tools: tools,
+            profile: profile, skills: SkillsRegistry(roots: [], mode: .open), workingDirectory: workingDirectory, tools: tools,
             inlineSettleGrace: inlineSettleGrace)
         return AgentRunner(registry: registry, environment: environment)
     }

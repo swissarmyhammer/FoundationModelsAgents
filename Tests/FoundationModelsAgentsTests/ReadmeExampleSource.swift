@@ -93,7 +93,9 @@ enum ReadmeExampleSource {
         // Skills are separate from agents. An agent uses skills through its
         // `skills:` preload and through the `skills` tool. The environment makes the
         // `skills` tool from this one registry, and adds it to its tool catalog.
-        let skills = SkillsRegistry(marketplaces: market, stack: skillStack, watch: true)
+        // The mode `.open` lets a skill run its scripts. An app in the App Sandbox
+        // gives `.sandboxed`.
+        let skills = SkillsRegistry(marketplaces: market, stack: skillStack, mode: .open, watch: true)
         let environment = try await AgentEnvironment.make(
             profile: profile, skills: skills, workingDirectory: projectDirectory)
         let runner = AgentRunner(registry: registry, environment: environment)

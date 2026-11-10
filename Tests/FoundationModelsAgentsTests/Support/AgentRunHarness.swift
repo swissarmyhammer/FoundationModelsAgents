@@ -246,7 +246,7 @@ struct AgentRunHarness {
     static func make(
         script: ScriptedAgentScript,
         registry: AgentRegistry = AgentRegistry(stack: FixtureLibrary.stack()),
-        skills: SkillsRegistry = SkillsRegistry(roots: []),
+        skills: SkillsRegistry = SkillsRegistry(roots: [], mode: .open),
         budget: @escaping AgentEnvironment.BudgetFactory = AgentEnvironment.defaultBudget,
         tools: ToolCatalog = ToolCatalog(),
         tracer: (any Tracer)? = nil,

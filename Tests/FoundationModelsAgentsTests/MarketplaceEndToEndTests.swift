@@ -133,7 +133,7 @@ struct MarketplaceEndToEndTests {
     private static func harness(over provider: FixtureMarketplaceProvider) async throws -> AgentRunHarness {
         try await AgentRunHarness.make(
             script: script, registry: agentRegistry(over: provider),
-            skills: SkillsRegistry(marketplaces: provider, stack: noLocalLayers))
+            skills: SkillsRegistry(marketplaces: provider, stack: noLocalLayers, mode: .open))
     }
 
     /// Tells if a file is at `path` in the folder `root`.
@@ -179,7 +179,7 @@ struct MarketplaceEndToEndTests {
         let provider = try await FixtureMarketplaceProvider.make()
         defer { try? provider.delete() }
 
-        let skills = SkillsRegistry(marketplaces: provider, stack: Self.noLocalLayers)
+        let skills = SkillsRegistry(marketplaces: provider, stack: Self.noLocalLayers, mode: .open)
         let catalog = try await Self.agentRegistry(over: provider).loadedCatalog()
 
         #expect(catalog.definitions.map(\.id) == FixtureMarketplaceProvider.agentIDs)
@@ -191,7 +191,7 @@ struct MarketplaceEndToEndTests {
         let provider = try await FixtureMarketplaceProvider.make(select: .skills([Self.reviewSkill]))
         defer { try? provider.delete() }
 
-        let skills = SkillsRegistry(marketplaces: provider, stack: Self.noLocalLayers)
+        let skills = SkillsRegistry(marketplaces: provider, stack: Self.noLocalLayers, mode: .open)
         let registry = Self.agentRegistry(over: provider)
         let catalog = try await registry.loadedCatalog()
 
