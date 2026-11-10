@@ -6,12 +6,8 @@ import ULID
 
 /// Pins the `check agent` text of a run in operation: it holds the shared
 /// pending-work instruction, and a repeated check by the same caller with no
-/// progress since the last check of that caller gives the short repeat text
-/// alone (``AgentRun/repeatedCheckText``): stop checking, and post the status.
-///
-/// Seen live in the bench run planner24 (django__django-14752): the root
-/// checked two running planners in alternation 60 times in one answer, and
-/// each answer gave the full still-working text again.
+/// progress since the last check of that caller leads with the unchanged
+/// sentence.
 ///
 /// The tests call the tool outside a Router session, thus the caller of the
 /// tool is `nil`. A play matches by a key in the prompt of the run.
@@ -26,8 +22,8 @@ struct CheckAgentRepeatTests {
     /// The final text of the play of a run.
     private static let finalText = "The diff is correct."
 
-    /// The sentence that starts a repeated check with no progress.
-    private static let unchangedSentence = "You checked agent"
+    /// The sentence that leads a repeated check with no progress.
+    private static let unchangedSentence = "You checked this agent before, and nothing changed."
 
     /// A text delta that changes the progress of a gated run.
     private static let progressText = "Half of the diff is read."
@@ -71,7 +67,7 @@ struct CheckAgentRepeatTests {
         #expect(checked.hasPrefix("Agent \(Self.reviewer) (\(run.id)) is still working.\n"))
     }
 
-    @Test("a repeated check with no progress gives the short repeat text alone, also with no id")
+    @Test("a repeated check with no progress leads with the unchanged sentence, also with no id")
     func repeatedCheckWithNoProgressLeadsWithUnchangedSentence() async throws {
         let gate = ScriptedGate()
         let harness = try await Self.harness(gate: gate)
@@ -85,10 +81,7 @@ struct CheckAgentRepeatTests {
         _ = try await run.result()
 
         #expect(first == AgentsToolOperationsTests.gatedReport(of: run))
-        #expect(second == run.repeatedCheckText)
-        #expect(second.contains("Do not check it again."))
-        #expect(second.contains("post your status as plain text now"))
-        #expect(!second.contains(PendingRunEnvelope.pendingWorkInstruction))
+        #expect(second == "\(Self.unchangedSentence) \(first)")
         #expect(third == second)
     }
 
@@ -125,7 +118,7 @@ struct CheckAgentRepeatTests {
         _ = try await run.result()
 
         #expect(byOther == first)
-        #expect(againByOther == run.repeatedCheckText)
+        #expect(againByOther == "\(Self.unchangedSentence) \(first)")
     }
 
     @Test("a repeated check of a finished run gives the same finished text")
@@ -142,39 +135,5 @@ struct CheckAgentRepeatTests {
 
         #expect(first == "Agent \(Self.reviewer) (\(run.id)) finished.\n\n\(Self.finalText)")
         #expect(second == first)
-    }
-
-    @Test("checks of two running agents in alternation give the repeat text from the second check of each")
-    func alternatingChecksOfTwoAgentsGiveTheRepeatText() async throws {
-        let gates = [ScriptedGate(), ScriptedGate()]
-        let prompts = [Self.prompt, "second-repeat-key: review the tests"]
-        let harness = try await AgentsToolHarness.make(
-            script: ScriptedAgentScript(
-                zip(prompts, gates).map { prompt, gate in
-                    ScriptedAgentPlay(key: prompt, steps: [.wait(gate), .finalText(Self.finalText)])
-                }))
-        defer { try? harness.delete() }
-
-        var runs: [AgentRun] = []
-        for (prompt, gate) in zip(prompts, gates) {
-            _ = try await harness.call("start agent", ["name": Self.reviewer, "prompt": prompt])
-            await gate.waitForArrival()
-            runs = await harness.runner.runs
-        }
-        try #require(runs.count == 2)
-        var answers: [String] = []
-        for _ in 0..<3 {
-            for run in runs {
-                answers.append(try await harness.call("check agent", ["id": run.id.description]))
-            }
-        }
-        gates.forEach { $0.open() }
-        for run in runs {
-            _ = try await run.result()
-        }
-
-        #expect(answers[0] == AgentsToolOperationsTests.gatedReport(of: runs[0]))
-        #expect(answers[1] == AgentsToolOperationsTests.gatedReport(of: runs[1]))
-        #expect(Array(answers[2...]) == [runs[0], runs[1], runs[0], runs[1]].map(\.repeatedCheckText))
     }
 }

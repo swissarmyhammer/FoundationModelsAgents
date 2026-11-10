@@ -272,8 +272,8 @@ extension CheckAgent {
     /// - Returns: The report of the run (``AgentRun/checkReport(by:)``):
     ///   still working with the shared pending-work instruction, its
     ///   progress and, after its task turn, the count of open runs that it
-    ///   started, or ``AgentRun/repeatedCheckText`` alone when nothing
-    ///   changed after the last check of the caller; finished with
+    ///   started, with ``AgentRun/unchangedCheckSentence`` first when
+    ///   nothing changed after the last check of the caller; finished with
     ///   the full text; failed with the reason; or cancelled.
     ///   With no `id`, one report for each run of the caller. A corrective
     ///   for an id that no run of the caller has.
