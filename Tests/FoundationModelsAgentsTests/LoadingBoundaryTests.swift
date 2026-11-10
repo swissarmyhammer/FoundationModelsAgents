@@ -117,7 +117,11 @@ struct LoadingBoundaryTests {
         Rule(
             name: "FileManager",
             reason: "the stack of Extras opens each directory and each file of an agent",
-            exemptFiles: []),
+            // The writer of AG-9 makes and deletes agent folders in a
+            // coordinated write. Extras has no write API, and the writer
+            // reads no file: it finds each agent with the scan of the
+            // catalog build.
+            exemptFiles: ["Sources/FoundationModelsAgents/Registry/AgentWriter.swift"]),
         fileHandleRule,
         Rule(
             name: "String(contentsOf",

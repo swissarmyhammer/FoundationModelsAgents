@@ -1,0 +1,1 @@
+{"id":"01M7345CSH012YP7DXVQAA25KV","timestamp":"2026-11-10T16:20:22.449180Z","op":"create","item_id":"01M7345CSG3NNVTNX0CF4NA9XD","forward_patch":"--- original\n+++ modified\n@@ -0,0 +1,2 @@\n+color: 006b75\n+tag_name: ACPA-1\n","reverse_patch":"--- original\n+++ modified\n@@ -1,2 +0,0 @@\n-color: 006b75\n-tag_name: ACPA-1\n","transaction_id":null}

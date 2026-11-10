@@ -139,7 +139,7 @@ struct RestoreEndToEndTests {
         let middleRun = try await NestedRunTests.onlyRun(of: harness.runner, caller: callerRun.id)
         let leafRun = try await NestedRunTests.onlyRun(of: harness.runner, caller: middleRun.id)
         try #require(await leafGate.waitForArrival(orEndOf: leafRun))
-        let folder = try #require(root.recordingDirectory).deletingLastPathComponent()
+        let folder = root.recordingDirectory.deletingLastPathComponent()
         if orderlyQuit {
             for session in [root, callerRun.heldSession, middleRun.heldSession, leafRun.heldSession].compactMap(\.self) {
                 session.suspend()

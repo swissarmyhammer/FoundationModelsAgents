@@ -150,7 +150,7 @@ struct RunEndedMarkTests {
         let (record, closure) = Self.recording()
         let runner = harness.makeRunner(sessionEnding: closure)
         let caller = ULID()
-        let run = try await runner.start(
+        let run = await runner.start(
             AgentRunRequest(
                 definition: try #require(harness.registry.catalog().definition(named: AgentRunTests.reviewer)),
                 prompt: AgentRunTests.prompt, context: nil, inheritedSlot: .standard, depth: 1, parent: nil,
