@@ -52,10 +52,26 @@ comments:
     - evidence: 7 files — Tests/FoundationModelsAgentsTests/Support/AgentFolderFixture.swift, Tests/FoundationModelsAgentsTests/Support/SessionInstructionsFixture.swift, Tests/FoundationModelsAgentsTests/SessionAgentInstructionsTests.swift, Tests/FoundationModelsAgentsTests/InstructionsPreambleTests.swift, Tests/FoundationModelsAgentsTests/SkillsPreloadTests.swift, Tests/FoundationModelsAgentsTests/AgentBodyRendererTests.swift, Tests/FoundationModelsAgentsTests/DefaultAgentTests.swift. `swift build --build-tests`: Build complete, 0 errors, 0 warnings in our code (only the known mlx "missing creator" note). `swift test`: 939 tests in 122 suites passed.
     - next: /review
   timestamp: 2026-11-10T20:12:24.617942+00:00
+- actor: claude-code
+  id: 01m73hk9j6p2gd6368vgpms4n7
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (bc848c5): 0 findings, 0 confirmed, 0 refuted; 7 files attempted, 0 failed. All prior Review Findings items are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-11-10T20:15:09.382691+00:00
+- actor: claude-code
+  id: 01m73hkkv99ywbkf7vweg35s40
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — 7 test files (one AgentFolderFixture.agentText helper)
+    - test: green — root swift build --build-tests clean; swift test 939 passed in 122 suites; IntegrationTests build clean
+    - commit: bc848c5
+    - review: clean — 0 findings; 1 of 1 prior item checked; task moved to done
+  timestamp: 2026-11-10T20:15:19.913914+00:00
 depends_on:
 - 01M73DBP7JAF6N8K5V71YB868R
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: ff9380
 title: 'ACPA-20: AgentEnvironment takes an instructions preamble, and each run starts its instructions with it'
 ---
 ## What
