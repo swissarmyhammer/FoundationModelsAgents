@@ -1,5 +1,5 @@
 /// The grant of the `agents` tool: all agents, or only the named agents.
-enum AgentsGrant: Sendable, Equatable {
+public enum AgentsGrant: Sendable, Equatable {
     /// The tool can start each agent. The entry is `Agent` or `agents`.
     case all
 
@@ -8,7 +8,7 @@ enum AgentsGrant: Sendable, Equatable {
     case only([String])
 
     /// The agent names for the `agents` tool factory: `nil` for all agents.
-    var allowedNames: [String]? {
+    public var allowedNames: [String]? {
         switch self {
         case .all:
             nil
@@ -83,11 +83,12 @@ struct ToolVocabulary: Sendable {
     /// Makes the vocabulary of one resolution.
     ///
     /// - Parameters:
-    ///   - catalogNames: The names of the tool catalog, in sorted order.
+    ///   - catalogNames: The names of the tool catalog, in any order.
     ///   - hasAgentsTool: `true` when the resolution has an `agents` tool
     ///     factory.
     init(catalogNames: [String], hasAgentsTool: Bool) {
-        self.catalogNames = hasAgentsTool ? catalogNames.filter { $0 != Self.agentsToolName } : catalogNames
+        let sortedNames = catalogNames.sorted()
+        self.catalogNames = hasAgentsTool ? sortedNames.filter { $0 != Self.agentsToolName } : sortedNames
         self.hasAgentsTool = hasAgentsTool
     }
 

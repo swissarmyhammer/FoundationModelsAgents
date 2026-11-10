@@ -4,7 +4,8 @@ import FoundationModels
 /// tool instances, with the Claude semantics.
 ///
 /// The resolver holds the agent and the file that its diagnostics are
-/// about. `ToolSelection` holds the rules.
+/// about. ``AgentToolSelection`` applies the rules, and it is the same code
+/// path as ``AgentDefinition/toolSelection(over:hasAgentsTool:)``.
 struct ToolResolver: Sendable {
     /// Makes the `agents` tool. It gets the grant of the `Agent` entries of
     /// `tools`, or `nil` when no entry grants the tool. It gives `nil` when
@@ -48,13 +49,10 @@ struct ToolResolver: Sendable {
     static func diagnostics(
         of definition: AgentDefinition, catalog: ToolCatalog, hasAgentsTool: Bool, atMaxDepth: Bool
     ) -> [AgentDiagnostic] {
-        let selection = ToolSelection(
-            tools: definition.tools?.map(ToolSpec.parse),
-            disallowed: definition.disallowedTools.map(ToolSpec.parse),
-            vocabulary: ToolVocabulary(catalogNames: catalog.names, hasAgentsTool: hasAgentsTool))
-        let resolver = ToolResolver(agent: definition.id, provenance: definition.provenance)
-        return resolver.diagnostics(of: selection)
-            + resolver.maxDepthDiagnostics(of: selection, atMaxDepth: atMaxDepth)
+        let selection = definition.toolSelection(over: catalog.names, hasAgentsTool: hasAgentsTool)
+        return selection.diagnostics
+            + ToolResolver(agent: definition.id, provenance: definition.provenance)
+                .maxDepthDiagnostics(of: selection, atMaxDepth: atMaxDepth)
     }
 
     /// Resolves the entries to new tool instances.
@@ -85,26 +83,19 @@ struct ToolResolver: Sendable {
         catalog: ToolCatalog,
         agentsTool: AgentsToolFactory?
     ) async throws -> (tools: [any Tool], diagnostics: [AgentDiagnostic]) {
-        let selection = ToolSelection(
+        let selection = AgentToolSelection(
             tools: tools,
             disallowed: disallowed,
-            vocabulary: ToolVocabulary(catalogNames: catalog.names, hasAgentsTool: agentsTool != nil))
+            vocabulary: ToolVocabulary(catalogNames: catalog.names, hasAgentsTool: agentsTool != nil),
+            agent: agent,
+            provenance: provenance)
         let catalogTools = selection.names.compactMap(catalog.makeTool(named:))
-        let diagnostics = diagnostics(of: selection)
         guard let agentsTool, !selection.deniesAgents,
               let mountedTool = try await agentsTool(selection.agentsGrant)
         else {
-            return (catalogTools, diagnostics)
+            return (catalogTools, selection.diagnostics)
         }
-        return (catalogTools + [mountedTool], diagnostics)
-    }
-
-    /// Gives the diagnostics of the warnings of one selection.
-    ///
-    /// - Parameter selection: The selection.
-    /// - Returns: One diagnostic for each finding, in order.
-    private func diagnostics(of selection: ToolSelection) -> [AgentDiagnostic] {
-        selection.findings.map { finding in finding.diagnostic(agent: agent, provenance: provenance) }
+        return (catalogTools + [mountedTool], selection.diagnostics)
     }
 
     /// Gives the maxDepth warning of one selection.
@@ -115,7 +106,7 @@ struct ToolResolver: Sendable {
     ///     ``AgentEnvironment/maxDepth``.
     /// - Returns: One warning when the selection grants the `agents` tool and
     ///   each run is at `maxDepth`, otherwise none.
-    private func maxDepthDiagnostics(of selection: ToolSelection, atMaxDepth: Bool) -> [AgentDiagnostic] {
+    private func maxDepthDiagnostics(of selection: AgentToolSelection, atMaxDepth: Bool) -> [AgentDiagnostic] {
         guard atMaxDepth, selection.agentsGrant != nil else {
             return []
         }

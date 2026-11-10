@@ -78,6 +78,8 @@ skill.
 
 - ``AgentEnvironment``
 - ``ToolCatalog``
+- ``AgentToolSelection``
+- ``AgentsGrant``
 - ``AgentRunner``
 - ``SessionAgentInstructions``
 - ``AgentRun``
