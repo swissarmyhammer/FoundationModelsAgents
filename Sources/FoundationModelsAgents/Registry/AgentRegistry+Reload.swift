@@ -159,8 +159,7 @@ final class AgentReloadLoop: Sendable {
     /// Stops the watcher, cancels the tasks, and finishes each `onReload`
     /// stream.
     deinit {
-        currentWatch.withLock { $0.stopWatcher(then: .stopped) }
-        endFollowing()?.cancel()
+        halt()
         requests.finish()
         broadcaster.finishAll()
     }
@@ -175,22 +174,25 @@ final class AgentReloadLoop: Sendable {
     /// returns. No later `follow` or `watch` call starts them again. A second
     /// call does nothing.
     func stop() async {
-        currentWatch.withLock { $0.stopWatcher(then: .stopped) }
-        guard let following = endFollowing() else { return }
-        following.cancel()
-        await following.requestTask.value
+        await halt()?.requestTask.value
     }
 
-    /// Changes the phase to `stopped`.
+    /// Stops the watcher, cancels the two tasks, and changes the watch and
+    /// the phase to `stopped`. It does not wait, thus `deinit` and `stop()`
+    /// share it.
     ///
-    /// - Returns: The tasks that followed the changes, or `nil` when no
-    ///   build ran or the loop was stopped before.
-    private func endFollowing() -> Following? {
-        phase.withLock { phase -> Following? in
+    /// - Returns: The cancelled tasks, or `nil` when no build ran or the loop
+    ///   was stopped before.
+    @discardableResult
+    private func halt() -> Following? {
+        currentWatch.withLock { $0.stopWatcher(then: .stopped) }
+        let following = phase.withLock { phase -> Following? in
             defer { phase = .stopped }
             guard case .following(let following) = phase else { return nil }
             return following
         }
+        following?.cancel()
+        return following
     }
 
     /// Makes a new `onReload` stream.
