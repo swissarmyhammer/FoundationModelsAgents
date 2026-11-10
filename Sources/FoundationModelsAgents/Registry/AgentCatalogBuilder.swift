@@ -314,8 +314,10 @@ enum AgentCatalogBuilder {
 
     /// Runs `read` in a coordinated read of the file at `url`.
     ///
-    /// A sync engine that presents the file can give the current version
-    /// before the read. When the coordination fails, `read` does not run.
+    /// The read goes through `FileCoordination.run(_:at:_:)`, the same helper
+    /// as the coordinated writes of `AgentWriter`. A sync engine that
+    /// presents the file can give the current version before the read. When
+    /// the coordination fails, `read` does not run.
     ///
     /// - Parameters:
     ///   - url: The file to read.
@@ -324,17 +326,8 @@ enum AgentCatalogBuilder {
     private static func coordinatedRead<Value>(
         of url: URL, _ read: () -> Value?
     ) -> Result<Value?, CoordinatedReadFailure> {
-        var value: Value?
-        var coordinationError: NSError?
-        NSFileCoordinator(filePresenter: nil).coordinate(
-            readingItemAt: url, options: [], error: &coordinationError
-        ) { _ in
-            value = read()
-        }
-        if let coordinationError {
-            return .failure(CoordinatedReadFailure(reason: coordinationError.localizedDescription))
-        }
-        return .success(value)
+        FileCoordination.run(.reading([]), at: url) { _ in read() }
+            .mapError { CoordinatedReadFailure(reason: $0.reason) }
     }
 
     /// Gives one warning for each agent file of the old format: a `.md` file

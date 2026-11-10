@@ -521,16 +521,38 @@ private struct WriterStack {
         try await reloadedCatalog().definition(named: id)?.layer.source
     }
 
-    /// Reads each file under the folders of the stack.
+    /// Reads each item under the folders of the stack.
     ///
-    /// - Returns: The contents of each file, by its path.
-    /// - Throws: The error of the file system.
+    /// - Returns: The contents of each item, by its path.
+    /// - Throws: The error of the file system, also for an item that the
+    ///   read cannot get. Thus a read failure fails the test with its path,
+    ///   and does not give the same value before and after a write.
     func snapshot() throws -> [String: Data] {
         let roots = [defaults, user, project, outside].map(\.container)
-        let files = try roots.flatMap { root in
+        let items = try roots.flatMap { root in
             try FileManager.default.subpathsOfDirectory(atPath: root.path).map { root.appendingPathComponent($0) }
         }
-        return Dictionary(uniqueKeysWithValues: files.map { ($0.path, (try? Data(contentsOf: $0)) ?? Data()) })
+        return Dictionary(uniqueKeysWithValues: try items.map { ($0.path, try Self.snapshotContents(of: $0)) })
+    }
+
+    /// Gives the contents of one item for a snapshot.
+    ///
+    /// A symbolic link gives the path of its destination. A folder gives no
+    /// bytes, thus a new or a removed folder shows as a change of the keys. A
+    /// file gives its bytes.
+    ///
+    /// - Parameter url: The item.
+    /// - Returns: The contents of the item.
+    /// - Throws: The error of the file system, which names the path.
+    private static func snapshotContents(of url: URL) throws -> Data {
+        let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey])
+        if values.isSymbolicLink == true {
+            return Data(try FileManager.default.destinationOfSymbolicLink(atPath: url.path).utf8)
+        }
+        if values.isDirectory == true {
+            return Data()
+        }
+        return try Data(contentsOf: url)
     }
 
     /// Runs `operation`, and checks that it throws `expected` and that no

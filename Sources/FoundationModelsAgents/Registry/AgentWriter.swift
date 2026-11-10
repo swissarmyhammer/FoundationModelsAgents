@@ -274,8 +274,8 @@ struct AgentWriter: Sendable {
 
 /// The coordinated writes and deletes of `AgentWriter`.
 ///
-/// Each access uses `NSFileCoordinator`, in the same form as the
-/// coordinated read of `AgentCatalogBuilder`.
+/// Each access goes through `FileCoordination.run(_:at:_:)`, the same helper
+/// as the coordinated read of `AgentCatalogBuilder`.
 private enum AgentFileCoordination {
     /// Writes `content` to the file at `url`, and makes each folder that the
     /// path needs.
@@ -313,22 +313,16 @@ private enum AgentFileCoordination {
     private static func coordinate(
         _ url: URL, options: NSFileCoordinator.WritingOptions, _ access: (URL) throws -> Void
     ) throws(AgentWriterError) {
-        var coordinationError: NSError?
-        var accessError: (any Error)?
-        NSFileCoordinator(filePresenter: nil).coordinate(
-            writingItemAt: url, options: options, error: &coordinationError
-        ) { coordinated in
-            do {
-                try access(coordinated)
-            } catch {
-                accessError = error
-            }
+        let outcome = FileCoordination.run(.writing(options), at: url) { coordinated in
+            Result { try access(coordinated) }
         }
-        if let coordinationError {
-            throw .coordinationFailed(coordinationError.localizedDescription)
-        }
-        if let accessError {
+        switch outcome {
+        case .failure(let failure):
+            throw .coordinationFailed(failure.reason)
+        case .success(.failure(let accessError)):
             throw .writeFailed(accessError.localizedDescription)
+        case .success(.success):
+            return
         }
     }
 }
