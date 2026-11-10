@@ -420,14 +420,49 @@ public struct AgentEnvironment: Sendable {
         visibility: @escaping SkillsVisibility,
         sandboxProbe: SandboxProbe
     ) async throws -> SkillsCatalogTool {
+        let noEmbedder: (any PooledEmbedding)? = nil
+        let followsReloads = true
+        let make = skillsToolFactory(selectionModel: selectionModel)
+        return try await make(skills, noEmbedder, followsReloads, catalogCharacterLimit, visibility, sandboxProbe)
+    }
+
+    /// The shape of the `SkillsTool.make` overload that takes no model.
+    /// ``skillsToolFactory(selectionModel:)`` gives a factory of this shape
+    /// for each of the two overloads.
+    private typealias SkillsToolFactory = (
+        _ registry: SkillsRegistry,
+        _ embedder: (any PooledEmbedding)?,
+        _ followReloads: Bool,
+        _ catalogCharacterLimit: Int,
+        _ visibilityPredicate: @escaping SkillsVisibility,
+        _ sandboxProbe: SandboxProbe
+    ) async throws -> SkillsCatalogTool
+
+    /// Gives the `SkillsTool.make` overload that agrees with `selectionModel`.
+    ///
+    /// FoundationModelsSkills has two `SkillsTool.make` overloads. One takes
+    /// a model and has a selection tier. The other takes no model and has
+    /// only keyword retrieval. Neither overload takes an optional model, thus
+    /// a `nil` model needs the other overload. This function chooses the
+    /// overload, and binds the model when there is one. Thus
+    /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:sandboxProbe:)``
+    /// gives the shared arguments in one call only.
+    ///
+    /// - Parameter selectionModel: The model of the selection tier, or `nil`
+    ///   for a keyword search with no model.
+    /// - Returns: The factory that makes the `skills` tool.
+    private static func skillsToolFactory(
+        selectionModel: (any FoundationModels.LanguageModel)?
+    ) -> SkillsToolFactory {
         guard let selectionModel else {
-            return try await SkillsTool.make(
-                registry: skills, catalogCharacterLimit: catalogCharacterLimit, visibilityPredicate: visibility,
-                sandboxProbe: sandboxProbe)
+            return SkillsTool.make(
+                registry:embedder:followReloads:catalogCharacterLimit:visibilityPredicate:sandboxProbe:)
         }
-        return try await SkillsTool.make(
-            registry: skills, model: selectionModel, catalogCharacterLimit: catalogCharacterLimit,
-            visibilityPredicate: visibility, sandboxProbe: sandboxProbe)
+        return {
+            try await SkillsTool.make(
+                registry: $0, model: selectionModel, embedder: $1, followReloads: $2,
+                catalogCharacterLimit: $3, visibilityPredicate: $4, sandboxProbe: $5)
+        }
     }
 
     /// Makes an environment over a `skills` tool that is already made.
