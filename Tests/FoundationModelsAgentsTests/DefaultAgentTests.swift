@@ -1,7 +1,6 @@
 import Foundation
 @testable import FoundationModelsAgents
 import FoundationModelsExtras
-import FoundationModelsSkills
 import Testing
 
 /// Pins the default agent as the main session of a host.
@@ -14,6 +13,9 @@ import Testing
 /// itself.
 @Suite("Default agent")
 struct DefaultAgentTests {
+    /// The shared skills and runner of the main-session instructions tests.
+    private typealias Fixture = SessionInstructionsFixture
+
     /// The agent next to the default agent in each layer.
     private static let helperID = AgentFolderFixture.helperID
 
@@ -22,24 +24,6 @@ struct DefaultAgentTests {
 
     /// The body of the default agent of the higher layer.
     private static let projectBody = "You are the main session of the project layer."
-
-    /// The name of the skills folder of a layer.
-    private static let skillsFolderName = "skills"
-
-    /// A written skill that the model can see.
-    private static let doTask = "do-task"
-
-    /// The body of `doTask`.
-    private static let doTaskBodyText = "Do-task skill: plan, then do each step."
-
-    /// A written skill that the model can see.
-    private static let checklist = "checklist"
-
-    /// The body of `checklist`.
-    private static let checklistBodyText = "Checklist skill: check each step."
-
-    /// A written skill with `disable-model-invocation: true`.
-    private static let deploy = "deploy"
 
     /// A skill name that no layer holds.
     private static let unknownSkill = "no-such-skill"
@@ -86,24 +70,6 @@ struct DefaultAgentTests {
             """
     }
 
-    /// Gives the text of a skill file.
-    ///
-    /// - Parameters:
-    ///   - skill: The id of the skill.
-    ///   - body: The body.
-    ///   - extraKeys: More frontmatter lines.
-    /// - Returns: The text of the file.
-    private static func skillText(_ skill: String, body: String, extraKeys: String = "") -> String {
-        """
-        ---
-        name: \(skill)
-        description: A skill of the default agent tests.
-        \(extraKeys)
-        ---
-        \(body)
-        """
-    }
-
     /// Makes a layer with a root `AGENT.md` and a visible helper agent.
     ///
     /// - Parameter defaultText: The text of the root `AGENT.md`.
@@ -113,38 +79,6 @@ struct DefaultAgentTests {
             "AGENT.md": defaultText,
             AgentFolderFixture.documentPath(of: helperID): AgentFolderFixture.agentText(name: helperID)
         ])
-    }
-
-    /// Makes a skills registry over the `skills/` folder of `layer`, with
-    /// `doTask`, `checklist` and the hidden `deploy`.
-    ///
-    /// - Parameter layer: The layer that holds the skills.
-    /// - Returns: The skills registry.
-    private static func makeSkills(in layer: TemporaryLayer) throws -> SkillsRegistry {
-        try layer.write(skillText(doTask, body: doTaskBodyText), at: "\(skillsFolderName)/\(doTask)/SKILL.md")
-        try layer.write(
-            skillText(checklist, body: checklistBodyText), at: "\(skillsFolderName)/\(checklist)/SKILL.md")
-        try layer.write(
-            skillText(deploy, body: "Deploy skill.", extraKeys: "disable-model-invocation: true"),
-            at: "\(skillsFolderName)/\(deploy)/SKILL.md")
-        return SkillsRegistry(layers: [
-            DotfolderStack.Layer(
-                source: .project, root: layer.root.appendingPathComponent(skillsFolderName, isDirectory: true))
-        ])
-    }
-
-    /// Makes a runner over `registry` and `skills`, with no play.
-    ///
-    /// - Parameters:
-    ///   - registry: The agent registry. The harness loads it.
-    ///   - skills: The skills registry.
-    /// - Returns: The harness and its runner. The test deletes the harness.
-    private static func makeRunner(
-        registry: AgentRegistry, skills: SkillsRegistry = SkillsRegistry(roots: [])
-    ) async throws -> (harness: AgentRunHarness, runner: AgentRunner) {
-        let harness = try await AgentRunHarness.make(
-            script: ScriptedAgentScript([]), registry: registry, skills: skills)
-        return (harness, harness.makeRunner())
     }
 
     // MARK: - The agents tool never offers the default agent
@@ -206,10 +140,10 @@ struct DefaultAgentTests {
         let layer = try Self.makeLayer(defaultText: Self.defaultAgentText(body: Self.gatedBody))
         defer { try? layer.delete() }
 
-        let on = try await Self.makeRunner(
+        let on = try await Fixture.makeRunner(
             registry: AgentRegistry(layers: [layer.layer], templateContext: Self.kanbanOn))
         defer { try? on.harness.delete() }
-        let off = try await Self.makeRunner(
+        let off = try await Fixture.makeRunner(
             registry: AgentRegistry(layers: [layer.layer], templateContext: Self.kanbanOff))
         defer { try? off.harness.delete() }
 
@@ -228,7 +162,7 @@ struct DefaultAgentTests {
             AgentFolderFixture.documentPath(of: Self.helperID): AgentFolderFixture.agentText(name: Self.helperID)
         ])
         defer { try? layer.delete() }
-        let made = try await Self.makeRunner(registry: AgentRegistry(layers: [layer.layer]))
+        let made = try await Fixture.makeRunner(registry: AgentRegistry(layers: [layer.layer]))
         defer { try? made.harness.delete() }
 
         #expect(try await made.runner.defaultAgentInstructions() == nil)
@@ -243,7 +177,7 @@ struct DefaultAgentTests {
         defer { try? user.delete() }
         let project = try Self.makeLayer(defaultText: Self.defaultAgentText(body: Self.projectBody))
         defer { try? project.delete() }
-        let made = try await Self.makeRunner(
+        let made = try await Fixture.makeRunner(
             registry: AgentRegistry(layers: [user.layer(source: .user), project.layer(source: .project)]))
         defer { try? made.harness.delete() }
 
@@ -258,25 +192,25 @@ struct DefaultAgentTests {
     func theSkillsKeyPreloadsInOrder() async throws {
         let layer = try Self.makeLayer(
             defaultText: Self.defaultAgentText(
-                body: Self.projectBody, skills: [Self.doTask, Self.unknownSkill, Self.deploy, Self.checklist]))
+                body: Self.projectBody, skills: [Fixture.doTask, Self.unknownSkill, Fixture.deploy, Fixture.checklist]))
         defer { try? layer.delete() }
-        let skills = try Self.makeSkills(in: layer)
-        let made = try await Self.makeRunner(registry: AgentRegistry(layers: [layer.layer]), skills: skills)
+        let skills = try Fixture.makeSkills(in: layer)
+        let made = try await Fixture.makeRunner(registry: AgentRegistry(layers: [layer.layer]), skills: skills)
         defer { try? made.harness.delete() }
 
         let instructions = try #require(try await made.runner.defaultAgentInstructions())
 
         #expect(instructions.skillBodies.count == 2)
-        #expect(instructions.skillBodies.first?.contains(Self.doTaskBodyText) == true)
-        #expect(instructions.skillBodies.last?.contains(Self.checklistBodyText) == true)
+        #expect(instructions.skillBodies.first?.contains(Fixture.doTaskBodyText) == true)
+        #expect(instructions.skillBodies.last?.contains(Fixture.checklistBodyText) == true)
         #expect(
             instructions.diagnostics.map(\.message) == [
                 AgentSkillsPreload.unknownSkillFinding(Self.unknownSkill).message,
-                AgentSkillsPreload.hiddenSkillFinding(Self.deploy).message
+                AgentSkillsPreload.hiddenSkillFinding(Fixture.deploy).message
             ])
         #expect(instructions.text.hasPrefix(Self.projectBody))
-        let doTaskStart = try #require(instructions.text.range(of: Self.doTaskBodyText)).lowerBound
-        let checklistStart = try #require(instructions.text.range(of: Self.checklistBodyText)).lowerBound
+        let doTaskStart = try #require(instructions.text.range(of: Fixture.doTaskBodyText)).lowerBound
+        let checklistStart = try #require(instructions.text.range(of: Fixture.checklistBodyText)).lowerBound
         #expect(doTaskStart < checklistStart)
     }
 }

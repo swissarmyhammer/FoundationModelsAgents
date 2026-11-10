@@ -1,7 +1,5 @@
 import Foundation
 @testable import FoundationModelsAgents
-import FoundationModelsExtras
-import FoundationModelsSkills
 import Testing
 
 /// Pins ``AgentRunner/sessionAgentInstructions(for:)``: the instructions of
@@ -14,6 +12,9 @@ import Testing
 /// registry holds.
 @Suite("Session agent instructions")
 struct SessionAgentInstructionsTests {
+    /// The shared skills and runner of the main-session instructions tests.
+    private typealias Fixture = SessionInstructionsFixture
+
     /// The id of the named agent that is not the default agent.
     private static let reviewerID = "reviewer"
 
@@ -31,21 +32,6 @@ struct SessionAgentInstructionsTests {
 
     /// The text of the partial at the root of the folder.
     private static let folderRules = "## Folder House Rules"
-
-    /// The name of the skills folder of a layer.
-    private static let skillsFolderName = "skills"
-
-    /// The first skill of the `skills:` key.
-    private static let doTask = "do-task"
-
-    /// The body of `doTask`.
-    private static let doTaskBodyText = "Do-task skill: plan, then do each step."
-
-    /// The second skill of the `skills:` key.
-    private static let checklist = "checklist"
-
-    /// The body of `checklist`.
-    private static let checklistBodyText = "Checklist skill: check each step."
 
     // MARK: - Fixtures
 
@@ -67,24 +53,8 @@ struct SessionAgentInstructionsTests {
         """
     }
 
-    /// Gives the text of a skill file.
-    ///
-    /// - Parameters:
-    ///   - skill: The id of the skill.
-    ///   - body: The body.
-    /// - Returns: The text of the file.
-    private static func skillText(_ skill: String, body: String) -> String {
-        """
-        ---
-        name: \(skill)
-        description: A skill of the session agent instructions tests.
-        ---
-        \(body)
-        """
-    }
-
     /// Makes a layer with the default agent, and the named agent with the
-    /// `skills:` key `[doTask, checklist]`.
+    /// `skills:` key `[Fixture.doTask, Fixture.checklist]`.
     ///
     /// - Returns: The layer. The test deletes it.
     private static func makeLayer() throws -> TemporaryLayer {
@@ -92,47 +62,19 @@ struct SessionAgentInstructionsTests {
             AgentDocumentPath.documentName: agentText(
                 name: AgentFolderFixture.displayName, body: defaultBody, skills: []),
             AgentFolderFixture.documentPath(of: reviewerID): agentText(
-                name: reviewerID, body: reviewerBody, skills: [doTask, checklist])
+                name: reviewerID, body: reviewerBody, skills: [Fixture.doTask, Fixture.checklist])
         ])
-    }
-
-    /// Makes a skills registry over the `skills/` folder of `layer`, with
-    /// `doTask` and `checklist`.
-    ///
-    /// - Parameter layer: The layer that holds the skills.
-    /// - Returns: The skills registry.
-    private static func makeSkills(in layer: TemporaryLayer) throws -> SkillsRegistry {
-        try layer.write(skillText(doTask, body: doTaskBodyText), at: "\(skillsFolderName)/\(doTask)/SKILL.md")
-        try layer.write(
-            skillText(checklist, body: checklistBodyText), at: "\(skillsFolderName)/\(checklist)/SKILL.md")
-        return SkillsRegistry(layers: [
-            DotfolderStack.Layer(
-                source: .project, root: layer.root.appendingPathComponent(skillsFolderName, isDirectory: true))
-        ])
-    }
-
-    /// Makes a runner over `registry` and `skills`, with no play.
-    ///
-    /// - Parameters:
-    ///   - registry: The agent registry. The harness loads it.
-    ///   - skills: The skills registry.
-    /// - Returns: The harness and its runner. The test deletes the harness.
-    private static func makeRunner(
-        registry: AgentRegistry, skills: SkillsRegistry = SkillsRegistry(roots: [])
-    ) async throws -> (harness: AgentRunHarness, runner: AgentRunner) {
-        let harness = try await AgentRunHarness.make(
-            script: ScriptedAgentScript([]), registry: registry, skills: skills)
-        return (harness, harness.makeRunner())
     }
 
     /// Gives the instructions of the named agent of a layer from
-    /// ``makeLayer()``, with the skills of ``makeSkills(in:)``.
+    /// ``makeLayer()``, with the skills of ``SessionInstructionsFixture/makeSkills(in:)``.
     ///
     /// - Returns: The instructions.
     private static func reviewerInstructions() async throws -> SessionAgentInstructions {
         let layer = try makeLayer()
         defer { try? layer.delete() }
-        let made = try await makeRunner(registry: AgentRegistry(layers: [layer.layer]), skills: makeSkills(in: layer))
+        let made = try await Fixture.makeRunner(
+            registry: AgentRegistry(layers: [layer.layer]), skills: Fixture.makeSkills(in: layer))
         defer { try? made.harness.delete() }
         let reviewer = try #require(made.harness.registry.catalog().definition(named: reviewerID))
         return try await made.runner.sessionAgentInstructions(for: reviewer)
@@ -149,7 +91,7 @@ struct SessionAgentInstructionsTests {
         defer { try? folder.delete() }
         let layer = try makeLayer()
         defer { try? layer.delete() }
-        let made = try await makeRunner(registry: AgentRegistry(layers: [layer.layer]))
+        let made = try await Fixture.makeRunner(registry: AgentRegistry(layers: [layer.layer]))
         defer { try? made.harness.delete() }
         let definition = try #require(AgentRegistry.rootAgent(in: folder.root, id: reviewerID).definition)
         return try await made.runner.sessionAgentInstructions(for: definition)
@@ -168,7 +110,7 @@ struct SessionAgentInstructionsTests {
     func aNamedAgentGivesItsSkillsInOrder() async throws {
         let instructions = try await Self.reviewerInstructions()
 
-        let skillTexts = [Self.doTaskBodyText, Self.checklistBodyText]
+        let skillTexts = [Fixture.doTaskBodyText, Fixture.checklistBodyText]
         let order = instructions.skillBodies.map { body in skillTexts.first { body.contains($0) } }
 
         #expect(order == skillTexts)
@@ -203,7 +145,7 @@ struct SessionAgentInstructionsTests {
     func theDefaultAgentInstructionsAreUnchanged() async throws {
         let layer = try Self.makeLayer()
         defer { try? layer.delete() }
-        let made = try await Self.makeRunner(registry: AgentRegistry(layers: [layer.layer]))
+        let made = try await Fixture.makeRunner(registry: AgentRegistry(layers: [layer.layer]))
         defer { try? made.harness.delete() }
 
         let instructions: SessionAgentInstructions? = try await made.runner.defaultAgentInstructions()

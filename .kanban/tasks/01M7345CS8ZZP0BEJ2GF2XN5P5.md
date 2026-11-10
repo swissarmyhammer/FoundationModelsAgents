@@ -30,6 +30,31 @@ comments:
     - evidence: 12 files — Sources/FoundationModelsAgents/Run/AgentRunner+DefaultAgent.swift, Sources/FoundationModelsAgents/Run/AgentBodyRenderer.swift, Sources/FoundationModelsAgents/Registry/AgentRegistry+RootAgent.swift (new), Sources/FoundationModelsAgents/Registry/AgentLayerScan.swift, Sources/FoundationModelsAgents/Registry/AgentCatalogBuilder.swift, Sources/FoundationModelsAgents/FoundationModelsAgents.docc/RunningAnAgent.md, LoadingTheCatalog.md, FoundationModelsAgents.md, Tests/FoundationModelsAgentsTests/RootAgentTests.swift (new, 11 tests), Tests/FoundationModelsAgentsTests/SessionAgentInstructionsTests.swift (new, 5 tests); `swift build --build-tests`: 0 errors, 0 warnings in our code (only the known mlx "missing creator" note); `swift test`: 882 tests in 118 suites passed.
     - next: /review
   timestamp: 2026-11-10T16:43:27.775071+00:00
+- actor: claude-code
+  id: 01m735p75ad6vweayw38mrkbnx
+  text: |-
+    ### review — findings
+    - evidence: review sha HEAD~1..HEAD (ab975d5): 1 finding (1 confirmed, 3 refuted, 7 files attempted, 0 failed). Tests/FoundationModelsAgentsTests/SessionAgentInstructionsTests.swift:120 reuse/reuse.
+    - next: move makeRunner(registry:skills:) to the shared Support file so that SessionAgentInstructionsTests and DefaultAgentTests call one helper. Then commit and review again.
+  timestamp: 2026-11-10T16:47:02.314261+00:00
+- actor: claude-code
+  id: 01m735pk775jk21zwv5kwbqpt3
+  text: |-
+    ### finish iteration 1 — findings
+    - implement: changed — 10 files (AgentRegistry+RootAgent.swift, RootAgentTests.swift, SessionAgentInstructionsTests.swift new; AgentRunner+DefaultAgent.swift, AgentBodyRenderer.swift, AgentLayerScan.swift, AgentCatalogBuilder.swift, 3 DocC articles)
+    - test: green — swift build --build-tests 0 warnings in our code; swift test 882 passed in 118 suites
+    - commit: ab975d5
+    - review: findings — Tests/FoundationModelsAgentsTests/SessionAgentInstructionsTests.swift:120
+  timestamp: 2026-11-10T16:47:14.663806+00:00
+- actor: claude-code
+  id: 01m735wcj613jc9patpkav2chy
+  text: |-
+    Finding fixed: new `Tests/FoundationModelsAgentsTests/Support/SessionInstructionsFixture.swift` holds one `makeRunner(registry:skills:)`, one `makeSkills(in:)` (it writes `do-task`, `checklist` and the hidden `deploy`), one `skillText(_:body:extraKeys:)`, and the shared skill constants. DefaultAgentTests and SessionAgentInstructionsTests call them through a private typealias `Fixture` (the prevailing typealias pattern of AgentRunMetricsTests). No copy of a helper or of a skill constant remains in either suite. The hidden `deploy` skill has no effect on SessionAgentInstructionsTests, because its `skills:` key names only `do-task` and `checklist`. Unused imports (`FoundationModelsSkills`, and `FoundationModelsExtras` in SessionAgentInstructionsTests) removed.
+
+    ### implement — changed
+    - evidence: 3 files — Tests/FoundationModelsAgentsTests/Support/SessionInstructionsFixture.swift (new), Tests/FoundationModelsAgentsTests/DefaultAgentTests.swift, Tests/FoundationModelsAgentsTests/SessionAgentInstructionsTests.swift; `swift build --build-tests`: 0 errors, 0 warnings in our code (only the known mlx "missing creator" note); `swift test`: 882 tests in 118 suites passed.
+    - next: /review
+  timestamp: 2026-11-10T16:50:24.454237+00:00
 position_column: doing
 position_ordinal: '80'
 title: 'ACPA-1: AgentRunner renders the instructions of any agent for a main session, and AgentRegistry reads the root AGENT.md of a folder'
@@ -60,3 +85,17 @@ FoundationModelsACPAgent (task `^p21q32s`, ACPA-1) waits on two public APIs. tes
 
 ## Workflow
 - Use `/tdd` — write failing tests first, then implement to make them pass. #step1 #ACPA-1
+
+## Review Findings (2026-11-10 10:45)
+
+> Scope: `review sha HEAD~1..HEAD` — reviewed the diffs only — lines this change added or modified. 7 file(s) reviewed, 5 not reviewed.
+
+> 2 file(s) not reviewed — excluded by an ignore rule:
+> - `.kanban/ (from .reviewignore)` — 2 file(s)
+
+> 3 file(s) not reviewed — no validator matched:
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/FoundationModelsAgents.md` — no validator matches this file
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/LoadingTheCatalog.md` — no validator matches this file
+> - `Sources/FoundationModelsAgents/FoundationModelsAgents.docc/RunningAnAgent.md` — no validator matches this file
+
+- [x] `Tests/FoundationModelsAgentsTests/SessionAgentInstructionsTests.swift:120` `reuse/reuse` — The new makeRunner(registry:skills:) is the same helper as DefaultAgentTests.makeRunner. Both wrap AgentRunHarness.make and return the harness and its runner. The copy adds one more place that must change if the harness setup changes. Move makeRunner into the shared Support file with makeSkills, as in the finding on makeSkills. Both suites then call one helper.
