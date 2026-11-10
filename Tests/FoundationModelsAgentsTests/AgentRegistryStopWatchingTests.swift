@@ -27,7 +27,7 @@ struct AgentRegistryStopWatchingTests {
         let controlReloads = control.onReload
 
         await stopped.stopWatching()
-        try folder.write(AgentFolderFixture.agentText(name: id), at: AgentFolderFixture.documentPath(of: id))
+        try writeHelperAgent(in: folder)
 
         let seen = try #require(await controlReloads.first { $0.definition(named: id) != nil })
         #expect(seen.definitions.map(\.id) == [id])
@@ -58,7 +58,7 @@ struct AgentRegistryStopWatchingTests {
         try await registry.load()
         await registry.stopWatching()
 
-        try folder.write(AgentFolderFixture.agentText(name: id), at: AgentFolderFixture.documentPath(of: id))
+        try writeHelperAgent(in: folder)
         try await registry.reload()
 
         #expect(registry.catalog().definition(named: id) != nil)
@@ -88,9 +88,18 @@ struct AgentRegistryStopWatchingTests {
         #expect(!registry.reloads.isWatching)
 
         await registry.stopWatching()
-        try folder.write(AgentFolderFixture.agentText(name: id), at: AgentFolderFixture.documentPath(of: id))
+        try writeHelperAgent(in: folder)
         try await registry.reload()
 
         #expect(registry.catalog().definition(named: id) != nil)
     }
+}
+
+/// Writes the `AGENT.md` of the agent `AgentFolderFixture.helperID` in the
+/// agent folder form of `folder`.
+///
+/// - Parameter folder: The layer to write in.
+private func writeHelperAgent(in folder: TemporaryLayer) throws {
+    let id = AgentFolderFixture.helperID
+    try folder.write(AgentFolderFixture.agentText(name: id), at: AgentFolderFixture.documentPath(of: id))
 }

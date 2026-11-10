@@ -85,6 +85,12 @@ final class AgentReloadLoop: Sendable {
         /// The task that makes a request for each `layerUpdates` value, or
         /// `nil` for a registry with no marketplace provider.
         fileprivate let updatesTask: Task<Void, Never>?
+
+        /// Cancels the two tasks.
+        fileprivate func cancel() {
+            updatesTask?.cancel()
+            requestTask.cancel()
+        }
     }
 
     /// What the loop does now.
@@ -121,6 +127,14 @@ final class AgentReloadLoop: Sendable {
             guard case .watching(let watch) = self else { return nil }
             return watch.roots
         }
+
+        /// Stops the watcher that runs, and changes to `next`.
+        ///
+        /// - Parameter next: The state after the stop.
+        fileprivate mutating func stopWatcher(then next: WatchState) {
+            watcher?.stop()
+            self = next
+        }
     }
 
     /// The continuation of the request stream.
@@ -145,12 +159,8 @@ final class AgentReloadLoop: Sendable {
     /// Stops the watcher, cancels the tasks, and finishes each `onReload`
     /// stream.
     deinit {
-        currentWatch.withLock { $0.watcher?.stop() }
-        phase.withLock { phase in
-            guard case .following(let following) = phase else { return }
-            following.requestTask.cancel()
-            following.updatesTask?.cancel()
-        }
+        currentWatch.withLock { $0.stopWatcher(then: .stopped) }
+        endFollowing()?.cancel()
         requests.finish()
         broadcaster.finishAll()
     }
@@ -165,19 +175,22 @@ final class AgentReloadLoop: Sendable {
     /// returns. No later `follow` or `watch` call starts them again. A second
     /// call does nothing.
     func stop() async {
-        currentWatch.withLock { state in
-            state.watcher?.stop()
-            state = .stopped
-        }
-        let following = phase.withLock { phase -> Following? in
+        currentWatch.withLock { $0.stopWatcher(then: .stopped) }
+        guard let following = endFollowing() else { return }
+        following.cancel()
+        await following.requestTask.value
+    }
+
+    /// Changes the phase to `stopped`.
+    ///
+    /// - Returns: The tasks that followed the changes, or `nil` when no
+    ///   build ran or the loop was stopped before.
+    private func endFollowing() -> Following? {
+        phase.withLock { phase -> Following? in
             defer { phase = .stopped }
             guard case .following(let following) = phase else { return nil }
             return following
         }
-        guard let following else { return }
-        following.updatesTask?.cancel()
-        following.requestTask.cancel()
-        await following.requestTask.value
     }
 
     /// Makes a new `onReload` stream.
@@ -223,8 +236,7 @@ final class AgentReloadLoop: Sendable {
         currentWatch.withLock { current in
             if case .stopped = current { return }
             guard current.roots != roots else { return }
-            current.watcher?.stop()
-            current = roots.map { .watching(startWatch(of: $0)) } ?? .idle
+            current.stopWatcher(then: roots.map { .watching(startWatch(of: $0)) } ?? .idle)
         }
     }
 
