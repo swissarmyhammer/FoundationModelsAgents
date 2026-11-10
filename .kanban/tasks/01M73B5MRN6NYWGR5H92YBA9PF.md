@@ -48,8 +48,24 @@ comments:
     - evidence: 6 files — Tests/FoundationModelsAgentsTests/Support/SkillsRegistry+Empty.swift (new), AgentEnvironmentTests.swift, FindAgentsTests.swift, SkillsToolSharingTests.swift, Support/AgentRunHarness.swift, Support/SessionInstructionsFixture.swift. `swift build --build-tests`: complete, zero warnings in our code (only the mlx "missing creator" note). `swift test`: 913 tests in 119 suites passed.
     - next: /review
   timestamp: 2026-11-10T18:42:16.865428+00:00
-position_column: doing
-position_ordinal: '80'
+- actor: claude-code
+  id: 01m73cdq9wv02pxk9xqpjs0htp
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (53c1bed): 0 findings, 0 confirmed, 0 refuted; 7 attempted, 0 failed. 6 files reviewed. All 3 prior Review Findings items are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-11-10T18:44:43.964974+00:00
+- actor: claude-code
+  id: 01m73ce17qhepydqy5xp8k89g2
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — Support/SkillsRegistry+Empty.swift (new), AgentEnvironmentTests.swift, FindAgentsTests.swift, SkillsToolSharingTests.swift, Support/AgentRunHarness.swift, Support/SessionInstructionsFixture.swift
+    - test: green — root swift build --build-tests clean; swift test 913 passed in 119 suites; IntegrationTests build clean
+    - commit: 53c1bed
+    - review: clean — 0 findings; 3 of 3 prior items checked; task moved to done
+  timestamp: 2026-11-10T18:44:54.135003+00:00
+position_column: done
+position_ordinal: ff8f80
 title: 'Give mode: explicitly at each SkillsRegistry init, for the required mode of FoundationModelsSkills (EXTRAS-12)'
 ---
 ## What
