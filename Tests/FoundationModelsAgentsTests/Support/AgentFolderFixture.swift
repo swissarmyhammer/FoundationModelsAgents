@@ -57,25 +57,29 @@ enum AgentFolderFixture {
     /// Gives the text of a valid agent file.
     ///
     /// This is the one source of the text of a valid agent file for each test
-    /// suite that writes one with only `name`, `description`, and a body.
+    /// suite that writes one with only `name`, `description`, an optional
+    /// `skills` key, and a body.
     ///
     /// - Parameters:
     ///   - name: The value of the `name` key.
     ///   - description: The value of the `description` key. The default is
     ///     ``description``.
     ///   - body: The body of the file. The default is ``body``.
+    ///   - skills: The names of the `skills` key. The file has the key only
+    ///     when this list is not empty. The default is no key.
     /// - Returns: The text of the file.
     static func agentText(
-        name: String, description: String = AgentFolderFixture.description, body: String = AgentFolderFixture.body
+        name: String, description: String = AgentFolderFixture.description, body: String = AgentFolderFixture.body,
+        skills: [String] = []
     ) -> String {
-        """
-        ---
-        name: \(name)
-        description: \(description)
-        ---
-
-        \(body)
-        """
+        let skillsLine = skills.isEmpty ? "" : "skills: [\(skills.joined(separator: ", "))]\n"
+        return """
+            ---
+            name: \(name)
+            description: \(description)
+            \(skillsLine)---
+            \(body)
+            """
     }
 
     /// Gives the text of a valid agent file whose body includes the partial

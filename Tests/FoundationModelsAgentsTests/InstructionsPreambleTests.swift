@@ -57,9 +57,9 @@ struct InstructionsPreambleTests {
     /// - Throws: The error of the file system or of the harness.
     private static func makeLibrary() async throws -> Library {
         let layer = try TemporaryLayer.make(holding: [
-            AgentDocumentPath.documentName: Fixture.agentText(
-                name: AgentFolderFixture.displayName, body: defaultBody, skills: []),
-            AgentFolderFixture.documentPath(of: agentID): Fixture.agentText(
+            AgentDocumentPath.documentName: AgentFolderFixture.agentText(
+                name: AgentFolderFixture.displayName, body: defaultBody),
+            AgentFolderFixture.documentPath(of: agentID): AgentFolderFixture.agentText(
                 name: agentID, body: agentBody, skills: [Fixture.doTask, Fixture.checklist])
         ])
         let made = try await Fixture.makeRunner(

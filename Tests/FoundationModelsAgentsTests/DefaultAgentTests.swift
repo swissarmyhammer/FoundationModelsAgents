@@ -52,22 +52,10 @@ struct DefaultAgentTests {
     ///
     /// - Parameters:
     ///   - body: The body.
-    ///   - skills: The `skills` key, or `nil` for no key.
-    ///   - extraKeys: More frontmatter lines.
+    ///   - skills: The `skills` key. The default is no key.
     /// - Returns: The text of the file.
-    private static func defaultAgentText(
-        body: String, skills: [String]? = nil, extraKeys: String = ""
-    ) -> String {
-        let skillsLine = skills.map { "skills: [\($0.joined(separator: ", "))]" } ?? ""
-        return """
-            ---
-            name: \(AgentFolderFixture.displayName)
-            description: The main session.
-            \(skillsLine)
-            \(extraKeys)
-            ---
-            \(body)
-            """
+    private static func defaultAgentText(body: String, skills: [String] = []) -> String {
+        AgentFolderFixture.agentText(name: AgentFolderFixture.displayName, body: body, skills: skills)
     }
 
     /// Makes a layer with a root `AGENT.md` and a visible helper agent.

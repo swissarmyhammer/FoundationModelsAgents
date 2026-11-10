@@ -41,9 +41,9 @@ struct SessionAgentInstructionsTests {
     /// - Returns: The layer. The test deletes it.
     private static func makeLayer() throws -> TemporaryLayer {
         try TemporaryLayer.make(holding: [
-            AgentDocumentPath.documentName: Fixture.agentText(
-                name: AgentFolderFixture.displayName, body: defaultBody, skills: []),
-            AgentFolderFixture.documentPath(of: reviewerID): Fixture.agentText(
+            AgentDocumentPath.documentName: AgentFolderFixture.agentText(
+                name: AgentFolderFixture.displayName, body: defaultBody),
+            AgentFolderFixture.documentPath(of: reviewerID): AgentFolderFixture.agentText(
                 name: reviewerID, body: reviewerBody, skills: [Fixture.doTask, Fixture.checklist])
         ])
     }
@@ -103,8 +103,8 @@ struct SessionAgentInstructionsTests {
     @Test("a definition from rootAgent(in:) of a folder that is not a layer renders")
     func aRootAgentOfAFolderRenders() async throws {
         let instructions = try await Self.folderInstructions(holding: [
-            AgentDocumentPath.documentName: Fixture.agentText(
-                name: AgentFolderFixture.displayName, body: Self.folderBody, skills: [])
+            AgentDocumentPath.documentName: AgentFolderFixture.agentText(
+                name: AgentFolderFixture.displayName, body: Self.folderBody)
         ])
 
         #expect(instructions.body == Self.folderBody)

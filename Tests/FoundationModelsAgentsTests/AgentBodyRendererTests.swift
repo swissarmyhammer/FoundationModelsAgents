@@ -82,18 +82,13 @@ struct AgentBodyRendererTests {
     /// The render of `filterBody` under the trusted render.
     private static let renderedFilterBody = "Name: AGENT."
 
-    /// Gives the text of an agent file with a valid frontmatter and `body`.
+    /// Gives the text of an agent file of `writtenAgent` with a valid
+    /// frontmatter and `body`.
     ///
     /// - Parameter body: The body of the file.
     /// - Returns: The text of the file.
     private static func agentFile(body: String) -> String {
-        """
-        ---
-        name: \(writtenAgent)
-        description: An agent of a test.
-        ---
-        \(body)
-        """
+        AgentFolderFixture.agentText(name: writtenAgent, body: body)
     }
 
     /// Loads `registry`, and gives the definition of `id`.

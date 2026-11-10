@@ -104,23 +104,6 @@ struct SkillsPreloadTests {
         "Body of the agent \(agent)."
     }
 
-    /// Gives the text of a written agent file.
-    ///
-    /// - Parameters:
-    ///   - agent: The id of the agent.
-    ///   - skills: The names of its `skills` key.
-    /// - Returns: The text of the file.
-    private static func agentFile(_ agent: String, skills: [String]) -> String {
-        """
-        ---
-        name: \(agent)
-        description: An agent of the skills preload tests.
-        skills: [\(skills.joined(separator: ", "))]
-        ---
-        \(agentBodyText(of: agent))
-        """
-    }
-
     /// Gives the text of a written `SKILL.md` file.
     ///
     /// - Parameters:
@@ -147,7 +130,9 @@ struct SkillsPreloadTests {
     private static func makeLibrary() throws -> Library {
         let layer = try TemporaryLayer.makeEmpty()
         for (agent, skills) in agentSkills {
-            try layer.write(agentFile(agent, skills: skills), at: AgentDocumentPath.of(agent))
+            try layer.write(
+                AgentFolderFixture.agentText(name: agent, body: agentBodyText(of: agent), skills: skills),
+                at: AgentDocumentPath.of(agent))
         }
         for (skill, file) in writtenSkills {
             try layer.write(
