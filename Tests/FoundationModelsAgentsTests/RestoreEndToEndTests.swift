@@ -66,6 +66,10 @@ struct RestoreEndToEndTests {
         let restoredLeafGate: ScriptedGate
         /// The folder of the recording of the middle session.
         let middleFolder: URL?
+        /// The recording root that holds the folder of each session of the chain.
+        let recordingRoot: URL
+        /// The session id of the caller run, the child of the root session.
+        let callerID: ULID
         /// The session id of the middle run.
         let middleID: ULID
         /// The session id of the leaf run.
@@ -151,7 +155,7 @@ struct RestoreEndToEndTests {
         await directory.useRecordingRoots { [folder] }
         return Cut(
             harness: harness, rootID: root.id, directory: directory, layer: layer, leafGate: leafGate, restoredLeafGate: restoredLeafGate,
-            middleFolder: middleRun.recordingDirectory, middleID: middleRun.id, leafID: leafRun.id, layerAgentFile: AgentDocumentPath.of(middle))
+            middleFolder: middleRun.recordingDirectory, recordingRoot: folder, callerID: callerRun.id, middleID: middleRun.id, leafID: leafRun.id, layerAgentFile: AgentDocumentPath.of(middle))
     }
 
     /// The unended children of `parent`, as a host selects them.
@@ -189,11 +193,57 @@ struct RestoreEndToEndTests {
         return Restored(caller: callerRun, middle: middleRun, leaf: leafRun)
     }
 
-    /// Makes the runner of the second life, with the real directory as the mark.
+    /// Makes the runner of the second life, with the real directory as the mark, and with the
+    /// recording root of the chain, as a host sets it.
     private static func secondRunner(_ cut: Cut) -> AgentRunner {
         let directory = cut.directory
-        return cut.harness.runHarness.makeRunner(
-            maxDepth: 4, sessionEnding: { try await directory.markEnded($0, reason: $1) })
+        let runHarness = cut.harness.runHarness
+        let environment = runHarness.environment(
+            maxRetainedRuns: AgentEnvironment.defaultMaxRetainedRuns, maxDepth: 4,
+            sessionEnding: { try await directory.markEnded($0, reason: $1) })
+        return AgentRunner(registry: runHarness.registry, environment: environment.withRecordingRoot(cut.recordingRoot))
+    }
+
+    /// The reads of the restore over the real recordings, with no first prompt from the Router
+    /// for the session `hidden`.
+    ///
+    /// The Router records the first prompt of a session only when the pump of the session takes
+    /// the mail of the prompt. A kill after the announcement of the run and before that take
+    /// leaves the session with its `index.md` and with no first prompt. No seam holds the pump
+    /// before the take, thus the source hides the prompt that the Router recorded. That is the
+    /// state on disk of such a kill.
+    ///
+    /// - Parameters:
+    ///   - hidden: The session whose Router prompt the source hides.
+    ///   - cut: The cut chain.
+    /// - Returns: The source.
+    private static func sourceWithoutRouterPrompt(of hidden: ULID, in cut: Cut) -> RestoreSource {
+        var source = RestoreSource(directory: cut.directory, recordingRoot: cut.recordingRoot)
+        let realChildren = source.recordedChildren
+        let realFirstPrompt = source.firstPrompt
+        source.recordedChildren = { session in
+            try await realChildren(session).map { child in
+                child.sessionID == hidden ? child.withFirstPrompt(nil) : child
+            }
+        }
+        source.firstPrompt = { session in session == hidden ? nil : try await realFirstPrompt(session) }
+        return source
+    }
+
+    /// `true` when the recording of `run` holds the event that the Router writes for a restore
+    /// whose instructions differ from the recorded instructions of the session.
+    ///
+    /// The instructions of a run hold its task prompt as `$ARGUMENTS`. Thus a restore with
+    /// another prompt, or with no prompt, writes the event, and a restore with the task prompt
+    /// of the first life writes none.
+    ///
+    /// - Parameter run: A restored run.
+    /// - Returns: `true` when the restore changed the instructions.
+    /// - Throws: The error of `#require` when the run has no recording, or the error of the read.
+    private static func restoreChangedInstructions(of run: AgentRun) throws -> Bool {
+        let folder = try #require(run.recordingDirectory)
+        let transcript = try String(contentsOf: folder.appending(path: "transcript.jsonl"), encoding: .utf8)
+        return transcript.contains(RestoredSession.instructionsDivergencePhrase)
     }
 
     @Test("a crash cuts the chain; the restore finishes it, completes the original calls, and marks it ended")
@@ -440,7 +490,7 @@ struct RestoreEndToEndTests {
         }
         struct StatusFailed: Error {}
         let middleID = cut.middleID
-        var source = RestoreSource(directory: cut.directory)
+        var source = RestoreSource(directory: cut.directory, recordingRoot: cut.recordingRoot)
         let realStatuses = source.runStatuses
         source.runStatuses = { session in
             if session == middleID { throw StatusFailed() }
@@ -483,10 +533,10 @@ struct RestoreEndToEndTests {
             try? cut.harness.delete()
             try? cut.layer.delete()
         }
-        // The Router records the prompt before the answer (write-ahead), so a real child always
-        // has one. The source hides the prompt of the leaf, as the record of an older Router.
+        // A real child has the task prompt record of its run, and the Router records the prompt
+        // when its pump takes the mail. The source hides both records of the leaf.
         let leafID = cut.leafID
-        var source = RestoreSource(directory: cut.directory)
+        var source = RestoreSource(directory: cut.directory, recordingRoot: cut.recordingRoot)
         let realChildren = source.recordedChildren
         source.recordedChildren = { session in
             try await realChildren(session).map { child in
@@ -494,6 +544,8 @@ struct RestoreEndToEndTests {
             }
         }
         source.firstPrompt = { _ in nil }
+        let realTaskPrompt = source.taskPrompt
+        source.taskPrompt = { session in session == leafID ? nil : try await realTaskPrompt(session) }
         let runner = Self.secondRunner(cut)
 
         let report = await runner.restoreInterrupted(of: cut.rootID, caller: nil, source: source)
@@ -503,6 +555,46 @@ struct RestoreEndToEndTests {
         #expect(report.failed.first?.isDescendantOfFailed == false)
         let middleStatuses = try await cut.directory.runStatuses(of: cut.middleID)
         #expect(middleStatuses.values.contains(.completed(.lost)))
+    }
+
+    // MARK: - The task prompt record
+
+    @Test("a child of the host session that a kill cut before its first generate is restored with its task prompt")
+    func taskPromptRestoresChildOfHostSession() async throws {
+        let cut = try await Self.cutChain(continuing: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        let source = Self.sourceWithoutRouterPrompt(of: cut.callerID, in: cut)
+
+        let report = await Self.secondRunner(cut).restoreInterrupted(of: cut.rootID, caller: nil, source: source)
+        let callerRun = try #require(report.restored.first { $0.id == cut.callerID })
+
+        #expect(report.failed.isEmpty)
+        #expect(try !Self.restoreChangedInstructions(of: callerRun))
+        report.resumeAll()
+        cut.leafGate.open()
+        #expect(try await callerRun.result().contains("e2e-middle"))
+    }
+
+    @Test("a nested run that a kill cut before its first generate is restored with its task prompt")
+    func taskPromptRestoresNestedRun() async throws {
+        let cut = try await Self.cutChain(continuing: true)
+        defer {
+            try? cut.harness.delete()
+            try? cut.layer.delete()
+        }
+        let source = Self.sourceWithoutRouterPrompt(of: cut.leafID, in: cut)
+
+        let report = await Self.secondRunner(cut).restoreInterrupted(of: cut.rootID, caller: nil, source: source)
+        let leafRun = try #require(report.restored.first { $0.id == cut.leafID })
+
+        #expect(report.failed.isEmpty)
+        #expect(try !Self.restoreChangedInstructions(of: leafRun))
+        report.resumeAll()
+        cut.leafGate.open()
+        #expect(try await report.restored[0].result().contains("e2e-middle"))
     }
 
     @Test("resumeAll starts the children before their callers")

@@ -333,10 +333,15 @@ the status of their calls, restores each child with `deferStart` as a child of i
 
 Pass `caller:` when `sessionID` is the session of an agent run of the runner. A child that the
 runner holds already is skipped, thus a second call for the same caller restores nothing. The
-recorded first prompt of a child is `$ARGUMENTS` of its agent body. A child with no recorded first prompt (it was cut before its first answer) is not restored
-blind: it is in `failed` with the reason "its task prompt was not recorded", and its claim
-ends as lost, so the model of the caller sees the loss and can run the agent again. A host that
-knows the prompt gives it in `prompts:` (session id to prompt).
+task prompt of a child is `$ARGUMENTS` of its agent body. A run writes its task prompt to
+`task-prompt.md` beside the `index.md` of its session when it makes the session, before the
+host sees the run. Thus a kill after the host sees the run, also before its first answer,
+restores it with its prompt. The restore reads that record under the recording root of the
+environment (`withRecordingRoot(_:)`), and else the first prompt that the Router recorded. A
+host that knows the prompt gives it in `prompts:` (session id to prompt), and that prompt wins.
+A child with no prompt from these sources is not restored blind: it is in `failed` with the
+reason "its task prompt was not recorded", and its claim ends as lost, so the model of the
+caller sees the loss and can run the agent again.
 
 The steps in detail:
 

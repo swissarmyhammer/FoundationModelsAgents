@@ -1,4 +1,5 @@
 import Logging
+import ULID
 
 extension AgentEnvironment {
     /// Makes the logger of one run: ``logger`` when the host gave one, or a
@@ -36,6 +37,26 @@ extension Logger {
         failure[AgentsTelemetry.LogMetadataKey.failureKind] = .string(kind.rawValue)
         failure[AgentsTelemetry.LogMetadataKey.errorType] = .string(String(describing: type(of: error)))
         self.error("\(AgentsTelemetry.LogMessage.runEnded(.failed))", metadata: failure)
+    }
+
+    /// Writes the record of a run that could not write the record of its task prompt, at
+    /// `.warning`. The run goes on.
+    ///
+    /// The record holds the name of the agent, the id of the run and the name of the type of the
+    /// error, never the prompt and never the text of the error.
+    ///
+    /// - Parameters:
+    ///   - agentName: The name of the agent of the run.
+    ///   - runID: The id of the run: the id of its session.
+    ///   - error: The error of the write. Only the name of its type goes into the record.
+    internal func logTaskPromptNotRecorded(agentName: String, runID: ULID, error: some Error) {
+        warning(
+            "\(AgentsTelemetry.LogMessage.taskPromptNotRecorded)",
+            metadata: [
+                AgentsTelemetry.LogMetadataKey.agentName: .string(agentName),
+                AgentsTelemetry.LogMetadataKey.runID: .string(runID.description),
+                AgentsTelemetry.LogMetadataKey.errorType: .string(String(describing: type(of: error))),
+            ])
     }
 }
 

@@ -104,7 +104,7 @@ struct RestoreAuditTests {
             let harness = try await AgentRunHarness.make(script: ScriptedAgentScript([]), logger: context.logger)
             defer { try? harness.delete() }
             let runner = harness.makeRunner()
-            var source = RestoreSource(directory: RouterSessionDirectory())
+            var source = RestoreSource(directory: RouterSessionDirectory(), recordingRoot: nil)
             source.recordedChildren = { _ in [Self.child()] }
             source.runStatuses = { _ in throw MarkFailed() }
             let claims = await runner.claims(of: ULID(), source: source)
@@ -121,7 +121,7 @@ struct RestoreAuditTests {
     private static func source(
         of child: RecordedChild, status: RunStatus?, statusesFail: Bool = false
     ) -> RestoreSource {
-        var source = RestoreSource(directory: RouterSessionDirectory())
+        var source = RestoreSource(directory: RouterSessionDirectory(), recordingRoot: nil)
         source.recordedChildren = { session in session == child.parentSessionId ? [child] : [] }
         source.runStatuses = { _ in
             if statusesFail { throw MarkFailed() }

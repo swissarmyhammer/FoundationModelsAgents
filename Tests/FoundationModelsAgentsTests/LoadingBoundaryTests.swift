@@ -112,6 +112,11 @@ struct LoadingBoundaryTests {
         }
     }
 
+    /// The file of the task prompt record of a run. The record is a file beside the `index.md`
+    /// of a session in the recording root, not a file of an agent, thus the loading boundary
+    /// does not reach it. Neither Extras nor the Router has an API that writes or reads it.
+    private static let taskPromptRecordFile = "\(sourcesPath)/Run/AgentTaskPromptRecord.swift"
+
     /// Every rule of the loading boundary, with the reason of each one.
     static let rules: [Rule] = [
         Rule(
@@ -120,8 +125,12 @@ struct LoadingBoundaryTests {
             // The writer of AG-9 makes and deletes agent folders in a
             // coordinated write. Extras has no write API, and the writer
             // reads no file: it finds each agent with the scan of the
-            // catalog build.
-            exemptFiles: ["Sources/FoundationModelsAgents/Registry/AgentWriter.swift"]),
+            // catalog build. The task prompt record of a run is a file of a
+            // recording, not of an agent (``taskPromptRecordFile``).
+            exemptFiles: [
+                "Sources/FoundationModelsAgents/Registry/AgentWriter.swift",
+                taskPromptRecordFile,
+            ]),
         fileHandleRule,
         Rule(
             name: "String(contentsOf",
@@ -130,7 +139,7 @@ struct LoadingBoundaryTests {
         Rule(
             name: "Data(contentsOf",
             reason: "the stack of Extras loads each file, thus this package loads no whole file",
-            exemptFiles: []),
+            exemptFiles: [taskPromptRecordFile]),
         Rule(
             name: "resourceValues",
             reason: "the stack of Extras reads the attributes of a file",

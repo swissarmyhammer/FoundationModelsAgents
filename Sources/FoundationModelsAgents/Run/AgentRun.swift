@@ -405,6 +405,11 @@ public final class AgentRun: Sendable {
     /// message from the caller before that time waits in the run
     /// (``deliver(_:from:)``).
     ///
+    /// The call writes the task prompt beside the `index.md` of the new session
+    /// (`AgentTaskPromptRecord`) before it returns, thus before the runner puts
+    /// the run in its index and the host sees it. A restore after a kill in that
+    /// interval then has the prompt.
+    ///
     /// Each run has one span and its log records (``traced(in:_:)``), a child
     /// of the `ServiceContext` of the caller. The span and the records of a
     /// run whose setup failed start and end in this call.
@@ -428,7 +433,27 @@ public final class AgentRun: Sendable {
             _ = await run.traced(in: environment) { _ in run.state }
             return run
         }
+        recordTaskPrompt(of: request, in: made.session, environment: environment)
         return AgentRun(id: made.session.id, request: request, made: made, family: family, state: .running)
+    }
+
+    /// Writes the task prompt of `request` beside the `index.md` of `session`. A write that
+    /// fails does not stop the run: the call logs it
+    /// (``Logging/Logger/logTaskPromptNotRecorded(agentName:runID:error:)``).
+    ///
+    /// - Parameters:
+    ///   - request: The inputs of the run.
+    ///   - session: The new session of the run.
+    ///   - environment: The environment of the run. It gives the logger.
+    private static func recordTaskPrompt(
+        of request: AgentRunRequest, in session: any RoutedSession, environment: AgentEnvironment
+    ) {
+        do {
+            try AgentTaskPromptRecord.write(request.prompt, inSessionFolder: session.recordingDirectory)
+        } catch {
+            environment.makeRunLogger().logTaskPromptNotRecorded(
+                agentName: request.definition.id, runID: session.id, error: error)
+        }
     }
 
     /// Makes the run of a recorded child: the same setup as ``make(_:environment:renderer:)``,

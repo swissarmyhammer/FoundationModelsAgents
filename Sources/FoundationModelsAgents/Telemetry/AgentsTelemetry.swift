@@ -224,6 +224,11 @@ enum AgentsTelemetry {
         /// or the children of a session. The restore claims nothing for that session.
         static let claimReadFailed = SpanName.run + " could not read the claims of a session"
 
+        /// The message of the record that a run writes when it cannot write the record of its task
+        /// prompt (`AgentTaskPromptRecord`). A restore then reads the first prompt that the Router
+        /// recorded, and a kill before the first answer of the run loses the prompt.
+        static let taskPromptNotRecorded = SpanName.run + " could not record its task prompt"
+
         /// The message of the record that a message call writes when it cannot encode the typed record
         /// for the host. The host gets no record for that message.
         static let messageRecordNotEncoded = SpanName.run + " could not encode the record of a sent message"

@@ -1,8 +1,41 @@
 ---
 assignees:
 - claude-code
-position_column: todo
-position_ordinal: '8180'
+comments:
+- actor: claude-code
+  id: 01m73e8aev5wha9848nbn7ftvk
+  text: |-
+    Research done. The real order of a run start:
+    1. `AgentRun.make` calls `AgentSessionMaker.makeSession`. The Router writes `index.md` (with `agentSpawn`: the parent link that `RecordedChild` reads) synchronously in `makeSession`.
+    2. `AgentRunner.start` puts the run in `openRuns` and calls `attach(changeHub)` (the run is visible to the host and in the background list of its caller).
+    3. `begin` starts the driver task. `drive` subscribes to the session events (the run-event observer gets each event), then `mailTaskPrompt` posts the task mail.
+    4. The pump of the Router takes the mail later. Only then does it write the `promptStarted` marker (`RoutedSessionActorPump.runFirstSubmission` → `recordPromptStart`). `FirstPromptReader` reads that marker or the `.prompt` entry. A mail that only waits in the queue has no record that it reads.
+    Thus a kill between step 2 and step 4 leaves a listed child with no first prompt.
+
+    The Router gives no way to write a task prompt at creation: `SessionRecord` fields are `internal(set)`, `SessionConfiguration` has no such field, and the only public writers of the record are tags, title, additional directories and the ended marker. The Router also gives no public lookup of the folder of a session from a `RouterSessionDirectory` (`TranscriptTree.sessionFolder` is `package`). The layout under an explicit recording root is flat: `<recordingRoot>/<sessionId>/` (`RoutedLLM.recordingDirectory(forSessionId:recordingRoot:)`). Discovery matches only `index.md`, so one more file in a session folder does not disturb the Router.
+
+    The plan (the fallback of the card): `AgentRun.make` writes the task prompt to a file beside `index.md` in the session folder, before the run goes in the index. The restore reads `<AgentEnvironment.recordingRoot>/<sessionId>/` first, then the recorded first prompt of the Router. `prompts[sessionID]` from the host still wins.
+
+    There is no seam that holds the pump before it takes the mail (no session hooks from Agents, and the scripted backend runs after the marker). Thus the deterministic tests hide the Router first prompt through `RestoreSource`, as `facadeFailsChildWithoutPrompt` does. That is the disk state of a kill before the take.
+  timestamp: 2026-11-10T19:16:44.123447+00:00
+- actor: claude-code
+  id: 01m73epaf1sbpqb97xyx3xfkmc
+  text: |-
+    Implementation landed (not committed).
+    - New `AgentTaskPromptRecord` (Sources/FoundationModelsAgents/Run/AgentTaskPromptRecord.swift): `task-prompt.md` beside the `index.md` of the session, UTF-8 text of the prompt. A session with no recording folder gets no record.
+    - `AgentRun.make` writes the record right after `makeSession`, before it returns. Thus the record is on disk before `AgentRunner.start` puts the run in the index, before `attach(changeHub)`, and before the first observer event. A failed write logs `taskPromptNotRecorded` (agent name, run id, error type; no content) and the run goes on.
+    - `RestoreSource` has a fourth read, `taskPrompt`, over `AgentEnvironment.recordingRoot` (`<root>/<session>/task-prompt.md`). `withFirstPrompts` uses the record first, then the listed first prompt, then `firstPrompt(of:)`. `prompts[sessionID]` still wins in the restore loop.
+    - Limit: with `recordingRoot == nil` the restore cannot find the folder of a session (the Router has no public folder lookup), so it reads only the Router first prompt, as before. A host that restores runs sets the root.
+    - `LoadingBoundaryTests`: the new file is exempt from the `FileManager` and `Data(contentsOf` rules, with the reason that it is a recording file, not an agent file.
+    - Tests: two new end-to-end cases in RestoreEndToEndTests (a child of the host session, and a nested run), with the Router first prompt hidden. RED before the change: the run was not restored. GREEN after. The check "no instructions divergence event" was checked to fail with a wrong prompt. Four unit tests in AgentTaskPromptRecordTests. `facadeFailsChildWithoutPrompt` now hides the new record too. `secondRunner` sets the recording root, as a host does.
+    - README restore text updated.
+
+    ### implement — changed
+    - evidence: `swift build --build-tests` no error, no warning in our code (only the known mlx "missing creator" note); `swift test` 933 tests in 121 suites passed.
+    - next: /review
+  timestamp: 2026-11-10T19:24:22.881487+00:00
+position_column: doing
+position_ordinal: '80'
 title: A run records its task prompt before it is announced, so a kill after the announcement restores it
 ---
 ## What

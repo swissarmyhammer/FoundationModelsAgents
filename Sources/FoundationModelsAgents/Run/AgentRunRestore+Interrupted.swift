@@ -68,8 +68,8 @@ public struct RestoreReport: Sendable {
     }
 }
 
-/// The three reads of the restore. The public calls use a ``RouterSessionDirectory``; a test
-/// can replace one read.
+/// The four reads of the restore. The public calls use a ``RouterSessionDirectory`` and the
+/// recording root of the runs; a test can replace one read.
 struct RestoreSource: Sendable {
     /// The recorded children of a session.
     var recordedChildren: @Sendable (ULID) async throws -> [RecordedChild]
@@ -80,13 +80,25 @@ struct RestoreSource: Sendable {
     /// The recorded first prompt of a session.
     var firstPrompt: @Sendable (ULID) async throws -> String?
 
-    /// Makes the source over a directory.
+    /// The task prompt that the run of a session recorded when it made the session
+    /// (`AgentTaskPromptRecord`).
+    var taskPrompt: @Sendable (ULID) async throws -> String?
+
+    /// Makes the source over a directory and a recording root.
     ///
-    /// - Parameter directory: The directory of the recordings.
-    init(directory: RouterSessionDirectory) {
+    /// - Parameters:
+    ///   - directory: The directory of the recordings.
+    ///   - recordingRoot: The recording root of the runs (``AgentEnvironment/recordingRoot``), or
+    ///     `nil` for the default root of the Router. With `nil`, the source finds no task prompt
+    ///     record, and the restore reads the first prompt that the Router recorded.
+    init(directory: RouterSessionDirectory, recordingRoot: URL?) {
         recordedChildren = { try await directory.recordedChildren(of: $0) }
         runStatuses = { try await directory.runStatuses(of: $0) }
         firstPrompt = { try await directory.firstPrompt(of: $0) }
+        taskPrompt = { session in
+            guard let recordingRoot else { return nil }
+            return try AgentTaskPromptRecord.read(of: session, under: recordingRoot)
+        }
     }
 }
 
@@ -102,7 +114,7 @@ extension AgentRunner {
     public func claims(
         of callerSession: ULID, directory: RouterSessionDirectory
     ) async -> Set<RunKey> {
-        await claims(of: callerSession, source: RestoreSource(directory: directory))
+        await claims(of: callerSession, source: RestoreSource(directory: directory, recordingRoot: environment.recordingRoot))
     }
 
     /// The claims of `callerSession` over any source of the reads.
@@ -139,8 +151,10 @@ extension AgentRunner {
     ///   - caller: The run of that session when it is an agent run of this runner, else `nil`
     ///     for a session of the host.
     ///   - directory: The directory of the recordings.
-    ///   - prompts: A task prompt for a child, by its session id, for a host that knows it. A
-    ///     child with no recorded first prompt and no entry here is not restored: it is in
+    ///   - prompts: A task prompt for a child, by its session id, for a host that knows it. An
+    ///     entry here wins. Else the restore uses the task prompt that the run recorded when it
+    ///     made its session, under ``AgentEnvironment/recordingRoot``, and else the first prompt
+    ///     that the Router recorded. A child with none of the three is not restored: it is in
     ///     ``RestoreReport/failed``, and its claim ends as lost.
     /// - Returns: The report. The call never throws: a read that fails goes in
     ///   ``RestoreReport/unreadable``, and the host goes on with the resume of its own session.
@@ -149,7 +163,7 @@ extension AgentRunner {
         prompts: [ULID: String] = [:]
     ) async -> RestoreReport {
         await restoreInterrupted(
-            of: callerSession, caller: caller, source: RestoreSource(directory: directory), prompts: prompts)
+            of: callerSession, caller: caller, source: RestoreSource(directory: directory, recordingRoot: environment.recordingRoot), prompts: prompts)
     }
 
     /// The work of ``restoreInterrupted(of:caller:directory:)`` over any source of the reads.
@@ -276,19 +290,33 @@ extension AgentRunner {
         _ = await environment.markSessionEnded(child.sessionID, reason: reason, metadata: metadata)
     }
 
-    /// Gives each child its recorded first prompt when the listing holds none.
+    /// Gives each child its recorded task prompt as its first prompt: the record of its run
+    /// first, then the first prompt of the listing, then the first prompt that the Router reads
+    /// for the session. A read that fails gives no prompt, and the next source is used.
     private func withFirstPrompts(_ children: [RecordedChild], source: RestoreSource) async
         -> [RecordedChild]
     {
         var result: [RecordedChild] = []
         for child in children {
-            guard child.firstPrompt == nil, let prompt = try? await source.firstPrompt(child.sessionID) else {
-                result.append(child)
-                continue
-            }
-            result.append(child.withFirstPrompt(prompt))
+            result.append(child.withFirstPrompt(await recordedPrompt(of: child, source: source)))
         }
         return result
+    }
+
+    /// The recorded task prompt of `child`, in the order of ``withFirstPrompts(_:source:)``.
+    ///
+    /// - Parameters:
+    ///   - child: A recorded child.
+    ///   - source: The reads of the restore.
+    /// - Returns: The prompt, or `nil` when no source holds one.
+    private func recordedPrompt(of child: RecordedChild, source: RestoreSource) async -> String? {
+        if let recorded = try? await source.taskPrompt(child.sessionID) {
+            return recorded
+        }
+        if let listed = child.firstPrompt {
+            return listed
+        }
+        return try? await source.firstPrompt(child.sessionID)
     }
 
     /// The selected children of `session`. A failed read gives none and goes in the report.
