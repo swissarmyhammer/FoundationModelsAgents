@@ -30,6 +30,9 @@ struct AgentsToolDescriptionTests {
         + "that you give it, so put the full task and all that the agent needs in the prompt. When the agent "
         + "changes files, tell it in the prompt to commit after each step that works, so that each commit "
         + "is a point to undo to. "
+        + #"To make, change or remove an agent, use the op "add agent", "edit agent" or "remove agent", with "#
+        + #"the optional "layer" user (for all projects, used when you leave it out) or project (for this "#
+        + #"project only). "#
         + #"To give a task to an agent, call the tool "agents" with the arguments {"op": "start agent", "#
         + #""name": "<name>", "prompt": "<the full task>"}. The value of "op" is an operation of the tool "#
         + #""agents", not the name of a tool. When the agent finishes in a few seconds, the call gives its "#

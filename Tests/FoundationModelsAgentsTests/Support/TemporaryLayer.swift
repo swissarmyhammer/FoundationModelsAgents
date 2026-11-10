@@ -100,6 +100,15 @@ struct TemporaryLayer {
         try Data(text.utf8).write(to: url)
     }
 
+    /// Reads the text of the file at `relativePath`.
+    ///
+    /// - Parameter relativePath: The path relative to `root`.
+    /// - Returns: The text of the file.
+    /// - Throws: The error of the file system.
+    func text(at relativePath: String) throws -> String {
+        try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
+    }
+
     /// Removes the file or the folder at `relativePath`.
     ///
     /// - Parameter relativePath: The path relative to `root`.
@@ -114,6 +123,40 @@ struct TemporaryLayer {
     ///   folder.
     func delete() throws {
         try FileManager.default.removeItem(at: container)
+    }
+
+    /// Reads each item under the containers of `layers`.
+    ///
+    /// - Parameter layers: The layers to read.
+    /// - Returns: The contents of each item, by its path.
+    /// - Throws: The error of the file system, also for an item that the
+    ///   read cannot get. Thus a read failure fails the test with its path,
+    ///   and does not give the same value before and after a write.
+    static func snapshot(of layers: [TemporaryLayer]) throws -> [String: Data] {
+        let items = try layers.map(\.container).flatMap { root in
+            try FileManager.default.subpathsOfDirectory(atPath: root.path).map { root.appendingPathComponent($0) }
+        }
+        return Dictionary(uniqueKeysWithValues: try items.map { ($0.path, try snapshotContents(of: $0)) })
+    }
+
+    /// Gives the contents of one item for a snapshot.
+    ///
+    /// A symbolic link gives the path of its destination. A folder gives no
+    /// bytes, thus a new or a removed folder shows as a change of the keys. A
+    /// file gives its bytes.
+    ///
+    /// - Parameter url: The item.
+    /// - Returns: The contents of the item.
+    /// - Throws: The error of the file system, which names the path.
+    private static func snapshotContents(of url: URL) throws -> Data {
+        let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey])
+        if values.isSymbolicLink == true {
+            return Data(try FileManager.default.destinationOfSymbolicLink(atPath: url.path).utf8)
+        }
+        if values.isDirectory == true {
+            return Data()
+        }
+        return try Data(contentsOf: url)
     }
 
     /// The folder name of the root that `makeEmpty()` makes.

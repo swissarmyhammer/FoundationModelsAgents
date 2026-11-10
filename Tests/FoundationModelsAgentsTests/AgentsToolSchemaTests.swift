@@ -17,9 +17,9 @@ struct AgentsToolSchemaTests {
 
     /// The op strings of the operations, in tool order.
     private static let opStrings = [
-        "list agents", "find agents", "start agent", "check agent", "cancel agent", "send agent", "send caller",
-        "schedule agent", "list schedules", "get schedule", "pause schedule", "resume schedule", "start schedule",
-        "cancel schedule"
+        "list agents", "find agents", "start agent", "check agent", "cancel agent", "add agent", "edit agent",
+        "remove agent", "send agent", "send caller", "schedule agent", "list schedules", "get schedule",
+        "pause schedule", "resume schedule", "start schedule", "cancel schedule"
     ]
 
     /// The op strings of a tool with the messaging grant, in tool order.
@@ -30,6 +30,13 @@ struct AgentsToolSchemaTests {
 
     /// The model-visible agents of the fixture library, in catalog order.
     private static let visibleNames = ["code-reviewer", "internal-helper", "lead", "test-writer"]
+
+    /// The guide text of the `layer` field of the write operations, word for
+    /// word. The `layer` field of the `skills` tool has the same words, with
+    /// `.skills` in place of `.agents` (SK-6).
+    private static let layerGuide =
+        "Optional. Where to write: user (the user folder, for all projects) or project "
+        + "(the .agents folder of this project). Leave it out for user."
 
     /// The fixture agent with `disable-model-invocation: true`.
     private static let modelHiddenName = "release-manager"
@@ -84,6 +91,9 @@ struct AgentsToolSchemaTests {
                 "start agent": ["name", "prompt", "workingDirectory?"],
                 "check agent": ["id?"],
                 "cancel agent": ["id"],
+                "add agent": ["name", "content", "layer?"],
+                "edit agent": ["name", "content", "document?", "layer?"],
+                "remove agent": ["name", "layer?"],
                 "send agent": ["id", "message"],
                 "send caller": ["message"],
                 "schedule agent": ["schedule", "prompt", "agent?", "until?", "count?", "title?", "timeZone?"],
@@ -106,8 +116,18 @@ struct AgentsToolSchemaTests {
             Set(properties.keys)
                 == [
                     OperationKeys.opFieldName, "filter", "query", "limit", "name", "prompt", "workingDirectory", "id",
-                    "message", "schedule", "agent", "until", "count", "title", "timeZone"
+                    "message", "schedule", "agent", "until", "count", "title", "timeZone", "content", "document", "layer"
                 ])
+    }
+
+    @Test("the layer field has the guide text that the skills tool also has")
+    func theLayerFieldHasTheSharedGuideText() async throws {
+        let harness = try await AgentsToolHarness.make()
+        defer { try? harness.delete() }
+
+        let layerProperty = try Self.property(named: "layer", in: harness.tool.parameters)
+
+        #expect(layerProperty["description"] as? String == Self.layerGuide)
     }
 
     // MARK: - The name field

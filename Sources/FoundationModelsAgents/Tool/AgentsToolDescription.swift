@@ -97,8 +97,19 @@ enum AgentsToolDescription {
         each commit is a point to undo to.
         """
 
+    /// The sentence that names the write operations and the `layer` option
+    /// (AG-9). The values of `layer` are the values of the `layer` option of
+    /// the `skills` tool. The sentence does not hold the word "default": the
+    /// description never names the default agent.
+    private static let writeSentence = """
+        To make, change or remove an agent, use the op "add agent", "edit agent" or "remove agent", with \
+        the optional "layer" user (for all projects, used when you leave it out) or project (for this \
+        project only).
+        """
+
     /// The fixed sentences: what an agent is, which work to give to which
-    /// agent, what to put in the prompt, and how to delegate.
+    /// agent, what to put in the prompt, how to write an agent, and how to
+    /// delegate.
     ///
     /// The sentences end with `PendingRunEnvelope.pendingWorkInstruction` of
     /// FoundationModelsExtras, which the pending text of `start agent` also
@@ -113,7 +124,7 @@ enum AgentsToolDescription {
     private static let fixedSentences = """
         An agent is a model session that works in the background. \(matchSentences) Each agent starts with \
         an empty context and sees only the prompt that you give it, so put the full task and all that the \
-        agent needs in the prompt. \(commitSentence) \
+        agent needs in the prompt. \(commitSentence) \(writeSentence) \
         \(delegationSentence) When the agent finishes in a few seconds, the call gives its final \
         message. Else the call gives a pending answer, and the agent works in the background. \
         \(PendingRunEnvelope.pendingWorkInstruction)

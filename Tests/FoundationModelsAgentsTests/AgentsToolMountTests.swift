@@ -48,6 +48,9 @@ struct AgentsToolMountTests {
     /// The JSON arguments of the scripted `start agent` call.
     private static let startArguments = #"{"op": "start agent", "name": "code-reviewer", "prompt": "\#(childPrompt)"}"#
 
+    /// The op strings of the write operations.
+    private static let writeOps = ["add agent", "edit agent", "remove agent"]
+
     /// A completion token of a `start agent` call.
     private static let completionToken = "01M3N00000000000000000TOKN"
 
@@ -59,7 +62,17 @@ struct AgentsToolMountTests {
         ("list agents", .runToCompletion),
         ("check agent", .runToCompletion),
         ("status agent", .runToCompletion),
-        ("cancel agent", .runToCompletion)
+        ("cancel agent", .runToCompletion),
+        ("add agent", .runToCompletion),
+        ("create agent", .runToCompletion),
+        ("new agent", .runToCompletion),
+        ("edit agent", .runToCompletion),
+        ("update agent", .runToCompletion),
+        ("change agent", .runToCompletion),
+        ("remove agent", .runToCompletion),
+        ("delete agent", .runToCompletion),
+        ("rm agent", .runToCompletion),
+        ("del agent", .runToCompletion)
     ]
 
     /// The JSON arguments of a scripted call that names the run `run`.
@@ -72,7 +85,7 @@ struct AgentsToolMountTests {
         #"{"op": "\#(operation)", "id": "\#(run.id)"}"#
     }
 
-    @Test("start agent is background, and list, check, and cancel agent are synchronous", arguments: modes)
+    @Test("start agent is background, and list, check, cancel, add, edit, and remove agent are synchronous", arguments: modes)
     func mountOfEachOperation(_ call: (op: String, mode: ToolMount.Mode)) async throws {
         let harness = try await AgentsToolHarness.make()
         defer { try? harness.delete() }
@@ -248,6 +261,19 @@ struct AgentsToolMountTests {
         }
         #expect(linkCall.completionToken == child.call.completionToken)
         #expect(context.grant == .full)
+    }
+
+    /// AG-9 and D87 put no gate on the writes, thus a child run with an
+    /// `Agent` grant can add, edit and remove agents too.
+    @Test("the tool of a child run with an Agent grant has the write operations")
+    func childToolHasTheWriteOperations() async throws {
+        let harness = try await AgentsToolHarness.make(script: Self.leadScript(rootSteps: [Self.probeStep]))
+        defer { try? harness.delete() }
+
+        let child = try await Self.calledRun(of: NestedRunTests.lead, in: harness, runner: harness.runner)
+        let opStrings = try #require(child.tools.first).operationTool.operations.map(\.opString)
+
+        #expect(Set(Self.writeOps).isSubset(of: opStrings))
     }
 
     // MARK: - The mount table of a run with a caller

@@ -6,7 +6,8 @@ import FoundationModelsSkills
 import Operations
 
 /// The `agents` tool: the operations that let a model delegate a task to an
-/// agent, and send messages to a run and to its caller.
+/// agent, add, edit and remove agents, and send messages to a run and to its
+/// caller.
 ///
 /// A model reads the name, the description, and the schema of a tool before
 /// it plans. `description` holds the fixed sentences on delegation, then the
@@ -49,8 +50,9 @@ import Operations
 /// run that continues gives the pending envelope of the Router, and its
 /// final message comes to the caller as mail when the run ends. The tool
 /// states no `inlineSettleGrace` of its own. `list agents`, `find agents`,
-/// `check agent`, `cancel agent`, `send agent`, and `send caller` are
-/// synchronous calls: their real answer comes back in band.
+/// `check agent`, `cancel agent`, `add agent`, `edit agent`,
+/// `remove agent`, `send agent`, and `send caller` are synchronous calls:
+/// their real answer comes back in band.
 ///
 /// This tool is not a code-mode surface. A host registers it directly on
 /// its session.
@@ -207,8 +209,11 @@ public struct AgentsTool: Tool {
     /// - Returns: The message operations for
     ///   ``AgentsToolContext/Grant/messagingOnly``. For
     ///   ``AgentsToolContext/Grant/full``, the operations that list, find,
-    ///   start, check, and cancel agents, then the message operations, then
-    ///   the schedule operations.
+    ///   start, check, and cancel agents, then the operations that add, edit,
+    ///   and remove agents, then the message operations, then the schedule
+    ///   operations. A child run with an `Agent` grant has the full grant,
+    ///   thus it can write agents too: AG-9 and D87 put no gate on the
+    ///   writes.
     private static func operations(of grant: AgentsToolContext.Grant) -> [AnyOperation<AgentsToolContext>] {
         let scheduleOperations = [
             AnyOperation(ScheduleAgent.self),
@@ -227,7 +232,10 @@ public struct AgentsTool: Tool {
                 AnyOperation(FindAgents.self),
                 AnyOperation(StartAgent.self),
                 AnyOperation(CheckAgent.self),
-                AnyOperation(CancelAgent.self)
+                AnyOperation(CancelAgent.self),
+                AnyOperation(AddAgent.self),
+                AnyOperation(EditAgent.self),
+                AnyOperation(RemoveAgent.self)
             ] + messageOperations + scheduleOperations
         case .messagingOnly:
             return messageOperations
@@ -235,13 +243,22 @@ public struct AgentsTool: Tool {
     }
 
     /// The verb aliases of the tool: `stop` → `cancel`, `run` → `start`,
-    /// `status` → `check`, `show` → `list`. The resolver puts them over its
-    /// default aliases, thus `show` gives `list`, not the default `get`.
+    /// `status` → `check`, `show` → `list`, `remove`, `delete`, `rm` and
+    /// `del` → `remove`, `update` and `change` → `edit`. The resolver puts
+    /// them over its default aliases, thus `show` gives `list`, not the
+    /// default `get`, and `remove` gives `remove`, not the default `delete`.
+    /// `create` and `new` → `add` come from the default aliases.
     static let verbAliases: [String: String] = [
         "stop": CancelAgent.verb,
         "run": StartAgent.verb,
         "status": CheckAgent.verb,
-        "show": ListAgents.verb
+        "show": ListAgents.verb,
+        "remove": RemoveAgent.verb,
+        "delete": RemoveAgent.verb,
+        "rm": RemoveAgent.verb,
+        "del": RemoveAgent.verb,
+        "update": EditAgent.verb,
+        "change": EditAgent.verb
     ]
 
     /// The noun aliases of the tool: `parent` → `caller`. Thus
@@ -277,8 +294,8 @@ public struct AgentsTool: Tool {
         return (try? JSONDecoder().decode(String.self, from: Data(answer.utf8))) ?? answer
     }
 
-    /// The keys that name the agent of `start agent` and `schedule agent`:
-    /// the field of each op and the aliases of both. Each is compared with
+    /// The keys that name the agent of `start agent`, `schedule agent`, and
+    /// the write operations: the field of each op and the aliases of each. Each is compared with
     /// case, `_` and `-` removed, as the resolver of the operations compares
     /// keys.
     static let agentNameKeys = [
@@ -368,8 +385,8 @@ extension AgentsTool: BackgroundTool {
     ///
     /// `start agent` is background, with no timeout, because a run can take
     /// any time. `list agents`, `find agents`, `check agent`, `cancel agent`,
-    /// `send agent`, `send caller`, and an op that names no operation are
-    /// synchronous.
+    /// `add agent`, `edit agent`, `remove agent`, `send agent`,
+    /// `send caller`, and an op that names no operation are synchronous.
     ///
     /// - Parameter arguments: The payload of the model.
     /// - Returns: The mount of the operation that `arguments` names.

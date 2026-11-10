@@ -1,10 +1,40 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m7366y4kg214e4wchevrx0za
+  text: |-
+    Research done.
+    - AgentWriter gives [URL] or throws AgentWriterError (typed). Its `message` is the corrective. The ops give `.corrective(message)`: the tool answer type is CorrectiveOutcome<String>, which has no `.failure` case, thus `.corrective` is the "failure" of the card.
+    - The `@OperationParam(aliases:)` macro reads only an array literal, thus each `name` field repeats the literal list of StartAgent.name.
+    - `agentNameConflict` keys on the last token `agent` of the op, thus it covers `add agent`, `edit agent`, `remove agent` and their verb aliases with no change of code.
+    - The resolver uses `verbAliases[token] ?? token` on the merged table, thus `remove` -> `remove` overrides the default `remove` -> `delete`.
+    - The event rule: the ops compare the catalog before the write with the catalog after the reload through `AgentCatalogChanges.change(from:to:)`. That is the same function that feeds the change log, thus the answer says "did not change" exactly when no event is appended for the id.
+    - SK-6: FoundationModelsSkills (main, 76393d0) already has `SkillWriteSupport.layerGuide` with the same words ("the .skills folder of this project"). The skills tool reads `layer` with an exact raw-value match and gives "The layer `x` is not valid. Give `user` or `project`, or leave it out for `user`." The agents tool uses the same rule and the same corrective form, so the two tools agree.
+  timestamp: 2026-11-10T16:56:10.131435+00:00
+- actor: claude-code
+  id: 01m736y99wmczf22e3t4fyq610
+  text: |-
+    Implementation landed (not committed).
+    - New: Sources/FoundationModelsAgents/Tool/AgentsToolWriteOperations.swift (AddAgent, EditAgent, RemoveAgent, and the shared AgentsToolWrite steps: read the layer, write, reload, answer). New: AgentsToolWriteText.swift (the sentence "Added/Edited/Removed the agent `x` to/in/from the <layer> layer: `<path>`.", the bad-layer corrective, the catalog report, the not-changed text).
+    - AgentsTool: the three ops after `cancel agent` for `.full` only; verb aliases remove/delete/rm/del -> remove, update/change -> edit. AgentsToolDescription: one write sentence before the delegation sentence.
+    - Discovery: the `@Operation` macro puts the `@Guide` text into ParamMeta only when it is a plain one-line string literal. A multi-line `"""` literal falls back to the doc comment. Thus each `layer` guide is one plain literal, and a schema test pins the agreed text word for word.
+    - Discovery: the first form of the write sentence held "the default", and DefaultAgentTests refuses the word "default" in the tool description. The sentence now says "used when you leave it out".
+    - Test support: ChangeEvent (cursor and first event of the `agents` endpoint) moved to Support/ChangeEvent.swift; TemporaryLayer got `snapshot(of:)` and `text(at:)`. AgentsGraphChangesTests and AgentWriterTests use them, thus no copy. The write-test `firstEvent` first checks that the cursor moved, thus a missing event fails at once and does not hang (test rule T1).
+    - SK-6: the agreed `layer` text is already in FoundationModelsSkills `SkillWriteSupport.layerGuide` with `.skills`; no message is necessary.
+  timestamp: 2026-11-10T17:08:55.228251+00:00
+- actor: claude-code
+  id: 01m736ybtyne3hv1969xjd77rd
+  text: |-
+    ### implement — changed
+    - evidence: 14 files — new Sources/FoundationModelsAgents/Tool/AgentsToolWriteOperations.swift, Sources/FoundationModelsAgents/Tool/AgentsToolWriteText.swift, Tests/FoundationModelsAgentsTests/AgentsToolWriteTests.swift, Tests/FoundationModelsAgentsTests/Support/ChangeEvent.swift; changed AgentsTool.swift, AgentsToolDescription.swift, AgentWriterTests.swift, AgentsGraphChangesTests.swift, AgentsToolDescriptionTests.swift, AgentsToolMountTests.swift, AgentsToolSchemaTests.swift, Support/TemporaryLayer.swift (+ kanban files). `swift build --build-tests`: 0 errors, 0 warnings. `swift test`: 906 tests in 119 suites passed.
+    - next: /review
+  timestamp: 2026-11-10T17:08:57.822187+00:00
 depends_on:
 - 01M73022AZKH760297EN693YD3
-position_column: todo
-position_ordinal: '8180'
+position_column: doing
+position_ordinal: '80'
 title: 'AG-9: the agents tool gets add agent, edit agent and remove agent, with the layer option'
 ---
 ## What

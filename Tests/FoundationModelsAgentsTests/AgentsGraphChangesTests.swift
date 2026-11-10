@@ -204,11 +204,11 @@ struct AgentsGraphChangesTests {
         defer { fixture.delete() }
         try fixture.writeAgent(Self.addedID)
         try await fixture.registry.reload()
-        var responses = try await fixture.subscribe(to: "subscription { changes { \(ChangesFixture.eventFields) } }")
+        var responses = try await fixture.subscribe(to: "subscription { changes { \(ChangeEvent.eventFields) } }")
 
         try fixture.writeAgent(Self.laterID)
         try await fixture.registry.reload()
-        let event = try ChangeEvent(response: try #require(try await responses.next()), at: "changes")
+        let event = try ChangeEvent(response: try #require(try await responses.next()), at: ChangeEvent.changesKey)
 
         #expect(event.ids == ChangedIDs(added: [Self.laterID]))
     }
@@ -229,7 +229,7 @@ struct AgentsGraphChangesTests {
         try await fixture.registry.reload()
 
         var responses = try await fixture.subscribe(
-            to: "subscription { \(Self.changesAlias)(since: \"\(start)\") { \(ChangesFixture.eventFields) } }")
+            to: "subscription { \(Self.changesAlias)(since: \"\(start)\") { \(ChangeEvent.eventFields) } }")
         let text = try #require(try await responses.next())
         let reply = try GraphQLReply(text)
 
@@ -296,9 +296,9 @@ struct AgentsGraphChangesTests {
         try fixture.writeAgent(Self.addedID)
         try await fixture.registry.reload()
         let cursors = [
-            try await ChangesFixture.cursor(of: try Self.endpoint(of: first.tool)),
-            try await ChangesFixture.cursor(of: try Self.endpoint(of: second.tool)),
-            try await ChangesFixture.cursor(of: hostGraph),
+            try await ChangeEvent.cursor(of: try Self.endpoint(of: first.tool)),
+            try await ChangeEvent.cursor(of: try Self.endpoint(of: second.tool)),
+            try await ChangeEvent.cursor(of: hostGraph),
         ]
 
         #expect(Set(cursors) == [try await fixture.cursor()])
@@ -332,37 +332,9 @@ struct AgentsGraphChangesTests {
     }
 }
 
-/// One event of the `changes` subscription, read from a response.
-private struct ChangeEvent {
-    /// The cursor that resumes after the event.
-    let cursor: String
-
-    /// The ids of the event.
-    let ids: ChangedIDs
-
-    /// Reads the event of a response.
-    ///
-    /// - Parameters:
-    ///   - text: The JSON text of the response.
-    ///   - key: The response key of the subscription field.
-    /// - Throws: A failed requirement when the response has no event with a
-    ///   cursor and a time.
-    init(response text: String, at key: String) throws {
-        let event = try GraphQLReply(text).object(key)
-        cursor = try #require(event["cursor"] as? String)
-        _ = try #require(event["at"] as? String)
-        ids = ChangedIDs(
-            added: event["added"] as? [String] ?? [], changed: event["changed"] as? [String] ?? [],
-            removed: event["removed"] as? [String] ?? [])
-    }
-}
-
 /// A loaded registry over one temporary layer, and its one `agents`
 /// endpoint, with the calls that the change tests make.
 private struct ChangesFixture {
-    /// The selection of each field of an `AgentChange`.
-    static let eventFields = "cursor at added changed removed"
-
     /// The layer of the registry.
     let layer: TemporaryLayer
 
@@ -420,19 +392,7 @@ private struct ChangesFixture {
     /// - Returns: The cursor of the newest change.
     /// - Throws: The fault of the endpoint, or a failed requirement.
     func cursor() async throws -> String {
-        try await Self.cursor(of: graph)
-    }
-
-    /// Queries the root `cursor` of an endpoint.
-    ///
-    /// - Parameter endpoint: The endpoint.
-    /// - Returns: The cursor of the newest change.
-    /// - Throws: The fault of the endpoint, or a failed requirement when the
-    ///   response has no cursor.
-    static func cursor(of endpoint: any GraphQLEndpoint) async throws -> String {
-        let reply = try GraphQLReply(
-            await endpoint.execute(query: "{ cursor }", variables: [:], operationName: nil, viewer: nil))
-        return try #require(reply.data?["cursor"] as? String, "no cursor in \(reply.text)")
+        try await ChangeEvent.cursor(of: graph)
     }
 
     /// Starts a subscription.
@@ -452,9 +412,7 @@ private struct ChangesFixture {
     /// - Throws: The fault of the endpoint, or a failed requirement when the
     ///   stream ends with no event.
     func firstEvent(after start: String) async throws -> ChangeEvent {
-        var responses = try await subscribe(
-            to: "subscription { changes(after: \"\(start)\") { \(Self.eventFields) } }")
-        return try ChangeEvent(response: try #require(try await responses.next()), at: "changes")
+        try await ChangeEvent.first(after: start, of: graph)
     }
 
     /// Gives the error codes of the first response of a subscription after
