@@ -6,8 +6,9 @@ import FoundationModelsRouter
 /// Makes the session of one agent run, in these steps:
 ///
 /// 1. Render the body with the prompt as `$ARGUMENTS`.
-/// 2. Put the instructions in order: the `AGENTS.md` files of the working
-///    folder of the run (``AgentRunRequest/workingDirectory(default:)``),
+/// 2. Put the instructions in order: the preamble of the environment
+///    (``AgentEnvironment/instructionsPreamble``), then the `AGENTS.md` files
+///    of the working folder of the run (``AgentRunRequest/workingDirectory(default:)``),
 ///    outermost first, then the rendered body, then the rendered
 ///    body of each skill of the `skills` key, in the order of the key
 ///    (``AgentSkillsPreload``).
@@ -43,8 +44,8 @@ struct AgentSessionMaker: Sendable {
     /// What the shared step resolves for a run: everything of its session
     /// that comes from the current definition and catalog.
     struct ResolvedSetup {
-        /// The instructions of the session: the `AGENTS.md` files, the
-        /// rendered body, and the rendered skills.
+        /// The instructions of the session: the preamble of the environment,
+        /// the `AGENTS.md` files, the rendered body, and the rendered skills.
         let instructions: String
 
         /// The slot of the model of the session.
@@ -136,8 +137,14 @@ struct AgentSessionMaker: Sendable {
         return ResolvedSetup(instructions: instructions, slot: slot, tools: tools, workingDirectory: workingDirectory)
     }
 
-    /// Puts the instructions of a run in order: the text of each `AGENTS.md`
-    /// file of the working folder of the run, outermost first, then `parts`.
+    /// Puts the instructions of a run in order: the preamble of the
+    /// environment (``AgentEnvironment/instructionsPreamble``), then the text
+    /// of each `AGENTS.md` file of the working folder of the run, outermost
+    /// first, then `parts`. A `nil` preamble, and a preamble that holds only
+    /// whitespace, add nothing.
+    ///
+    /// A new run and a restored run both get their instructions here
+    /// (``resolveSetup(for:family:)``), thus both start with the preamble.
     ///
     /// - Parameters:
     ///   - parts: The rendered body of the agent, then the rendered bodies of
@@ -153,7 +160,17 @@ struct AgentSessionMaker: Sendable {
         } catch {
             throw .agentsMdUnreadable(String(describing: error))
         }
-        return (documents.map(\.text) + parts).joined(separator: Self.instructionsSeparator)
+        return (preamble + documents.map(\.text) + parts).joined(separator: Self.instructionsSeparator)
+    }
+
+    /// The preamble of the environment as a part of the instructions: one
+    /// part, or no part for a `nil` preamble or a preamble that holds only
+    /// whitespace.
+    private var preamble: [String] {
+        guard let text = environment.instructionsPreamble,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return [] }
+        return [text]
     }
 
     /// Makes the new tools of the run of `request`.

@@ -216,6 +216,21 @@ public struct AgentEnvironment: Sendable {
     /// runner gets the message without this closure.
     public let callerMail: CallerMail?
 
+    /// The text at the start of the instructions of each run, or `nil` for
+    /// no such text. `nil` is the default.
+    ///
+    /// The instructions of a run are, in this order: this text, the
+    /// `AGENTS.md` text of the working folder of the run, the rendered body,
+    /// then the rendered body of each skill of the `skills:` key. A new run
+    /// and a restored run both start with this text. A child run gets it
+    /// too. A text that holds only whitespace adds nothing.
+    ///
+    /// The instructions of a main session do not hold this text
+    /// (``AgentRunner/sessionAgentInstructions(for:)`` and
+    /// ``AgentRunner/defaultAgentInstructions()``). The host adds the text to
+    /// its main session itself, thus the text occurs one time.
+    public let instructionsPreamble: String?
+
     /// The host closure that marks the session of a run as ended, or `nil`
     /// for none (``SessionEnding``).
     public internal(set) var sessionEnding: SessionEnding? = nil
@@ -357,6 +372,9 @@ public struct AgentEnvironment: Sendable {
     ///   - callerMail: Sends a message of a restored run to a caller session
     ///     that the runner does not hold as a run, or `nil` (the default) for
     ///     no such route. ``callerMail`` tells the contract.
+    ///   - instructionsPreamble: The text at the start of the instructions of
+    ///     each run, before the `AGENTS.md` text, or `nil` (the default) for
+    ///     no such text. ``instructionsPreamble`` tells the contract.
     ///   - sandboxProbe: The probe that tells if the process is sandboxed.
     ///     The environment gives it to `SkillsTool.make`. The default,
     ///     `SandboxProbe.live`, reads the current process. A test gives
@@ -384,6 +402,7 @@ public struct AgentEnvironment: Sendable {
         inlineSettleGrace: TimeInterval = ToolMount.defaultInlineSettleGrace,
         runEventObserver: RunEventObserver? = nil,
         callerMail: CallerMail? = nil,
+        instructionsPreamble: String? = nil,
         sandboxProbe: SandboxProbe = .live
     ) async throws -> AgentEnvironment {
         let skillsTool = try await makeSkillsTool(
@@ -396,7 +415,7 @@ public struct AgentEnvironment: Sendable {
             defaultSlot: defaultSlot, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
             maxRetainedRuns: maxRetainedRuns, budget: budget, tracer: tracer, logger: logger,
             metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace, runEventObserver: runEventObserver,
-            callerMail: callerMail)
+            callerMail: callerMail, instructionsPreamble: instructionsPreamble)
     }
 
     /// Makes the `skills` tool from `skills`.
@@ -467,7 +486,7 @@ public struct AgentEnvironment: Sendable {
 
     /// Makes an environment over a `skills` tool that is already made.
     ///
-    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:sandboxProbe:)``
+    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:instructionsPreamble:sandboxProbe:)``
     /// tells each parameter. `skillsTool` must be the tool that
     /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:sandboxProbe:)``
     /// made from `skills` and `skillsVisibility`. The init adds it to `tools`
@@ -495,7 +514,8 @@ public struct AgentEnvironment: Sendable {
         metricsFactory: (any MetricsFactory)?,
         inlineSettleGrace: TimeInterval,
         runEventObserver: RunEventObserver? = nil,
-        callerMail: CallerMail? = nil
+        callerMail: CallerMail? = nil,
+        instructionsPreamble: String? = nil
     ) {
         precondition(
             ModelMatch.generationSlots.contains { $0.slot == defaultSlot },
@@ -526,5 +546,6 @@ public struct AgentEnvironment: Sendable {
         self.inlineSettleGrace = max(0, inlineSettleGrace)
         self.runEventObserver = runEventObserver
         self.callerMail = callerMail
+        self.instructionsPreamble = instructionsPreamble
     }
 }

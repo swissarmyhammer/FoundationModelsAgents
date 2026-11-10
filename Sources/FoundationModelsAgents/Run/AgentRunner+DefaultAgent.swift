@@ -3,7 +3,8 @@
 ///
 /// ``text`` is the rendered body, then the rendered body of each skill of the
 /// `skills:` key, in the order of the key, joined as a run joins them. It
-/// holds no `AGENTS.md` text: the host adds its own.
+/// holds no `AGENTS.md` text and no preamble
+/// (``AgentEnvironment/instructionsPreamble``): the host adds its own.
 public struct SessionAgentInstructions: Sendable {
     /// The agent of the session: a definition of the catalog, or of
     /// ``AgentRegistry/rootAgent(in:id:)``.
@@ -40,6 +41,10 @@ extension AgentRunner {
     /// uses the skills registry and the visibility rule of the environment,
     /// as a run does.
     ///
+    /// The instructions do not hold the preamble of the environment
+    /// (``AgentEnvironment/instructionsPreamble``). The host adds the
+    /// preamble to its main session itself, thus the text occurs one time.
+    ///
     /// - Parameter definition: The agent of the session.
     /// - Returns: The instructions.
     /// - Throws: ``AgentRunFailure/bodyRenderFailed(_:)`` or
@@ -59,7 +64,9 @@ extension AgentRunner {
     /// for the main session of the host.
     ///
     /// The instructions are those of ``sessionAgentInstructions(for:)`` for
-    /// the default agent.
+    /// the default agent. Thus they do not hold the preamble of the
+    /// environment (``AgentEnvironment/instructionsPreamble``): the host adds
+    /// it to its main session itself.
     ///
     /// The default agent is never model-visible, thus the main session cannot
     /// start it with the `agents` tool.

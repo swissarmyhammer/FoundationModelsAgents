@@ -24,7 +24,7 @@ let runner = AgentRunner(registry: agents, environment: env)
 ```
 
 The `SkillsRegistry` is the one source of the skills.
-``AgentEnvironment/make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:sandboxProbe:)``
+``AgentEnvironment/make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:instructionsPreamble:sandboxProbe:)``
 makes the `skills` tool from it, and adds the tool to the ``ToolCatalog``
 under the name `skills`. The `skills:` preload of each run reads the same
 registry, with the visibility rule of the tool. Give
@@ -44,7 +44,9 @@ the catalog of the registry at each start, thus call
 The host makes its main session with no run. ``SessionAgentInstructions``
 holds the instructions of the agent of that session: the rendered body, then
 the rendered body of each skill of the `skills:` key, in the order of the
-key. `$ARGUMENTS` renders as empty text.
+key. `$ARGUMENTS` renders as empty text. These instructions do not hold the
+preamble of the environment (``AgentEnvironment/instructionsPreamble``): the
+host adds it to its main session itself, thus the text occurs one time.
 
 - ``AgentRunner/sessionAgentInstructions(for:)`` gives the instructions of
   any agent. The partials of the render come from the provenance of the
@@ -128,9 +130,12 @@ let run = try await runner.start(definition.id, prompt: task, workingDirectory: 
 1. It renders the body. Each `$ARGUMENTS` in the body becomes the prompt, as a
    quarantined span. Then the Stencil render runs on the body. A render
    failure fails the run with ``AgentRunFailure/bodyRenderFailed(_:)``.
-2. It puts the instructions in order: the `AGENTS.md` files of the working
-   folder of the run, outermost first; the body; the body of each skill of the
-   `skills:` key.
+2. It puts the instructions in order: the preamble of the environment
+   (``AgentEnvironment/instructionsPreamble``); the `AGENTS.md` files of the
+   working folder of the run, outermost first; the body; the body of each
+   skill of the `skills:` key. A `nil` preamble, or a preamble that holds only
+   whitespace, adds nothing. A restored run puts its instructions in the same
+   order, thus it also starts with the preamble.
 3. It resolves the tools. `disallowedTools` applies first, then `tools`. With
    no `tools` key, the run gets each tool of the ``ToolCatalog``.
    An agent with no `tools` key gets only the message operations, and only in a run with a caller.

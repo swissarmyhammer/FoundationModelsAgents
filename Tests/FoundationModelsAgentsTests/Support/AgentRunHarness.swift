@@ -122,6 +122,8 @@ struct AgentRunHarness {
     ///     default) for none.
     ///   - sessionEnding: The host closure that marks a session as ended, or
     ///     `nil` (the default) for none.
+    ///   - instructionsPreamble: The text at the start of the instructions of
+    ///     each run, or `nil` (the default) for none.
     /// - Returns: The environment.
     func environment(
         maxRetainedRuns: Int,
@@ -131,7 +133,8 @@ struct AgentRunHarness {
         inlineSettleGrace: TimeInterval = settleGrace,
         runUserPresence: UserPresence = .headless,
         callerMail: AgentEnvironment.CallerMail? = nil,
-        sessionEnding: AgentEnvironment.SessionEnding? = { _, _ in }
+        sessionEnding: AgentEnvironment.SessionEnding? = { _, _ in },
+        instructionsPreamble: String? = nil
     ) -> AgentEnvironment {
         var environment = AgentEnvironment(
             profile: profile, skills: skills, skillsTool: skillsTool,
@@ -139,7 +142,7 @@ struct AgentRunHarness {
             tools: tools, defaultSlot: .standard, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
             maxRetainedRuns: maxRetainedRuns, budget: budget, tracer: tracer, logger: logger,
             metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace,
-            runEventObserver: runEventObserver, callerMail: callerMail)
+            runEventObserver: runEventObserver, callerMail: callerMail, instructionsPreamble: instructionsPreamble)
         environment.sessionEnding = sessionEnding
         environment.mailOnlyAnswerLimit = mailOnlyAnswerLimit
         environment.runUserPresence = runUserPresence
@@ -168,6 +171,8 @@ struct AgentRunHarness {
     ///     default) for none.
     ///   - sessionEnding: The host closure that marks a session as ended, or
     ///     `nil` (the default) for none.
+    ///   - instructionsPreamble: The text at the start of the instructions of
+    ///     each run, or `nil` (the default) for none.
     /// - Returns: The runner.
     func makeRunner(
         maxRetainedRuns: Int = AgentEnvironment.defaultMaxRetainedRuns,
@@ -177,14 +182,16 @@ struct AgentRunHarness {
         inlineSettleGrace: TimeInterval = settleGrace,
         runUserPresence: UserPresence = .headless,
         callerMail: AgentEnvironment.CallerMail? = nil,
-        sessionEnding: AgentEnvironment.SessionEnding? = { _, _ in }
+        sessionEnding: AgentEnvironment.SessionEnding? = { _, _ in },
+        instructionsPreamble: String? = nil
     ) -> AgentRunner {
         AgentRunner(
             registry: registry,
             environment: environment(
                 maxRetainedRuns: maxRetainedRuns, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
                 mailOnlyAnswerLimit: mailOnlyAnswerLimit, inlineSettleGrace: inlineSettleGrace,
-                runUserPresence: runUserPresence, callerMail: callerMail, sessionEnding: sessionEnding))
+                runUserPresence: runUserPresence, callerMail: callerMail, sessionEnding: sessionEnding,
+                instructionsPreamble: instructionsPreamble))
     }
 
     /// Makes a root session of a host on `model`, with ``settleGrace`` as its

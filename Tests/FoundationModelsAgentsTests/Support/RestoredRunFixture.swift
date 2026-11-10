@@ -41,10 +41,13 @@ struct RestoredRunFixture {
     ///   - markGate: A gate that the mark closure waits on, or `nil`.
     ///   - maxDepth: The depth limit of the runner.
     ///   - logger: The logger of the runs, or `nil`.
+    ///   - instructionsPreamble: The preamble of the instructions of the restored life, or `nil`.
+    ///     The first life has no preamble.
     static func make(
         sessionEnding: AgentEnvironment.SessionEnding? = nil, callerMail: AgentEnvironment.CallerMail? = nil,
         claimResult: Bool? = nil, markFails: Bool = false, gate: ScriptedGate? = nil, deferStart: Bool = false,
-        markGate: ScriptedGate? = nil, maxDepth: Int = AgentEnvironment.defaultMaxDepth, logger: Logger? = nil
+        markGate: ScriptedGate? = nil, maxDepth: Int = AgentEnvironment.defaultMaxDepth, logger: Logger? = nil,
+        instructionsPreamble: String? = nil
     ) async throws -> RestoredRunFixture {
         let gateSteps: [ScriptedAgentStep] = gate.map { [.wait($0)] } ?? []
         let harness = try await AgentRunHarness.make(
@@ -65,7 +68,7 @@ struct RestoredRunFixture {
             callerMail: callerMail ?? { message, _, _ in mails.add(message); return MailID() },
             sessionEnding: sessionEnding ?? { _, reason in
                 try await Self.markRecording(reason, gate: markGate, fails: markFails, into: marks)
-            })
+            }, instructionsPreamble: instructionsPreamble)
         let runner = built.runner
         let claims = built.claims
         let child = RecordedChild(
@@ -84,16 +87,17 @@ struct RestoredRunFixture {
     ///   - claimResult: What the claim completion closure answers, or `nil` for no closure.
     ///   - callerMail: The mail closure, or `nil` for none.
     ///   - sessionEnding: The mark closure, or `nil` for none.
+    ///   - instructionsPreamble: The preamble of the instructions of each run, or `nil` for none.
     /// - Returns: The runner and the record of the claim calls.
     static func makeRunner(
         _ harness: AgentRunHarness, maxDepth: Int = AgentEnvironment.defaultMaxDepth, claimResult: Bool? = true,
         callerMail: AgentEnvironment.CallerMail? = nil,
-        sessionEnding: AgentEnvironment.SessionEnding? = { _, _ in }
+        sessionEnding: AgentEnvironment.SessionEnding? = { _, _ in }, instructionsPreamble: String? = nil
     ) -> (runner: AgentRunner, claims: CallRecord<ClaimCall>) {
         let claims = CallRecord<ClaimCall>()
         var environment = harness.environment(
             maxRetainedRuns: AgentEnvironment.defaultMaxRetainedRuns, maxDepth: maxDepth, callerMail: callerMail,
-            sessionEnding: sessionEnding)
+            sessionEnding: sessionEnding, instructionsPreamble: instructionsPreamble)
         if let claimResult {
             environment = environment.withClaimCompletion { caller, key, outcome, _ in
                 claims.add(ClaimCall(caller: caller, key: key, outcome: outcome))

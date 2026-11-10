@@ -53,6 +53,24 @@ enum SessionInstructionsFixture {
         """
     }
 
+    /// Gives the text of an agent file with a `skills:` key.
+    ///
+    /// - Parameters:
+    ///   - name: The value of the `name` key.
+    ///   - body: The body.
+    ///   - skills: The `skills` key.
+    /// - Returns: The text of the file.
+    static func agentText(name: String, body: String, skills: [String]) -> String {
+        """
+        ---
+        name: \(name)
+        description: \(AgentFolderFixture.description)
+        skills: [\(skills.joined(separator: ", "))]
+        ---
+        \(body)
+        """
+    }
+
     /// Makes a skills registry over the `skills/` folder of `layer`, with
     /// `doTask`, `checklist` and the hidden `deploy`.
     ///

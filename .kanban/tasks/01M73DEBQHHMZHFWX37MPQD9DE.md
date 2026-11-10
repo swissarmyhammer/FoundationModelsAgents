@@ -1,9 +1,27 @@
 ---
 assignees:
 - claude-code
+comments:
+- actor: claude-code
+  id: 01m73grg5teaztgbz0wyp9pec0
+  text: |-
+    Research and implementation notes:
+    - AgentSessionMaker holds the AgentEnvironment. Thus the maker reads `environment.instructionsPreamble` directly, and no caller of `AgentSessionMaker(...)` changes. The new run (`makeSession`) and the restore (`AgentRun.restore` -> `resolveSetup`) both use the private `instructions(parts:in:)`. No other source path makes run instructions (checked: `instructionsSeparator`, `makeSession(`, `restoreSession(`).
+    - `AgentEnvironment.make` takes `instructionsPreamble: String? = nil` just before `sandboxProbe`, thus `sandboxProbe` stays last. The internal init takes it as its last parameter with a default. All callers use labels with defaults, thus no caller changes. The three DocC symbol links of `make(...)` now name `instructionsPreamble:`.
+    - Tests in `Tests/FoundationModelsAgentsTests/InstructionsPreambleTests.swift`. The restore test uses `RestoredRunFixture.make(deferStart: true, instructionsPreamble:)` and reads the instructions entry of the transcript of `run.heldSession`: the Router replaces the leading instructions entry on a restore with supplied instructions, while `index.md` keeps the recorded string.
+    - Test support: `AgentRunHarness.environment(...)`, `makeRunner(...)`, `RestoredRunFixture.make(...)` and `RestoredRunFixture.makeRunner(...)` take `instructionsPreamble`. The `agentText(name:body:skills:)` helper moved from `SessionAgentInstructionsTests` to `SessionInstructionsFixture`, so both suites use one helper.
+    - TDD: RED was first a compile error, then two behavior failures (new run and restore). The whitespace case was checked with a mutation (guard removed: 2 issues), then the guard was put back.
+  timestamp: 2026-11-10T20:00:31.418548+00:00
+- actor: claude-code
+  id: 01m73grky1xhr3b162ne9c2wxs
+  text: |-
+    ### implement — changed
+    - evidence: 10 files — Sources/FoundationModelsAgents/Run/AgentEnvironment.swift, Sources/FoundationModelsAgents/Run/AgentSessionMaker.swift, Sources/FoundationModelsAgents/Run/AgentRunner+DefaultAgent.swift, Sources/FoundationModelsAgents/FoundationModelsAgents.docc/RunningAnAgent.md, Sources/FoundationModelsAgents/FoundationModelsAgents.docc/DelegatingWithTheAgentsTool.md, Tests/FoundationModelsAgentsTests/InstructionsPreambleTests.swift (new), Tests/FoundationModelsAgentsTests/SessionAgentInstructionsTests.swift, Tests/FoundationModelsAgentsTests/Support/AgentRunHarness.swift, Tests/FoundationModelsAgentsTests/Support/RestoredRunFixture.swift, Tests/FoundationModelsAgentsTests/Support/SessionInstructionsFixture.swift. `swift build --build-tests`: 0 errors, 0 warnings in our code (only the known mlx "missing creator" note). `swift test`: 939 tests in 122 suites passed, 0 failed. `swift build --build-tests` in IntegrationTests/: Build complete, 0 errors, 0 warnings.
+    - next: /review
+  timestamp: 2026-11-10T20:00:35.265679+00:00
 depends_on:
 - 01M73DBP7JAF6N8K5V71YB868R
-position_column: todo
+position_column: doing
 position_ordinal: '80'
 title: 'ACPA-20: AgentEnvironment takes an instructions preamble, and each run starts its instructions with it'
 ---

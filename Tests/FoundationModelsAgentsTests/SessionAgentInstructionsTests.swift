@@ -35,33 +35,15 @@ struct SessionAgentInstructionsTests {
 
     // MARK: - Fixtures
 
-    /// Gives the text of an agent file with a `skills:` key.
-    ///
-    /// - Parameters:
-    ///   - name: The value of the `name` key.
-    ///   - body: The body.
-    ///   - skills: The `skills` key.
-    /// - Returns: The text of the file.
-    private static func agentText(name: String, body: String, skills: [String]) -> String {
-        """
-        ---
-        name: \(name)
-        description: \(AgentFolderFixture.description)
-        skills: [\(skills.joined(separator: ", "))]
-        ---
-        \(body)
-        """
-    }
-
     /// Makes a layer with the default agent, and the named agent with the
     /// `skills:` key `[Fixture.doTask, Fixture.checklist]`.
     ///
     /// - Returns: The layer. The test deletes it.
     private static func makeLayer() throws -> TemporaryLayer {
         try TemporaryLayer.make(holding: [
-            AgentDocumentPath.documentName: agentText(
+            AgentDocumentPath.documentName: Fixture.agentText(
                 name: AgentFolderFixture.displayName, body: defaultBody, skills: []),
-            AgentFolderFixture.documentPath(of: reviewerID): agentText(
+            AgentFolderFixture.documentPath(of: reviewerID): Fixture.agentText(
                 name: reviewerID, body: reviewerBody, skills: [Fixture.doTask, Fixture.checklist])
         ])
     }
@@ -121,7 +103,7 @@ struct SessionAgentInstructionsTests {
     @Test("a definition from rootAgent(in:) of a folder that is not a layer renders")
     func aRootAgentOfAFolderRenders() async throws {
         let instructions = try await Self.folderInstructions(holding: [
-            AgentDocumentPath.documentName: Self.agentText(
+            AgentDocumentPath.documentName: Fixture.agentText(
                 name: AgentFolderFixture.displayName, body: Self.folderBody, skills: [])
         ])
 

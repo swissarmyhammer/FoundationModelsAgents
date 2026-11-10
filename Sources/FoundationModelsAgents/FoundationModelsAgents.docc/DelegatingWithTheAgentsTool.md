@@ -52,7 +52,7 @@ The search does the same steps as the `search skill` operation of the
    profile.
 2. The selection model picks the best matches among the candidates. It is the
    `skillsSelectionModel` of
-   ``AgentEnvironment/make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:sandboxProbe:)``.
+   ``AgentEnvironment/make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:instructionsPreamble:sandboxProbe:)``.
    With no selection model, the call gives the rank of step 1. When the answer
    of the selection model does not decode, the rank of step 1 answers the call,
    and the call does not fail.
