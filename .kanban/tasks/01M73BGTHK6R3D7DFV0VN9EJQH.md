@@ -40,10 +40,26 @@ comments:
     - evidence: Sources/FoundationModelsAgents/Run/AgentEnvironment.swift. `swift build --build-tests`: 0 errors, 0 warnings in our code (only the known mlx "missing creator" note). `swift test`: 916 tests in 119 suites passed, with the 4 sandbox-probe tests. No new test: the change is a refactor with the same behavior. Finding flipped to `- [x]`.
     - next: /review
   timestamp: 2026-11-10T18:56:10.975651+00:00
+- actor: claude-code
+  id: 01m73d7avmepm7br02adbvxenr
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (b28bb8c). 0 findings, 0 confirmed, 0 refuted; 7 validator runs attempted, 0 failed. 1 file reviewed. All prior Review Findings items are checked.
+    - next: none. The task is in done.
+  timestamp: 2026-11-10T18:58:43.189+00:00
+- actor: claude-code
+  id: 01m73d7p0baz5r2cm5k63cfq7v
+  text: |-
+    ### finish iteration 2 — clean
+    - implement: changed — AgentEnvironment.swift (one SkillsTool.make call path through skillsToolFactory(selectionModel:))
+    - test: green — root swift build --build-tests clean; swift test 916 passed in 119 suites; IntegrationTests build clean
+    - commit: b28bb8c
+    - review: clean — 0 findings; 1 of 1 prior item checked; task moved to done
+  timestamp: 2026-11-10T18:58:54.603909+00:00
 depends_on:
 - 01M73B5MRN6NYWGR5H92YBA9PF
-position_column: doing
-position_ordinal: '80'
+position_column: done
+position_ordinal: ff9080
 title: AgentEnvironment.make takes a SandboxProbe and gives it to SkillsTool.make (SK-7d)
 ---
 ## What
