@@ -106,6 +106,21 @@ struct AgentScheduleStoreTests {
         #expect(try await runner.restoreSchedules(of: owner).isEmpty)
     }
 
+    @Test("a cancel of the runs of the session keeps its saved tasks")
+    func cancelActiveRunsKeepsTheFile() async throws {
+        let harness = try await Self.harness()
+        defer { try? harness.delete() }
+        let store = MemoryScheduleStore()
+        let owner = ULID()
+        let runner = await Self.runner(harness, clock: ManualScheduleClock(start: Self.start), store: store)
+        _ = await runner.schedule(AgentScheduleRequest(prompt: Self.pingPrompt, spec: .interval(seconds: 60), owner: owner))
+
+        await runner.cancelActiveRuns(caller: owner)
+
+        #expect(try await store.load(of: owner).count == 1)
+        #expect(await runner.scheduledTasks(owner: owner).count == 1)
+    }
+
     @Test("closing the session removes its saved tasks")
     func closeRemovesTheFile() async throws {
         let harness = try await Self.harness()

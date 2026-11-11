@@ -576,6 +576,29 @@ public actor AgentRunner {
     /// - Parameter caller: The id of the session of the caller.
     public func cancelRuns(caller: ULID) async {
         await scheduler.endTasks(owner: caller)
+        await cancelActiveRuns(caller: caller)
+    }
+
+    /// Cancels each run of one caller at once, and keeps its scheduled
+    /// agents.
+    ///
+    /// This is the cancel of a session that goes on: a host calls it with
+    /// `cancelAll()` of the session, for example for an ACP
+    /// `session/cancel`. It stops everything that the session started. Each
+    /// run of the caller goes to ``AgentRunState/cancelled`` the same as in
+    /// ``cancelRuns(caller:)``, and the cancel goes down the tree: a run
+    /// stops its session with `cancelAll()`, thus the background tool work
+    /// of that session (a long shell command) gets a cancel, and each run
+    /// that it started is cancelled in the same way. A run of a firing of a
+    /// scheduled agent of the caller is cancelled too, but the scheduled
+    /// agent stays, with its saved copy, and fires again at its next time.
+    ///
+    /// The call returns when each such run reached its final state. A
+    /// cancelled run does not wait for its work to end on its own, thus the
+    /// wait is only the time of the cancel.
+    ///
+    /// - Parameter caller: The id of the session of the caller.
+    public func cancelActiveRuns(caller: ULID) async {
         await cancelRuns(forShutdown: false, where: { $0 == caller })
     }
 

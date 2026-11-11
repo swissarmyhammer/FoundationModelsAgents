@@ -518,7 +518,8 @@ holds no work in its session; a running firing holds one `childSession` lease
 in the work registry of its session.
 
 A task belongs to its session: ``AgentRunner/cancelRuns(caller:)`` ends and
-removes the tasks of the session. The host saves them with
+removes the tasks of the session. ``AgentRunner/cancelActiveRuns(caller:)``
+cancels a running firing and keeps the task for its next firing. The host saves them with
 ``AgentRunner/useScheduleStore(_:)`` (an ``AgentScheduleStore`` over the
 folder of each session), and a restart or a resume restores them with
 ``AgentRunner/restoreSchedules(of:workSite:)``.

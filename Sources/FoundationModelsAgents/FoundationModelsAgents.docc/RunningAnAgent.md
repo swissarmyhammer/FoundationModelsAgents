@@ -249,7 +249,13 @@ limit, the run stops its session and fails with
 ``AgentRun/cancel()`` cancels the answer of the run and the runs that it
 started. The run waits for its children, closes its session, and goes to
 ``AgentRunState/cancelled``. ``AgentRunner/cancelRuns(caller:)`` cancels each
-open run of one caller. ``AgentRunner/stop()`` cancels all the runs. Both calls
+open run of one caller, and ends its scheduled agents: it is for the close of
+the session. ``AgentRunner/cancelActiveRuns(caller:)`` is for a cancel of a
+session that goes on, with `cancelAll()` of the session: it cancels the same
+runs at once, also a running firing of a scheduled agent, and keeps the
+scheduled agents. The cancel goes down the tree: each run stops its session
+with `cancelAll()`, thus its background tool work and the runs that it
+started get a cancel too. ``AgentRunner/stop()`` cancels all the runs. These calls
 also wait for each start of the target whose setup is in operation, then
 cancel that run. After ``AgentRunner/stop()``, ``AgentRunner/start(_:prompt:)``
 throws ``AgentRunnerError/stopped``.

@@ -326,6 +326,29 @@ struct AgentSchedulerTests {
         #expect(await setup.runner.scheduledTasks(owner: other).count == 1)
     }
 
+    @Test("cancelActiveRuns of the owner cancels a running firing, and keeps the task for its next firing")
+    func cancelActiveRunsKeepsTheTask() async throws {
+        let gate = ScriptedGate()
+        let setup = try await Self.makeSetup(gate: gate)
+        defer { setup.delete() }
+        let task = await setup.runner.schedule(Self.everyMinute(setup, prompt: Self.holdPrompt))
+        setup.clock.advance(by: 60)
+        await setup.runner.scheduler.tick()
+        await gate.waitForArrival()
+        let run = try #require(await setup.runner.runs(caller: setup.owner).first)
+
+        await setup.runner.cancelActiveRuns(caller: setup.owner)
+
+        #expect(run.state == .cancelled)
+        await Self.eventually { await setup.runner.scheduledTask(id: task.id)?.liveRunID == nil }
+        let after = try #require(await setup.runner.scheduledTask(id: task.id))
+        #expect(after.state != .ended)
+        gate.open()
+        setup.clock.advance(by: 60)
+        await setup.runner.scheduler.tick()
+        #expect(await setup.runner.scheduledTask(id: task.id)?.runCount == 2)
+    }
+
     // MARK: - Work
 
     @Test("a pending task holds no work; a running firing holds one lease of its owner")
