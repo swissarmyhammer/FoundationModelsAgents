@@ -76,7 +76,9 @@ Each local layer also holds its agents in the agent folder form, with no
   give its task to a copy of itself.
 - Each body renders with the `templateContext` of the registry, the same
   context that the host gives its `SkillsRegistry`. Thus a body can gate a
-  section with `{% if tools.kanban.enabled %}`.
+  section with `{% if tools.kanban.enabled %}`. A host that knows the tool
+  selection of an agent gives its own values for the main session with
+  ``AgentRunner/sessionAgentInstructions(for:templateContext:)``.
 - When `<root>/AGENT.md` and `<root>/default/AGENT.md` are in the same layer,
   the root file wins, and the subfolder gives one warning. A `default` agent
   in a higher layer, for example `agents/default/AGENT.md` of the project,

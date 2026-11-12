@@ -1,3 +1,5 @@
+import FoundationModelsExtras
+
 /// The instructions of one agent, for a session that the host makes with no
 /// run: its main session.
 ///
@@ -45,6 +47,9 @@ extension AgentRunner {
     /// (``AgentEnvironment/instructionsPreamble``). The host adds the
     /// preamble to its main session itself, thus the text occurs one time.
     ///
+    /// The call is ``sessionAgentInstructions(for:templateContext:)`` with
+    /// the template context of the registry.
+    ///
     /// - Parameter definition: The agent of the session.
     /// - Returns: The instructions.
     /// - Throws: ``AgentRunFailure/bodyRenderFailed(_:)`` or
@@ -52,10 +57,35 @@ extension AgentRunner {
     public nonisolated func sessionAgentInstructions(
         for definition: AgentDefinition
     ) async throws(AgentRunFailure) -> SessionAgentInstructions {
+        try await sessionAgentInstructions(for: definition, templateContext: registry.templateContext)
+    }
+
+    /// Gives the instructions of an agent, for the main session of the host,
+    /// with a template context of the host.
+    ///
+    /// The instructions are those of ``sessionAgentInstructions(for:)``, but
+    /// the body of the agent, and each partial of the body, renders with
+    /// `templateContext` in place of the template context of the registry.
+    /// Thus a host gives the values of the tool selection of the agent, and a
+    /// body that reads `tools.<group>.enabled` sees the tools that the model
+    /// of the session has. The `agents` group is off for an agent that
+    /// denies the `agents` tool, as for the context of the registry.
+    ///
+    /// The layers, the variables, and the `skills:` preload do not change.
+    ///
+    /// - Parameters:
+    ///   - definition: The agent of the session.
+    ///   - templateContext: The template context of the render of the body.
+    /// - Returns: The instructions.
+    /// - Throws: ``AgentRunFailure/bodyRenderFailed(_:)`` or
+    ///   ``AgentRunFailure/skillRenderFailed(skill:description:)``.
+    public nonisolated func sessionAgentInstructions(
+        for definition: AgentDefinition, templateContext: [String: TemplateValue]
+    ) async throws(AgentRunFailure) -> SessionAgentInstructions {
         let preload = environment.skillsPreload
         return SessionAgentInstructions(
             definition: definition,
-            body: try renderer.render(definition, prompt: ""),
+            body: try renderer.render(definition, prompt: "", templateContext: templateContext),
             skillBodies: try await preload.bodies(of: definition),
             diagnostics: preload.diagnostics(of: definition))
     }

@@ -176,11 +176,14 @@ struct LoadingBoundaryTests {
             name: "TemplateValue",
             reason: "the stenciled stack of Extras carries each quarantined span as a value",
             // The registry keeps the host's template context, and the
-            // renderer gives it to the stenciled stack as `values:`. Neither
-            // builds a value or a context of its own.
+            // renderer gives it to the stenciled stack as `values:`. The
+            // session API of the runner takes a context from the host and
+            // gives it to the renderer. None builds a value or a context of
+            // its own.
             exemptFiles: [
                 "Sources/FoundationModelsAgents/Registry/AgentRegistry.swift",
-                "Sources/FoundationModelsAgents/Run/AgentBodyRenderer.swift"
+                "Sources/FoundationModelsAgents/Run/AgentBodyRenderer.swift",
+                "Sources/FoundationModelsAgents/Run/AgentRunner+DefaultAgent.swift"
             ]),
         Rule(
             name: "WellKnownValues",

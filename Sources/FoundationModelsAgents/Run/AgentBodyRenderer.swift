@@ -11,7 +11,8 @@ import Marketplace
 ///    no `$ARGUMENTS` is one `.original` span.
 /// 2. **Stencil.** `StenciledDotfolderStack.render(_:at:in:)` renders the
 ///    text as the document `agents/<id>/AGENT.md` of the winning layer, with
-///    the `variables` and the `templateContext` of the registry. An include
+///    the `variables` of the registry and the template context that the
+///    caller gives (by default the `templateContext` of the registry). An include
 ///    walks from
 ///    `agents/<id>/_partials/` of the agent folder, to `agents/_partials/`,
 ///    up to `_partials/` of the layer root. The document of the agent folder
@@ -32,8 +33,9 @@ struct AgentBodyRenderer: Sendable {
     /// The values that the render interpolates.
     let variables: [String: String]
 
-    /// The structured values that the render interpolates, at the rung of
-    /// `variables`: the session template context of the host.
+    /// The structured values that a render interpolates when the caller
+    /// gives no values of its own, at the rung of `variables`: the session
+    /// template context of the host.
     let templateContext: [String: TemplateValue]
 
     /// Makes a renderer over the local layers and the variables of
@@ -53,13 +55,19 @@ struct AgentBodyRenderer: Sendable {
     ///   - definition: The agent whose body to render.
     ///   - prompt: The prompt of the run. It takes the place of each
     ///     `$ARGUMENTS` of the body, as text that the render never scans.
+    ///   - context: The template context of the render, in place of the
+    ///     context of the registry. `nil` uses ``templateContext``. The
+    ///     `agents` group of either context is off for an agent that denies
+    ///     the `agents` tool (``templateContext(_:of:)``).
     /// - Returns: The rendered body: the system prompt of the run.
     /// - Throws: `AgentRunFailure.bodyRenderFailed` with the description of
     ///   the render error.
-    func render(_ definition: AgentDefinition, prompt: String) throws(AgentRunFailure) -> String {
+    func render(
+        _ definition: AgentDefinition, prompt: String, templateContext context: [String: TemplateValue]? = nil
+    ) throws(AgentRunFailure) -> String {
         let stack = StenciledDotfolderStack(
             base: DotfolderStack(layers: scopedLayers(of: definition)), variables: variables,
-            values: Self.templateContext(templateContext, of: definition))
+            values: Self.templateContext(context ?? templateContext, of: definition))
         do {
             return try stack.render(
                 Self.substitutingArguments(in: definition.body, with: prompt),
