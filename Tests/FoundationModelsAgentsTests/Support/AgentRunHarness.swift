@@ -124,6 +124,8 @@ struct AgentRunHarness {
     ///     `nil` (the default) for none.
     ///   - instructionsPreamble: The text at the start of the instructions of
     ///     each run, or `nil` (the default) for none.
+    ///   - runTemplateContext: The template context of the body of each run,
+    ///     or `nil` (the default) for the context of the registry.
     /// - Returns: The environment.
     func environment(
         maxRetainedRuns: Int,
@@ -134,7 +136,8 @@ struct AgentRunHarness {
         runUserPresence: UserPresence = .headless,
         callerMail: AgentEnvironment.CallerMail? = nil,
         sessionEnding: AgentEnvironment.SessionEnding? = { _, _ in },
-        instructionsPreamble: String? = nil
+        instructionsPreamble: String? = nil,
+        runTemplateContext: AgentEnvironment.RunTemplateContext? = nil
     ) -> AgentEnvironment {
         var environment = AgentEnvironment(
             profile: profile, skills: skills, skillsTool: skillsTool,
@@ -142,7 +145,8 @@ struct AgentRunHarness {
             tools: tools, defaultSlot: .standard, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
             maxRetainedRuns: maxRetainedRuns, budget: budget, tracer: tracer, logger: logger,
             metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace,
-            runEventObserver: runEventObserver, callerMail: callerMail, instructionsPreamble: instructionsPreamble)
+            runEventObserver: runEventObserver, callerMail: callerMail, instructionsPreamble: instructionsPreamble,
+            runTemplateContext: runTemplateContext)
         environment.sessionEnding = sessionEnding
         environment.mailOnlyAnswerLimit = mailOnlyAnswerLimit
         environment.runUserPresence = runUserPresence
@@ -173,6 +177,8 @@ struct AgentRunHarness {
     ///     `nil` (the default) for none.
     ///   - instructionsPreamble: The text at the start of the instructions of
     ///     each run, or `nil` (the default) for none.
+    ///   - runTemplateContext: The template context of the body of each run,
+    ///     or `nil` (the default) for the context of the registry.
     /// - Returns: The runner.
     func makeRunner(
         maxRetainedRuns: Int = AgentEnvironment.defaultMaxRetainedRuns,
@@ -183,7 +189,8 @@ struct AgentRunHarness {
         runUserPresence: UserPresence = .headless,
         callerMail: AgentEnvironment.CallerMail? = nil,
         sessionEnding: AgentEnvironment.SessionEnding? = { _, _ in },
-        instructionsPreamble: String? = nil
+        instructionsPreamble: String? = nil,
+        runTemplateContext: AgentEnvironment.RunTemplateContext? = nil
     ) -> AgentRunner {
         AgentRunner(
             registry: registry,
@@ -191,7 +198,7 @@ struct AgentRunHarness {
                 maxRetainedRuns: maxRetainedRuns, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
                 mailOnlyAnswerLimit: mailOnlyAnswerLimit, inlineSettleGrace: inlineSettleGrace,
                 runUserPresence: runUserPresence, callerMail: callerMail, sessionEnding: sessionEnding,
-                instructionsPreamble: instructionsPreamble))
+                instructionsPreamble: instructionsPreamble, runTemplateContext: runTemplateContext))
     }
 
     /// Makes a root session of a host on `model`, with ``settleGrace`` as its

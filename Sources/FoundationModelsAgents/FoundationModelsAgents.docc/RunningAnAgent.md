@@ -24,7 +24,7 @@ let runner = AgentRunner(registry: agents, environment: env)
 ```
 
 The `SkillsRegistry` is the one source of the skills.
-``AgentEnvironment/make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:instructionsPreamble:sandboxProbe:)``
+``AgentEnvironment/make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:instructionsPreamble:runTemplateContext:sandboxProbe:)``
 makes the `skills` tool from it, and adds the tool to the ``ToolCatalog``
 under the name `skills`. The `skills:` preload of each run reads the same
 registry, with the visibility rule of the tool. Give

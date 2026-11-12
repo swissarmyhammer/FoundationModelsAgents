@@ -109,6 +109,11 @@ struct AgentSessionMaker: Sendable {
     /// A new session and a restored session both use this step, thus no
     /// second copy of the tool build exists.
     ///
+    /// The step resolves the tools before it renders the body: the body
+    /// renders with ``AgentEnvironment/runTemplateContext`` of the definition
+    /// and the names of the resolved tools, or with the template context of
+    /// the registry when the environment has no such closure.
+    ///
     /// - Parameters:
     ///   - request: The run.
     ///   - family: The children of the run. The `agents` tool of the run adds
@@ -123,9 +128,6 @@ struct AgentSessionMaker: Sendable {
     ) async throws(AgentRunFailure) -> ResolvedSetup {
         let definition = request.definition
         let workingDirectory = request.workingDirectory(default: environment.workingDirectory)
-        let body = try renderer.render(definition, prompt: request.prompt)
-        let skillBodies = try await environment.skillsPreload.bodies(of: definition)
-        let instructions = try instructions(parts: [body] + skillBodies, in: workingDirectory)
         let slot = ModelMatch.match(
             definition.model, profile: environment.profile, inherited: request.inheritedSlot
         ).slot
@@ -134,6 +136,11 @@ struct AgentSessionMaker: Sendable {
             as: ParentRun(
                 depth: request.depth, slot: slot, agentID: definition.id, family: family,
                 workingDirectory: workingDirectory))
+        let body = try renderer.render(
+            definition, prompt: request.prompt,
+            templateContext: environment.runTemplateContext?(definition, tools.map(\.name)))
+        let skillBodies = try await environment.skillsPreload.bodies(of: definition)
+        let instructions = try instructions(parts: [body] + skillBodies, in: workingDirectory)
         return ResolvedSetup(instructions: instructions, slot: slot, tools: tools, workingDirectory: workingDirectory)
     }
 

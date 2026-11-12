@@ -231,6 +231,27 @@ public struct AgentEnvironment: Sendable {
     /// its main session itself, thus the text occurs one time.
     public let instructionsPreamble: String?
 
+    /// Gives the template context of the body of one run, from the
+    /// definition of the run and the names of its resolved tools.
+    ///
+    /// A host gives the values of the tool selection of the run, for example
+    /// `tools.shell.enabled`, thus a body that reads them sees the tools that
+    /// the model of the run has.
+    public typealias RunTemplateContext =
+        @Sendable (_ definition: AgentDefinition, _ toolNames: [String]) -> [String: TemplateValue]
+
+    /// The template context of the body of each run, or `nil` (the default)
+    /// for the template context of the registry.
+    ///
+    /// The run resolves its tools first. Then it calls this closure with its
+    /// definition and the names of its resolved tools, and its body, and each
+    /// partial of the body, renders with the result in place of the template
+    /// context of the registry. A new run and a restored run both get the
+    /// values. The `agents` group stays off for an agent that denies the
+    /// `agents` tool. The `skills:` preload and the `skills` tool do not
+    /// use these values.
+    public let runTemplateContext: RunTemplateContext?
+
     /// The host closure that marks the session of a run as ended, or `nil`
     /// for none (``SessionEnding``).
     public internal(set) var sessionEnding: SessionEnding? = nil
@@ -375,6 +396,9 @@ public struct AgentEnvironment: Sendable {
     ///   - instructionsPreamble: The text at the start of the instructions of
     ///     each run, before the `AGENTS.md` text, or `nil` (the default) for
     ///     no such text. ``instructionsPreamble`` tells the contract.
+    ///   - runTemplateContext: Gives the template context of the body of
+    ///     each run, or `nil` (the default) for the template context of the
+    ///     registry. ``runTemplateContext`` tells the contract.
     ///   - sandboxProbe: The probe that tells if the process is sandboxed.
     ///     The environment gives it to `SkillsTool.make`. The default,
     ///     `SandboxProbe.live`, reads the current process. A test gives
@@ -403,6 +427,7 @@ public struct AgentEnvironment: Sendable {
         runEventObserver: RunEventObserver? = nil,
         callerMail: CallerMail? = nil,
         instructionsPreamble: String? = nil,
+        runTemplateContext: RunTemplateContext? = nil,
         sandboxProbe: SandboxProbe = .live
     ) async throws -> AgentEnvironment {
         let skillsTool = try await makeSkillsTool(
@@ -415,7 +440,8 @@ public struct AgentEnvironment: Sendable {
             defaultSlot: defaultSlot, maxConcurrentAgents: maxConcurrentAgents, maxDepth: maxDepth,
             maxRetainedRuns: maxRetainedRuns, budget: budget, tracer: tracer, logger: logger,
             metricsFactory: metricsFactory, inlineSettleGrace: inlineSettleGrace, runEventObserver: runEventObserver,
-            callerMail: callerMail, instructionsPreamble: instructionsPreamble)
+            callerMail: callerMail, instructionsPreamble: instructionsPreamble,
+            runTemplateContext: runTemplateContext)
     }
 
     /// Makes the `skills` tool from `skills`.
@@ -486,7 +512,7 @@ public struct AgentEnvironment: Sendable {
 
     /// Makes an environment over a `skills` tool that is already made.
     ///
-    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:instructionsPreamble:sandboxProbe:)``
+    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:instructionsPreamble:runTemplateContext:sandboxProbe:)``
     /// tells each parameter. `skillsTool` must be the tool that
     /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:sandboxProbe:)``
     /// made from `skills` and `skillsVisibility`. The init adds it to `tools`
@@ -515,7 +541,8 @@ public struct AgentEnvironment: Sendable {
         inlineSettleGrace: TimeInterval,
         runEventObserver: RunEventObserver? = nil,
         callerMail: CallerMail? = nil,
-        instructionsPreamble: String? = nil
+        instructionsPreamble: String? = nil,
+        runTemplateContext: RunTemplateContext? = nil
     ) {
         precondition(
             ModelMatch.generationSlots.contains { $0.slot == defaultSlot },
@@ -547,5 +574,6 @@ public struct AgentEnvironment: Sendable {
         self.runEventObserver = runEventObserver
         self.callerMail = callerMail
         self.instructionsPreamble = instructionsPreamble
+        self.runTemplateContext = runTemplateContext
     }
 }

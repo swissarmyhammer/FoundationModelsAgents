@@ -67,15 +67,44 @@ struct LoadingBoundaryTests {
         /// the package root.
         let exemptFiles: [String]
 
+        /// Whether only a whole identifier breaks the rule. `false` (the
+        /// default) makes each occurrence of the text break it, thus a name
+        /// that opens a longer name, for example `DispatchSource` in
+        /// `DispatchSourceFileSystemObject`, breaks it too. `true` lets an
+        /// identifier that only holds the name, for example
+        /// `runTemplateContext`, stay.
+        var wholeIdentifier = false
+
         /// The name of the rule, which names the test case in a report.
         var description: String { name }
 
         /// Tells whether `line` breaks this rule.
         ///
         /// - Parameter line: The line to read.
-        /// - Returns: `true` when the line holds ``name``.
+        /// - Returns: `true` when the line holds ``name``, or with
+        ///   ``wholeIdentifier``, when it holds ``name`` as a whole identifier.
         func isBroken(by line: String) -> Bool {
-            line.contains(name)
+            guard wholeIdentifier else { return line.contains(name) }
+            var searchStart = line.startIndex
+            while let match = line.range(of: name, range: searchStart..<line.endIndex) {
+                let before = match.lowerBound == line.startIndex ? nil : line[line.index(before: match.lowerBound)]
+                let after = match.upperBound == line.endIndex ? nil : line[match.upperBound]
+                if !Self.isIdentifierCharacter(before) && !Self.isIdentifierCharacter(after) {
+                    return true
+                }
+                searchStart = match.upperBound
+            }
+            return false
+        }
+
+        /// Tells whether `character` can stand in a Swift identifier.
+        ///
+        /// - Parameter character: The character next to a match, or `nil` at
+        ///   an end of the line.
+        /// - Returns: `true` for a letter, a digit, or `_`.
+        private static func isIdentifierCharacter(_ character: Character?) -> Bool {
+            guard let character else { return false }
+            return character.isLetter || character.isNumber || character == "_"
         }
 
         /// Tells whether an exempt file holds `reportedLine`.
@@ -171,17 +200,21 @@ struct LoadingBoundaryTests {
         Rule(
             name: "TemplateContext",
             reason: "the stenciled stack of Extras builds the context of a render",
-            exemptFiles: []),
+            exemptFiles: [],
+            // `runTemplateContext` of the environment names a closure of the
+            // host, not the Extras type.
+            wholeIdentifier: true),
         Rule(
             name: "TemplateValue",
             reason: "the stenciled stack of Extras carries each quarantined span as a value",
             // The registry keeps the host's template context, and the
             // renderer gives it to the stenciled stack as `values:`. The
-            // session API of the runner takes a context from the host and
-            // gives it to the renderer. None builds a value or a context of
-            // its own.
+            // session API of the runner, and the run template context of the
+            // environment, take a context from the host and give it to the
+            // renderer. None builds a value or a context of its own.
             exemptFiles: [
                 "Sources/FoundationModelsAgents/Registry/AgentRegistry.swift",
+                "Sources/FoundationModelsAgents/Run/AgentEnvironment.swift",
                 "Sources/FoundationModelsAgents/Run/AgentBodyRenderer.swift",
                 "Sources/FoundationModelsAgents/Run/AgentRunner+DefaultAgent.swift"
             ]),
@@ -251,6 +284,24 @@ struct LoadingBoundaryTests {
 
     @Test func aLineOfAFileWhoseNameOnlyOpensAnExemptNameIsReported() {
         #expect(!Self.sampleRule.exempts("\(Self.sampleExemptFile)Extra.swift:32"))
+    }
+
+    @Test func aWholeIdentifierRuleIsBrokenByTheNameAlone() {
+        let rule = Rule(name: "TemplateContext", reason: "a test", exemptFiles: [], wholeIdentifier: true)
+
+        #expect(rule.isBroken(by: "let context = TemplateContext(values: values)"))
+        #expect(rule.isBroken(by: "let runTemplateContext: [TemplateContext]"))
+    }
+
+    @Test func aWholeIdentifierRuleIsNotBrokenByALongerName() {
+        let rule = Rule(name: "TemplateContext", reason: "a test", exemptFiles: [], wholeIdentifier: true)
+
+        #expect(!rule.isBroken(by: "public let runTemplateContext: RunTemplateContext?"))
+        #expect(!rule.isBroken(by: "let x = TemplateContextual()"))
+    }
+
+    @Test func aTextRuleIsBrokenByALongerName() {
+        #expect(Self.fileHandleRule.isBroken(by: "let handle = FileHandleStream()"))
     }
 
     @Test func theScanFindsAForbiddenNameInAListOfLines() {
