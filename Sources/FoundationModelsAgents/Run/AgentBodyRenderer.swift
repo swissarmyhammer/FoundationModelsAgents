@@ -59,7 +59,7 @@ struct AgentBodyRenderer: Sendable {
     func render(_ definition: AgentDefinition, prompt: String) throws(AgentRunFailure) -> String {
         let stack = StenciledDotfolderStack(
             base: DotfolderStack(layers: scopedLayers(of: definition)), variables: variables,
-            values: templateContext)
+            values: Self.templateContext(templateContext, of: definition))
         do {
             return try stack.render(
                 Self.substitutingArguments(in: definition.body, with: prompt),
@@ -67,6 +67,38 @@ struct AgentBodyRenderer: Sendable {
         } catch {
             throw AgentRunFailure.bodyRenderFailed(String(describing: error))
         }
+    }
+
+    /// Gives the session template context as the body of `definition` sees
+    /// it: `tools.agents.enabled` is `false` when a `disallowedTools` entry
+    /// of the agent denies the `agents` tool. Seen live in the bench run
+    /// oneplan24: the house-rules partial told the planner, an agent with
+    /// `disallowedTools: [agents]`, to schedule an agent.
+    ///
+    /// Each other group stays as the host gave it: its tools are tools of
+    /// the host, for example inside `runCode`, and only the host knows the
+    /// names of a group.
+    ///
+    /// - Parameters:
+    ///   - context: The session template context.
+    ///   - definition: The agent whose body renders.
+    /// - Returns: `context`, with the `agents` group off for an agent that
+    ///   denies it.
+    static func templateContext(
+        _ context: [String: TemplateValue], of definition: AgentDefinition
+    ) -> [String: TemplateValue] {
+        let agentsGroup = ToolVocabulary.agentsToolName
+        guard case .dictionary(var groups)? = context["tools"],
+              case .dictionary(var group)? = groups[agentsGroup],
+              definition.toolSelection(over: [], hasAgentsTool: true).deniesAgents
+        else {
+            return context
+        }
+        group["enabled"] = .bool(false)
+        groups[agentsGroup] = .dictionary(group)
+        var narrowed = context
+        narrowed["tools"] = .dictionary(groups)
+        return narrowed
     }
 
     /// The layers that the render of `definition` reads partials from.
