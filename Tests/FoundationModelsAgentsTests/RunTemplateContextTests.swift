@@ -14,9 +14,6 @@ struct RunTemplateContextTests {
     /// The id of the agent of the new-run rows.
     private static let agentID = AgentFolderFixture.helperID
 
-    /// A body that tells if the shell group is on.
-    private static let gatedText = "{% if tools.shell.enabled %}shell on{% else %}shell off{% endif %}"
-
     /// The prompt of each new run.
     private static let prompt = "run-context-key: do the task"
 
@@ -27,14 +24,6 @@ struct RunTemplateContextTests {
 
         /// The names of the resolved tools.
         let toolNames: [String]
-    }
-
-    /// Gives a template context with the shell group on or off.
-    ///
-    /// - Parameter enabled: The value of `tools.shell.enabled`.
-    /// - Returns: The context.
-    private static func shellContext(enabled: Bool) -> [String: TemplateValue] {
-        ["tools": .dictionary(["shell": .dictionary(["enabled": .bool(enabled)])])]
     }
 
     /// Gives a closure that records each call and turns the shell group on
@@ -49,7 +38,7 @@ struct RunTemplateContextTests {
     ) -> AgentEnvironment.RunTemplateContext {
         { definition, toolNames in
             calls.add(Call(agentID: definition.id, toolNames: toolNames))
-            return shellContext(enabled: enabled)
+            return ShellGroupFixture.context(enabled: enabled)
         }
     }
 
@@ -64,12 +53,12 @@ struct RunTemplateContextTests {
         runTemplateContext: AgentEnvironment.RunTemplateContext?
     ) async throws -> (instructions: String, skillsToolName: String) {
         let layer = try TemporaryLayer.make(holding: [
-            AgentFolderFixture.documentPath(of: agentID): AgentFolderFixture.agentText(name: agentID, body: gatedText)
+            AgentFolderFixture.documentPath(of: agentID): AgentFolderFixture.agentText(name: agentID, body: ShellGroupFixture.gatedText)
         ])
         defer { try? layer.delete() }
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([]),
-            registry: AgentRegistry(layers: [layer.layer], templateContext: shellContext(enabled: true)))
+            registry: AgentRegistry(layers: [layer.layer], templateContext: ShellGroupFixture.context(enabled: true)))
         defer { try? harness.delete() }
         let environment = harness.environment(
             maxRetainedRuns: AgentEnvironment.defaultMaxRetainedRuns, runTemplateContext: runTemplateContext)
@@ -87,7 +76,7 @@ struct RunTemplateContextTests {
 
         let run = try await Self.newRun(runTemplateContext: Self.recording(enabled: false, into: calls))
 
-        #expect(run.instructions.hasSuffix("shell off"))
+        #expect(run.instructions.hasSuffix(ShellGroupFixture.offText))
     }
 
     @Test("a new run renders the on branch when the closure turns the shell group on")
@@ -96,7 +85,7 @@ struct RunTemplateContextTests {
 
         let run = try await Self.newRun(runTemplateContext: Self.recording(enabled: true, into: calls))
 
-        #expect(run.instructions.hasSuffix("shell on"))
+        #expect(run.instructions.hasSuffix(ShellGroupFixture.onText))
     }
 
     @Test("the closure gets the definition of the run and the names of its resolved tools")
@@ -112,7 +101,7 @@ struct RunTemplateContextTests {
     func noClosureKeepsTheRegistryContext() async throws {
         let run = try await Self.newRun(runTemplateContext: nil)
 
-        #expect(run.instructions.hasSuffix("shell on"))
+        #expect(run.instructions.hasSuffix(ShellGroupFixture.onText))
     }
 
     // MARK: - A restored run
@@ -121,7 +110,7 @@ struct RunTemplateContextTests {
     func aRestoredRunGetsTheContext() async throws {
         let layer = try TemporaryLayer.make(holding: [
             AgentFolderFixture.documentPath(of: AgentRunTests.testWriter): AgentFolderFixture.agentText(
-                name: AgentRunTests.testWriter, body: "\(Self.gatedText) $ARGUMENTS")
+                name: AgentRunTests.testWriter, body: "\(ShellGroupFixture.gatedText) $ARGUMENTS")
         ])
         defer { try? layer.delete() }
         let calls = CallRecord<Call>()
@@ -134,7 +123,7 @@ struct RunTemplateContextTests {
         let instructions = ScriptedTranscriptText.instructions(of: await session.transcript)
         await setup.runner.stop()
 
-        #expect(instructions.contains("shell on"))
+        #expect(instructions.contains(ShellGroupFixture.onText))
         #expect(calls.all.map(\.agentID) == [AgentRunTests.testWriter])
     }
 }
