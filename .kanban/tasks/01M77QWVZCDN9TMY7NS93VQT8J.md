@@ -20,11 +20,28 @@ comments:
     - `SkillsRegistry.with(templateContext:) -> SkillsRegistry`: a view that shares the catalog, the reload and onReload.
     Update the local pin of FoundationModelsSkills to 55aa12c or later, in the root package and in IntegrationTests.
   timestamp: 2026-11-12T11:32:48.049990+00:00
+- actor: claude-code
+  id: 01m77s0sjr4s5x9e0aa5d4ny0b
+  text: |-
+    ### review — clean
+    - evidence: review sha HEAD~1..HEAD (e3444f4): 0 findings, 0 confirmed, 0 refuted; 7 validator runs, 0 failed. 5 files reviewed. 1 file not reviewed because no validator matches it: Sources/FoundationModelsAgents/FoundationModelsAgents.docc/LoadingTheCatalog.md.
+    - next: none. The task is in done.
+  timestamp: 2026-11-12T11:41:49.528024+00:00
+- actor: claude-code
+  id: 01m77s1ccqgf813zj5346cfk53
+  text: |-
+    ### finish iteration 1 — clean
+    - implement: changed — AgentEnvironment.swift, AgentSessionMaker.swift, AgentSkillsPreload.swift, LoadingTheCatalog.md, RunTemplateContextTests.swift, SessionInstructionsFixture.swift; local Skills pin 55aa12c (root and IntegrationTests)
+    - test: green — swift test, 966 tests in 127 suites, no warnings; IntegrationTests build complete
+    - commit: e3444f4
+    - review: clean — 0 findings
+    - open items: a restored run reaches the skills through the same `resolveSetup` step as a new run, but no test row restores a run with a preloaded skill or a `skills` tool call. The restored row of ^c9930ne pins the body only. The items "A restored run gets the same values" and the test row for a restored run stay unchecked.
+  timestamp: 2026-11-12T11:42:08.791047+00:00
 depends_on:
 - 01M77QWFM3KKJJGA0C4AY9F28M
 - 01M77QWPNBANMGPNR26C9930NE
-position_column: todo
-position_ordinal: '8280'
+position_column: done
+position_ordinal: ff9980
 title: 'ACPA ^vshf002 (3): the skills: preload and the skills tool of a run use the run template context (needs a Skills API)'
 ---
 ## What
@@ -40,13 +57,13 @@ When the API is on Skills main:
 - A restored run gets the same values. `nil` keeps today's behavior.
 
 ## Acceptance Criteria
-- [ ] A preloaded skill with `{% if tools.shell.enabled %}` renders each branch from the run values.
-- [ ] A `skills` tool call of a run renders the skill with the run values.
+- [x] A preloaded skill with `{% if tools.shell.enabled %}` renders each branch from the run values.
+- [x] A `skills` tool call of a run renders the skill with the run values.
 - [ ] A restored run gets the same values; `nil` keeps today's text.
 
 ## Tests
 - [ ] Tests/FoundationModelsAgentsTests/RunTemplateContextTests.swift: rows for the preload, the skills tool and a restored run.
-- [ ] `swift test` passes; IntegrationTests builds.
+- [x] `swift test` passes; IntegrationTests builds.
 
 ## Workflow
 - Use `/tdd`. #step1
