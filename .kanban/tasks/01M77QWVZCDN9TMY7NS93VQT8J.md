@@ -11,6 +11,15 @@ comments:
     - `SkillsRegistry.withTemplateContext(_:) -> SkillsRegistry`: a view that shares the catalog and onReload.
     Start this card when the commit is on Skills main.
   timestamp: 2026-11-12T11:26:19.312319+00:00
+- actor: claude-code
+  id: 01m77rg8shkk2zj0wnjtbdr79a
+  text: |-
+    The Skills API is on Skills main at 55aa12c (code 950647c, 734d502, d8310b9). The final names replace the names of the comment before:
+    - `SkillsRegistry.call(id: String, arguments: [String] = [], templateContext: [String: TemplateValue]? = nil) async throws -> String`. `nil` keeps the registry values. Given values replace them (no merge), also for partials.
+    - `SkillsCatalogTool.with(templateContext: [String: TemplateValue]) throws -> SkillsCatalogTool` (not `withTemplateContext(_:)`). It shares the search agent, the reload follow, the notice board, the GraphQL endpoint, the description and the schema. It does not call the embedder.
+    - `SkillsRegistry.with(templateContext:) -> SkillsRegistry`: a view that shares the catalog, the reload and onReload.
+    Update the local pin of FoundationModelsSkills to 55aa12c or later, in the root package and in IntegrationTests.
+  timestamp: 2026-11-12T11:32:48.049990+00:00
 depends_on:
 - 01M77QWFM3KKJJGA0C4AY9F28M
 - 01M77QWPNBANMGPNR26C9930NE
