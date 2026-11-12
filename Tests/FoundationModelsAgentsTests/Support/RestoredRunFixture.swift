@@ -3,6 +3,7 @@ import Logging
 @testable import FoundationModelsAgents
 import FoundationModelsExtras
 import FoundationModelsRouter
+import FoundationModelsSkills
 import ULID
 
 /// A restored run of a finished first life, with the host closures recorded. The suites of the
@@ -47,20 +48,25 @@ struct RestoredRunFixture {
     ///     life has none.
     ///   - registry: The registry of the agents, or `nil` for the fixture library. It must hold
     ///     the agent `AgentRunTests.testWriter`.
+    ///   - skills: The skills registry of both lives, or `nil` for an empty one.
+    ///   - restoredSteps: The steps of the restored life before its last answer. The default
+    ///     gives one text answer.
     static func make(
         sessionEnding: AgentEnvironment.SessionEnding? = nil, callerMail: AgentEnvironment.CallerMail? = nil,
         claimResult: Bool? = nil, markFails: Bool = false, gate: ScriptedGate? = nil, deferStart: Bool = false,
         markGate: ScriptedGate? = nil, maxDepth: Int = AgentEnvironment.defaultMaxDepth, logger: Logger? = nil,
         instructionsPreamble: String? = nil, runTemplateContext: AgentEnvironment.RunTemplateContext? = nil,
-        registry: AgentRegistry? = nil
+        registry: AgentRegistry? = nil, skills: SkillsRegistry? = nil,
+        restoredSteps: [ScriptedAgentStep] = [.finalText("restored text")]
     ) async throws -> RestoredRunFixture {
         let gateSteps: [ScriptedAgentStep] = gate.map { [.wait($0)] } ?? []
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([
                 ScriptedAgentPlay(
                     key: originalKey,
-                    steps: [.finalText("first")] + gateSteps + [.finalText("restored text"), .finalTextOfLastPrompt])
-            ]), registry: registry ?? AgentRegistry(stack: FixtureLibrary.stack()), logger: logger)
+                    steps: [.finalText("first")] + gateSteps + restoredSteps + [.finalTextOfLastPrompt])
+            ]), registry: registry ?? AgentRegistry(stack: FixtureLibrary.stack()),
+            skills: skills ?? SkillsRegistry.makeEmpty(), logger: logger)
         let original = try await harness.makeRunner().start(AgentRunTests.testWriter, prompt: originalKey)
         _ = try await original.result()
         precondition(

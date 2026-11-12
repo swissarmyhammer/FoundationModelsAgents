@@ -212,4 +212,39 @@ struct RunTemplateContextTests {
         #expect(instructions.contains(ShellGroupFixture.onText))
         #expect(calls.all.map(\.agentID) == [AgentRunTests.testWriter])
     }
+
+    @Test("a restored run renders its skills: preload and a use skill call of its skills tool with the closure")
+    func aRestoredRunRendersItsSkillsWithTheContext() async throws {
+        let layer = try TemporaryLayer.make(holding: [
+            AgentFolderFixture.documentPath(of: AgentRunTests.testWriter): AgentFolderFixture.agentText(
+                name: AgentRunTests.testWriter, body: "\(Self.plainBody) $ARGUMENTS", skills: [Self.gatedSkill]),
+            SessionInstructionsFixture.skillPath(of: Self.gatedSkill): SessionInstructionsFixture.skillText(
+                Self.gatedSkill, body: ShellGroupFixture.gatedText)
+        ])
+        defer { try? layer.delete() }
+        let calls = CallRecord<Call>()
+        let skills = SkillsRegistry(
+            roots: [layer.root.appendingPathComponent(SessionInstructionsFixture.skillsFolderName, isDirectory: true)],
+            mode: .open, templateContext: ShellGroupFixture.context(enabled: true))
+        let setup = try await RestoredRunFixture.make(
+            deferStart: true, runTemplateContext: Self.recording(enabled: false, into: calls),
+            registry: AgentRegistry(layers: [layer.layer]), skills: skills,
+            restoredSteps: [
+                .toolCall(name: SkillsToolSharingTests.skillsToolName, argumentsJSON: Self.useGatedSkill),
+                .finalText("restored text")
+            ])
+        defer { try? setup.harness.delete() }
+        let session = try #require(setup.run.heldSession)
+        let instructions = ScriptedTranscriptText.instructions(of: await session.transcript)
+
+        setup.run.resume()
+        _ = try await setup.run.result()
+        await setup.runner.stop()
+
+        let skillOutputs = setup.harness.script.toolOutputs.filter { $0.contains("shell ") }
+        #expect(instructions.hasSuffix(ShellGroupFixture.offText))
+        #expect(!instructions.contains(ShellGroupFixture.onText))
+        #expect(skillOutputs.count == 1)
+        #expect(skillOutputs.allSatisfy { $0.contains(ShellGroupFixture.offText) })
+    }
 }
