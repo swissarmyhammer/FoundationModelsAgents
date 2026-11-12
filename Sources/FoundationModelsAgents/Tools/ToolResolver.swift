@@ -49,8 +49,7 @@ struct ToolResolver: Sendable {
     static func diagnostics(
         of definition: AgentDefinition, catalog: ToolCatalog, hasAgentsTool: Bool, atMaxDepth: Bool
     ) -> [AgentDiagnostic] {
-        let selection = definition.toolSelection(
-            vocabulary: ToolVocabulary(catalog: catalog, hasAgentsTool: hasAgentsTool))
+        let selection = selection(of: definition, catalog: catalog, hasAgentsTool: hasAgentsTool)
         return selection.diagnostics
             + ToolResolver(agent: definition.id, provenance: definition.provenance)
                 .maxDepthDiagnostics(of: selection, atMaxDepth: atMaxDepth)
@@ -88,8 +87,7 @@ struct ToolResolver: Sendable {
         catalog: ToolCatalog,
         agentsTool: AgentsToolFactory?
     ) async throws -> (tools: [any Tool], diagnostics: [AgentDiagnostic]) {
-        let selection = definition.toolSelection(
-            vocabulary: ToolVocabulary(catalog: catalog, hasAgentsTool: agentsTool != nil))
+        let selection = Self.selection(of: definition, catalog: catalog, hasAgentsTool: agentsTool != nil)
         let catalogTools = selection.names.compactMap(catalog.makeTool(named:))
             + catalog.makeKeptTools(for: definition)
         guard let agentsTool, !selection.deniesAgents,
@@ -100,6 +98,22 @@ struct ToolResolver: Sendable {
         return (catalogTools + [mountedTool], selection.diagnostics)
     }
 
+
+    /// Applies the rules to the entries of `definition` over the names of
+    /// `catalog`, its kept names included. ``diagnostics(of:catalog:hasAgentsTool:atMaxDepth:)``
+    /// and ``resolve(_:catalog:agentsTool:)`` share this step.
+    ///
+    /// - Parameters:
+    ///   - definition: The agent.
+    ///   - catalog: The tool catalog.
+    ///   - hasAgentsTool: `true` when the resolution has an `agents` tool
+    ///     factory.
+    /// - Returns: The selection, with the diagnostics of the agent.
+    private static func selection(
+        of definition: AgentDefinition, catalog: ToolCatalog, hasAgentsTool: Bool
+    ) -> AgentToolSelection {
+        definition.toolSelection(vocabulary: ToolVocabulary(catalog: catalog, hasAgentsTool: hasAgentsTool))
+    }
 
     /// Gives the maxDepth warning of one selection.
     ///
