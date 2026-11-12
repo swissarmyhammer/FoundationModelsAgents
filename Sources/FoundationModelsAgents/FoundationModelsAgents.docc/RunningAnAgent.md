@@ -138,6 +138,10 @@ let run = try await runner.start(definition.id, prompt: task, workingDirectory: 
    order, thus it also starts with the preamble.
 3. It resolves the tools. `disallowedTools` applies first, then `tools`. With
    no `tools` key, the run gets each tool of the ``ToolCatalog``.
+   Each kept tool of the catalog (``ToolCatalog/registerKept(_:vocabulary:_:)``)
+   is in each run, whatever the keys are. Its factory gets the definition of the
+   run, thus the tool can filter its own capabilities with the keys. Its
+   capability names, for example `web`, are known names for the keys.
    An agent with no `tools` key gets only the message operations, and only in a run with a caller.
    Only an explicit `tools` entry gives the operations that start agents.
    The entries are `Agent`, `Agent(a, b)`, and `agents`. A run with one of

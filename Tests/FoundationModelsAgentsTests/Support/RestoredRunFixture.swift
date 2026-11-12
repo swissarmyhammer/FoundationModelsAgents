@@ -51,13 +51,14 @@ struct RestoredRunFixture {
     ///   - skills: The skills registry of both lives, or `nil` for an empty one.
     ///   - restoredSteps: The steps of the restored life before its last answer. The default
     ///     gives one text answer.
+    ///   - tools: The tool catalog of both lives. The default is an empty catalog.
     static func make(
         sessionEnding: AgentEnvironment.SessionEnding? = nil, callerMail: AgentEnvironment.CallerMail? = nil,
         claimResult: Bool? = nil, markFails: Bool = false, gate: ScriptedGate? = nil, deferStart: Bool = false,
         markGate: ScriptedGate? = nil, maxDepth: Int = AgentEnvironment.defaultMaxDepth, logger: Logger? = nil,
         instructionsPreamble: String? = nil, runTemplateContext: AgentEnvironment.RunTemplateContext? = nil,
         registry: AgentRegistry? = nil, skills: SkillsRegistry? = nil,
-        restoredSteps: [ScriptedAgentStep] = [.finalText("restored text")]
+        restoredSteps: [ScriptedAgentStep] = [.finalText("restored text")], tools: ToolCatalog = ToolCatalog()
     ) async throws -> RestoredRunFixture {
         let gateSteps: [ScriptedAgentStep] = gate.map { [.wait($0)] } ?? []
         let harness = try await AgentRunHarness.make(
@@ -66,7 +67,7 @@ struct RestoredRunFixture {
                     key: originalKey,
                     steps: [.finalText("first")] + gateSteps + restoredSteps + [.finalTextOfLastPrompt])
             ]), registry: registry ?? AgentRegistry(stack: FixtureLibrary.stack()),
-            skills: skills ?? SkillsRegistry.makeEmpty(), logger: logger)
+            skills: skills ?? SkillsRegistry.makeEmpty(), tools: tools, logger: logger)
         let original = try await harness.makeRunner().start(AgentRunTests.testWriter, prompt: originalKey)
         _ = try await original.result()
         precondition(

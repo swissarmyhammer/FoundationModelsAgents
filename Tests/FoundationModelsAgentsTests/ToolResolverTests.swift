@@ -128,17 +128,17 @@ struct ToolResolverTests {
     ///   - tools: The `tools` entries, or `nil` for no `tools` key.
     ///   - disallowed: The `disallowedTools` entries.
     ///   - agentsTool: The `agents` tool factory, or `nil`.
+    ///   - catalog: The tool catalog. The default is `makeCatalog()`.
     /// - Returns: The tools and the diagnostics.
     static func resolve(
         _ tools: [String]?,
         disallowed: [String] = [],
-        agentsTool: ToolResolver.AgentsToolFactory? = nil
+        agentsTool: ToolResolver.AgentsToolFactory? = nil,
+        catalog: ToolCatalog = makeCatalog()
     ) async throws -> (tools: [any Tool], diagnostics: [AgentDiagnostic]) {
         try await resolver.resolve(
-            tools: tools?.map(ToolSpec.parse),
-            disallowed: disallowed.map(ToolSpec.parse),
-            catalog: makeCatalog(),
-            agentsTool: agentsTool)
+            AgentDefinitionAttempt.definition(tools: tools, disallowed: disallowed),
+            catalog: catalog, agentsTool: agentsTool)
     }
 
     @Test("the catalog gives its names in sorted order")
@@ -332,8 +332,7 @@ struct ToolResolverTests {
         var catalog = Self.makeCatalog()
         catalog.register(Self.agentsName) { ProbeTool(name: Self.agentsName) }
         let calls = AgentsToolCalls()
-        let resolved = try await Self.resolver.resolve(
-            tools: nil, disallowed: [], catalog: catalog, agentsTool: Self.makeAgentsTool(recordingIn: calls))
+        let resolved = try await Self.resolve(nil, agentsTool: Self.makeAgentsTool(recordingIn: calls), catalog: catalog)
 
         #expect(resolved.tools.map(\.name) == Self.catalogNames)
         #expect(await calls.grants == [nil])
@@ -389,10 +388,7 @@ struct ToolResolverTests {
             AgentDefinitionAttempt.inline("\(AgentDefinitionAttempt.validDescription)\n\(yaml)").definition)
         let calls = AgentsToolCalls()
         let resolved = try await Self.resolver.resolve(
-            tools: definition.tools?.map(ToolSpec.parse),
-            disallowed: definition.disallowedTools.map(ToolSpec.parse),
-            catalog: Self.makeCatalog(),
-            agentsTool: Self.makeAgentsTool(recordingIn: calls))
+            definition, catalog: Self.makeCatalog(), agentsTool: Self.makeAgentsTool(recordingIn: calls))
 
         #expect(resolved.tools.map(\.name) == expected)
         #expect(await calls.grants == [nil])

@@ -49,10 +49,10 @@ struct ToolResolver: Sendable {
     static func diagnostics(
         of definition: AgentDefinition, catalog: ToolCatalog, hasAgentsTool: Bool, atMaxDepth: Bool
     ) -> [AgentDiagnostic] {
-        let selection = definition.toolSelection(over: catalog.names, hasAgentsTool: hasAgentsTool)
-        return selection.diagnostics
-            + ToolResolver(agent: definition.id, provenance: definition.provenance)
-                .maxDepthDiagnostics(of: selection, atMaxDepth: atMaxDepth)
+        let resolver = ToolResolver(agent: definition.id, provenance: definition.provenance)
+        let selection = resolver.selection(
+            of: definition, vocabulary: ToolVocabulary(catalog: catalog, hasAgentsTool: hasAgentsTool))
+        return selection.diagnostics + resolver.maxDepthDiagnostics(of: selection, atMaxDepth: atMaxDepth)
     }
 
     /// Resolves the entries to new tool instances.
@@ -67,35 +67,52 @@ struct ToolResolver: Sendable {
     /// `Agent` entry of `disallowed` denies the tool of each grant, and
     /// then the resolver does not call `agentsTool`.
     ///
+    /// Each kept tool of the catalog (``ToolCatalog/registerKept(_:vocabulary:_:)``)
+    /// is in the result, whatever the entries are: its factory gets
+    /// `definition` one time. Its names, and its capability names, are known
+    /// names, thus an entry that matches only them is not a warning.
+    ///
     /// - Parameters:
-    ///   - tools: The `tools` entries, or `nil` when the key is absent.
-    ///   - disallowed: The `disallowedTools` entries.
-    ///   - catalog: The tool catalog. Each selected factory is called one
-    ///     time.
+    ///   - definition: The agent of the run. Its `tools` and
+    ///     `disallowedTools` keys give the entries.
+    ///   - catalog: The tool catalog. Each selected factory, and each kept
+    ///     factory, is called one time.
     ///   - agentsTool: Makes the `agents` tool, or `nil` when the run cannot
     ///     get one.
-    /// - Returns: The new tools, the catalog tools in name order and then the
-    ///   `agents` tool, and the warnings.
+    /// - Returns: The new tools, the catalog tools in name order, then the
+    ///   kept tools in name order, then the `agents` tool, and the warnings.
     /// - Throws: The error of `agentsTool`.
     func resolve(
-        tools: [ToolSpec]?,
-        disallowed: [ToolSpec],
+        _ definition: AgentDefinition,
         catalog: ToolCatalog,
         agentsTool: AgentsToolFactory?
     ) async throws -> (tools: [any Tool], diagnostics: [AgentDiagnostic]) {
-        let selection = AgentToolSelection(
-            tools: tools,
-            disallowed: disallowed,
-            vocabulary: ToolVocabulary(catalogNames: catalog.names, hasAgentsTool: agentsTool != nil),
-            agent: agent,
-            provenance: provenance)
+        let selection = selection(
+            of: definition, vocabulary: ToolVocabulary(catalog: catalog, hasAgentsTool: agentsTool != nil))
         let catalogTools = selection.names.compactMap(catalog.makeTool(named:))
+            + catalog.makeKeptTools(for: definition)
         guard let agentsTool, !selection.deniesAgents,
               let mountedTool = try await agentsTool(selection.agentsGrant)
         else {
             return (catalogTools, selection.diagnostics)
         }
         return (catalogTools + [mountedTool], selection.diagnostics)
+    }
+
+    /// Applies the rules to the `tools` and `disallowedTools` entries of
+    /// `definition`.
+    ///
+    /// - Parameters:
+    ///   - definition: The agent.
+    ///   - vocabulary: The known tool names.
+    /// - Returns: The selection, with the diagnostics of this resolver.
+    private func selection(of definition: AgentDefinition, vocabulary: ToolVocabulary) -> AgentToolSelection {
+        AgentToolSelection(
+            tools: definition.tools?.map(ToolSpec.parse),
+            disallowed: definition.disallowedTools.map(ToolSpec.parse),
+            vocabulary: vocabulary,
+            agent: agent,
+            provenance: provenance)
     }
 
     /// Gives the maxDepth warning of one selection.

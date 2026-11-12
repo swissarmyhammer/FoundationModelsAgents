@@ -45,6 +45,10 @@ struct ToolMatch: Sendable {
     /// The match of an entry that matches no tool.
     static let nothing = ToolMatch(names: [], agentsGrant: nil)
 
+    /// The match of an entry that matches only a name of a kept tool: it
+    /// makes no tool, and it is not a warning.
+    static let keptOnly = ToolMatch(names: [], agentsGrant: nil, matchesKeptName: true)
+
     /// The catalog names that the entry matches, in sorted order.
     let names: [String]
 
@@ -52,10 +56,14 @@ struct ToolMatch: Sendable {
     /// match the `agents` tool.
     let agentsGrant: AgentsGrant?
 
-    /// `true` when the entry matches no tool. The resolution then gives a
-    /// warning.
+    /// `true` when the entry matches a name of a kept tool
+    /// (``ToolCatalog/registerKept(_:vocabulary:_:)``).
+    var matchesKeptName = false
+
+    /// `true` when the entry matches no tool and no name of a kept tool. The
+    /// resolution then gives a warning.
     var isEmpty: Bool {
-        names.isEmpty && agentsGrant == nil
+        names.isEmpty && agentsGrant == nil && !matchesKeptName
     }
 }
 
@@ -73,6 +81,10 @@ struct ToolVocabulary: Sendable {
     /// `true` when the resolution has an `agents` tool factory.
     let hasAgentsTool: Bool
 
+    /// The names that the kept tools make known
+    /// (``ToolCatalog/keptVocabulary``). They make no tool.
+    let keptNames: Set<String>
+
     /// The match of no `tools` key: each catalog name, and no grant of the
     /// `agents` tool. Only an explicit `tools` entry (`Agent`, `Agent(a, b)`,
     /// or `agents`) gives a grant.
@@ -86,10 +98,24 @@ struct ToolVocabulary: Sendable {
     ///   - catalogNames: The names of the tool catalog, in any order.
     ///   - hasAgentsTool: `true` when the resolution has an `agents` tool
     ///     factory.
-    init(catalogNames: [String], hasAgentsTool: Bool) {
+    ///   - keptNames: The names that the kept tools make known. The default
+    ///     is none.
+    init(catalogNames: [String], hasAgentsTool: Bool, keptNames: [String] = []) {
         let sortedNames = catalogNames.sorted()
         self.catalogNames = hasAgentsTool ? sortedNames.filter { $0 != Self.agentsToolName } : sortedNames
         self.hasAgentsTool = hasAgentsTool
+        self.keptNames = Set(keptNames)
+    }
+
+    /// Makes the vocabulary of one resolution over `catalog`: its names and
+    /// the names that its kept tools make known.
+    ///
+    /// - Parameters:
+    ///   - catalog: The tool catalog.
+    ///   - hasAgentsTool: `true` when the resolution has an `agents` tool
+    ///     factory.
+    init(catalog: ToolCatalog, hasAgentsTool: Bool) {
+        self.init(catalogNames: catalog.names, hasAgentsTool: hasAgentsTool, keptNames: catalog.keptVocabulary)
     }
 
     /// Matches one entry to the known names.
@@ -101,7 +127,9 @@ struct ToolVocabulary: Sendable {
         case .name(let name):
             match(name: name)
         case .mcpPrefix, .mcpAll:
-            ToolMatch(names: catalogNames.filter(spec.matchesMCPTool(named:)), agentsGrant: nil)
+            ToolMatch(
+                names: catalogNames.filter(spec.matchesMCPTool(named:)), agentsGrant: nil,
+                matchesKeptName: keptNames.contains(where: spec.matchesMCPTool(named:)))
         case .agent(let allowed):
             hasAgentsTool ? ToolMatch(names: [], agentsGrant: AgentsGrant(allowed: allowed)) : .nothing
         }
@@ -111,13 +139,16 @@ struct ToolVocabulary: Sendable {
     ///
     /// - Parameter name: The name of the entry.
     /// - Returns: The `agents` tool with all agents for the name `agents`
-    ///   when its factory is present, the name when the catalog holds it, or
-    ///   `nothing`.
+    ///   when its factory is present, the name when the catalog holds it,
+    ///   `keptOnly` when a kept tool makes the name known, or `nothing`.
     private func match(name: String) -> ToolMatch {
         if hasAgentsTool, name == Self.agentsToolName {
             return ToolMatch(names: [], agentsGrant: .all)
         }
-        return catalogNames.contains(name) ? ToolMatch(names: [name], agentsGrant: nil) : .nothing
+        if catalogNames.contains(name) {
+            return ToolMatch(names: [name], agentsGrant: nil)
+        }
+        return keptNames.contains(name) ? .keptOnly : .nothing
     }
 }
 

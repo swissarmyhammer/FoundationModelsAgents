@@ -1,6 +1,7 @@
 import Foundation
 @testable import FoundationModelsAgents
 import FoundationModelsExtras
+import Testing
 
 /// One attempt to make an `AgentDefinition`: the definition, or `nil` for a
 /// skip, and the diagnostics that the attempt gave.
@@ -58,6 +59,32 @@ struct AgentDefinitionAttempt {
         let provenance = AgentDiagnostic.Provenance(
             layerIndex: 0, layerRoot: layer.root, url: layer.root.appendingPathComponent(path))
         return make(id: id, document: documents.item(at: path), provenance: provenance)
+    }
+
+    /// Makes an inline definition with `tools` and `disallowedTools` entries.
+    ///
+    /// - Parameters:
+    ///   - tools: The `tools` entries, or `nil` for no `tools` key.
+    ///   - disallowed: The `disallowedTools` entries.
+    /// - Returns: The definition.
+    /// - Throws: An error when the frontmatter gives no definition.
+    static func definition(tools: [String]?, disallowed: [String] = []) throws -> AgentDefinition {
+        let lists = [
+            tools.map { blockList("tools", $0) }, disallowed.isEmpty ? nil : blockList("disallowedTools", disallowed)
+        ]
+        let yaml = ([validDescription] + lists.compactMap(\.self)).joined(separator: "\n")
+        return try #require(inline(yaml).definition)
+    }
+
+    /// Gives one frontmatter key as a block list of quoted entries, thus an
+    /// entry such as `Agent(a, b)` stays one entry.
+    ///
+    /// - Parameters:
+    ///   - key: The key.
+    ///   - entries: The entries.
+    /// - Returns: The lines of the key.
+    private static func blockList(_ key: String, _ entries: [String]) -> String {
+        entries.isEmpty ? "\(key): []" : ([key + ":"] + entries.map { "  - \"\($0)\"" }).joined(separator: "\n")
     }
 
     /// Builds one inline document from `yaml` and applies the rule table.

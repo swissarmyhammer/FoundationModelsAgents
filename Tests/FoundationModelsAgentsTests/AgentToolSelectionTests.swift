@@ -60,9 +60,7 @@ struct AgentToolSelectionTests {
         let definition = try Self.definition(row.yaml)
         let calls = ToolResolverTests.AgentsToolCalls()
         let resolved = try await ToolResolver(agent: definition.id, provenance: definition.provenance).resolve(
-            tools: definition.tools?.map(ToolSpec.parse),
-            disallowed: definition.disallowedTools.map(ToolSpec.parse),
-            catalog: ToolResolverTests.makeCatalog(),
+            definition, catalog: ToolResolverTests.makeCatalog(),
             agentsTool: ToolResolverTests.makeAgentsTool(recordingIn: calls))
 
         let selection = definition.toolSelection(over: ToolResolverTests.catalogNames, hasAgentsTool: true)

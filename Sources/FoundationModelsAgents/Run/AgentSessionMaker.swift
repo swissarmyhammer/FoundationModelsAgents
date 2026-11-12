@@ -206,12 +206,7 @@ struct AgentSessionMaker: Sendable {
         let agentsTool = agentsToolFactory(for: request, as: parent)
         do {
             return try await ToolResolver(agent: definition.id, provenance: definition.provenance)
-                .resolve(
-                    tools: definition.tools?.map(ToolSpec.parse),
-                    disallowed: definition.disallowedTools.map(ToolSpec.parse),
-                    catalog: environment.tools,
-                    agentsTool: agentsTool
-                ).tools
+                .resolve(definition, catalog: environment.tools, agentsTool: agentsTool).tools
         } catch {
             throw .toolsFailed(String(describing: error))
         }
