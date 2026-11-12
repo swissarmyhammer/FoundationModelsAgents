@@ -30,6 +30,22 @@ struct RunTemplateContextTests {
     /// The arguments of a `use skill` call of ``gatedSkill``.
     private static let useGatedSkill = #"{"op": "use skill", "id": "gated-skill"}"#
 
+    /// The path and the text of the `SKILL.md` file of ``gatedSkill``.
+    private static let gatedSkillFile = (
+        path: SessionInstructionsFixture.skillPath(of: gatedSkill),
+        text: SessionInstructionsFixture.skillText(gatedSkill, body: ShellGroupFixture.gatedText))
+
+    /// Makes a skills registry over the `skills/` folder of `layer`, whose
+    /// values turn the shell group on.
+    ///
+    /// - Parameter layer: The layer that holds the skills.
+    /// - Returns: The skills registry.
+    private static func skills(in layer: TemporaryLayer) -> SkillsRegistry {
+        SkillsRegistry(
+            roots: [layer.root.appendingPathComponent(SessionInstructionsFixture.skillsFolderName, isDirectory: true)],
+            mode: .open, templateContext: ShellGroupFixture.context(enabled: true))
+    }
+
     /// The files of a layer whose agent has the gated body.
     private static let gatedAgent = [
         AgentFolderFixture.documentPath(of: agentID): AgentFolderFixture.agentText(
@@ -41,8 +57,7 @@ struct RunTemplateContextTests {
     private static let skillAgent = [
         AgentFolderFixture.documentPath(of: agentID): AgentFolderFixture.agentText(
             name: agentID, body: plainBody, skills: [gatedSkill]),
-        SessionInstructionsFixture.skillPath(of: gatedSkill): SessionInstructionsFixture.skillText(
-            gatedSkill, body: ShellGroupFixture.gatedText)
+        gatedSkillFile.path: gatedSkillFile.text
     ]
 
     /// The setup of one new run.
@@ -104,9 +119,7 @@ struct RunTemplateContextTests {
     ) async throws -> NewRun {
         let layer = try TemporaryLayer.make(holding: files)
         defer { try? layer.delete() }
-        let skills = SkillsRegistry(
-            roots: [layer.root.appendingPathComponent(SessionInstructionsFixture.skillsFolderName, isDirectory: true)],
-            mode: .open, templateContext: ShellGroupFixture.context(enabled: true))
+        let skills = Self.skills(in: layer)
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([]),
             registry: AgentRegistry(layers: [layer.layer], templateContext: ShellGroupFixture.context(enabled: true)),
@@ -218,14 +231,11 @@ struct RunTemplateContextTests {
         let layer = try TemporaryLayer.make(holding: [
             AgentFolderFixture.documentPath(of: AgentRunTests.testWriter): AgentFolderFixture.agentText(
                 name: AgentRunTests.testWriter, body: "\(Self.plainBody) $ARGUMENTS", skills: [Self.gatedSkill]),
-            SessionInstructionsFixture.skillPath(of: Self.gatedSkill): SessionInstructionsFixture.skillText(
-                Self.gatedSkill, body: ShellGroupFixture.gatedText)
+            Self.gatedSkillFile.path: Self.gatedSkillFile.text
         ])
         defer { try? layer.delete() }
         let calls = CallRecord<Call>()
-        let skills = SkillsRegistry(
-            roots: [layer.root.appendingPathComponent(SessionInstructionsFixture.skillsFolderName, isDirectory: true)],
-            mode: .open, templateContext: ShellGroupFixture.context(enabled: true))
+        let skills = Self.skills(in: layer)
         let setup = try await RestoredRunFixture.make(
             deferStart: true, runTemplateContext: Self.recording(enabled: false, into: calls),
             registry: AgentRegistry(layers: [layer.layer]), skills: skills,
