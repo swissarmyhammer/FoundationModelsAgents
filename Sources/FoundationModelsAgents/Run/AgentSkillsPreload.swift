@@ -142,11 +142,3 @@ struct AgentSkillsPreload: Sendable {
         }
     }
 }
-
-extension AgentEnvironment {
-    /// The `skills:` preload of each run: the skills registry of the
-    /// environment, with the visibility rule of its `skills` tool.
-    var skillsPreload: AgentSkillsPreload {
-        AgentSkillsPreload(skills: skills, isVisible: skillsVisibility)
-    }
-}

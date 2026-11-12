@@ -1,14 +1,18 @@
 import Foundation
+import FoundationModels
 @testable import FoundationModelsAgents
 import FoundationModelsExtras
+import FoundationModelsSkills
 import Testing
 
 /// Pins ``AgentEnvironment/runTemplateContext``: the body of each run, a new
-/// run and a restored run, renders with the template context that the host
-/// gives for the definition and the resolved tools of the run.
+/// run and a restored run, its `skills:` preload, and its `skills` tool render
+/// with the template context that the host gives for the definition and the
+/// resolved tools of the run.
 ///
-/// With no closure, the body renders with the template context of the
-/// registry, as before.
+/// With no closure, the body renders with the template context of the agent
+/// registry, and each skill with the values of the skills registry, as
+/// before.
 @Suite("The run template context")
 struct RunTemplateContextTests {
     /// The id of the agent of the new-run rows.
@@ -16,6 +20,51 @@ struct RunTemplateContextTests {
 
     /// The prompt of each new run.
     private static let prompt = "run-context-key: do the task"
+
+    /// The id of the skill with the gated body.
+    private static let gatedSkill = "gated-skill"
+
+    /// The plain body of an agent whose `skills:` key loads ``gatedSkill``.
+    private static let plainBody = "You load the gated skill."
+
+    /// The arguments of a `use skill` call of ``gatedSkill``.
+    private static let useGatedSkill = #"{"op": "use skill", "id": "gated-skill"}"#
+
+    /// The files of a layer whose agent has the gated body.
+    private static let gatedAgent = [
+        AgentFolderFixture.documentPath(of: agentID): AgentFolderFixture.agentText(
+            name: agentID, body: ShellGroupFixture.gatedText)
+    ]
+
+    /// The files of a layer whose agent has a plain body and the `skills:`
+    /// key `[gatedSkill]`, and the skill itself.
+    private static let skillAgent = [
+        AgentFolderFixture.documentPath(of: agentID): AgentFolderFixture.agentText(
+            name: agentID, body: plainBody, skills: [gatedSkill]),
+        SessionInstructionsFixture.skillPath(of: gatedSkill): SessionInstructionsFixture.skillText(
+            gatedSkill, body: ShellGroupFixture.gatedText)
+    ]
+
+    /// The setup of one new run.
+    private struct NewRun {
+        /// The instructions of the run.
+        let instructions: String
+
+        /// The tools of the run.
+        let tools: [any Tool]
+
+        /// The name of the shared `skills` tool of the harness.
+        let skillsToolName: String
+
+        /// Calls the `skills` tool of the run.
+        ///
+        /// - Parameter json: The arguments, as JSON.
+        /// - Returns: The text of the call.
+        func callSkills(_ json: String) async throws -> String {
+            let tool = try #require(tools.first { $0.name == skillsToolName })
+            return try await SkillsToolSharingTests.call(tool, with: json)
+        }
+    }
 
     /// A definition and the tool names that one closure call got.
     private struct Call: Sendable, Equatable {
@@ -42,30 +91,33 @@ struct RunTemplateContextTests {
         }
     }
 
-    /// Resolves the setup of a new run of the gated agent, over a registry
-    /// whose context turns the shell group on.
+    /// Resolves the setup of a new run of the agent of `files`. The agent
+    /// registry and the skills registry both turn the shell group on.
     ///
-    /// - Parameter runTemplateContext: The closure of the environment, or
-    ///   `nil`.
-    /// - Returns: The instructions of the run, and the name of the `skills`
-    ///   tool of the harness.
+    /// - Parameters:
+    ///   - files: The files of the layer: the agent, and the skills under
+    ///     `skills/`.
+    ///   - runTemplateContext: The closure of the environment, or `nil`.
+    /// - Returns: The setup of the run.
     private static func newRun(
-        runTemplateContext: AgentEnvironment.RunTemplateContext?
-    ) async throws -> (instructions: String, skillsToolName: String) {
-        let layer = try TemporaryLayer.make(holding: [
-            AgentFolderFixture.documentPath(of: agentID): AgentFolderFixture.agentText(name: agentID, body: ShellGroupFixture.gatedText)
-        ])
+        _ files: [String: String] = gatedAgent, runTemplateContext: AgentEnvironment.RunTemplateContext?
+    ) async throws -> NewRun {
+        let layer = try TemporaryLayer.make(holding: files)
         defer { try? layer.delete() }
+        let skills = SkillsRegistry(
+            roots: [layer.root.appendingPathComponent(SessionInstructionsFixture.skillsFolderName, isDirectory: true)],
+            mode: .open, templateContext: ShellGroupFixture.context(enabled: true))
         let harness = try await AgentRunHarness.make(
             script: ScriptedAgentScript([]),
-            registry: AgentRegistry(layers: [layer.layer], templateContext: ShellGroupFixture.context(enabled: true)))
+            registry: AgentRegistry(layers: [layer.layer], templateContext: ShellGroupFixture.context(enabled: true)),
+            skills: skills)
         defer { try? harness.delete() }
         let environment = harness.environment(
             maxRetainedRuns: AgentEnvironment.defaultMaxRetainedRuns, runTemplateContext: runTemplateContext)
         let setup = try await AgentSessionMaker(
             environment: environment, renderer: AgentBodyRenderer(registry: harness.registry)
         ).resolveSetup(for: harness.request(agentID, prompt: prompt), family: ParentRun.Family())
-        return (setup.instructions, harness.skillsTool.name)
+        return NewRun(instructions: setup.instructions, tools: setup.tools, skillsToolName: harness.skillsTool.name)
     }
 
     // MARK: - A new run
@@ -102,6 +154,40 @@ struct RunTemplateContextTests {
         let run = try await Self.newRun(runTemplateContext: nil)
 
         #expect(run.instructions.hasSuffix(ShellGroupFixture.onText))
+    }
+
+    // MARK: - The skills of a run
+
+    @Test("the skills: preload of a run renders each branch from the closure", arguments: [false, true])
+    func thePreloadRendersTheBranchOfTheClosure(enabled: Bool) async throws {
+        let calls = CallRecord<Call>()
+
+        let run = try await Self.newRun(Self.skillAgent, runTemplateContext: Self.recording(enabled: enabled, into: calls))
+
+        let expected = enabled ? ShellGroupFixture.onText : ShellGroupFixture.offText
+        #expect(run.instructions.hasSuffix(
+            [Self.plainBody, expected].joined(separator: AgentSessionMaker.instructionsSeparator)))
+    }
+
+    @Test("the skills tool of a run renders each branch from the closure", arguments: [false, true])
+    func theSkillsToolRendersTheBranchOfTheClosure(enabled: Bool) async throws {
+        let calls = CallRecord<Call>()
+
+        let run = try await Self.newRun(Self.skillAgent, runTemplateContext: Self.recording(enabled: enabled, into: calls))
+
+        let expected = enabled ? ShellGroupFixture.onText : ShellGroupFixture.offText
+        let unexpected = enabled ? ShellGroupFixture.offText : ShellGroupFixture.onText
+        let text = try await run.callSkills(Self.useGatedSkill)
+        #expect(text.contains(expected))
+        #expect(!text.contains(unexpected))
+    }
+
+    @Test("with no closure, the preload and the skills tool use the values of the skills registry")
+    func noClosureKeepsTheSkillsRegistryValues() async throws {
+        let run = try await Self.newRun(Self.skillAgent, runTemplateContext: nil)
+
+        #expect(run.instructions.hasSuffix(ShellGroupFixture.onText))
+        #expect(try await run.callSkills(Self.useGatedSkill).contains(ShellGroupFixture.onText))
     }
 
     // MARK: - A restored run

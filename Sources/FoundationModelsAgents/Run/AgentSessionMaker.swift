@@ -109,10 +109,13 @@ struct AgentSessionMaker: Sendable {
     /// A new session and a restored session both use this step, thus no
     /// second copy of the tool build exists.
     ///
-    /// The step resolves the tools before it renders the body: the body
-    /// renders with ``AgentEnvironment/runTemplateContext`` of the definition
-    /// and the names of the resolved tools, or with the template context of
-    /// the registry when the environment has no such closure.
+    /// The step resolves the tools before it renders the body. The body, the
+    /// `skills:` preload, and the `skills` tool of the run then use
+    /// ``AgentEnvironment/runTemplateContext`` of the definition and the
+    /// names of the resolved tools, with the `agents` group off for an agent
+    /// that denies the `agents` tool. With no such closure, the body uses the
+    /// template context of the registry, and the skills use the values of the
+    /// skills registry.
     ///
     /// - Parameters:
     ///   - request: The run.
@@ -136,12 +139,17 @@ struct AgentSessionMaker: Sendable {
             as: ParentRun(
                 depth: request.depth, slot: slot, agentID: definition.id, family: family,
                 workingDirectory: workingDirectory))
-        let body = try renderer.render(
-            definition, prompt: request.prompt,
-            templateContext: environment.runTemplateContext?(definition, tools.map(\.name)))
-        let skillBodies = try await environment.skillsPreload.bodies(of: definition)
+        let runContext = (environment.runTemplateContext?(definition, tools.map(\.name))).map { context in
+            AgentBodyRenderer.templateContext(context, of: definition)
+        }
+        let body = try renderer.render(definition, prompt: request.prompt, templateContext: runContext)
+        let skillBodies = try await environment.skillsPreload(templateContext: runContext).bodies(of: definition)
         let instructions = try instructions(parts: [body] + skillBodies, in: workingDirectory)
-        return ResolvedSetup(instructions: instructions, slot: slot, tools: tools, workingDirectory: workingDirectory)
+        let runTools = try runContext.map { context throws(AgentRunFailure) in
+            try environment.tools(tools, withSkillsTemplateContext: context)
+        } ?? tools
+        return ResolvedSetup(
+            instructions: instructions, slot: slot, tools: runTools, workingDirectory: workingDirectory)
     }
 
     /// Puts the instructions of a run in order: the preamble of the

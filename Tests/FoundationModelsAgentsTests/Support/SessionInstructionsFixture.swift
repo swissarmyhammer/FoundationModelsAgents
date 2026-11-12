@@ -87,7 +87,7 @@ enum SessionInstructionsFixture {
     ///
     /// - Parameter skill: The id of the skill.
     /// - Returns: `skills/<skill>/SKILL.md`.
-    private static func skillPath(of skill: String) -> String {
+    static func skillPath(of skill: String) -> String {
         "\(skillsFolderName)/\(skill)/SKILL.md"
     }
 }

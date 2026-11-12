@@ -244,12 +244,14 @@ public struct AgentEnvironment: Sendable {
     /// for the template context of the registry.
     ///
     /// The run resolves its tools first. Then it calls this closure with its
-    /// definition and the names of its resolved tools, and its body, and each
-    /// partial of the body, renders with the result in place of the template
-    /// context of the registry. A new run and a restored run both get the
-    /// values. The `agents` group stays off for an agent that denies the
-    /// `agents` tool. The `skills:` preload and the `skills` tool do not
-    /// use these values.
+    /// definition and the names of its resolved tools. Its body and each
+    /// partial of the body render with the result in place of the template
+    /// context of the agent registry. Each skill of its `skills:` preload, and
+    /// each render of its `skills` tool, use the result in place of the
+    /// values of the skills registry: the run gets its own `skills` tool,
+    /// which shares the index of ``skillsTool``. A new run and a restored run
+    /// both get the values. The `agents` group stays off for an agent that
+    /// denies the `agents` tool. A main session does not use this closure.
     public let runTemplateContext: RunTemplateContext?
 
     /// The host closure that marks the session of a run as ended, or `nil`
@@ -575,5 +577,51 @@ public struct AgentEnvironment: Sendable {
         self.callerMail = callerMail
         self.instructionsPreamble = instructionsPreamble
         self.runTemplateContext = runTemplateContext
+    }
+}
+
+extension AgentEnvironment {
+    /// The `skills:` preload of a main session: the skills registry of the
+    /// environment, with the visibility rule of its `skills` tool.
+    var skillsPreload: AgentSkillsPreload {
+        skillsPreload(templateContext: nil)
+    }
+
+    /// The `skills:` preload of one run.
+    ///
+    /// - Parameter templateContext: The template context of the run
+    ///   (``runTemplateContext``), or `nil` for the values of the skills
+    ///   registry.
+    /// - Returns: The preload over the skills registry, or over a view of it
+    ///   that renders each skill with `templateContext`.
+    func skillsPreload(templateContext: [String: TemplateValue]?) -> AgentSkillsPreload {
+        AgentSkillsPreload(
+            skills: templateContext.map(skills.with(templateContext:)) ?? skills, isVisible: skillsVisibility)
+    }
+
+    /// Gives the tools of one run with a `skills` tool of the run in place of
+    /// the shared ``skillsTool``.
+    ///
+    /// The tool of the run shares the index, the reload follow and the
+    /// description of the shared tool, and renders each skill with
+    /// `templateContext`. A tool with a different name does not change.
+    ///
+    /// - Parameters:
+    ///   - tools: The resolved tools of the run.
+    ///   - templateContext: The template context of the run
+    ///     (``runTemplateContext``).
+    /// - Returns: The tools, in the same order.
+    /// - Throws: ``AgentRunFailure/toolsFailed(_:)`` when the tool of the run
+    ///   cannot be made.
+    func tools(
+        _ tools: [any Tool], withSkillsTemplateContext templateContext: [String: TemplateValue]
+    ) throws(AgentRunFailure) -> [any Tool] {
+        do {
+            return try tools.map { tool in
+                tool.name == skillsTool.name ? try skillsTool.with(templateContext: templateContext) : tool
+            }
+        } catch {
+            throw .toolsFailed(String(describing: error))
+        }
     }
 }

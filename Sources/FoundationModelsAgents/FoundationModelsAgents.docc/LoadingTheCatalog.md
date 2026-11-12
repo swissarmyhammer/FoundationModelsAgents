@@ -80,7 +80,8 @@ Each local layer also holds its agents in the agent folder form, with no
   selection of an agent gives its own values for the main session with
   ``AgentRunner/sessionAgentInstructions(for:templateContext:)``. For a run,
   ``AgentEnvironment/runTemplateContext`` gives the values from the definition
-  and the resolved tools of the run.
+  and the resolved tools of the run, for its body, its `skills:` preload, and
+  its `skills` tool.
 - When `<root>/AGENT.md` and `<root>/default/AGENT.md` are in the same layer,
   the root file wins, and the subfolder gives one warning. A `default` agent
   in a higher layer, for example `agents/default/AGENT.md` of the project,
