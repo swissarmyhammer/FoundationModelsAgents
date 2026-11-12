@@ -59,10 +59,10 @@ When the API is on Skills main:
 ## Acceptance Criteria
 - [x] A preloaded skill with `{% if tools.shell.enabled %}` renders each branch from the run values.
 - [x] A `skills` tool call of a run renders the skill with the run values.
-- [ ] A restored run gets the same values; `nil` keeps today's text.
+- [x] A restored run gets the same values; `nil` keeps today's text.
 
 ## Tests
-- [ ] Tests/FoundationModelsAgentsTests/RunTemplateContextTests.swift: rows for the preload, the skills tool and a restored run.
+- [x] Tests/FoundationModelsAgentsTests/RunTemplateContextTests.swift: rows for the preload, the skills tool and a restored run.
 - [x] `swift test` passes; IntegrationTests builds.
 
 ## Workflow
