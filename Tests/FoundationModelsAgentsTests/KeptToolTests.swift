@@ -72,7 +72,7 @@ struct KeptToolTests {
         let resolved = try await Self.resolve(nil, calls: calls)
 
         #expect(resolved.tools.map(\.name) == ToolResolverTests.catalogNames + [Self.keptName])
-        #expect(calls.all == [AgentDefinitionAttempt.inlineID])
+        #expect(calls.all == [ToolResolverTests.agentID])
         #expect(resolved.diagnostics.isEmpty)
     }
 

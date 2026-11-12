@@ -137,7 +137,7 @@ struct ToolResolverTests {
         catalog: ToolCatalog = makeCatalog()
     ) async throws -> (tools: [any Tool], diagnostics: [AgentDiagnostic]) {
         try await resolver.resolve(
-            AgentDefinitionAttempt.definition(tools: tools, disallowed: disallowed),
+            AgentDefinitionAttempt.definition(tools: tools, disallowed: disallowed, id: agentID),
             catalog: catalog, agentsTool: agentsTool)
     }
 

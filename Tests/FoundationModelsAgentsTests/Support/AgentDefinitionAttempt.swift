@@ -66,14 +66,17 @@ struct AgentDefinitionAttempt {
     /// - Parameters:
     ///   - tools: The `tools` entries, or `nil` for no `tools` key.
     ///   - disallowed: The `disallowedTools` entries.
+    ///   - id: The agent folder name. The default is `inlineID`.
     /// - Returns: The definition.
     /// - Throws: An error when the frontmatter gives no definition.
-    static func definition(tools: [String]?, disallowed: [String] = []) throws -> AgentDefinition {
+    static func definition(
+        tools: [String]?, disallowed: [String] = [], id: String = inlineID
+    ) throws -> AgentDefinition {
         let lists = [
             tools.map { blockList("tools", $0) }, disallowed.isEmpty ? nil : blockList("disallowedTools", disallowed)
         ]
         let yaml = ([validDescription] + lists.compactMap(\.self)).joined(separator: "\n")
-        return try #require(inline(yaml).definition)
+        return try #require(inline(yaml, id: id).definition)
     }
 
     /// Gives one frontmatter key as a block list of quoted entries, thus an

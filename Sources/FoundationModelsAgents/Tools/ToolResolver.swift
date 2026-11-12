@@ -49,10 +49,11 @@ struct ToolResolver: Sendable {
     static func diagnostics(
         of definition: AgentDefinition, catalog: ToolCatalog, hasAgentsTool: Bool, atMaxDepth: Bool
     ) -> [AgentDiagnostic] {
-        let resolver = ToolResolver(agent: definition.id, provenance: definition.provenance)
-        let selection = resolver.selection(
-            of: definition, vocabulary: ToolVocabulary(catalog: catalog, hasAgentsTool: hasAgentsTool))
-        return selection.diagnostics + resolver.maxDepthDiagnostics(of: selection, atMaxDepth: atMaxDepth)
+        let selection = definition.toolSelection(
+            vocabulary: ToolVocabulary(catalog: catalog, hasAgentsTool: hasAgentsTool))
+        return selection.diagnostics
+            + ToolResolver(agent: definition.id, provenance: definition.provenance)
+                .maxDepthDiagnostics(of: selection, atMaxDepth: atMaxDepth)
     }
 
     /// Resolves the entries to new tool instances.
@@ -87,8 +88,8 @@ struct ToolResolver: Sendable {
         catalog: ToolCatalog,
         agentsTool: AgentsToolFactory?
     ) async throws -> (tools: [any Tool], diagnostics: [AgentDiagnostic]) {
-        let selection = selection(
-            of: definition, vocabulary: ToolVocabulary(catalog: catalog, hasAgentsTool: agentsTool != nil))
+        let selection = definition.toolSelection(
+            vocabulary: ToolVocabulary(catalog: catalog, hasAgentsTool: agentsTool != nil))
         let catalogTools = selection.names.compactMap(catalog.makeTool(named:))
             + catalog.makeKeptTools(for: definition)
         guard let agentsTool, !selection.deniesAgents,
@@ -99,21 +100,6 @@ struct ToolResolver: Sendable {
         return (catalogTools + [mountedTool], selection.diagnostics)
     }
 
-    /// Applies the rules to the `tools` and `disallowedTools` entries of
-    /// `definition`.
-    ///
-    /// - Parameters:
-    ///   - definition: The agent.
-    ///   - vocabulary: The known tool names.
-    /// - Returns: The selection, with the diagnostics of this resolver.
-    private func selection(of definition: AgentDefinition, vocabulary: ToolVocabulary) -> AgentToolSelection {
-        AgentToolSelection(
-            tools: definition.tools?.map(ToolSpec.parse),
-            disallowed: definition.disallowedTools.map(ToolSpec.parse),
-            vocabulary: vocabulary,
-            agent: agent,
-            provenance: provenance)
-    }
 
     /// Gives the maxDepth warning of one selection.
     ///

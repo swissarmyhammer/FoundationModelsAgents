@@ -79,10 +79,22 @@ extension AgentDefinition {
     ///   - hasAgentsTool: `true` when a run can get the `agents` tool.
     /// - Returns: The selection, with the diagnostics of this agent.
     public func toolSelection(over names: [String], hasAgentsTool: Bool) -> AgentToolSelection {
+        toolSelection(vocabulary: ToolVocabulary(catalogNames: names, hasAgentsTool: hasAgentsTool))
+    }
+
+    /// Gives the tools that a run of this agent gets from the names of
+    /// `vocabulary`, with the rules of ``toolSelection(over:hasAgentsTool:)``.
+    ///
+    /// The tool resolution of a run uses this form, because its vocabulary
+    /// also holds the names of the kept tools of the catalog.
+    ///
+    /// - Parameter vocabulary: The known tool names.
+    /// - Returns: The selection, with the diagnostics of this agent.
+    func toolSelection(vocabulary: ToolVocabulary) -> AgentToolSelection {
         AgentToolSelection(
             tools: tools?.map(ToolSpec.parse),
             disallowed: disallowedTools.map(ToolSpec.parse),
-            vocabulary: ToolVocabulary(catalogNames: names, hasAgentsTool: hasAgentsTool),
+            vocabulary: vocabulary,
             agent: id,
             provenance: provenance)
     }
