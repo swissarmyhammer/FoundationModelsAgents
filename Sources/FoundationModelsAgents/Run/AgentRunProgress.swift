@@ -76,10 +76,25 @@ struct AgentRunProgress: Sendable, Equatable {
     /// running child. The text does not tell the phase: the heading of the
     /// run tells the wait for its children.
     var text: String {
+        text(showingPasses: true)
+    }
+
+    /// The lines of ``text``, with or without the pass count.
+    ///
+    /// The count goes up at each pass, thus it alone is no change: a
+    /// repeated `check agent` compares the text with no count, and tells
+    /// that text. With no count, the progress line is "Progress: last
+    /// tools: `tools`; text so far: `tail`."
+    ///
+    /// - Parameter showingPasses: `true` for the line with "`passes`
+    ///   passes; ".
+    /// - Returns: The lines.
+    func text(showingPasses: Bool) -> String {
         let tools = toolNames.isEmpty ? Self.none : toolNames.joined(separator: ", ")
         let tail = textTail.isEmpty ? Self.none : (isCut ? Self.cutMark : "") + textTail
         let fullStop = tail.last.map(Self.endPunctuation.contains) == true ? "" : "."
-        let progressLine = "Progress: \(passes) passes; last tools: \(tools); text so far: \(tail)\(fullStop)"
+        let count = showingPasses ? "\(passes) passes; " : ""
+        let progressLine = "Progress: \(count)last tools: \(tools); text so far: \(tail)\(fullStop)"
         return ([progressLine] + childMessages.map(\.line)).joined(separator: "\n")
     }
 

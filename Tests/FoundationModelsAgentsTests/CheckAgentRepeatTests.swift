@@ -28,6 +28,15 @@ struct CheckAgentRepeatTests {
     /// A text delta that changes the progress of a gated run.
     private static let progressText = "Half of the diff is read."
 
+    /// Gives `text` with the pass count cut from its progress line, as a
+    /// repeated check with no change tells it.
+    ///
+    /// - Parameter text: The text of a first check.
+    /// - Returns: The text, with "Progress: N passes; " as "Progress: ".
+    private static func withoutPassCount(_ text: String) -> String {
+        text.replacing(#/Progress: \d+ passes; /#, with: "Progress: ")
+    }
+
     /// Starts one gated run of the reviewer through the tool.
     ///
     /// - Parameters:
@@ -81,8 +90,30 @@ struct CheckAgentRepeatTests {
         _ = try await run.result()
 
         #expect(first == AgentsToolOperationsTests.gatedReport(of: run))
-        #expect(second == "\(Self.unchangedSentence) \(first)")
+        #expect(second == "\(Self.unchangedSentence) \(Self.withoutPassCount(first))")
         #expect(third == second)
+    }
+
+    @Test("a repeated check where only the pass count went up leads with the unchanged sentence, with no pass count")
+    func passCountAloneIsNoChange() async throws {
+        let gate = ScriptedGate()
+        let harness = try await Self.harness(gate: gate)
+        defer { try? harness.delete() }
+
+        let run = try await Self.startGatedRun(gate: gate, in: harness)
+        let first = try await harness.call("check agent", ["id": run.id.description])
+        let passesBefore = run.turns.count
+        _ = run.turns.apply(.entryRecorded(id: "repeat-pass-entry", kind: .response))
+        let passesAfter = run.turns.count
+        let second = try await harness.call("check agent", ["id": run.id.description])
+        gate.open()
+        _ = try await run.result()
+
+        #expect(passesAfter > passesBefore)
+        #expect(first.contains("Progress: \(passesBefore) passes; "))
+        #expect(second.hasPrefix(Self.unchangedSentence))
+        #expect(!second.contains(" passes; "))
+        #expect(second.hasSuffix("Progress: last tools: none; text so far: none."))
     }
 
     @Test("a check after progress does not lead with the unchanged sentence")
@@ -118,7 +149,7 @@ struct CheckAgentRepeatTests {
         _ = try await run.result()
 
         #expect(byOther == first)
-        #expect(againByOther == "\(Self.unchangedSentence) \(first)")
+        #expect(againByOther == "\(Self.unchangedSentence) \(Self.withoutPassCount(first))")
     }
 
     @Test("a repeated check of a finished run gives the same finished text")

@@ -43,9 +43,12 @@ extension AgentRun {
     /// Gives the text of ``report`` for a `check agent` call by `caller`.
     ///
     /// The run keeps the last text of the run in operation that each caller
-    /// got (``recordCheck(_:by:)``). When `caller` gets the same text again,
-    /// thus nothing changed after its last check, the text starts with
-    /// ``unchangedCheckSentence``. The text of a run that ended does not
+    /// got, with no pass count (``recordCheck(_:by:)``). The count goes up
+    /// at each pass, thus it alone is no change: seen live in the bench run
+    /// hint24 (django-13925), the root checked about 80 times, and each new
+    /// count read as news. When `caller` gets the same text again, thus the
+    /// tools and the text did not change after its last check, the text
+    /// starts with ``unchangedCheckSentence``, and has no pass count. The text of a run that ended does not
     /// change.
     ///
     /// - Parameter caller: The session id of the caller, or `nil` for a call
@@ -56,8 +59,9 @@ extension AgentRun {
         guard state == .running else {
             return report(of: state)
         }
-        let text = runningText
-        return recordCheck(text, by: caller) ? "\(Self.unchangedCheckSentence) \(text)" : text
+        let steadyText = runningText(showingPasses: false)
+        return recordCheck(steadyText, by: caller)
+            ? "\(Self.unchangedCheckSentence) \(steadyText)" : runningText(showingPasses: true)
     }
 
     /// Gives the text that tells `state`.
@@ -80,9 +84,20 @@ extension AgentRun {
     /// The text of a run in operation: the heading line, the shared
     /// pending-work instruction, then the lines of its progress.
     private var runningText: String {
+        runningText(showingPasses: true)
+    }
+
+    /// Gives the text of a run in operation, with or without the pass count
+    /// of its progress line (``AgentRunProgress/text(showingPasses:)``).
+    ///
+    /// - Parameter showingPasses: `true` for the progress line with the
+    ///   pass count.
+    /// - Returns: The text.
+    private func runningText(showingPasses: Bool) -> String {
         let heading = ["\(subject) is still working.", waitingSentence, pausedSentence].compactMap(\.self)
             .joined(separator: " ")
-        return [heading, PendingRunEnvelope.pendingWorkInstruction, progress.text].joined(separator: "\n")
+        return [heading, PendingRunEnvelope.pendingWorkInstruction, progress.text(showingPasses: showingPasses)]
+            .joined(separator: "\n")
     }
 
     /// The sentence that `check agent` adds while the Router holds the mail
