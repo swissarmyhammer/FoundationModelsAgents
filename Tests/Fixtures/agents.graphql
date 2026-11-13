@@ -97,6 +97,11 @@ type Agent {
   Each finding of the load of the catalog that names this agent, for example a missing description.
   """
   diagnostics: [AgentDiagnostic!]!
+
+  """
+  Each unresolved conflict version of the file of the agent, for example a synced version from a different device. Empty when the file has no conflict.
+  """
+  conflicts: [AgentConflict!]!
 }
 
 """
@@ -122,6 +127,24 @@ type AgentDiagnostic {
 
   """The text of the finding, for a person."""
   message: String!
+}
+
+"""
+One unresolved conflict version of the file of an agent. A change of the conflicts of an agent puts its id in changed of AgentChange.
+"""
+type AgentConflict {
+  """The id of the version. The host finds the version again with this id."""
+  id: ID!
+
+  """
+  The name of the device that saved the version, or null when it is not known.
+  """
+  deviceName: String
+
+  """
+  The time of the last change of the version, or null when it is not known.
+  """
+  modifiedAt: DateTime
 }
 
 """

@@ -17,6 +17,10 @@ import GraphQL
 /// - `Query.diagnostics` gives each finding of the load, each with an
 ///   `UPPER_SNAKE` code (``AgentDiagnostic/Code``). `Agent.diagnostics` gives
 ///   the findings of one agent.
+/// - `Agent.conflicts` gives each unresolved conflict version of the file of
+///   one agent, for example a sync service version from a different device
+///   (``AgentConflictVersionSource``). A new version or a resolve puts the id
+///   of the agent in `changed` of an `AgentChange`.
 /// - `Query.cursor` and `Subscription.changes(after:)` give the changes of
 ///   the catalog (EXTRAS-9 rule 9): one `AgentChange` for each reload that
 ///   adds, changes or removes an agent, with the ids in `added`, `changed`

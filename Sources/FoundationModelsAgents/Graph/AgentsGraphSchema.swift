@@ -167,6 +167,7 @@ struct AgentsGraphAPI: API {
                 Self.marketplaceType()
                 Self.agentType()
                 Self.diagnosticType()
+                Self.conflictType()
                 Self.changeType()
             }
             .addQuery {
@@ -255,6 +256,10 @@ struct AgentsGraphAPI: API {
             Field("marketplace", at: \.marketplace)
                 .description("The marketplace that gave the agent, or null for a local layer.")
             Field("diagnostics", at: \.diagnostics).description(diagnosticsDescription)
+            Field("conflicts", at: \.conflicts)
+                .description(
+                    "Each unresolved conflict version of the file of the agent, for example a synced version "
+                        + "from a different device. Empty when the file has no conflict.")
         }
         .description("One agent of the catalog of the session folder.")
     }
@@ -277,6 +282,23 @@ struct AgentsGraphAPI: API {
             Field("message", at: \.message).description("The text of the finding, for a person.")
         }
         .description("One finding of the load of the catalog. A finding never stops the load of another file.")
+    }
+
+    /// The `AgentConflict` type.
+    ///
+    /// - Returns: The type.
+    private static func conflictType() -> SchemaType {
+        Type(AgentsGraphConflict.self, as: "AgentConflict") {
+            Field("id", at: \.id)
+                .description("The id of the version. The host finds the version again with this id.")
+            Field("deviceName", at: \.deviceName)
+                .description("The name of the device that saved the version, or null when it is not known.")
+            Field("modifiedAt", at: \.modifiedAt)
+                .description("The time of the last change of the version, or null when it is not known.")
+        }
+        .description(
+            "One unresolved conflict version of the file of an agent. A change of the conflicts of an agent "
+                + "puts its id in changed of AgentChange.")
     }
 
     /// The `AgentChange` type: the shared change shape of the toolkit,

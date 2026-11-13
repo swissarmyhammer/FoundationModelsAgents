@@ -153,6 +153,29 @@ struct AgentsGraphDiagnostic: Codable, Equatable, Sendable {
     }
 }
 
+/// The `AgentConflict` object: one unresolved conflict version of the file
+/// of an agent, for example a version of a sync service from a different
+/// device.
+struct AgentsGraphConflict: Codable, Equatable, Sendable {
+    /// The id of the version, ``AgentConflictVersion/id``.
+    let id: ToolkitID
+
+    /// The name of the device that saved the version, or `nil`.
+    let deviceName: String?
+
+    /// The time of the last change of the version, or `nil`.
+    let modifiedAt: DateTime?
+
+    /// Makes the object of a conflict version.
+    ///
+    /// - Parameter version: The version.
+    init(_ version: AgentConflictVersion) {
+        id = ToolkitID(version.id)
+        deviceName = version.deviceName
+        modifiedAt = version.modificationDate.map(DateTime.init)
+    }
+}
+
 /// The `Agent` object: one agent of the catalog.
 struct AgentsGraphAgent: Codable, Equatable, Sendable {
     /// The canonical id of the agent, ``AgentDefinition/id``.
@@ -189,12 +212,16 @@ struct AgentsGraphAgent: Codable, Equatable, Sendable {
     /// the catalog.
     let diagnostics: [AgentsGraphDiagnostic]
 
+    /// Each unresolved conflict version of the file of the agent, in the
+    /// order of the source.
+    let conflicts: [AgentsGraphConflict]
+
     /// Makes the object of one agent of a catalog.
     ///
     /// - Parameters:
     ///   - definition: The agent.
     ///   - catalog: The catalog that holds the agent. It gives the
-    ///     diagnostics of the agent.
+    ///     diagnostics and the conflict versions of the agent.
     init(_ definition: AgentDefinition, in catalog: AgentCatalog) {
         id = ToolkitID(definition.id)
         description = definition.description
@@ -207,6 +234,7 @@ struct AgentsGraphAgent: Codable, Equatable, Sendable {
         layer = AgentsGraphLayer(definition.layer)
         marketplace = definition.marketplace.map(AgentsGraphMarketplace.init)
         diagnostics = AgentsGraphDiagnostic.naming(definition.id, in: catalog)
+        conflicts = catalog.conflicts(of: definition.id).map(AgentsGraphConflict.init)
     }
 }
 

@@ -24,6 +24,10 @@ public struct AgentCatalog: Sendable {
     /// Each agent that loaded, by id.
     private let definitionsByID: [String: AgentDefinition]
 
+    /// The unresolved conflict versions of the file of each agent, by id.
+    /// An agent with no conflict version has no entry.
+    private let conflictsByID: [String: [AgentConflictVersion]]
+
     /// The listing of each agent that loaded, sorted by id.
     public var listing: [AgentListing] {
         definitions.map(\.listing)
@@ -55,10 +59,49 @@ public struct AgentCatalog: Sendable {
     /// - Parameters:
     ///   - definitions: Each agent that loaded. Each id occurs one time.
     ///   - diagnostics: Each diagnostic of the load, in order.
-    init(definitions: [AgentDefinition], diagnostics: [AgentDiagnostic]) {
+    ///   - conflicts: The unresolved conflict versions of the file of each
+    ///     agent, by id. The default is no conflict versions.
+    init(
+        definitions: [AgentDefinition], diagnostics: [AgentDiagnostic],
+        conflicts: [String: [AgentConflictVersion]] = [:]
+    ) {
         self.definitions = definitions.sorted { $0.id < $1.id }
         self.diagnostics = diagnostics
         self.definitionsByID = Dictionary(uniqueKeysWithValues: definitions.map { ($0.id, $0) })
+        self.conflictsByID = conflicts.filter { !$0.value.isEmpty }
+    }
+
+    /// Gives the unresolved conflict versions of the file of one agent.
+    ///
+    /// - Parameter id: The id of the agent.
+    /// - Returns: The versions in the order of the source, or an empty list
+    ///   when the file has no conflict version or no agent has the id.
+    public func conflicts(of id: String) -> [AgentConflictVersion] {
+        conflictsByID[id] ?? []
+    }
+
+    /// Gives this catalog with the diagnostics `diagnostics` and the same
+    /// agents and conflict versions.
+    ///
+    /// - Parameter diagnostics: The diagnostics of the new catalog.
+    /// - Returns: The catalog.
+    func replacingDiagnostics(with diagnostics: [AgentDiagnostic]) -> AgentCatalog {
+        AgentCatalog(definitions: definitions, diagnostics: diagnostics, conflicts: conflictsByID)
+    }
+
+    /// Gives this catalog with the conflict versions of the file of each
+    /// agent of a local layer. The call reads the versions from `source`.
+    /// A marketplace agent has no conflict version: its folder is a cache.
+    ///
+    /// - Parameter source: The source of the conflict versions.
+    /// - Returns: The catalog.
+    func readingConflicts(from source: any AgentConflictVersionSource) -> AgentCatalog {
+        let conflicts = definitions.filter { $0.marketplace == nil }.map { definition in
+            (definition.id, source.conflictVersions(of: definition.url))
+        }
+        return AgentCatalog(
+            definitions: definitions, diagnostics: diagnostics,
+            conflicts: Dictionary(uniqueKeysWithValues: conflicts))
     }
 
     /// Finds the agent with the id `id`.

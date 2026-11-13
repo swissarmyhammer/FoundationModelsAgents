@@ -50,14 +50,15 @@ extension AgentRegistry {
 ///
 /// The `init` of the loop makes a stream of reload requests and reads no
 /// file. Each build of the registry calls `follow(registry:layerUpdates:)`
-/// before it reads the provider, and `watch(roots:)` before it reads the agent
-/// files. Thus a change during the build gives one more reload, and the build
+/// before it reads the provider, and `watch(roots:conflictVersions:)` before
+/// it reads the agent files. Thus a change during the build gives one more reload, and the build
 /// loses no change.
 ///
 /// The first `follow` call starts one task that calls `reload()` for each
 /// request, and one task that makes a request for each `layerUpdates` value.
-/// `watch(roots:)` keeps a `DotfolderWatcher` that makes a request for each
-/// change of a watched root.
+/// `watch(roots:conflictVersions:)` keeps a `DotfolderWatcher` that makes a
+/// request for each change of a watched root, and a task that makes a request
+/// for each change of a conflict version under the roots.
 ///
 /// The request stream keeps one request at the most. Thus a burst of
 /// requests while a reload runs gives one more reload, and that reload reads
@@ -75,6 +76,16 @@ final class AgentReloadLoop: Sendable {
 
         /// The watcher, which is started.
         fileprivate let watcher: DotfolderWatcher
+
+        /// The task that makes a request for each change of a conflict
+        /// version under the roots.
+        fileprivate let conflictTask: Task<Void, Never>
+
+        /// Stops the watcher and cancels the task of the conflict versions.
+        fileprivate func stop() {
+            watcher.stop()
+            conflictTask.cancel()
+        }
     }
 
     /// The tasks of a loop that follows the changes.
@@ -132,7 +143,9 @@ final class AgentReloadLoop: Sendable {
         ///
         /// - Parameter next: The state after the stop.
         fileprivate mutating func stopWatcher(then next: WatchState) {
-            watcher?.stop()
+            if case .watching(let watch) = self {
+                watch.stop()
+            }
             self = next
         }
     }
@@ -228,17 +241,20 @@ final class AgentReloadLoop: Sendable {
         }
     }
 
-    /// Watches `roots`. It keeps the current watcher when it watches the same
-    /// roots, and replaces it when the roots changed, for example when a
-    /// provider gives a new watchable layer. After `stop()` it does nothing.
+    /// Watches `roots`, and follows the conflict versions under them. It
+    /// keeps the current watch when it watches the same roots, and replaces
+    /// it when the roots changed, for example when a provider gives a new
+    /// watchable layer. After `stop()` it does nothing.
     ///
-    /// - Parameter roots: The roots to watch, in layer order, or `nil` for no
-    ///   watch.
-    func watch(roots: [URL]?) {
+    /// - Parameters:
+    ///   - roots: The roots to watch, in layer order, or `nil` for no watch.
+    ///   - conflictVersions: The source of the conflict versions.
+    func watch(roots: [URL]?, conflictVersions: any AgentConflictVersionSource) {
         currentWatch.withLock { current in
             if case .stopped = current { return }
             guard current.roots != roots else { return }
-            current.stopWatcher(then: roots.map { .watching(startWatch(of: $0)) } ?? .idle)
+            current.stopWatcher(
+                then: roots.map { .watching(startWatch(of: $0, conflictVersions: conflictVersions)) } ?? .idle)
         }
     }
 
@@ -288,15 +304,24 @@ final class AgentReloadLoop: Sendable {
         }
     }
 
-    /// Starts a watcher over `roots` that makes a request for each change.
+    /// Starts a watcher over `roots` and a task over the conflict versions
+    /// under `roots`. Each makes a request for each change.
     ///
-    /// - Parameter roots: The roots to watch, in layer order.
+    /// - Parameters:
+    ///   - roots: The roots to watch, in layer order.
+    ///   - conflictVersions: The source of the conflict versions.
     /// - Returns: The watch, which is started.
-    private func startWatch(of roots: [URL]) -> Watch {
+    private func startWatch(of roots: [URL], conflictVersions: any AgentConflictVersionSource) -> Watch {
         let watcher = DotfolderWatcher(roots: roots) { [requests] in
             requests.yield()
         }
         watcher.start()
-        return Watch(roots: roots, watcher: watcher)
+        let changes = conflictVersions.changes(under: roots)
+        let conflictTask = Task { [requests] in
+            for await _ in changes {
+                requests.yield()
+            }
+        }
+        return Watch(roots: roots, watcher: watcher, conflictTask: conflictTask)
     }
 }

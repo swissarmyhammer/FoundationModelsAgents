@@ -8,7 +8,8 @@ import FoundationModelsRouter
 /// An id that only the later catalog has is added, and an id that only the
 /// earlier catalog has is removed. An id of both catalogs is changed when
 /// its content differs: the `Agent` object that the endpoint gives (the
-/// keys, the visibility, the layer, the marketplace and the diagnostics),
+/// keys, the visibility, the layer, the marketplace, the diagnostics and the
+/// conflict versions),
 /// and the file (its path, its body, and each key that the `Agent` type does
 /// not give). Thus a client that queries `agent(id:)` again for each added
 /// and changed id reads each change.

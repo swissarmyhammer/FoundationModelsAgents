@@ -537,7 +537,7 @@ public actor AgentRunner {
     public nonisolated func catalog() -> AgentCatalog {
         let base = registry.catalog()
         let warnings = base.definitions.flatMap { definition in runWarnings(of: definition) }
-        return AgentCatalog(definitions: base.definitions, diagnostics: base.diagnostics + warnings)
+        return base.replacingDiagnostics(with: base.diagnostics + warnings)
     }
 
     /// Stops the runner: it cancels each run, and waits for each to close its

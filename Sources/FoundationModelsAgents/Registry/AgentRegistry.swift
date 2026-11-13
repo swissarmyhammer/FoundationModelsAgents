@@ -34,8 +34,11 @@ import Synchronization
 /// The first build also starts to follow the changes. It follows each
 /// `layerUpdates` value of the provider. With `watch: true`, a
 /// `DotfolderWatcher` also watches each local layer root and each watchable
-/// marketplace layer root. Each change calls `reload()`, and `onReload`
-/// publishes each new catalog. ``stopWatching()`` stops the follow of the
+/// marketplace layer root, and the registry follows the conflict versions
+/// under those roots (``AgentConflictVersionSource``). Each change calls
+/// `reload()`, and `onReload` publishes each new catalog. Each build reads
+/// the unresolved conflict versions of the file of each local agent into
+/// ``AgentCatalog/conflicts(of:)``. ``stopWatching()`` stops the follow of the
 /// changes and keeps the last catalog. The registry also stops the watcher
 /// when the host releases the registry.
 ///
@@ -60,6 +63,9 @@ public final class AgentRegistry: Sendable {
 
     /// Whether a watcher watches the layer roots after the first build.
     private let watch: Bool
+
+    /// The source of the conflict versions of the agent files.
+    private let conflictVersions: any AgentConflictVersionSource
 
     /// The provider of the marketplace layers, or `nil` for a registry with
     /// local layers only.
@@ -108,11 +114,18 @@ public final class AgentRegistry: Sendable {
     ///   - templateContext: The structured values that the render of each
     ///     body interpolates, for example `tools.<group>.enabled`. The
     ///     default is no values.
+    ///   - conflictVersions: The source of the unresolved conflict versions
+    ///     of each agent file. The default is ``FileVersionConflictSource``.
+    ///     With `watch: true`, the registry also follows the changes of the
+    ///     source.
     public convenience init(
         stack: DotfolderStack, variables: [String: String] = [:],
-        templateContext: [String: TemplateValue] = [:], watch: Bool = false
+        templateContext: [String: TemplateValue] = [:], watch: Bool = false,
+        conflictVersions: any AgentConflictVersionSource = FileVersionConflictSource()
     ) {
-        self.init(layers: stack.layers, variables: variables, templateContext: templateContext, watch: watch)
+        self.init(
+            layers: stack.layers, variables: variables, templateContext: templateContext, watch: watch,
+            conflictVersions: conflictVersions)
     }
 
     /// Makes a registry over a list of layers. It reads no file: call
@@ -137,13 +150,18 @@ public final class AgentRegistry: Sendable {
     ///   - templateContext: The structured values that the render of each
     ///     body interpolates, for example `tools.<group>.enabled`. The
     ///     default is no values.
+    ///   - conflictVersions: The source of the unresolved conflict versions
+    ///     of each agent file. The default is ``FileVersionConflictSource``.
+    ///     With `watch: true`, the registry also follows the changes of the
+    ///     source.
     public convenience init(
         layers: [DotfolderStack.Layer], variables: [String: String] = [:],
-        templateContext: [String: TemplateValue] = [:], watch: Bool = false
+        templateContext: [String: TemplateValue] = [:], watch: Bool = false,
+        conflictVersions: any AgentConflictVersionSource = FileVersionConflictSource()
     ) {
         self.init(
             marketplaces: nil, localLayers: layers, variables: variables, templateContext: templateContext,
-            watch: watch)
+            watch: watch, conflictVersions: conflictVersions)
     }
 
     /// Makes a registry over the layers of a marketplace provider and the
@@ -174,13 +192,18 @@ public final class AgentRegistry: Sendable {
     ///   - templateContext: The structured values that the render of each
     ///     body interpolates, for example `tools.<group>.enabled`. The
     ///     default is no values.
+    ///   - conflictVersions: The source of the unresolved conflict versions
+    ///     of each agent file. The default is ``FileVersionConflictSource``.
+    ///     With `watch: true`, the registry also follows the changes of the
+    ///     source.
     public convenience init(
         marketplaces: any MarketplaceLayerProviding, stack: DotfolderStack, variables: [String: String] = [:],
-        templateContext: [String: TemplateValue] = [:], watch: Bool = false
+        templateContext: [String: TemplateValue] = [:], watch: Bool = false,
+        conflictVersions: any AgentConflictVersionSource = FileVersionConflictSource()
     ) {
         self.init(
             marketplaces: marketplaces, localLayers: stack.layers, variables: variables,
-            templateContext: templateContext, watch: watch)
+            templateContext: templateContext, watch: watch, conflictVersions: conflictVersions)
     }
 
     /// Makes a registry that stores its inputs. It reads no file.
@@ -193,15 +216,18 @@ public final class AgentRegistry: Sendable {
     ///     body interpolates.
     ///   - watch: Whether a watcher watches the layer roots after the first
     ///     build.
+    ///   - conflictVersions: The source of the conflict versions.
     private init(
         marketplaces: (any MarketplaceLayerProviding)?, localLayers: [DotfolderStack.Layer],
-        variables: [String: String], templateContext: [String: TemplateValue], watch: Bool
+        variables: [String: String], templateContext: [String: TemplateValue], watch: Bool,
+        conflictVersions: any AgentConflictVersionSource
     ) {
         self.marketplaces = marketplaces
         self.localLayers = localLayers
         self.variables = variables
         self.templateContext = templateContext
         self.watch = watch
+        self.conflictVersions = conflictVersions
         graphPort = AgentsGraphPort(build: currentBuild)
     }
 
@@ -292,8 +318,10 @@ public final class AgentRegistry: Sendable {
         }
         reloads.follow(registry: self) { [marketplaces] in marketplaces?.layerUpdates }
         let marketplaceLayers = marketplaces?.marketplaceLayers() ?? []
-        reloads.watch(roots: watchedRoots(marketplaceLayers: marketplaceLayers))
-        let rebuilt = Generation.read(number: number, marketplaceLayers: marketplaceLayers, localLayers: localLayers)
+        reloads.watch(roots: watchedRoots(marketplaceLayers: marketplaceLayers), conflictVersions: conflictVersions)
+        let rebuilt = Generation.read(
+            number: number, marketplaceLayers: marketplaceLayers, localLayers: localLayers,
+            conflictVersions: conflictVersions)
         await currentBuild.swapIn(rebuilt, publishing: reloads.publish)
     }
 
@@ -335,14 +363,18 @@ public final class AgentRegistry: Sendable {
         ///   - marketplaceLayers: The marketplace layers, lowest precedence
         ///     first.
         ///   - localLayers: The local layers, lowest precedence first.
+        ///   - conflictVersions: The source of the conflict versions of the
+        ///     agent files.
         /// - Returns: The build of those layers.
         fileprivate static func read(
-            number: Int, marketplaceLayers: [MarketplaceLayer], localLayers: [DotfolderStack.Layer]
+            number: Int, marketplaceLayers: [MarketplaceLayer], localLayers: [DotfolderStack.Layer],
+            conflictVersions: any AgentConflictVersionSource
         ) -> Generation {
             Generation(
                 number: number,
                 marketplaceLayers: marketplaceLayers,
-                catalog: AgentCatalogBuilder.build(marketplaceLayers: marketplaceLayers, localLayers: localLayers))
+                catalog: AgentCatalogBuilder.build(marketplaceLayers: marketplaceLayers, localLayers: localLayers)
+                    .readingConflicts(from: conflictVersions))
         }
     }
 }
