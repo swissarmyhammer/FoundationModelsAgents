@@ -149,6 +149,23 @@ struct AgentConflictVersionTests {
         #expect(source.followedRoots.isEmpty)
     }
 
+    @Test("the presenter of a root calls its handler for a gained, a lost and a resolved version")
+    func thePresenterForwardsEachVersionEvent() throws {
+        let layer = try AgentsGraphTests.makeLayer(ids: [Self.conflictedID])
+        defer { try? layer.delete() }
+        let url = layer.root.appendingPathComponent(AgentFolderFixture.documentPath(of: Self.conflictedID))
+        let version = try #require(NSFileVersion.currentVersionOfItem(at: url))
+        let calls = CallRecord<Int>()
+        let presenter = ConflictVersionPresenter(root: layer.root) { calls.add(1) }
+
+        presenter.presentedSubitem(at: url, didGain: version)
+        presenter.presentedSubitem(at: url, didLose: version)
+        presenter.presentedSubitem(at: url, didResolveConflict: version)
+
+        #expect(calls.all.count == 3)
+        #expect(presenter.presentedItemURL == layer.root)
+    }
+
     @Test("FileVersionConflictSource gives no version for a file that is not in a synced folder")
     func theFileVersionSourceGivesNoVersionForAPlainFile() throws {
         let layer = try AgentsGraphTests.makeLayer(ids: [Self.conflictedID])
@@ -200,7 +217,11 @@ private final class FakeConflictSource: AgentConflictVersionSource {
     ///   - id: The name of the folder of the agent.
     func set(_ list: [AgentConflictVersion], for id: String) {
         versions.withLock { $0[id] = list }
-        followers.withLock { followers in followers.values.forEach { $0.yield() } }
+        followers.withLock { followers in
+            for follower in followers.values {
+                follower.yield()
+            }
+        }
     }
 
     /// Gives the versions of the file of one agent, by the name of the

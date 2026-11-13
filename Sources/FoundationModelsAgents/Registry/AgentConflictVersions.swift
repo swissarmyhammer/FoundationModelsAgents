@@ -97,9 +97,13 @@ public struct FileVersionConflictSource: AgentConflictVersionSource {
             let presenters = roots.map { root in
                 ConflictVersionPresenter(root: root) { continuation.yield() }
             }
-            presenters.forEach(NSFileCoordinator.addFilePresenter)
+            for presenter in presenters {
+                NSFileCoordinator.addFilePresenter(presenter)
+            }
             continuation.onTermination = { _ in
-                presenters.forEach(NSFileCoordinator.removeFilePresenter)
+                for presenter in presenters {
+                    NSFileCoordinator.removeFilePresenter(presenter)
+                }
             }
         }
     }
@@ -118,10 +122,10 @@ public struct FileVersionConflictSource: AgentConflictVersionSource {
 
 /// The file presenter of one root of ``FileVersionConflictSource``.
 ///
-/// Each stored property is immutable after the init, and the handler is
+/// Each stored property is immutable after the init, and each is
 /// `Sendable`, thus the presenter is safe on the queue of the presenter and
 /// in the termination handler of the stream.
-private final class ConflictVersionPresenter: NSObject, NSFilePresenter, @unchecked Sendable {
+final class ConflictVersionPresenter: NSObject, NSFilePresenter, Sendable {
     /// The root that the presenter follows.
     let presentedItemURL: URL?
 

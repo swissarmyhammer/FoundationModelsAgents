@@ -237,7 +237,7 @@ final class AgentReloadLoop: Sendable {
             phase = .following(
                 Following(
                     requestTask: Self.startRequestTask(over: stream, reloading: registry),
-                    updatesTask: layerUpdates().map(startUpdatesTask(over:))))
+                    updatesTask: layerUpdates().map(startForwardingTask(over:))))
         }
     }
 
@@ -291,14 +291,16 @@ final class AgentReloadLoop: Sendable {
         }
     }
 
-    /// Starts the task that makes a request for each `layerUpdates` value.
+    /// Starts a task that makes a request for each value of a stream: the
+    /// `layerUpdates` stream of the provider, or the changes of the conflict
+    /// versions under the watched roots.
     ///
-    /// - Parameter updates: The `layerUpdates` stream of the provider.
+    /// - Parameter signals: The stream of the changes.
     /// - Returns: The task. It ends when the stream finishes or when the task
     ///   is cancelled.
-    private func startUpdatesTask(over updates: AsyncStream<Void>) -> Task<Void, Never> {
+    private func startForwardingTask(over signals: AsyncStream<Void>) -> Task<Void, Never> {
         Task { [requests] in
-            for await _ in updates {
+            for await _ in signals {
                 requests.yield()
             }
         }
@@ -316,12 +318,7 @@ final class AgentReloadLoop: Sendable {
             requests.yield()
         }
         watcher.start()
-        let changes = conflictVersions.changes(under: roots)
-        let conflictTask = Task { [requests] in
-            for await _ in changes {
-                requests.yield()
-            }
-        }
+        let conflictTask = startForwardingTask(over: conflictVersions.changes(under: roots))
         return Watch(roots: roots, watcher: watcher, conflictTask: conflictTask)
     }
 }
