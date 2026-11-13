@@ -41,10 +41,6 @@ extension LiveSuites {
         /// The name of the partials folder at the root of a marketplace layer.
         private static let partialsFolderName = "_partials"
 
-        /// The name prefix of each partial of the `swissarmyhammer/skills`
-        /// marketplace.
-        private static let skillsPartialPrefix = "sah-"
-
         /// The suffix of a partial file.
         private static let partialSuffix = ".md"
 
@@ -114,12 +110,14 @@ extension LiveSuites {
 
             // The repository can have no partial at all: it deleted its last
             // one in a554ad3. Its partials, when it has any, are at the root of
-            // the layer.
+            // the layer. Their names change with the repository (`sah-*.md`
+            // first, `house-rules.md` since 374e7c8), thus only the suffix is
+            // pinned.
             let partialsFolder = layer.layer.root.appendingPathComponent(Self.partialsFolderName, isDirectory: true)
             if FileManager.default.fileExists(atPath: partialsFolder.path) {
                 let partials = try FileManager.default.contentsOfDirectory(atPath: partialsFolder.path)
-                    .filter { $0.hasPrefix(Self.skillsPartialPrefix) && $0.hasSuffix(Self.partialSuffix) }
-                #expect(!partials.isEmpty, "The partials folder at the layer root holds no sah-*.md file")
+                    .filter { $0.hasSuffix(Self.partialSuffix) }
+                #expect(!partials.isEmpty, "The partials folder at the layer root holds no .md file")
             }
             withExtendedLifetime(fixture) {}
         }
