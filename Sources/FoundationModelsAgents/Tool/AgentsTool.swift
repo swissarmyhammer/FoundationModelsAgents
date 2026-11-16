@@ -196,7 +196,8 @@ public struct AgentsTool: Tool {
             description: AgentsToolDescription.addingCaller(to: description, callerID: callerID),
             context: context,
             operations: operations(of: context.grant),
-            resolver: OperationResolver(verbAliases: verbAliases, nounAliases: nounAliases, inferOp: inferredOp(of:))
+            resolver: OperationResolver(
+                verbAliases: verbAliases, nounAliases: nounAliases, inferOp: resolverProposal(of:))
         )
         return try AgentsTool(
             operationTool: operationTool, context: context, notices: notices,
@@ -355,6 +356,27 @@ public struct AgentsTool: Tool {
             return nil
         }
         return StartAgent.opString
+    }
+
+    /// The op that the hook of the resolver proposes when
+    /// ``inferredOp(of:)`` gives none. It names no operation, thus the
+    /// resolver gives the corrective of an unknown op.
+    static let noProposedOp = ""
+
+    /// The inference hook of the resolver of the tool.
+    ///
+    /// It gives ``inferredOp(of:)``, or ``noProposedOp`` when that gives
+    /// none. The hook never gives `nil`, because a `nil` lets the resolver
+    /// infer an op from the keys of the payload alone. That inference can
+    /// choose an op that writes: `{"name": "reviewer"}` fits only
+    /// `remove agent`, and a payload with an agent, a prompt and a schedule
+    /// fits only `schedule agent`. A call with no op must not remove an agent
+    /// or add a scheduled task, thus the tool infers only `start agent`.
+    ///
+    /// - Parameter arguments: The payload of the model, with no `op`.
+    /// - Returns: The op that the resolver matches.
+    static func resolverProposal(of arguments: GeneratedContent) -> String? {
+        inferredOp(of: arguments) ?? noProposedOp
     }
 
     /// The `op` of a payload, or `nil` when it has none or an empty one.
