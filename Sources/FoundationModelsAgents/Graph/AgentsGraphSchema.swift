@@ -239,6 +239,10 @@ struct AgentsGraphAPI: API {
     private static func agentType() -> SchemaType {
         Type(AgentsGraphAgent.self, as: "Agent") {
             Field("id", at: \.id).description("The id of the agent: the name of its folder.")
+            Field("name", at: \.name)
+                .description(
+                    "The name to show: the name key, for example Default for the default agent. The id when the key is absent."
+                )
             Field("description", at: \.description)
                 .description("The description key: when to use the agent. Null when the key is absent.")
             Field("model", at: \.model).description("The model key, or null when the key is absent or empty.")

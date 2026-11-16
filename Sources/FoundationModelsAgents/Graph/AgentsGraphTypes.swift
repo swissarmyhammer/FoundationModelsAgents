@@ -181,6 +181,10 @@ struct AgentsGraphAgent: Codable, Equatable, Sendable {
     /// The canonical id of the agent, ``AgentDefinition/id``.
     let id: ToolkitID
 
+    /// The name to show, ``AgentDefinition/displayName``: the `name` key, or
+    /// the id when the key is absent.
+    let name: String
+
     /// The `description` key, or `nil` when the key is absent.
     let description: String?
 
@@ -224,6 +228,7 @@ struct AgentsGraphAgent: Codable, Equatable, Sendable {
     ///     diagnostics and the conflict versions of the agent.
     init(_ definition: AgentDefinition, in catalog: AgentCatalog) {
         id = ToolkitID(definition.id)
+        name = definition.displayName
         description = definition.description
         model = definition.model
         color = definition.color

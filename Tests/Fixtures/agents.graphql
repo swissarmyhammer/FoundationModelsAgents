@@ -61,6 +61,11 @@ type Agent {
   id: ID!
 
   """
+  The name to show: the name key, for example Default for the default agent. The id when the key is absent.
+  """
+  name: String!
+
+  """
   The description key: when to use the agent. Null when the key is absent.
   """
   description: String

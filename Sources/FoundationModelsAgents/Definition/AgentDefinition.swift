@@ -21,6 +21,19 @@ public struct AgentDefinition: Sendable {
     /// layer.
     public let id: String
 
+    /// The `name` key, or `nil` when the key is absent or holds no text.
+    ///
+    /// For an agent folder, the rule table requires the key to be equal to
+    /// the id. The root `AGENT.md` of a local layer has a display name here,
+    /// for example `Default`. ``displayName`` gives the name to show.
+    public let name: String?
+
+    /// The name to show for the agent: the ``name`` key, or the ``id`` when
+    /// the file has no `name` key.
+    public var displayName: String {
+        name ?? id
+    }
+
     /// The `description` key. It tells the model when to use the agent.
     public let description: String?
 
@@ -219,6 +232,7 @@ public struct AgentDefinition: Sendable {
         let hasValidDescription = AgentDefinitionRules.holdsText(frontmatter.description)
         let incorrectKeys = AgentAccessKey.incorrectKeys(in: frontmatter)
         self.id = id
+        self.name = AgentDefinitionRules.holdsText(frontmatter.name) ? frontmatter.name : nil
         self.description = frontmatter.description
         self.body = body
         self.model = AgentDefinitionRules.holdsText(frontmatter.model) ? frontmatter.model : nil

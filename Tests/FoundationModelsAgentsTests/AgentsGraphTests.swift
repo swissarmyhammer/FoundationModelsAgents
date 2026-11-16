@@ -166,6 +166,7 @@ struct AgentsGraphTests {
         let agentLayer = try #require(agent["layer"] as? [String: Any])
 
         #expect(agent["id"] as? String == AgentFolderFixture.helperID)
+        #expect(agent["name"] as? String == AgentFolderFixture.helperID)
         #expect(agent["description"] as? String == AgentFolderFixture.description)
         #expect(agent["model"] as? String == Self.model)
         #expect(agent["color"] as? String == Self.color)
@@ -219,6 +220,39 @@ struct AgentsGraphTests {
         #expect(agent["id"] as? String == AgentFolderFixture.defaultAgentID)
         #expect(agent["isDefault"] as? Bool == true)
         #expect(agentLayer["name"] as? String == Self.userLayerName)
+    }
+
+    /// The `name` field gives the `name` key of the default agent: its
+    /// display name, not its id.
+    @Test func theDefaultAgentGivesItsDisplayName() async throws {
+        let layer = try TemporaryLayer.make(holding: [
+            AgentDocumentPath.documentName: AgentFolderFixture.agentText(name: AgentFolderFixture.displayName)
+        ])
+        defer { try? layer.delete() }
+        let fixture = try await AgentsGraphFixture.make(layers: [layer.userLayer])
+
+        let agent = try await fixture.agent(AgentFolderFixture.defaultAgentID).object("agent")
+
+        #expect(agent["name"] as? String == AgentFolderFixture.displayName)
+    }
+
+    /// The `name` field gives the id when the file has no `name` key.
+    @Test func anAgentWithNoNameKeyGivesItsID() async throws {
+        let layer = try TemporaryLayer.make(holding: [
+            AgentFolderFixture.documentPath(of: Self.reviewerID): """
+                ---
+                description: \(AgentFolderFixture.description)
+                ---
+
+                \(AgentFolderFixture.body)
+                """
+        ])
+        defer { try? layer.delete() }
+        let fixture = try await AgentsGraphFixture.make(layers: [layer.layer])
+
+        let agent = try await fixture.agent(Self.reviewerID).object("agent")
+
+        #expect(agent["name"] as? String == Self.reviewerID)
     }
 
     /// An agent of a marketplace layer gives the marketplace that holds it:
