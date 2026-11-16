@@ -3,6 +3,7 @@ import FoundationModels
 import FoundationModelsExtras
 import FoundationModelsRouter
 import FoundationModelsSkills
+import Marketplace
 import Logging
 import Metrics
 import Tracing
@@ -365,6 +366,11 @@ public struct AgentEnvironment: Sendable {
     ///   - skillsVisibility: Tells if the `skills` tool shows a skill. The
     ///     `skills:` preload skips each skill that it hides. The default is
     ///     ``defaultSkillsVisibility``.
+    ///   - skillsMarketplaces: The marketplace list of the host, or `nil`
+    ///     (the default) for none. The environment gives it to
+    ///     `SkillsTool.make`, thus the `skills` tool has the marketplace
+    ///     operations (`list marketplace` and the others) over this list. With
+    ///     `nil`, the `skills` tool has no marketplace operation.
     ///   - workingDirectory: The working directory of each run that has no
     ///     other folder (``workingDirectory``). The default is the current
     ///     directory of the process.
@@ -415,6 +421,7 @@ public struct AgentEnvironment: Sendable {
         skillsSelectionModel: (any FoundationModels.LanguageModel)? = nil,
         skillsCatalogCharacterLimit: Int = SkillsTool.defaultCatalogCharacterLimit,
         skillsVisibility: @escaping SkillsVisibility = defaultSkillsVisibility,
+        skillsMarketplaces: MarketplaceRegistry? = nil,
         workingDirectory: URL = URL.currentDirectory(),
         tools: ToolCatalog = ToolCatalog(),
         defaultSlot: ModelSlot = .standard,
@@ -435,7 +442,7 @@ public struct AgentEnvironment: Sendable {
         let skillsTool = try await makeSkillsTool(
             skills: skills, selectionModel: skillsSelectionModel,
             catalogCharacterLimit: skillsCatalogCharacterLimit, visibility: skillsVisibility,
-            sandboxProbe: sandboxProbe)
+            sandboxProbe: sandboxProbe, marketplaces: skillsMarketplaces)
         return AgentEnvironment(
             profile: profile, skills: skills, skillsTool: skillsTool, skillsVisibility: skillsVisibility,
             selectionModel: skillsSelectionModel, workingDirectory: workingDirectory, tools: tools,
@@ -456,6 +463,7 @@ public struct AgentEnvironment: Sendable {
     ///     the description.
     ///   - visibility: Tells if the tool shows a skill.
     ///   - sandboxProbe: The probe that tells if the process is sandboxed.
+    ///   - marketplaces: The marketplace list of the host, or `nil` for none.
     /// - Returns: The tool.
     /// - Throws: `ToolModeError.openModeInSandbox` when the mode of `skills`
     ///   is `ToolMode.open` and `sandboxProbe` tells that the process is
@@ -465,12 +473,14 @@ public struct AgentEnvironment: Sendable {
         selectionModel: (any FoundationModels.LanguageModel)?,
         catalogCharacterLimit: Int,
         visibility: @escaping SkillsVisibility,
-        sandboxProbe: SandboxProbe
+        sandboxProbe: SandboxProbe,
+        marketplaces: MarketplaceRegistry?
     ) async throws -> SkillsCatalogTool {
         let noEmbedder: (any PooledEmbedding)? = nil
         let followsReloads = true
         let make = skillsToolFactory(selectionModel: selectionModel)
-        return try await make(skills, noEmbedder, followsReloads, catalogCharacterLimit, visibility, sandboxProbe)
+        return try await make(
+            skills, noEmbedder, followsReloads, catalogCharacterLimit, visibility, sandboxProbe, marketplaces)
     }
 
     /// The shape of the `SkillsTool.make` overload that takes no model.
@@ -482,7 +492,8 @@ public struct AgentEnvironment: Sendable {
         _ followReloads: Bool,
         _ catalogCharacterLimit: Int,
         _ visibilityPredicate: @escaping SkillsVisibility,
-        _ sandboxProbe: SandboxProbe
+        _ sandboxProbe: SandboxProbe,
+        _ marketplaces: MarketplaceRegistry?
     ) async throws -> SkillsCatalogTool
 
     /// Gives the `SkillsTool.make` overload that agrees with `selectionModel`.
@@ -492,7 +503,7 @@ public struct AgentEnvironment: Sendable {
     /// only keyword retrieval. Neither overload takes an optional model, thus
     /// a `nil` model needs the other overload. This function chooses the
     /// overload, and binds the model when there is one. Thus
-    /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:sandboxProbe:)``
+    /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:sandboxProbe:marketplaces:)``
     /// gives the shared arguments in one call only.
     ///
     /// - Parameter selectionModel: The model of the selection tier, or `nil`
@@ -503,20 +514,20 @@ public struct AgentEnvironment: Sendable {
     ) -> SkillsToolFactory {
         guard let selectionModel else {
             return SkillsTool.make(
-                registry:embedder:followReloads:catalogCharacterLimit:visibilityPredicate:sandboxProbe:)
+                registry:embedder:followReloads:catalogCharacterLimit:visibilityPredicate:sandboxProbe:marketplaces:)
         }
         return {
             try await SkillsTool.make(
                 registry: $0, model: selectionModel, embedder: $1, followReloads: $2,
-                catalogCharacterLimit: $3, visibilityPredicate: $4, sandboxProbe: $5)
+                catalogCharacterLimit: $3, visibilityPredicate: $4, sandboxProbe: $5, marketplaces: $6)
         }
     }
 
     /// Makes an environment over a `skills` tool that is already made.
     ///
-    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:instructionsPreamble:runTemplateContext:sandboxProbe:)``
+    /// ``make(profile:skills:skillsSelectionModel:skillsCatalogCharacterLimit:skillsVisibility:skillsMarketplaces:workingDirectory:tools:defaultSlot:maxConcurrentAgents:maxDepth:maxRetainedRuns:budget:tracer:logger:metricsFactory:inlineSettleGrace:runEventObserver:callerMail:instructionsPreamble:runTemplateContext:sandboxProbe:)``
     /// tells each parameter. `skillsTool` must be the tool that
-    /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:sandboxProbe:)``
+    /// ``makeSkillsTool(skills:selectionModel:catalogCharacterLimit:visibility:sandboxProbe:marketplaces:)``
     /// made from `skills` and `skillsVisibility`. The init adds it to `tools`
     /// under its name. `selectionModel` is the model of the selection tier of
     /// `find agents`, and the default is `nil`. Give the model that made
