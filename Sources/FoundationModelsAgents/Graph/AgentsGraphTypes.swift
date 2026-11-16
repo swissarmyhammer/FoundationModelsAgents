@@ -197,6 +197,9 @@ struct AgentsGraphAgent: Codable, Equatable, Sendable {
     /// The `background` key, or `nil` when the key is absent.
     let background: Bool?
 
+    /// The Markdown body of the `AGENT.md`, not rendered.
+    let body: String
+
     /// `true` when the model can see and start the agent.
     let isModelVisible: Bool
 
@@ -233,6 +236,7 @@ struct AgentsGraphAgent: Codable, Equatable, Sendable {
         model = definition.model
         color = definition.color
         background = definition.background
+        body = definition.body
         isModelVisible = definition.isModelVisible
         isUserInvocable = definition.isUserInvocable
         isDefault = definition.id == AgentCatalog.defaultAgentID

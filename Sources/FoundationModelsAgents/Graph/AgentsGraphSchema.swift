@@ -24,6 +24,10 @@ struct AgentsGraphContext: GraphQLRunContext {
     /// The cursor of the newest change when the call started.
     let cursor: String
 
+    /// The client that makes the call, or `nil` for the agent. A mutation
+    /// refuses an external client.
+    let viewer: GraphQLViewer?
+
     /// The catalog of the call, or `nil` before the first load of the
     /// registry.
     private let catalog: AgentCatalog?
@@ -31,10 +35,13 @@ struct AgentsGraphContext: GraphQLRunContext {
     /// Reads the cursor, then the catalog, of the current build of a
     /// registry.
     ///
-    /// - Parameter build: The current build of the registry.
-    init(reading build: AgentRegistry.CurrentBuild) async {
+    /// - Parameters:
+    ///   - build: The current build of the registry.
+    ///   - viewer: The client that makes the call, or `nil` for the agent.
+    init(reading build: AgentRegistry.CurrentBuild, viewer: GraphQLViewer?) async {
         cursor = await build.changeLog.cursor
         catalog = build.loadedCatalog()
+        self.viewer = viewer
     }
 
     /// Gives the catalog of the call.
@@ -58,10 +65,14 @@ struct AgentsGraphContext: GraphQLRunContext {
 /// `list agents` operation of the `agents` tool reads the same `catalog()`.
 /// Each query field reads the catalog of its call, ``AgentsGraphContext``,
 /// thus each field of one call reads one build. The resolver holds the
-/// change log of the registry, and keeps no reference to the registry.
+/// change log of the registry, and a weak reference to the registry for the
+/// writes and the reload of a mutation.
 struct AgentsGraphResolver: Sendable {
     /// The change log of the registry of the catalog of the session folder.
     let changeLog: ChangeLog<ChangedIDs>
+
+    /// The registry that a mutation writes and reloads.
+    let registryReference: AgentsGraphRegistryReference
 
     /// Resolves `Query.cursor`.
     ///
@@ -153,10 +164,12 @@ struct AgentsGraphAPI: API {
 
     /// Builds the schema over the change log of a registry.
     ///
-    /// - Parameter changeLog: The change log of the registry of the catalog.
+    /// - Parameters:
+    ///   - changeLog: The change log of the registry of the catalog.
+    ///   - registryReference: The registry that a mutation writes.
     /// - Throws: An error of the schema builder.
-    init(changeLog: ChangeLog<ChangedIDs>) throws {
-        resolver = AgentsGraphResolver(changeLog: changeLog)
+    init(changeLog: ChangeLog<ChangedIDs>, registryReference: AgentsGraphRegistryReference) throws {
+        resolver = AgentsGraphResolver(changeLog: changeLog, registryReference: registryReference)
         schema = try SchemaBuilder(AgentsGraphResolver.self, AgentsGraphContext.self)
             .addToolkitScalars()
             .addToolkitIDScalar()
@@ -169,12 +182,22 @@ struct AgentsGraphAPI: API {
                 Self.diagnosticType()
                 Self.conflictType()
                 Self.changeType()
+                Self.writeLayerEnum()
+                Self.removePayloadType()
+                Self.addInput()
+                Self.updateInput()
+                Self.removeInput()
             }
             .addQuery {
                 Self.cursorField()
                 Self.agentsField()
                 Self.agentField()
                 Self.diagnosticsField()
+            }
+            .addMutation {
+                Self.addAgentField()
+                Self.updateAgentField()
+                Self.removeAgentField()
             }
             .addSubscription {
                 Self.changesField()
@@ -248,6 +271,7 @@ struct AgentsGraphAPI: API {
             Field("model", at: \.model).description("The model key, or null when the key is absent or empty.")
             Field("color", at: \.color).description("The color key, or null when the key is absent.")
             Field("background", at: \.background).description("The background key, or null when the key is absent.")
+            Field("body", at: \.body).description("The Markdown body of the AGENT.md, not rendered.")
             Field("isModelVisible", at: \.isModelVisible)
                 .description(
                     "True when the model can see and start the agent: it has a description, and "

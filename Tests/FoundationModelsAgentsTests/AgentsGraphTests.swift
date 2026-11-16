@@ -128,14 +128,16 @@ struct AgentsGraphTests {
         #expect(GraphQLSchemaGolden.problems(of: fixture.graph.schema, against: goldenFile).isEmpty)
     }
 
-    /// The endpoint reads the catalog and changes nothing (D84), thus the
-    /// schema has no `Mutation` type.
-    @Test func theSchemaHasNoMutation() async throws {
+    /// The user edits agents in place (D190), thus the schema has the
+    /// mutations `addAgent`, `updateAgent` and `removeAgent`.
+    @Test func theSchemaHasTheAgentMutations() async throws {
         let fixture = try await AgentsGraphFixture.make(layers: [])
 
         let schema = try buildSchema(source: fixture.graph.schema)
+        let mutation = try #require(schema.mutationType)
+        let fields = try mutation.fields().keys.sorted()
 
-        #expect(schema.mutationType == nil)
+        #expect(fields == ["addAgent", "removeAgent", "updateAgent"])
     }
 
     // MARK: - Queries

@@ -12,11 +12,13 @@ public enum AgentsGraphError: CodedError, Equatable, CaseIterable {
     case catalogNotLoaded
 
     /// Each code that the endpoint gives of its own: the code of each case,
-    /// in the order of the cases. The endpoint gives no warning code. This
+    /// in the order of the cases, then the codes of the agent mutations:
+    /// `AGENT_EXISTS`, `AGENT_READ_ONLY`, `INVALID_AGENT` and
+    /// `EXTERNAL_CLIENT_READ_ONLY`. The endpoint gives no warning code. This
     /// is the one list of the codes of the endpoint, for the code check of
     /// the conventions (EXTRAS-9 rule 8, EXTRAS-11).
     public static var codes: [String] {
-        allCases.map(\.code)
+        allCases.map(\.code) + AgentsGraphWriteError.codes
     }
 
     /// The code of the error, for example `CATALOG_NOT_LOADED`.

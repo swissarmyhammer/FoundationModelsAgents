@@ -11,8 +11,8 @@ import Synchronization
 /// registry gives the same cursor.
 ///
 /// The endpoint reads the current build of the registry
-/// (``AgentRegistry/CurrentBuild``), never the registry itself. Thus the port
-/// keeps no reference back to the registry, and the host still releases the
+/// (``AgentRegistry/CurrentBuild``). It keeps only a weak reference to the
+/// registry, for the writes of a mutation. Thus the host still releases the
 /// registry.
 final class AgentsGraphPort: Sendable {
     /// The current build of the registry that owns the port.
@@ -32,14 +32,16 @@ final class AgentsGraphPort: Sendable {
     /// Gives the one endpoint of the registry. The first call builds its
     /// schema; each later call gives the same instance.
     ///
+    /// - Parameter registry: The registry that owns the port. The endpoint
+    ///   keeps a weak reference to it, for the writes of a mutation.
     /// - Returns: The endpoint.
     /// - Throws: An error of the schema builder. A later call tries again.
-    func endpoint() throws -> AgentsGraph {
+    func endpoint(of registry: AgentRegistry) throws -> AgentsGraph {
         try made.withLock { made in
             if let endpoint = made {
                 return endpoint
             }
-            let endpoint = try AgentsGraph(build: build)
+            let endpoint = try AgentsGraph(build: build, registry: registry)
             made = endpoint
             return endpoint
         }

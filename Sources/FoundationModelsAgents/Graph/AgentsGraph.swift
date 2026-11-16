@@ -33,16 +33,28 @@ import GraphQL
 ///   change: the change then comes again after the cursor, and no change is
 ///   lost.
 ///
-/// The endpoint changes nothing: it has no `Mutation` type (D84). Before the
-/// first `load()` of the registry, each query field of the catalog gives
-/// ``AgentsGraphError/catalogNotLoaded``.
+/// - `Mutation.addAgent`, `Mutation.updateAgent` and `Mutation.removeAgent`
+///   add, edit and delete an agent in the user layer or the project layer
+///   (D190). Each write goes to `AgentWriter`, the writer of the `add agent`,
+///   `edit agent` and `remove agent` operations of the `agents` tool, and then
+///   the registry reloads, thus `changes` gives one `AgentChange` for it.
+///   `updateAgent` writes only the fields that the input gives, and each
+///   other key of the frontmatter stays. A mutation that would give the file
+///   a new finding of the severity `warning` or `skip` gives `INVALID_AGENT`
+///   and writes nothing. The agent (no viewer) and a device of the user can
+///   write. An `external` client gets `EXTERNAL_CLIENT_READ_ONLY`. The other
+///   errors are `NOT_FOUND`, `AGENT_EXISTS` and `AGENT_READ_ONLY`.
+///
+/// Before the first `load()` of the registry, each query field of the
+/// catalog and each mutation gives ``AgentsGraphError/catalogNotLoaded``.
 ///
 /// The endpoint is a reference type: the registry makes one endpoint, and
 /// each ``AgentsTool`` over the registry gives that same instance in its
 /// `graphQLEndpoints` (EXTRAS-9 rule 1). A host finds it with
 /// `tool as? any GraphQLEndpointTool`, or with no tool through
 /// ``AgentRegistry/agentsGraph()``. The endpoint reads the catalog and the
-/// one change log of the registry, and it does not keep the registry.
+/// one change log of the registry. It keeps only a weak reference to the
+/// registry, for the writes of a mutation.
 public final class AgentsGraph: GraphQLEndpoint {
     /// The name of the endpoint.
     public static let endpointName = "agents"
@@ -99,22 +111,30 @@ public final class AgentsGraph: GraphQLEndpoint {
     /// ``AgentRegistry/agentsGraph()``, instead.
     ///
     /// - Parameter registry: The registry of the catalog of the session
-    ///   folder. The host loads it; the endpoint never reads a file.
+    ///   folder. The host loads it. A query reads no file; a mutation writes
+    ///   the files of an agent and reloads the registry. The endpoint keeps
+    ///   only a weak reference to the registry, thus the host keeps the
+    ///   registry while it sends mutations: a mutation after the release
+    ///   gives `INTERNAL`.
     /// - Throws: An error of the schema builder.
     public convenience init(registry: AgentRegistry) throws {
-        try self.init(build: registry.currentBuild)
+        try self.init(build: registry.currentBuild, registry: registry)
     }
 
     /// Makes an endpoint over the current build of a registry.
     ///
-    /// ``AgentsGraphPort`` uses this init, thus the endpoint of the registry
-    /// keeps no reference to the registry.
+    /// ``AgentsGraphPort`` uses this init. The endpoint keeps a weak
+    /// reference to the registry, thus the registry still owns its endpoint
+    /// with no reference cycle.
     ///
-    /// - Parameter build: The current build of the registry of the catalog.
+    /// - Parameters:
+    ///   - build: The current build of the registry of the catalog.
+    ///   - registry: The registry that a mutation writes and reloads.
     /// - Throws: An error of the schema builder.
-    init(build: AgentRegistry.CurrentBuild) throws {
+    init(build: AgentRegistry.CurrentBuild, registry: AgentRegistry) throws {
         self.build = build
-        api = try AgentsGraphAPI(changeLog: build.changeLog)
+        api = try AgentsGraphAPI(
+            changeLog: build.changeLog, registryReference: AgentsGraphRegistryReference(registry))
     }
 
     /// The schema of the endpoint in SDL.
@@ -133,13 +153,13 @@ public final class AgentsGraph: GraphQLEndpoint {
     ///   - operationName: The operation of the document to run, or `nil`.
     ///   - viewer: The client that makes the call, or `nil` for the agent.
     ///     The host checks the folder of the call, thus each viewer sees the
-    ///     same catalog.
+    ///     same catalog. A mutation refuses an `external` client.
     /// - Returns: The GraphQL response as JSON text.
     /// - Throws: A fault that is not a GraphQL error.
     public func execute(
-        query: String, variables: [String: Map], operationName: String?, viewer _: GraphQLViewer?
+        query: String, variables: [String: Map], operationName: String?, viewer: GraphQLViewer?
     ) async throws -> String {
-        let context = await AgentsGraphContext(reading: build)
+        let context = await AgentsGraphContext(reading: build, viewer: viewer)
         return try await api.respond(
             to: query, variables: variables, operationName: operationName, rules: Self.rules,
             formattedWith: .sortedKeys, context: context)
@@ -159,9 +179,9 @@ public final class AgentsGraph: GraphQLEndpoint {
     /// - Returns: The GraphQL response of each event as JSON text.
     /// - Throws: A fault that is not a GraphQL error.
     public func subscribe(
-        query: String, variables: [String: Map], operationName: String?, viewer _: GraphQLViewer?
+        query: String, variables: [String: Map], operationName: String?, viewer: GraphQLViewer?
     ) async throws -> AsyncThrowingStream<String, Error> {
-        let context = await AgentsGraphContext(reading: build)
+        let context = await AgentsGraphContext(reading: build, viewer: viewer)
         return try await api.subscribe(
             to: query, variables: variables, operationName: operationName, rules: Self.rules,
             formattedWith: .sortedKeys, context: context)

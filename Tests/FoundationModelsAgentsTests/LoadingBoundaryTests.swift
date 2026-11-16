@@ -192,7 +192,10 @@ struct LoadingBoundaryTests {
         Rule(
             name: "FrontmatterDocument.split",
             reason: "FrontmatterDocumentStack of Extras splits the frontmatter from the body",
-            exemptFiles: []),
+            // The agent mutations of the `agents` endpoint (D190) split the
+            // text that they write, to change some keys and keep the others.
+            // The text comes from the stack of Extras; this is not a load.
+            exemptFiles: ["Sources/FoundationModelsAgents/Graph/AgentsGraphMutations.swift"]),
         Rule(
             name: "TemplateEngine",
             reason: "StenciledDotfolderStack of Extras runs each render",

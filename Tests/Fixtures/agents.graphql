@@ -79,6 +79,9 @@ type Agent {
   """The background key, or null when the key is absent."""
   background: Boolean
 
+  """The Markdown body of the AGENT.md, not rendered."""
+  body: String!
+
   """
   True when the model can see and start the agent: it has a description, and disable-model-invocation is not true.
   """
@@ -178,6 +181,104 @@ type AgentChange {
   removed: [ID!]!
 }
 
+"""
+A layer that a mutation can write. The defaults and marketplace layers are read-only.
+"""
+enum AgentWriteLayer {
+  """The user layer, for all projects."""
+  USER
+
+  """The project layer, for this project only."""
+  PROJECT
+}
+
+"""What removeAgent deleted."""
+type RemoveAgentPayload {
+  """The id of the deleted agent."""
+  id: ID!
+
+  """The layer that the mutation deleted the agent from."""
+  layer: AgentWriteLayer!
+
+  """
+  The copy of the agent in another layer that stays, or null when no copy stays.
+  """
+  agent: Agent
+}
+
+"""The fields of addAgent."""
+input AddAgentInput {
+  """
+  The id of the new agent: the name of its folder, or default for the default agent.
+  """
+  id: ID!
+
+  """
+  The name to show. Omit it for the id. Only the default agent can have a different name.
+  """
+  name: String
+
+  """When to use the agent."""
+  description: String!
+
+  """The model key. Omit it for the default model."""
+  model: String
+
+  """The color key. Omit it for no color."""
+  color: String
+
+  """The background key. Omit it for no key."""
+  background: Boolean
+
+  """The Markdown body: the instructions. Omit it for no body."""
+  body: String
+
+  """The layer to write. Omit it for USER."""
+  layer: AgentWriteLayer
+}
+
+"""
+The fields of updateAgent. A field that you omit does not change, and each other key of the frontmatter stays.
+"""
+input UpdateAgentInput {
+  """The id of the agent to change."""
+  id: ID!
+
+  """The new name to show. Omit it for no change."""
+  name: String
+
+  """The new description. Omit it for no change."""
+  description: String
+
+  """The new model key. Omit it for no change."""
+  model: String
+
+  """The new color key. Omit it for no change."""
+  color: String
+
+  """The new background key. Omit it for no change."""
+  background: Boolean
+
+  """The new Markdown body. Omit it for no change."""
+  body: String
+
+  """
+  The layer, which must hold the agent. Omit it for the writable layer of the highest precedence that holds the agent.
+  """
+  layer: AgentWriteLayer
+}
+
+"""The fields of removeAgent."""
+input RemoveAgentInput {
+  """The id of the agent to delete."""
+  id: ID!
+
+  """
+  The layer, which must hold the agent. Omit it for the writable layer of the highest precedence that holds the agent.
+  """
+  layer: AgentWriteLayer
+}
+
 type Query {
   """
   The cursor of the newest change of the catalog that this call reads, for changes(after:).
@@ -197,6 +298,32 @@ type Query {
   Each finding of the load of the catalog, also of a file that gave no agent.
   """
   diagnostics: [AgentDiagnostic!]!
+}
+
+type Mutation {
+  """
+  Makes a new agent: its AGENT.md. Gives the agent that wins for the id, or AGENT_EXISTS, INVALID_AGENT or EXTERNAL_CLIENT_READ_ONLY.
+  """
+  addAgent(
+    """The new agent."""
+    input: AddAgentInput!
+  ): Agent
+
+  """
+  Writes the given fields into the AGENT.md of an agent. Gives the agent that wins for the id, or NOT_FOUND, AGENT_READ_ONLY, INVALID_AGENT or EXTERNAL_CLIENT_READ_ONLY.
+  """
+  updateAgent(
+    """The agent and its changes."""
+    input: UpdateAgentInput!
+  ): Agent
+
+  """
+  Deletes an agent and all its files from one layer. A copy in another layer stays. Gives NOT_FOUND, AGENT_READ_ONLY, INVALID_AGENT or EXTERNAL_CLIENT_READ_ONLY for an agent that cannot be deleted.
+  """
+  removeAgent(
+    """The agent to delete."""
+    input: RemoveAgentInput!
+  ): RemoveAgentPayload
 }
 
 type Subscription {

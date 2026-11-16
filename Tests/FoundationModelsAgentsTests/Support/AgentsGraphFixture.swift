@@ -34,6 +34,11 @@ struct AgentsGraphFixture {
     /// The endpoint.
     let graph: AgentsGraph
 
+    /// The registry of the endpoint, or `nil`. The fixture keeps it, because
+    /// the endpoint keeps only a weak reference to the registry for its
+    /// mutations.
+    var registry: AgentRegistry?
+
     /// Makes a registry over `layers`, loads it, and makes the endpoint.
     ///
     /// - Parameter layers: The layers of the registry, lowest precedence
@@ -51,7 +56,7 @@ struct AgentsGraphFixture {
     /// - Throws: The error of the load, or of the schema build.
     static func make(registry: AgentRegistry) async throws -> AgentsGraphFixture {
         try await registry.load()
-        return AgentsGraphFixture(graph: try AgentsGraph(registry: registry))
+        return AgentsGraphFixture(graph: try AgentsGraph(registry: registry), registry: registry)
     }
 
     // MARK: - Calls

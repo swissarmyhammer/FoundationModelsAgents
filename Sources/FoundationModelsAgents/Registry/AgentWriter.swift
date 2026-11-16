@@ -163,6 +163,51 @@ struct AgentWriter: Sendable {
         return folders
     }
 
+    /// Gives each write layer that holds a copy of an agent, lowest
+    /// precedence first.
+    ///
+    /// - Parameter id: The id of the agent.
+    /// - Returns: The layers. Empty for an id that the id rule refuses.
+    func layers(holding id: String) -> [AgentWriteLayer] {
+        guard AgentDefinitionRules.isValidID(id) else {
+            return []
+        }
+        return localLayers.compactMap { layer in
+            guard let writeLayer = AgentWriteLayer.allCases.first(where: { $0.source == layer.source }),
+                (try? targetLayer(writeLayer))?.root == layer.root,
+                !copies(of: id, in: scan(of: layer)).isEmpty
+            else {
+                return nil
+            }
+            return writeLayer
+        }
+    }
+
+    /// Reads the text of the `AGENT.md` of an agent in the target layer: the
+    /// copy that the catalog reads.
+    ///
+    /// The read goes through a `DotfolderStack` of the one target layer, the
+    /// read of Extras, thus this package opens no agent file itself.
+    ///
+    /// - Parameters:
+    ///   - id: The id of the agent.
+    ///   - layer: The target layer.
+    /// - Returns: The full text of the document.
+    /// - Throws: `invalidID`, `reservedID`, `layerUnavailable`, `notFound`,
+    ///   or `writeFailed` when the stack cannot read the document.
+    func documentText(of id: String, in layer: AgentWriteLayer) throws(AgentWriterError) -> String {
+        try Self.checkWritable(id)
+        let target = try targetLayer(layer)
+        guard let copy = copies(of: id, in: scan(of: target)).last else {
+            throw notFound(id, in: layer)
+        }
+        let path = copy.kind.documentPath(of: copy.id)
+        guard let text = DotfolderStack(layers: [target]).content(path) else {
+            throw .writeFailed("The file \(path) of the \(layer.rawValue) layer cannot be read as text.")
+        }
+        return text
+    }
+
     /// Refuses an id that the id rule refuses, and a reserved id.
     ///
     /// - Parameter id: The id of the agent.

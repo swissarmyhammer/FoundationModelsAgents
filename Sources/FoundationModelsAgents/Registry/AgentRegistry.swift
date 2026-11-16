@@ -258,13 +258,14 @@ public final class AgentRegistry: Sendable {
     /// The first call makes the endpoint, and each later call gives the same
     /// instance. Thus each `agents` tool over the registry, of each session
     /// and each run, gives the same endpoint. The endpoint reads the catalog
-    /// of the registry, and it does not keep the registry: the host still
-    /// releases the registry. This call does no I/O.
+    /// of the registry, and it keeps only a weak reference to the registry,
+    /// for the writes of a mutation: the host still releases the registry.
+    /// This call does no I/O.
     ///
     /// - Returns: The endpoint.
     /// - Throws: An error of the schema builder.
     public func agentsGraph() throws -> AgentsGraph {
-        try graphPort.endpoint()
+        try graphPort.endpoint(of: self)
     }
 
     /// Asks the provider for its layers, reads the agent files, and swaps the
