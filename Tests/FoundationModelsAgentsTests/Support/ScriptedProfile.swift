@@ -20,6 +20,8 @@ enum ScriptedProfile {
     static let embeddingModel: ModelRef = "scripted/embedding"
 
     /// Resolves a profile whose `standard` and `flash` slots play `script`.
+    /// The `decision` slot holds the model of the `flash` slot, because the
+    /// stubs cannot size the default decision models of the Router.
     ///
     /// Each call makes its own router, its own cache directory, and its own
     /// `ModelPool`. A pool gives each model identity one container, and the
@@ -64,7 +66,8 @@ enum ScriptedProfile {
                 description: "A profile whose models play a script.",
                 standard: [standard],
                 flash: [flash],
-                embedding: [embeddingModel]),
+                embedding: [embeddingModel],
+                decision: [flash]),
             reporting: ResolutionProgress())
         return (router, profile)
     }
@@ -82,6 +85,7 @@ struct ScriptedModelLoader: ModelLoader {
         ref: ModelRef,
         slot: ModelSlot,
         context: Int,
+        kvCache: KVCacheQuantization?,
         reporting: @escaping @Sendable (DownloadProgress) -> Void
     ) async throws -> any LoadedLLMContainer {
         reporting(Self.completeProgress)

@@ -284,6 +284,23 @@ struct AgentRunHarness {
             metricsFactory: metricsFactory, runEventObserver: runEventObserver, scratch: scratch)
     }
 
+    /// Makes a copy of the harness with a new router and a new profile whose
+    /// `standard` slot holds `standard`. The copy records to the same
+    /// recordings root and plays the same script. Thus a test restores a
+    /// session of this harness while another model is resident in its slot.
+    ///
+    /// - Parameter standard: The model of the `standard` slot of the copy.
+    /// - Returns: The copy.
+    /// - Throws: Whatever `Router.resolve(profile:reporting:)` throws.
+    func withStandardModel(_ standard: ModelRef) async throws -> AgentRunHarness {
+        let (router, profile) = try await ScriptedProfile.make(
+            script: script, recordingsDir: recordingsDirectory, standard: standard, tracer: tracer)
+        return AgentRunHarness(
+            router: router, profile: profile, script: script, registry: registry, skills: skills,
+            skillsTool: skillsTool, budget: budget, tools: tools, tracer: tracer, logger: logger,
+            metricsFactory: metricsFactory, runEventObserver: runEventObserver, scratch: scratch)
+    }
+
     /// Makes a temporary layer that holds `agentFiles` and a harness over it,
     /// runs `body` with the harness, then deletes the harness and the layer.
     ///

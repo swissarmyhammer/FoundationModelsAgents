@@ -205,6 +205,12 @@ public final class AgentRun: Sendable {
     /// The working folder of the run, or `nil` when the setup of the run failed.
     public let workingDirectory: URL?
 
+    /// Each session of the restore of this run that moved to another model or
+    /// slot, because the recorded slot holds another model now. It is empty
+    /// for a run that was not restored, and for a run that restored onto its
+    /// recorded model. A host records one notice for each change.
+    public let modelChanges: [RestoredSession.ModelChange]
+
     /// The run as the `agents` tool sees a parent, or `nil` when the setup failed. A
     /// restored child of this run adds itself to its family.
     let parentRun: ParentRun?
@@ -351,9 +357,10 @@ public final class AgentRun: Sendable {
     ///   - made: The session and its slot, or `nil` when the setup failed.
     ///   - family: The children of the run.
     ///   - state: The first state of the run.
+    ///   - modelChanges: The model changes of the restore of the run, or empty.
     private init(
         id: ULID, request: AgentRunRequest, made: AgentSessionMaker.Made?, family: ParentRun.Family,
-        state: AgentRunState
+        state: AgentRunState, modelChanges: [RestoredSession.ModelChange] = []
     ) {
         self.id = id
         self.agent = request.definition
@@ -366,6 +373,7 @@ public final class AgentRun: Sendable {
         self.children = family.children
         self.completionToken = request.context?.completionToken ?? request.restoredToken
         self.workingDirectory = made?.workingDirectory
+        self.modelChanges = modelChanges
         self.parentRun = made.map { made in
             ParentRun(
                 depth: request.depth, slot: made.slot, agentID: request.definition.id, family: family,
@@ -460,6 +468,10 @@ public final class AgentRun: Sendable {
     /// but the session is the restored session of the child, with the tools
     /// and the instructions of the current definition and catalog.
     ///
+    /// The session restores onto the model that is resident in its recorded
+    /// slot now, also when that model is not the recorded model. The run
+    /// then gives each change in ``modelChanges``.
+    ///
     /// - Parameters:
     ///   - request: The inputs of the run. Its `restoredCaller` is the caller
     ///     session of the child.
@@ -486,13 +498,15 @@ public final class AgentRun: Sendable {
             restored = try await ModelMatch.model(of: setup.slot, in: environment.profile).restoreSession(
                 id: sessionID, recordingRoot: environment.recordingRoot, instructions: setup.instructions, tools: setup.tools,
                 userPresence: environment.runUserPresence, claimingRuns: claims,
-                transcriptReader: environment.transcriptReader)
+                transcriptReader: environment.transcriptReader, acceptingResidentModel: true)
         } catch {
             throw .sessionRestoreFailed(String(describing: error))
         }
         let made = AgentSessionMaker.Made(
             session: restored.session, slot: setup.slot, workingDirectory: setup.workingDirectory)
-        return AgentRun(id: sessionID, request: request, made: made, family: family, state: .running)
+        return AgentRun(
+            id: sessionID, request: request, made: made, family: family, state: .running,
+            modelChanges: restored.modelChanges)
     }
 
     /// Begins the answers of a run that ``make(_:environment:renderer:)``

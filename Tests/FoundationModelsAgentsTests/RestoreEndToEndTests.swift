@@ -421,7 +421,7 @@ struct RestoreEndToEndTests {
 
         #expect(report.restored.count == 3)
         #expect(report.restored.map(\.agent.id) == [Self.caller, Self.middle, Self.leaf])
-        #expect(report.failed.isEmpty)
+        #expect(report.failed.isEmpty, "\(report.failed)")
         #expect(states.allSatisfy { $0 == .running })
         let middleResult = try await report.restored[1].result()
         #expect(result.contains("e2e-middle"))
@@ -466,8 +466,11 @@ struct RestoreEndToEndTests {
         #expect(report.failed.last?.reason == FailedChild.ancestorReason)
     }
 
-    @Test("a corrupt recording makes the read fail; the report says so, and the call does not throw")
-    func facadeReportsUnreadableRecording() async throws {
+    /// The Router passes over an `index.md` that does not read (Router a6830069), thus the
+    /// list of the children does not fail. The tree load of the child above the damaged record
+    /// reads that record, thus the restore of that child fails, and the report names the cause.
+    @Test("a corrupt record fails the restore of the child above it; the report says so, and the call does not throw")
+    func facadeReportsCorruptRecording() async throws {
         let cut = try await Self.cutChain(continuing: true)
         defer {
             try? cut.harness.delete()
@@ -484,7 +487,8 @@ struct RestoreEndToEndTests {
             of: cut.rootID, caller: nil, directory: cut.directory)
 
         #expect(report.restored.isEmpty)
-        #expect(report.unreadable[cut.rootID] != nil)
+        #expect(report.failed.map(\.child.sessionID) == [cut.callerID])
+        #expect(report.failed.first?.reason.contains("indexUnreadable") == true)
     }
 
     @Test("a status read that fails goes in the report, and the restore goes on without claims")
@@ -524,7 +528,7 @@ struct RestoreEndToEndTests {
         let leaf = try #require(report.restored.last)
         let instructions = try AgentRunTests.instructions(of: leaf)
 
-        #expect(report.failed.isEmpty)
+        #expect(report.failed.isEmpty, "\(report.failed)")
         #expect(leaf.agent.id == Self.leaf)
         #expect(instructions.contains(Self.leafKey))
         report.resumeAll()
@@ -577,7 +581,7 @@ struct RestoreEndToEndTests {
         let report = await Self.secondRunner(cut).restoreInterrupted(of: cut.rootID, caller: nil, source: source)
         let callerRun = try #require(report.restored.first { $0.id == cut.callerID })
 
-        #expect(report.failed.isEmpty)
+        #expect(report.failed.isEmpty, "\(report.failed)")
         #expect(try !Self.restoreChangedInstructions(of: callerRun))
         report.resumeAll()
         cut.leafGate.open()
@@ -596,7 +600,7 @@ struct RestoreEndToEndTests {
         let report = await Self.secondRunner(cut).restoreInterrupted(of: cut.rootID, caller: nil, source: source)
         let leafRun = try #require(report.restored.first { $0.id == cut.leafID })
 
-        #expect(report.failed.isEmpty)
+        #expect(report.failed.isEmpty, "\(report.failed)")
         #expect(try !Self.restoreChangedInstructions(of: leafRun))
         report.resumeAll()
         cut.leafGate.open()
@@ -631,7 +635,7 @@ struct RestoreEndToEndTests {
             return (report, warnings)
         }
 
-        #expect(report.failed.isEmpty)
+        #expect(report.failed.isEmpty, "\(report.failed)")
         #expect(warnings.count == 1)
     }
 
