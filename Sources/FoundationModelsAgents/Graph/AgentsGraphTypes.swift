@@ -185,6 +185,10 @@ struct AgentsGraphAgent: Codable, Equatable, Sendable {
     /// the id when the key is absent.
     let name: String
 
+    /// The absolute path of the `AGENT.md` of the agent, in the layer that
+    /// gave it: ``AgentDefinition/url``.
+    let path: String
+
     /// The `description` key, or `nil` when the key is absent.
     let description: String?
 
@@ -232,6 +236,7 @@ struct AgentsGraphAgent: Codable, Equatable, Sendable {
     init(_ definition: AgentDefinition, in catalog: AgentCatalog) {
         id = ToolkitID(definition.id)
         name = definition.displayName
+        path = definition.url.path
         description = definition.description
         model = definition.model
         color = definition.color

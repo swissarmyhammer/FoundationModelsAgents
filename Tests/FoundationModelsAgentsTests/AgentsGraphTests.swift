@@ -275,6 +275,59 @@ struct AgentsGraphTests {
         #expect(agentLayer["name"] as? String == Self.marketplaceLayerName)
     }
 
+    /// The `path` field of an agent in the agent folder form of a local layer
+    /// gives `<root>/<id>/AGENT.md`.
+    @Test func anAgentFolderGivesThePathOfItsDocument() async throws {
+        let layer = try Self.makeLayer(ids: [Self.reviewerID])
+        defer { try? layer.delete() }
+        let fixture = try await AgentsGraphFixture.make(layers: [layer.layer])
+
+        let agent = try await fixture.agent(Self.reviewerID).object("agent")
+        let path = try #require(agent["path"] as? String)
+
+        #expect(
+            URL(fileURLWithPath: path).canonicalPath
+                == layer.root.appendingPathComponent(AgentFolderFixture.documentPath(of: Self.reviewerID)).canonicalPath)
+    }
+
+    /// The `path` field of the default agent gives the root `AGENT.md` of its
+    /// layer: `<root>/AGENT.md`.
+    @Test func theDefaultAgentGivesThePathOfTheRootDocument() async throws {
+        let layer = try TemporaryLayer.make(holding: [
+            AgentDocumentPath.documentName: AgentFolderFixture.agentText(name: AgentFolderFixture.displayName)
+        ])
+        defer { try? layer.delete() }
+        let fixture = try await AgentsGraphFixture.make(layers: [layer.userLayer])
+
+        let agent = try await fixture.agent(AgentFolderFixture.defaultAgentID).object("agent")
+        let path = try #require(agent["path"] as? String)
+
+        #expect(
+            URL(fileURLWithPath: path).canonicalPath
+                == layer.root.appendingPathComponent(AgentDocumentPath.documentName).canonicalPath)
+    }
+
+    /// The `path` field of a marketplace agent gives
+    /// `<marketplace root>/agents/<id>/AGENT.md`, under the root of its layer,
+    /// and the file exists.
+    @Test func aMarketplaceAgentGivesThePathOfItsDocument() async throws {
+        let provider = try await FixtureMarketplaceProvider.make()
+        defer { try? provider.delete() }
+        let fixture = try await AgentsGraphFixture.make(
+            registry: AgentRegistry(marketplaces: provider, stack: DotfolderStack(layers: [])))
+        let id = try #require(FixtureMarketplaceProvider.agentIDs.first)
+
+        let agent = try await fixture.agent(id).object("agent")
+        let path = try #require(agent["path"] as? String)
+        let root = try #require((agent["layer"] as? [String: Any])?["root"] as? String)
+
+        #expect(
+            URL(fileURLWithPath: path).canonicalPath
+                == URL(fileURLWithPath: root).appendingPathComponent("agents/\(id)/\(AgentDocumentPath.documentName)")
+                .canonicalPath)
+        #expect(FileManager.default.fileExists(atPath: path))
+    }
+
     /// Before the first load of the registry, the catalog is empty because
     /// the registry read no file. The endpoint refuses the query with
     /// `CATALOG_NOT_LOADED`, and does not give an empty list.

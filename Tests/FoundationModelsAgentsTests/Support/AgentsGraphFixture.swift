@@ -17,7 +17,7 @@ struct AgentsGraphFixture {
     /// The fields of an `Agent` that each document selects.
     static let agentFields = """
         { id name description model color background isModelVisible isUserInvocable isDefault \
-        layer { name root } marketplace { id sha } diagnostics \(diagnosticFields) }
+        path layer { name root } marketplace { id sha } diagnostics \(diagnosticFields) }
         """
 
     /// The query of each agent of the catalog.

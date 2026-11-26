@@ -266,6 +266,10 @@ struct AgentsGraphAPI: API {
                 .description(
                     "The name to show: the name key, for example Default for the default agent. The id when the key is absent."
                 )
+            Field("path", at: \.path)
+                .description(
+                    "The absolute path of the AGENT.md of the agent, in the layer that gave it: "
+                        + "<root>/<id>/AGENT.md, <root>/agents/<id>/AGENT.md, or <root>/AGENT.md for the default agent.")
             Field("description", at: \.description)
                 .description("The description key: when to use the agent. Null when the key is absent.")
             Field("model", at: \.model).description("The model key, or null when the key is absent or empty.")

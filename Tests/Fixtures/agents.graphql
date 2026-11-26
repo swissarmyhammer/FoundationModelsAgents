@@ -66,6 +66,11 @@ type Agent {
   name: String!
 
   """
+  The absolute path of the AGENT.md of the agent, in the layer that gave it: <root>/<id>/AGENT.md, <root>/agents/<id>/AGENT.md, or <root>/AGENT.md for the default agent.
+  """
+  path: String!
+
+  """
   The description key: when to use the agent. Null when the key is absent.
   """
   description: String
